@@ -12,6 +12,7 @@ samples/
 # 비밀번호·시크릿 메모 — 절대 커밋 금지
 *(gitignore)*
 데이터베이스 비밀번호(gitignore).txt
+URL_KEY.txt
 
 # Tauri
 src-tauri/target/
