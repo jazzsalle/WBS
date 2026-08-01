@@ -2,14 +2,21 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v3.2** |
+| 문서 버전 | **v3.3** |
 | 최종 수정 | 2026-08-02 |
 | 상태 | 확정 (Phase 0 착수 가능) |
 | 목적 | 이 문서는 구현의 유일한 기준점이다. 코드와 문서가 다르면 **문서가 옳다**. |
 
+### v3.2 → v3.3 변경 요약 — 설계 최종 리뷰(정합성·구현 관점 2중 검토) 반영
+- **계산 예시 정정**: 부록 B.2 가중 달성률 57.4→**57.3%**(중간 반올림 위반), B.0 점수 4 등급 낮음→**보통**, §6.2 공식 `min()` 잔재 제거, §6.3 의사코드에 T-1(클램프)·T-2(lower_better+baseline null→N/A) 반영.
+- **임포트 규칙 공백 보강**: 현금/현물을 스킵 목록에서 분리(`CASH_INKIND_LABELS`), S-2 carry-forward 리셋 조건, S-8(동일 비목 다중 행 합산 + 파일에 없는 비목 유지), Step 5 `건너뜀` 상태, `ImportDraft` 타입(연차 매핑·행 제외·fileHash), ImportProfile에 매트릭스 구조 필드, I-17 스냅샷을 DB 테이블(`import_snapshots`)로.
+- **스키마 확정 규칙**: 인증 부트스트랩(security definer 트리거+advisory lock, `approve_user` RPC), 낙관적 잠금을 `updated_at` 비교 → **`version bigint`** 비교로 교체, 전 테이블 `created_by/updated_by`, FK 삭제 정책표(실적·회의록은 set null), `unique(year_id, category)`, Member 참조 조인 테이블 통일, DB 컬럼 `sort_order`, NOT NULL·enum 규칙, app_settings 단일행 패턴, schemaVersion=마이그레이션 일련번호(최초 1), Realtime publication·구독표, 백업 JSON 스키마, 트리 시맨틱(깊이·moveTask·moveTaskToYear·Year.order), 날짜 롤업 §6.1.1, 진척률 엣지 규칙.
+- **화면 보강**: §7.0 인증·온보딩, §7.14 설정, §7.15 과제 목록 신설.
+- 규칙 ID 정리: §14.3 P-x → **RLS-x**. 부록 A.2에 `other` 라벨 추가. 기타 참조·수치 정정.
+
 ### v3.1 → v3.2 변경 요약 — 실제 예산 샘플(산자부·행안부) 분석 반영
 - **비목별 보조 축을 정부/기관부담 → 현금/현물로 교체.** `BudgetItem.govAmount/ownAmount` → `cashAmount/inKindAmount` (§5.12). 실제 서식이 비목별 금액을 현금/현물 행 쌍으로 관리하며, 정부/민간 축은 비목 수준에 존재하지 않는다. 과제 수준의 `Project.govBudget/ownBudget`(협약정보)은 유지.
-- **집행내역(execution) 엑셀 임포트 제외.** 임포트는 `budget_plan` 단일 종류 (§6.8.2). 수동 집행 입력과 집행률 계산(§6.4)은 유지. `BudgetExecution.sourceHash/importBatchId` 필드 삭제, §6.8.5 중복 방지 규칙 삭제. 집행내역 임포트는 v2 후보로 이동 (§13).
+- **집행내역(execution) 엑셀 임포트 제외.** 임포트는 `budget_plan` 단일 종류 (§6.8, §5.12.1). 수동 집행 입력과 집행률 계산(§6.4)은 유지. `BudgetExecution.sourceHash/importBatchId` 필드 삭제, 구 §6.8.5(중복 방지) 삭제 — 안전 규칙이 §6.8.5로 이동. 집행내역 임포트는 v2 후보로 이동 (§13).
 - **구조 감지·파싱 고도화** (§6.8): 병합 셀 carry-forward, 다중 라벨 열(비목|세목|현금·현물) 계층 규칙, 연차 열 매핑(`N차년도`·단계 그룹·합계 열 제외), 에러 셀(`#REF!` 등) 처리, 정규화 확장(가운뎃점 변형·내부 공백·괄호 코드·각주 제거).
 - **부처별 별칭 템플릿 도입** (§6.8.3, 부록 C): 비목 12종은 혁신법 표준으로 고정하고, 부처별 표기 차이는 `MINISTRY_ALIAS_PRESETS`로 흡수. `ImportProfile.ministry` 필드 추가 (§5.12.1). 새 부처는 별칭만 추가하면 되며 스키마 변경이 없다.
 - 부록 B.5 예산계획 임포트 검증 예시 추가 (익명화 수치).
@@ -85,7 +92,7 @@
 | 마일스톤 | 연차평가/단계평가/최종평가/보고서제출/진도점검/협약변경 등 |
 | 인력 | 컨소시엄 기관(주관/공동/위탁) + 참여인력(PM/PL/연구원) |
 | 예산 | 연차별 × 비목별 예산 vs 집행, 집행률 |
-| 예산 임포트 | 예산계획 엑셀(xlsx/xls/csv) 업로드 → 비목 자동 매핑 → 미리보기 확인 → 반영. 매핑 프로파일(부처 템플릿) 저장 |
+| 예산 임포트 | 예산계획 엑셀(xlsx/xlsm/xls/csv) 업로드 → 비목 자동 매핑 → 미리보기 확인 → 반영. 매핑 프로파일(부처 템플릿) 저장 |
 | 리스크 | 리스크 관리대장 (발생가능성 × 영향도 매트릭스) |
 | 노트 | 마크다운 회의록/기술메모/이슈 |
 | 시각화 | 대시보드, 간트, 칸반 |
@@ -128,6 +135,7 @@
 | 스타일 | Tailwind CSS v4 | |
 | 상태 | React 내장 (useState / useOptimistic) | 전역 상태 라이브러리 없음 |
 | 검증 | Zod | DB 응답도 검증한다 (마이그레이션 누락 조기 발견) |
+| 테스트 | **Vitest** | 순수 함수 단위 테스트(§11 필수 1) + 리포지토리 통합 테스트 |
 | 드래그앤드롭 | `@dnd-kit/core` + `@dnd-kit/sortable` | |
 | 날짜 | `date-fns` | |
 | 아이콘 | `lucide-react` | |
@@ -188,23 +196,32 @@
 | `notes` | Note | |
 | `todos` | Todo | |
 | `app_users` | AppUser | 인증 사용자 프로필 (§14.2) |
-| `app_settings` | Settings | 팀 공유 설정. 단일 행 |
+| `app_settings` | Settings | 팀 공유 설정. 단일 행 (N-10) |
 | `import_profiles` | ImportProfile | |
+| `import_snapshots` | (내부) | 임포트 반영 전 계획액 스냅샷 (I-17) |
 | `task_members` | (조인) | Task ↔ Member 다대다 |
 | `task_deliverables` | (조인) | Task ↔ Deliverable 다대다 |
 | `task_tech_targets` | (조인) | Task ↔ TechTarget 다대다 |
+| `achievement_members` | (조인) | DeliverableAchievement ↔ Member 다대다 (N-2) |
+| `note_attendees` | (조인) | Note ↔ Member 다대다 (N-2) |
 
 **정규화 규칙**
 
 | # | 규칙 |
 |---|---|
-| N-1 | v2에서 임베드 배열이었던 `achievements`, `records`, `executions`는 **별도 테이블**로 분리한다. SQL 집계와 부분 갱신이 가능해진다. |
-| N-2 | v2에서 문자열 배열이었던 `memberIds`, `deliverableIds`, `techTargetIds`는 **조인 테이블**로 분리한다. |
-| N-3 | 순수 값 배열(`tags`, `attendeeMemberIds`)과 맵(`targetByYear`, `categoryAliases`)은 `jsonb` 컬럼으로 둔다. 조인할 일이 없다. |
-| N-4 | 모든 테이블에 `id uuid primary key default gen_random_uuid()`, `created_at`, `updated_at timestamptz` 를 둔다. |
-| N-5 | `updated_at`은 트리거로 자동 갱신한다. 낙관적 동시성 검사에 쓰인다 (§8.4). |
-| N-6 | 부모-자식 관계는 `on delete cascade`로 DB가 강제한다. §6.6의 연쇄 삭제 규칙이 애플리케이션 코드가 아니라 스키마 제약으로 보장된다. |
-| N-7 | 필수 인덱스: `tasks(year_id, parent_id, "order")`, `tasks(project_id)`, `budget_executions(budget_item_id, date)`, `notes(project_id, date desc)`, `milestones(project_id, date)`. |
+| N-1 | v2에서 임베드 배열이었던 `achievements`, `records`, `executions`는 **별도 테이블**로 분리한다. SQL 집계와 부분 갱신이 가능해진다. 이 자식 테이블들도 N-4의 공통 컬럼과 부모 FK(`deliverable_id`/`tech_target_id`/`budget_item_id`, cascade)를 갖는다. |
+| N-2 | **Member를 가리키는 배열은 전부 조인 테이블**로 분리한다: `task_members`, `task_deliverables`, `task_tech_targets`에 더해 `achievement_members`, `note_attendees`. Member 삭제 시 FK cascade가 H-9의 참조 제거를 보장한다. |
+| N-3 | 순수 값 배열(`tags`)과 맵(`targetByYear`, `categoryAliases`)은 `jsonb` 컬럼으로 둔다. 조인할 일이 없다. (Member FK 배열은 N-2에 따라 jsonb 금지) |
+| N-4 | 모든 테이블에 `id uuid primary key default gen_random_uuid()`, `created_at`, `updated_at timestamptz`, **`version bigint not null default 1`**, **`created_by`/`updated_by uuid`**(app_users 참조, set null)를 둔다. 예외: `app_settings`(N-10), 조인 테이블(id·타임스탬프만). |
+| N-5 | `updated_at`은 트리거로 자동 갱신(`clock_timestamp()`), **`version`은 BEFORE UPDATE 트리거로 +1** 한다. 낙관적 동시성 검사는 `version`으로 한다 (§8.4). `updated_by`는 서버 액션이 세션 사용자로 채운다. |
+| N-6 | 부모-자식 관계는 `on delete cascade`로 DB가 강제한다. §6.6의 연쇄 삭제 규칙이 애플리케이션 코드가 아니라 스키마 제약으로 보장된다. **단, N-8의 set null 목록은 예외다.** |
+| N-7 | 필수 인덱스: `tasks(year_id, parent_id, sort_order)`, `tasks(project_id)`, `budget_executions(budget_item_id, date)`, `notes(project_id, date desc)`, `milestones(project_id, date)`, `notes using gin(tags)`. |
+| N-8 | **FK 삭제 정책표 — cascade가 아니라 `set null`인 참조** (지우면 안 되는 데이터가 딸려 지워지는 것을 막는다): `deliverable_achievements.year_id`, `tech_target_records.year_id`, `milestones.year_id`, `risks.year_id`, `notes.year_id`, `notes.task_id`, `notes.milestone_id`, `risks.task_id`, `projects.pm_member_id`, `projects.lead_org_id`, `members.org_id`, `milestones.owner_member_id`, `tasks.owner_member_id`, `tasks.org_id`, `risks.owner_member_id`, `todos.project_id`, `app_users.member_id`. 연차·작업을 지워도 **논문·특허 실적과 회의록은 남는다.** |
+| N-9 | **DB 컬럼명은 `sort_order`를 쓴다** (`order`는 SQL 예약어). 매퍼가 앱의 `order` 필드로 변환한다. |
+| N-10 | `app_settings`는 `id boolean primary key default true check (id)` 패턴으로 **단일 행을 DB가 강제**한다. 최초 마이그레이션에서 기본값 1행을 삽입한다. INSERT/DELETE 정책을 만들지 않아 행 추가·삭제가 불가능하다. `schema_version` 컬럼은 트리거로 앱에서의 변경을 거부한다(마이그레이션만 갱신). |
+| N-11 | **NOT NULL 규칙**: TS 인터페이스에서 `\| null`이 없는 `string`은 `not null default ''`, `number`는 `not null default 0`, `boolean`은 `not null default false`. `\| null`이 있으면 nullable. |
+| N-12 | **enum은 Postgres enum 타입 대신 `text` + `check` 제약**으로 구현한다. 값 추가가 마이그레이션 한 줄로 끝난다 (v2의 `ImportKind 'execution'` 부활 등 대비). |
+| N-13 | `jsonb` 맵의 키가 다른 테이블의 id를 가리키는 경우(`targetByYear`의 yearId 키) FK가 걸리지 않는다. **정합성은 연쇄 삭제 RPC만이 보장한다** — `delete_year`가 `target_by_year - yearId` 키 제거를 수행한다 (§8.3). |
 
 > 아래 인터페이스에 나오는 `xxxIds: string[]` 과 임베드 배열은 **앱에서 조회된 형태**다. DB 스키마는 위 규칙대로 분리되어 있다.
 
@@ -212,9 +229,12 @@
 
 ```ts
 interface BaseEntity {
-  id: string;         // crypto.randomUUID()
-  createdAt: string;  // ISO 8601
-  updatedAt: string;  // ISO 8601
+  id: string;             // crypto.randomUUID()
+  createdAt: string;      // ISO 8601
+  updatedAt: string;      // ISO 8601
+  version: number;        // 낙관적 잠금 (§8.4). BEFORE UPDATE 트리거로 +1
+  createdBy: string | null;  // app_users.id
+  updatedBy: string | null;  // "OO님이 먼저 수정했습니다" 표시(O-3)와 Realtime self-echo 필터에 사용
 }
 ```
 
@@ -282,6 +302,10 @@ interface Year extends BaseEntity {
   status: YearStatus;
 }
 ```
+
+> **order 부여 규칙**: `order`는 과제 전체 기준이므로 `unique(project_id, sort_order)`를 건다. 중간 Stage에 연차를 추가하면 **해당 stage의 마지막 연차 다음 위치에 삽입하고 이후 전체 연차를 +1 시프트**한다 (`createYear` RPC). Stage 간 순서 정합(앞 단계의 마지막 order < 뒷 단계의 첫 order)은 RPC가 보장한다.
+>
+> `status='active'`는 **과제당 1개**만 허용한다. "현재 연차"(대시보드 뱃지, 보드 기본 필터)는 이 값으로 판정한다. 표시 이름은 `name`이 있으면 name, 없으면 `order+1 + '차년도'` — Stage도 동일.
 
 ### 5.6 Task (WBS 노드)
 
@@ -353,9 +377,10 @@ interface Milestone extends BaseEntity {
   ownerMemberId: string | null;
   description: string;
   resultNote: string;          // 평가 결과 / 제출 결과 메모
-  noteId: string | null;       // 관련 노트 연결
 }
 ```
+
+> 노트 연결은 `Note.milestoneId`(§5.14) **단방향**만 쓴다. 양쪽에 참조를 두면 동기화 주체가 모호해진다. 마일스톤 화면은 역참조로 관련 노트를 보여준다.
 
 ### 5.8 Deliverable (정량적 성과목표)
 
@@ -396,7 +421,7 @@ interface Deliverable extends BaseEntity {
 }
 ```
 
-> 실적을 별도 파일이 아니라 `achievements` 배열로 임베드한다. 성과목표당 실적 건수가 수십 건을 넘지 않으므로 조회가 단순해진다.
+> `achievements` 배열은 **앱에서 조회된 형태**다. DB에는 N-1에 따라 `deliverable_achievements` 별도 테이블로 저장되고, 관여자(`memberIds`)는 N-2에 따라 `achievement_members` 조인 테이블이다.
 
 ### 5.9 TechTarget (정량적 기술목표)
 
@@ -494,7 +519,7 @@ type BudgetCategory =
   | 'promotion'          // 연구과제추진비
   | 'allowance'          // 연구수당
   | 'indirect'           // 간접비
-  | 'other';             // 기타 (매핑 실패분 임시 수용)
+  | 'other';             // 기타 (사용자가 명시적으로 선택한 경우만 — 자동 매핑은 넣지 않는다, I-4)
 
 interface BudgetExecution {
   id: string;
@@ -520,15 +545,10 @@ interface BudgetItem extends BaseEntity {
 
 **제약**: `(projectId, yearId, category)` 조합은 유일해야 한다. 연차 생성 시 12개 비목 레코드를 `plannedAmount: 0`으로 자동 생성한다.
 
-### 5.12.1 ImportProfile (엑셀 매핑 프로파일 = 부처 템플릿)
+#### 5.12.1 ImportProfile (엑셀 매핑 프로파일 = 부처 템플릿)
 
 ```ts
 type ImportKind = 'budget_plan';   // v1은 예산계획만. 집행내역 임포트는 v2 후보 (§13)
-
-interface ColumnMapping {
-  field: string;        // 대상 필드 ('category' | 'plannedAmount' | 'cashAmount' | 'inKindAmount' | 'yearLabel' ...)
-  sourceColumn: string; // 엑셀 열 문자 ('A', 'C') 또는 헤더 텍스트
-}
 
 interface ImportProfile extends BaseEntity {
   name: string;                   // 예: '산자부 사업비 총괄표'
@@ -541,13 +561,35 @@ interface ImportProfile extends BaseEntity {
   dataStartRow: number;           // 0-based 데이터 시작 행
   orientation: 'row' | 'column';  // 비목이 행에 있는지 열에 있는지 (§6.8.2)
 
-  columnMappings: ColumnMapping[];
+  // 매트릭스 구조 (S-3, S-5의 감지 결과를 저장해 재사용)
+  labelColumns: string[];         // 행 라벨 열 목록, 좌→우 순 (예: ['B','C','D'])
+  yearColumnMappings: { column: string; yearOrder: number }[];
+                                  // 연차 열 대응 (예: E열 → order 0). yearId가 아니라 order를 저장해
+                                  // 다른 과제에서도 재사용 가능하게 한다
+
   categoryAliases: Record<string, BudgetCategory>;  // 이 서식에서 학습한 비목명 → 코드
   amountUnit: 1 | 1000 | 1000000; // 원본 금액 단위 배수 (원/천원/백만원)
   skipRowPatterns: string[];      // 무시할 행 패턴 (예: '소계', '합계', '계')
 
   lastUsedAt: string | null;
   useCount: number;
+}
+```
+
+#### 5.12.2 ImportDraft (마법사 진행 상태 — 저장하지 않는 일회성 타입)
+
+미리보기와 반영이 **결정론적으로 동일**하려면(§9), 사용자의 모든 수동 결정이 하나의 값에 담겨 두 액션에 같이 전달되어야 한다. `ImportProfile`은 이 중 **재사용 가능한 부분집합**만 저장한다.
+
+```ts
+interface ImportDraft {
+  profile: Omit<ImportProfile, keyof BaseEntity | 'lastUsedAt' | 'useCount'>;
+
+  // 이번 실행에서만 유효한 결정들 (프로파일에 저장하지 않는다)
+  yearMapping: Record<string, string>;        // 연차 열 라벨 → yearId. 미대응 열이 있으면 반영 불가 (S-5)
+  skippedRowIndexes: number[];                // 사용자가 "이 행 건너뛰기"로 지정한 행 (0-based)
+  manualCategoryByRow: Record<number, BudgetCategory>; // 행별 수동 지정 (I-4). I-6 모호 별칭의 선택 포함
+  fileHash: string;                           // 업로드 파일 sha256. previewImport가 계산·반환하고
+                                              // commitImport가 대조한다 — 다른 파일이 반영되는 것을 차단
 }
 ```
 
@@ -635,10 +677,13 @@ interface Settings {
   defaultGanttScale: 'day' | 'week' | 'month';  // 기본 'week'
   currencyUnit: '원' | '천원' | '백만원';        // 기본 '천원'
   progressWeightBasis: 'budget' | 'equal';      // 기본 'budget'
-  schemaVersion: number;            // 3
+  schemaVersion: number;   // DB 마이그레이션 일련번호. 문서 버전과 무관하다.
+                           // Phase 0 최초 스키마 = 1. 마이그레이션만 갱신 가능 (N-10)
 }
 
-// 각 PC 로컬 설정 — Tauri app config dir. DB에 저장하지 않는다
+// 각 PC 로컬 설정 — Tauri app config dir. DB에 저장하지 않는다.
+// Tauri 없이 브라우저로 개발하는 동안(Phase 0~1)은 localStorage에 둔다 —
+// C-3의 localStorage 금지는 "세션 토큰" 한정이며, 비밀이 아닌 화면 취향은 무관하다
 interface LocalConfig {
   backupFolder: string | null;      // §8.7 자동 내보내기 대상 폴더
   lastBackupAt: string | null;
@@ -699,11 +744,25 @@ computeTaskProgress(task):
 | P-7 | `estimatedHours`가 0/null인 자식은 가중치 1. 음수 입력 불가. |
 | P-8 | 반올림은 표시 단계에서만. 중간 계산은 소수점 유지. |
 | P-9 | `year.budget`이 전부 null이면 `progressWeightBasis` 설정과 무관하게 균등 가중으로 폴백한다. |
+| P-10 | 신규 Task의 `progressMode` 기본값은 `'manual'`이다. (부모가 되는 순간 P-6이 `'auto'`로 전환) |
+| P-11 | `status`를 `done`에서 다른 상태로 되돌려도 `manualProgress`는 유지한다. P-1의 100 강제가 풀릴 뿐, 값을 임의로 리셋하지 않는다. |
+| P-12 | 마지막 자식이 삭제되어 부모가 다시 리프가 되면 `progressMode='manual'`, `manualProgress=직전 롤업값(반올림)`으로 고정한다. 삭제로 진척률이 널뛰지 않게 한다. |
+| P-13 | Task가 하나도 없는 연차는 진척률 0으로 **Stage 가중 평균의 분모에 포함**한다. 계획만 있는 미래 연차가 전체 진척률을 낮추는 것은 의도된 동작이며, UI 툴팁에 "작업 없음"을 표시한다. |
+
+#### 6.1.1 날짜 롤업
+
+부모 Task의 표시 기간(§7.4 "기간" 컬럼)과 간트 요약 막대(§7.5)는 저장하지 않고 계산한다. `lib/tree.ts`에서 post-order 1회 순회로 진척률과 함께 계산하며 **단위 테스트 대상**이다.
+
+| # | 규칙 |
+|---|---|
+| P-14 | `rolledUpStartDate = min(자기 startDate, 자식들의 rolledUpStartDate)`. null은 비교에서 제외. |
+| P-15 | `rolledUpDueDate = max(자기 dueDate, 자식들의 rolledUpDueDate)`. null은 비교에서 제외. |
+| P-16 | 자기 값과 자식 값이 전부 null이면 결과도 null — 간트에 표시하지 않고 목록에만 나온다(§7.5). |
 
 ### 6.2 성과목표(Deliverable) 달성률
 
 ```
-지표 달성률 = min(achievements.length / targetTotal, ...) * 100     # 상한 없음, 100 초과 허용
+지표 달성률 = achievements.length / targetTotal * 100               # 상한 없음, 100 초과 허용
 연차 달성률 = 해당 yearId 실적 건수 / targetByYear[yearId] * 100
 과제 전체 성과목표 달성률 = Σ(달성건수) / Σ(목표건수) * 100          # 단순 합산, 지표별 가중 없음
 ```
@@ -714,6 +773,7 @@ computeTaskProgress(task):
 | D-2 | 달성률 100% 초과를 허용한다(초과 달성). UI 진행바는 100%에서 시각적으로 잘리되 숫자는 실제 값을 표기한다. |
 | D-3 | `Σ targetByYear` 와 `targetTotal`이 불일치하면 저장은 허용하되 UI에 경고 배지를 띄운다. |
 | D-4 | 실적의 `yearId`가 null이면 연차별 집계에서는 제외되고 전체 집계에만 포함된다. |
+| D-5 | 연차 달성률에서 `targetByYear[yearId]`가 없거나 0이면 해당 연차 달성률은 `N/A`. 단 실적 건수가 0보다 크면 "목표 외 달성"을 표시한다. |
 
 ### 6.3 기술목표(TechTarget) 달성률
 
@@ -724,20 +784,26 @@ achievementRate(target):
   current = latest(records)?.value
   if current is null: return null                       # 미측정
 
+  if direction == 'lower_better' and target.baselineDomestic is null:
+      return null                                       # T-2: 기준 없이 감소율 계산 불가 → N/A
+
   base = target.baselineDomestic ?? 0                   # 시작점
 
   if direction == 'higher_better':
-      if targetValue == base: return current >= targetValue ? 100 : 0
-      return (current - base) / (targetValue - base) * 100
+      if targetValue == base: rate = current >= targetValue ? 100 : 0
+      else: rate = (current - base) / (targetValue - base) * 100
 
   if direction == 'lower_better':
-      if base == targetValue: return current <= targetValue ? 100 : 0
-      return (base - current) / (base - targetValue) * 100
+      if base == targetValue: rate = current <= targetValue ? 100 : 0
+      else: rate = (base - current) / (base - targetValue) * 100
 
   if direction == 'target_exact':
-      if current == targetValue: return 100
-      tolerance = abs(targetValue) * 0.05               # ±5% 허용
-      return abs(current - targetValue) <= tolerance ? 100 : 0
+      if current == targetValue: rate = 100
+      else:
+          tolerance = abs(targetValue) * 0.05           # ±5% 허용
+          rate = abs(current - targetValue) <= tolerance ? 100 : 0
+
+  return clamp(rate, 0, 100)                            # T-1
 ```
 
 **과제 전체 기술목표 달성률** = `Σ(달성률 × weight) / Σ(weight)`. 미측정 항목은 달성률 0으로 간주하고 분모에는 포함한다.
@@ -786,18 +852,21 @@ achievementRate(target):
 |---|---|
 | H-1 | Task의 `parentId`는 **같은 `yearId`** 내에서만 유효하다. 연차 간 부모-자식 관계 금지. |
 | H-2 | 자기 자신 또는 자손을 부모로 지정 불가 (순환 검사 필수). |
-| H-3 | Task 최대 깊이 **10단계**. |
-| H-4 | 부모 Task 삭제 시 자손 전체 삭제. 삭제 전 개수 확인. |
-| H-5 | Year 삭제 시 소속 Task·BudgetItem 전체 삭제. Milestone·Risk·Note는 `yearId=null`로 남긴다. |
-| H-6 | Stage 삭제 시 소속 Year를 연쇄 삭제한다. Stage가 1개뿐이면 삭제 불가. |
-| H-7 | Project 삭제 시 소속 전 엔티티 삭제. To-Do는 `projectId=null`로 남긴다. |
+| H-3 | Task 최대 깊이 **10단계** — 기준: **루트 = 깊이 1**, 최대 깊이 10 (루트 아래 9단계). 상수 `MAX_TASK_DEPTH = 10`을 `lib/constants.ts`와 SQL `move_task` 함수 양쪽에 **동일 정의**한다. |
+| H-4 | 부모 Task 삭제 시 자손 전체 삭제. 삭제 전 개수 확인. 해당 Task(및 자손)를 참조하던 Note·Risk의 `taskId`는 `null`로 남긴다 (N-8). |
+| H-5 | Year 삭제 시 소속 Task·BudgetItem 전체 삭제. Milestone·Risk·Note와 실적(`deliverable_achievements`·`tech_target_records`)은 `yearId=null`로 남긴다. `targetByYear`의 해당 키는 `delete_year` RPC가 제거한다 (N-13). 삭제 확인 대화상자에 "관련 마일스톤·실적은 연차 없음 상태로 남습니다"를 표시한다. |
+| H-6 | Stage 삭제 시 소속 Year를 연쇄 삭제한다(H-5 적용). Stage가 1개뿐이면 삭제 불가. |
+| H-7 | Project 삭제 시 소속 전 엔티티 삭제. To-Do는 `projectId=null`로 남긴다. RPC는 순환 FK 해소를 위해 `pm_member_id`·`lead_org_id`를 먼저 null로 만든 뒤 삭제한다. |
 | H-8 | Organization 삭제 시 참조하던 Member는 `orgId=null`. 주관기관은 다른 기관을 주관으로 지정하기 전까지 삭제 불가. |
-| H-9 | Member 삭제 대신 `active=false` 권장. 삭제 시 모든 참조(`ownerMemberId`, `memberIds` 등)에서 제거한다. |
-| H-10 | `order`는 같은 부모/컨테이너 내에서 0부터 연속 정수로 재정렬(normalize)한다. |
-| H-11 | Task의 `yearId`를 다른 연차로 옮기면 자손 전체가 함께 이동한다. |
+| H-9 | Member 삭제 대신 `active=false` 권장. 삭제 시 제거해야 할 참조는 **8곳**: `tasks.owner_member_id`, `task_members`, `milestones.owner_member_id`, `risks.owner_member_id`, `projects.pm_member_id`, `achievement_members`, `note_attendees`, `app_users.member_id`. 조인 테이블은 FK cascade, 나머지는 set null(N-8)로 스키마가 보장한다. |
+| H-10 | `order`(DB `sort_order`)는 같은 부모/컨테이너 내에서 0부터 연속 정수로 재정렬(normalize)한다. 컨테이너 단위: Task는 (yearId, parentId), Year는 **project 단위**(§5.5), Stage는 project, 나머지는 project. |
+| H-11 | `moveTaskToYear`: 자손 전체가 함께 이동한다(자손의 `yearId` 일괄 갱신, 부모-자식 관계는 보존). 이동 대상 노드는 새 연차의 **루트가 된다**(`parentId=null`, `order=말단+1`) — H-1을 만족하는 유일한 안전한 방법이다. **같은 과제 내 연차로만 이동 가능**하다(다른 과제로 옮기면 담당자·기관·목표 연계가 전부 남의 과제를 가리키게 된다). |
+| H-12 | `moveTask(id, newParentId, newIndex)`의 `newIndex`는 **대상 노드를 제거한 뒤의** 새 부모 자식 배열에서의 0-based 삽입 위치다 (dnd-kit `arrayMove`와 동일 시맨틱). RPC가 삽입 후 H-10 normalize를 수행한다. |
 
 ### 6.7 Task 연차 이동 시 WBS 코드
 WBS 코드는 항상 **연차 단위**로 다시 계산한다. 즉 각 연차의 루트가 `1`, `2`, `3`…으로 시작한다. 연차를 넘나드는 통합 번호는 부여하지 않는다.
+
+"전체 연차 보기"(§7.4)와 `getProjectFullTree`처럼 여러 연차가 한 화면에 섞이는 곳에서는 연차 접두를 붙여 `1차-1.2` 형태로 표기한다(중복 코드 구분).
 
 ### 6.8 엑셀 예산 임포트 (예산계획 전용)
 
@@ -812,14 +881,14 @@ WBS 코드는 항상 **연차 단위**로 다시 계산한다. 즉 각 연차의
 ② 시트 선택    시트가 1개면 자동 선택. 여러 개면 비목 별칭 매칭 밀도가 가장 높은
               시트를 추천(하이라이트)하되 사용자가 확정
 ③ 구조 감지    헤더 행 위치, 데이터 방향(행/열), 라벨 열 범위, 금액 단위 추정
-④ 열 매핑      자동 추정 + 사용자 수정
+④ 열 매핑      라벨 열·연차 열 지정 (자동 추정 + 사용자 수정. 연차 열 → 연차 대응 포함)
 ⑤ 비목 매핑    별칭 사전(프로파일 → 부처 프리셋 → 공통) + 퍼지 매칭 + 사용자 수정
 ⑥ 미리보기     반영 예정 내역 + 경고 + 덮어쓸 기존 값 표시
 ⑦ 반영         사용자 확인 후 저장 (단일 트랜잭션)
 ⑧ 프로파일 저장  매핑 규칙을 ImportProfile(부처 템플릿)로 저장 (선택)
 ```
 
-기존 프로파일이 있으면 ③~⑤를 건너뛰고 바로 ⑥으로 간다.
+기존 프로파일이 있으면 ③~④를 건너뛰고 **⑤(비목 매핑)로 간다** — 자동 인식은 제안일 뿐이라는 대원칙에 따라, 프로파일을 쓰더라도 비목 매핑 확인과 미리보기는 건너뛰지 않는다. (연차 열 → 연차 대응은 프로파일의 `yearOrder` 기반 자동 제안을 ⑥에서 확인한다)
 
 #### 6.8.2 예산계획 매트릭스 파싱
 
@@ -838,12 +907,14 @@ WBS 코드는 항상 **연차 단위**로 다시 계산한다. 즉 각 연차의
 | # | 규칙 |
 |---|---|
 | S-1 | `orientation` 감지: 헤더 행에서 비목 별칭이 2개 이상 매칭되면 `'column'`(비목이 열), 라벨 열에서 매칭되면 `'row'`(비목이 행). 실측 서식은 전부 `'row'`다. |
-| S-2 | **병합 셀 carry-forward**: 병합 셀은 해제 시 좌상단 셀만 값을 가진다. 라벨 열의 빈 셀은 **바로 위 행의 값을 이어받은 것**으로 해석한다. |
+| S-2 | **병합 셀 carry-forward**: 병합 셀은 해제 시 좌상단 셀만 값을 가진다. 라벨 열의 빈 셀은 **바로 위 행의 값을 이어받은 것**으로 해석한다. **리셋 조건**: 어떤 라벨 열에 새 값이 나타나면 **그보다 오른쪽 라벨 열들의 carry-forward는 초기화**한다 — 상위 분류가 바뀌면 하위 라벨은 승계되지 않는다. (이 조건이 없으면 `간접비` 행이 직전 비목의 `현금` 라벨을 이어받아 오분류된다) |
 | S-3 | **다중 라벨 열**: 행 라벨이 여러 열에 계층으로 분산될 수 있다 (예: 직접비 \| 인건비 \| 내부인건비 \| 현금). 라벨 열 후보들을 좌→우로 훑어 **별칭 사전에 매칭되는 가장 구체적인(오른쪽) 라벨**로 비목을 확정한다. 세목(내부인건비 등)은 별칭 사전을 통해 상위 비목으로 귀속된다. |
-| S-4 | **현금/현물 행 쌍**: 같은 비목 아래 `현금`/`현물` 라벨 행이 쌍으로 나오면 각각 `cashAmount`/`inKindAmount`로 적재하고, `plannedAmount`는 둘의 합으로 계산한다. 분리 행이 없으면 전액을 `plannedAmount`에 넣고 현금/현물은 null로 둔다. |
+| S-4 | **현금/현물 행 쌍**: 같은 비목 아래 `현금`/`현물` 라벨 행이 쌍으로 나오면 각각 `cashAmount`/`inKindAmount`로 적재하고, `plannedAmount`는 둘의 합으로 계산한다. 분리 행이 없으면 전액을 `plannedAmount`에 넣고 현금/현물은 null로 둔다. **축 라벨(`CASH_INKIND_LABELS`, 부록 C)은 비목 매칭·스킵 판정 대상이 아니다** — 금액의 귀속 축만 결정한다. (스킵 목록에 넣으면 현물 금액이 통째로 유실된다) |
 | S-5 | **연차 열 매핑**: 헤더에서 `N차년도` 패턴을 찾아 연차(Year)에 대응시킨다. 그 아래 연도(`YYYY`) 행은 보조 확인용으로만 쓴다. `N단계` 그룹 헤더는 무시하고 차년도 번호만 사용한다. `합계` 열은 자동 제외한다. 대응되지 않는 연차 라벨은 사용자가 지정해야 반영 가능하다. |
 | S-6 | **세로 분절 라벨 결합**: 라벨이 위·아래 행에 수동으로 쪼개진 서식이 실존한다 (행안부: `연구시설‧` + `장비비(F)`, `연구재료비` + `(G)`). 라벨이 별칭에 매칭되지 않으면 **바로 아래 행의 같은 열 라벨과 결합해 재시도**한다. 결합 매칭에 성공하면 두 행을 같은 비목의 현금/현물 쌍으로 처리한다. |
 | S-7 | 좌측 대분류 열의 세로쓰기 조각(`직`/`접`/`비`가 행마다 한 글자씩)은 S-3의 우측 우선 매칭 덕에 자연히 무시된다. 단독으로 `계` 같은 한 글자가 남는 행도 우측 라벨이 먼저 평가되므로 오분류되지 않는다. |
+| S-8 | **동일 비목 다중 행 합산**: 같은 (연차, 비목)에 매핑되는 원본 행이 여러 개면(내부인건비·외부인건비·연구지원인력인건비가 전부 `personnel`) 축(현금/현물/미지정)별로 **합산**해 하나의 BudgetItem으로 반영한다. 행 단위 덮어쓰기가 아니다. |
+| S-9 | **파일에 등장하지 않은 비목의 기존 계획액은 유지한다.** 덮어쓰기의 범위는 "파일에 등장한 (연차, 비목) 조합"뿐이다. Step 5 상단에 "이 파일에 없는 비목 N건은 유지됩니다"를 표시한다. |
 
 #### 6.8.3 비목 매핑 규칙
 
@@ -851,7 +922,7 @@ WBS 코드는 항상 **연차 단위**로 다시 계산한다. 즉 각 연차의
 |---|---|
 | I-1 | 1순위 — 정규화 후 **완전 일치**. 정규화 = ① 가운뎃점 전 변형 제거 (`·` U+00B7, `‧` U+2027, `ㆍ` U+318D, `•` U+2022) ② **라벨 내부 공백 전부 제거** (`소 계`→`소계`, `학생 인건비`→`학생인건비`) ③ 괄호와 괄호 안 내용 제거 — 세목 코드·수식 포함 (`내부인건비 (A)`→`내부인건비`, `현금 (N)`→`현금`) ④ 각주 번호·별표·하이픈 제거 (`* 연구수당 비율3)`→`연구수당비율`) ⑤ 소문자화. |
 | I-2 | 2순위 — **별칭 사전** 조회 (부록 C). 우선순위: ① 프로파일에 저장된 `categoryAliases`(학습분) → ② 프로파일 `ministry`의 부처 프리셋(`MINISTRY_ALIAS_PRESETS`) → ③ 공통 사전(`CATEGORY_ALIASES`). |
-| I-3 | 3순위 — **퍼지 매칭**. Levenshtein 거리 기반 유사도 ≥ 0.8이면 후보로 제시하되 **자동 확정하지 않고** 사용자 확인을 요구한다. |
+| I-3 | 3순위 — **퍼지 매칭**. 유사도 = `1 - levenshtein(a, b) / max(len(a), len(b))` (정규화 후 비교). 유사도 ≥ 0.8이면 후보로 제시하되 **자동 확정하지 않고** 사용자 확인을 요구한다. |
 | I-4 | 매칭 실패 항목은 `'other'`로 넣지 않고 **미매핑 상태로 미리보기에 빨강 표시**한다. 사용자가 지정하거나 "이 행 건너뛰기"를 선택해야 반영 가능. |
 | I-5 | `소계`, `합계`, `계`, `총계`, `직접비`, `간접비계` 등 집계 행은 자동 제외한다 (`skipRowPatterns`, 부록 C). 단 `간접비`는 실제 비목이므로 제외하지 않는다 — 정확히 일치하는 경우만 비목으로 인정. **원래 값이 있었는데 정규화(I-1) 후 빈 문자열이 되는 라벨**(예: 전체가 괄호 메모인 `(간접비 중 연구실 안전관리비)`)도 메모 행으로 간주해 건너뛴다 — S-2의 carry-forward(원래부터 빈 셀)와 구분한다. |
 | I-6 | 구 비목 체계 매핑: `연구장비·재료비` → 사용자에게 `facility_equipment` / `material` 중 선택을 요구한다(자동 분할 금지). |
@@ -875,11 +946,12 @@ WBS 코드는 항상 **연차 단위**로 다시 계산한다. 즉 각 연차의
 | I-14 | 업로드 파일은 파싱 후 즉시 폐기한다. 디스크에 저장하지 않는다(증빙 파일 관리는 v1 범위 밖). |
 | I-15 | 파일 크기 10MB, 행 수 20,000행 상한. 초과 시 거부한다. |
 | I-16 | 수식 셀은 **계산된 값**을 읽는다(`cellFormula: false`). 계산값이 없거나 에러 값이면 해당 셀을 파싱 실패로 처리한다 (I-12). |
-| I-17 | 반영은 덮어쓰기이므로, 반영 전 해당 연차의 기존 계획액을 별도 스냅샷으로 남긴다 (§8.7 백업 폴더). |
+| I-17 | 반영은 덮어쓰기이므로, 반영 전 해당 연차들의 기존 계획액을 **`import_snapshots` 테이블**에 jsonb로 저장한다 — `commit_import` RPC와 **같은 트랜잭션** 안에서. (각 PC의 로컬 백업 폴더는 서버 액션이 접근할 수 없다) 스냅샷은 설정 화면(§7.14)에서 확인·복원할 수 있고 최근 20개를 유지한다. |
 | I-18 | 반영은 단일 Postgres RPC 트랜잭션으로 수행한다. 한 행이라도 실패하면 전체를 롤백한다. |
+
 ### 6.9 작업 우선순위
 
-> **설계 원칙**: 중요도와 우선순위를 둘 다 손으로 받으면 실무에서 같은 값이 된다. **중요도만 사람이 정하고, 긴급도는 마감일에서 계산한다.** 둘을 곱해 우선순위 점수를 낸다. §5.13 리스크 매트릭스와 동일한 패턴이므로 UI를 재사용한다.
+> **설계 원칙**: 중요도와 우선순위를 둘 다 손으로 받으면 실무에서 같은 값이 된다. **중요도만 사람이 정하고, 긴급도는 마감일에서 계산한다.** 둘을 곱해 우선순위 점수를 낸다. §7.11 리스크 매트릭스와 동일한 패턴이므로 UI를 재사용한다.
 
 #### 6.9.1 긴급도 자동 계산
 
@@ -948,9 +1020,20 @@ priorityScore = importance × urgency        # 1 ~ 25
 | `/projects/[id]/risks` | 리스크 관리대장 | 매트릭스 + 목록 |
 | `/projects/[id]/notes` | 노트 | 회의록/기술메모 |
 | `/todos` | To-Do | |
-| `/settings` | 설정 | |
+| `/settings` | 설정 | §7.14. 팀 설정 + 사용자 승인 + 백업/복원 |
+| `/login` | 로그인 | §7.0. 비인증 시 전 경로가 여기로 리다이렉트 |
+| `/pending` | 승인 대기 | §7.0. `active=false` 사용자 전용 |
 
 과제 하위 화면은 공통 레이아웃 + 탭 네비게이션을 공유한다. 탭이 10개이므로 **1차 탭(개요·WBS·간트·보드·목표) / 2차 탭(마일스톤·연구비·인력·리스크·노트)** 로 시각적 그룹을 나눈다.
+
+### 7.0 인증·온보딩 (`/login`, `/pending`)
+
+§14.4 온보딩 흐름의 화면 대응이다.
+
+- **`/login`**: 앱 로고 + "회사 구글 계정으로 로그인" 버튼 1개. 클릭 시 시스템 브라우저로 OAuth(A-1). 네트워크 오류·도메인 불일치(A-2)는 이 화면에서 명시적 에러로 표시.
+- **`/pending`**: "관리자 승인을 기다리고 있습니다" + 내 이메일 표시 + 새로고침 버튼. `active=true`가 되면 자동으로 대시보드로 이동(Realtime 구독 또는 30초 폴링).
+- 로그인 후 최초 1회: 표시 이름 확인 모달(구글 프로필 이름 기본값) + 백업 폴더 지정(Tauri 환경에서만, §14.4 ④).
+- 미들웨어 규칙: 비인증 → `/login`, 인증했으나 미승인 → `/pending`, 승인 → 요청 경로.
 
 ### 7.2 대시보드 (`/`)
 
@@ -1073,11 +1156,13 @@ priorityScore = importance × urgency        # 1 ~ 25
 - 집행률 100% 초과 셀은 빨강, 예산 외 집행은 경고 아이콘
 - 툴바에 **[엑셀 가져오기]** 버튼 → §7.9.1 마법사 (예산계획 전용)
 
-### 7.9.1 엑셀 가져오기 마법사 (모달, 5단계)
+#### 7.9.1 엑셀 가져오기 마법사 (모달, 5단계)
+
+마법사의 진행 상태는 `ImportDraft`(§5.12.2) 하나에 담겨 `previewImport`/`commitImport`에 그대로 전달된다.
 
 **Step 1 — 파일**
 - 드래그앤드롭 또는 파일 선택 (xlsx/xlsm/xls/csv)
-- 저장된 프로파일(부처 템플릿)이 있으면 목록에서 선택 → Step 4로 점프
+- 저장된 프로파일(부처 템플릿)이 있으면 목록에서 선택 → Step 4로 점프 (§6.8.1 — 비목 매핑·미리보기는 건너뛰지 않는다)
 
 **Step 2 — 시트 & 범위**
 - 시트 탭 + 원본 미리보기 그리드 (상위 30행). 비목 매칭 밀도가 가장 높은 시트를 추천 하이라이트 (§6.8.1 ②)
@@ -1087,23 +1172,23 @@ priorityScore = importance × urgency        # 1 ~ 25
 
 **Step 3 — 열 매핑**
 - 좌: 엑셀 열 목록 (열 문자 + 헤더 텍스트 + 샘플값 3개)
-- 우: 대상 필드 드롭다운
+- **라벨 열 지정**: S-3의 다중 라벨 열 범위 (자동 추정 하이라이트)
+- **연차 열 매핑**: 연차로 감지된 열마다 "이 열 = N차년도" 드롭다운 (`yearMapping`). 자동 추정: `N차년도` 라벨 → `order = N-1`인 Year. **미대응 연차 열이 남아 있으면 다음 단계 진행 불가** (S-5)
 - 자동 추정된 매핑은 회색, 사용자가 바꾼 것은 파랑
-- 필수 필드가 비어 있으면 다음 단계 진행 불가
 
 **Step 4 — 비목 매핑**
 - 원본 비목명 → 시스템 비목 대응표
 - 상태별 아이콘: ✅ 완전일치 / 🔵 별칭사전(부처 프리셋 포함) / ⚠️ 유사매칭(확인필요) / ❌ 미매핑
-- 미매핑·유사매칭 항목은 드롭다운으로 지정하거나 "이 행 건너뛰기" 체크
-- 하단: "이 매핑을 프로파일로 저장" 체크 + 프로파일명·부처 입력
+- 미매핑·유사매칭 항목은 드롭다운으로 지정(`manualCategoryByRow`)하거나 "이 행 건너뛰기" 체크(`skippedRowIndexes`)
+- 하단: "이 매핑을 프로파일로 저장" 체크 + 프로파일명·부처 입력 (수동 지정분은 I-7 학습, 단 I-6 모호 별칭의 선택은 학습하지 않는다)
 
 **Step 5 — 미리보기 & 반영**
 - 반영 예정 내역 테이블 (연차 / 비목 / 계획액 / 현금 / 현물 / 상태)
-- 행 상태: `신규` (초록) / `덮어씀` (주황) / `오류` (빨강)
-- 상단 요약: 신규 N건 · 덮어씀 N건 · 오류 N건 · 합계 금액
-- **오류가 1건이라도 있으면 반영 버튼 비활성화.** 해당 행을 제외하거나 수정해야 진행 가능.
+- 행 상태: `신규` (초록) / `덮어씀` (주황) / `건너뜀` (회색 — 스킵 패턴·사용자 지정 포함) / `오류` (빨강)
+- 상단 요약: 신규 N건 · 덮어씀 N건 · **건너뜀 N건(합계 X원)** · 오류 N건 · 합계 금액 · "이 파일에 없는 비목 N건은 유지됩니다"(S-9)
+- **오류가 1건이라도 있으면 반영 버튼 비활성화.** 해당 행을 "건너뛰기"로 제외해야 진행 가능하다 — 셀 값의 인라인 수정은 지원하지 않는다(원본 파일에서 고쳐 다시 업로드).
 - 덮어쓸 기존 값을 나란히 보여준다 (`기존 → 신규`)
-- 반영 후 결과 토스트. 반영 전 기존 계획액 스냅샷은 백업 폴더에 저장된다 (I-17)
+- 반영 후 결과 토스트. 반영 전 기존 계획액은 `import_snapshots`에 저장된다 (I-17)
 
 **설계 원칙**
 - 어느 단계에서든 뒤로 갈 수 있고, 마지막 반영 전까지 저장되는 것은 없다.
@@ -1139,6 +1224,21 @@ priorityScore = importance × urgency        # 1 ~ 25
 ### 7.13 To-Do (`/todos`)
 v1과 동일. 단일 리스트, 체크박스, 필터(전체/미완료/오늘/과제별), 정렬(수동·마감일·우선순위), 한 줄 빠른 추가.
 
+### 7.14 설정 (`/settings`)
+
+섹션 3개로 구성한다.
+
+- **팀 설정**: `Settings`(§5.16) 필드 편집 폼 — 마감 임박 기준일, 마일스톤 알림 기준일, 주 시작 요일, 간트 기본 스케일, 표시 통화 단위, 진척률 가중 기준. 저장 시 `updateSettings`.
+- **사용자 관리**: `app_users` 목록 (이름, 이메일, 상태, 마지막 접속). 승인 대기자(`active=false`)는 상단에 뱃지와 [승인] 버튼(§14.2 A-3). 활성 사용자는 [비활성화] 가능(본인 제외). 내 프로필(표시 이름, Member 연결)도 여기서 편집.
+- **백업·복원**: [지금 내보내기](K-1), 마지막 백업 시각·자동 백업 상태(K-2), 백업 폴더 변경(Tauri 환경만), [복원] — 파일 선택 + 2단계 확인(K-4). 임포트 스냅샷(I-17) 목록·복원도 이 섹션에 둔다.
+
+### 7.15 과제 목록 (`/projects`)
+
+- 과제 카드 그리드: 색상 띠, 과제명, 부처·전문기관, 진척률 바, 현재 연차 뱃지, 상태 뱃지
+- 정렬: `order` 수동(드래그), 필터: 상태·아카이브 표시 토글
+- "새 과제" 버튼 → 생성 모달 (이름·협약정보 최소 입력. Stage 1개 + Year 1개 자동 생성, §9 `createProject`)
+- 아카이브 과제는 기본 숨김, 토글로 표시 (흐린 스타일)
+
 ---
 
 ## 8. 데이터 레이어 설계
@@ -1163,7 +1263,7 @@ Tauri 셸
 
 | # | 규칙 |
 |---|---|
-| C-1 | **service_role 키는 절대 사용하지 않는다.** 데스크톱 앱은 사용자 손에 있는 코드이므로 키가 노출된다. anon 키 + 사용자 세션 + RLS만 쓴다. |
+| C-1 | **service_role 키는 앱 코드·빌드 산출물에 절대 포함하지 않는다.** 데스크톱 앱은 사용자 손에 있는 코드이므로 키가 노출된다. 앱은 anon 키 + 사용자 세션 + RLS만 쓴다. **단, 커밋되지 않는 로컬 개발 스크립트(시드 주입, 통합 테스트)는 service_role을 써도 된다** — `.env.test.local`(gitignore)에만 둔다. |
 | C-2 | 모든 DB 접근은 서버 액션을 거친다. 클라이언트가 직접 쓰기를 하지 않는다. 단 Realtime 구독은 클라이언트에서 한다(읽기 전용). |
 | C-3 | 세션 토큰은 Tauri의 보안 저장소(OS 키체인)에 보관한다. localStorage 금지. |
 | C-4 | 네트워크 장애 시 명확한 오프라인 배너를 띄우고 쓰기를 차단한다. **오프라인 편집은 지원하지 않는다.** |
@@ -1173,13 +1273,21 @@ Tauri 셸
 연쇄 삭제(§6.6 H-4~H-8)와 다중 테이블 갱신은 **Postgres 함수(RPC)** 로 구현한다. 애플리케이션에서 여러 번 호출하는 방식은 중간 실패 시 데이터가 깨진다.
 
 ```sql
--- 예: 연차 삭제 (Task·BudgetItem 연쇄 삭제, Milestone·Risk·Note는 year_id=null)
+-- 예: 연차 삭제 (H-5, N-8, N-13 반영)
 create or replace function delete_year(p_year_id uuid)
 returns void language plpgsql security invoker as $$
 begin
+  -- set null 대상 (N-8): FK on delete set null로도 처리되지만 RPC에서 명시해 의도를 남긴다
   update milestones set year_id = null where year_id = p_year_id;
   update risks      set year_id = null where year_id = p_year_id;
   update notes      set year_id = null where year_id = p_year_id;
+  update deliverable_achievements set year_id = null where year_id = p_year_id;
+  update tech_target_records      set year_id = null where year_id = p_year_id;
+  -- jsonb 맵의 고아 키 제거 (N-13)
+  update deliverables set target_by_year = target_by_year - p_year_id::text
+   where target_by_year ? p_year_id::text;
+  update tech_targets set target_by_year = target_by_year - p_year_id::text
+   where target_by_year ? p_year_id::text;
   delete from years where id = p_year_id;   -- tasks, budget_items는 cascade
 end; $$;
 ```
@@ -1187,20 +1295,22 @@ end; $$;
 | # | 규칙 |
 |---|---|
 | X-1 | 단순 CRUD는 PostgREST(supabase-js)를 직접 쓴다. RPC는 다중 테이블 작업에만 쓴다. |
-| X-2 | RPC는 `security invoker`로 만들어 RLS를 우회하지 않게 한다. |
+| X-2 | RPC는 `security invoker`로 만들어 RLS를 우회하지 않게 한다. **예외**: 인증 부트스트랩(`handle_new_user` 트리거 함수)과 사용자 승인(`approve_user`)은 RLS가 닿기 전/위 단계의 작업이므로 `security definer`로 만든다 (§14.2, §14.3). 그 외 definer 함수는 금지. |
 | X-3 | 순서 재정렬(`reorderTasks` 등)은 한 번의 RPC에서 일괄 갱신한다. 행마다 호출하지 않는다. |
-| X-4 | Task 이동(`moveTask`)의 순환 검사(H-2)와 깊이 검사(H-3)는 **DB 함수 안에서** 수행한다. 클라이언트 검증만 믿지 않는다. |
+| X-4 | Task 이동(`moveTask`)의 순환 검사(H-2)와 깊이 검사(H-3), `moveTaskToYear`의 같은 과제 검증(H-11)은 **DB 함수 안에서** 수행한다. 클라이언트 검증만 믿지 않는다. |
 
 ### 8.4 동시성 — 낙관적 잠금
 
-락은 없다. 대신 **마지막에 읽은 `updated_at`을 조건으로 거는 방식**을 쓴다.
+락은 없다. 대신 **마지막에 읽은 `version`을 조건으로 거는 방식**을 쓴다. `version bigint`는 BEFORE UPDATE 트리거가 +1 한다 (N-4, N-5).
+
+> `updated_at` 비교 방식을 쓰지 않는 이유: Postgres `timestamptz`는 마이크로초(6자리), JS의 ISO 문자열은 밀리초(3자리)라서 왕복 과정에서 정밀도가 잘리면 `eq`가 영원히 0행을 갱신한다. 정수 비교는 이 함정이 없다.
 
 ```ts
 const { data, error } = await supabase
   .from('tasks')
-  .update(patch)
+  .update(patch)                     // 서버 액션이 patch에 updated_by를 채운다
   .eq('id', id)
-  .eq('updated_at', expectedUpdatedAt)   // 그새 바뀌었으면 0행 갱신
+  .eq('version', expectedVersion)    // 그새 바뀌었으면 0행 갱신
   .select()
   .single();
 
@@ -1210,8 +1320,8 @@ if (!data) throw new StaleDataError();   // "다른 사람이 먼저 수정했�
 | # | 규칙 |
 |---|---|
 | O-1 | 상세 편집 패널의 저장처럼 **여러 필드를 한 번에 바꾸는 작업**은 반드시 낙관적 잠금을 건다. |
-| O-2 | 체크박스 토글, 상태 드롭다운처럼 **단일 필드 갱신**은 낙관적 잠금을 생략한다. 마지막 것이 이기는 게 자연스럽다. |
-| O-3 | `StaleDataError` 발생 시 사용자에게 "OO님이 먼저 수정했습니다. 최신 내용을 확인하세요"를 띄우고 해당 행만 갱신한다. **작업 내용을 날리지 않는다** — 입력값을 유지한 채 비교 UI를 보여준다. |
+| O-2 | **사용자가 UI에서 직접 조작한 필드가 1개**인 갱신(체크박스 토글, 상태 드롭다운)은 낙관적 잠금을 생략한다. 마지막 것이 이기는 게 자연스럽다. 파생 갱신(P-1~P-3처럼 규칙이 함께 바꾸는 필드)이 딸려 있어도 "단일 조작"으로 본다. |
+| O-3 | `StaleDataError` 발생 시 최신 행의 `updated_by`로 "OO님이 먼저 수정했습니다. 최신 내용을 확인하세요"를 띄우고 해당 행만 갱신한다. **작업 내용을 날리지 않는다** — 입력값을 유지한 채 비교 UI를 보여준다. |
 | O-4 | 진척률 롤업(§6.1)은 읽기 시 계산한다. DB에 저장하지 않으므로 롤업 값 충돌은 발생하지 않는다. |
 
 ### 8.5 실시간 반영
@@ -1220,11 +1330,31 @@ Supabase Realtime으로 테이블 변경을 구독한다.
 
 | # | 규칙 |
 |---|---|
-| R-1 | 현재 열려 있는 화면에 관련된 테이블만 구독한다. 전체 구독 금지(무료 플랜 200 동시 연결). |
+| R-1 | 현재 열려 있는 화면에 관련된 테이블만 구독한다(아래 구독표). 전체 구독 금지(무료 플랜 200 동시 연결). |
 | R-2 | 변경 이벤트를 받으면 데이터를 직접 패치하지 않고 `router.refresh()`로 서버 컴포넌트를 다시 가져온다. 계산 로직 중복을 피한다. |
 | R-3 | 이벤트 폭주 방지를 위해 500ms 디바운스를 건다. |
 | R-4 | 내가 편집 중인 폼이 열려 있으면 자동 새로고침을 보류하고 "새 변경 있음 · 새로고침" 배너만 띄운다. 입력 중인 내용을 지우지 않는다. |
 | R-5 | Realtime 연결이 끊기면 30초 폴링으로 폴백한다. |
+| R-6 | 이벤트의 `updated_by`가 나 자신이면 무시한다(self-echo 필터) — 내 저장은 이미 화면에 반영되어 있다. |
+| R-7 | **구독 대상 테이블은 마이그레이션에서 `alter publication supabase_realtime add table ...`로 명시**해야 이벤트가 발생한다. Phase 0 마이그레이션에 아래 구독표의 테이블 전부를 추가한다. 이 규칙이 누락되면 아무 이벤트도 오지 않는데 에러도 없다. |
+
+**화면별 구독표**
+
+| 화면 | 구독 테이블 |
+|---|---|
+| 대시보드 | `projects`, `milestones`, `tasks` |
+| 과제 개요 | `projects`, `years`, `milestones` |
+| WBS / 간트 / 보드 | `tasks`, `years` |
+| 목표 관리 | `deliverables`, `deliverable_achievements`, `tech_targets`, `tech_target_records` |
+| 마일스톤 | `milestones` |
+| 연구비 | `budget_items`, `budget_executions` |
+| 인력·기관 | `organizations`, `members` |
+| 리스크 | `risks` |
+| 노트 | `notes` |
+| To-Do | `todos` |
+| 설정 | `app_users`, `app_settings` |
+
+최대 동시 구독 = 6명 × 화면당 최대 4테이블 = 24 연결 (무료 한도 200의 12%).
 
 ### 8.6 리포지토리 레이어
 
@@ -1238,7 +1368,8 @@ Supabase Realtime으로 테이블 변경을 구독한다.
   ├── milestones.ts  deliverables.ts  tech-targets.ts
   ├── organizations.ts  members.ts  budget-items.ts
   ├── risks.ts  notes.ts  todos.ts  settings.ts  import-profiles.ts
-  └── backup.ts           §8.7 내보내기/복원
+  ├── app-users.ts        §14.2 인증 사용자 조회·승인
+  └── backup.ts           §8.7 내보내기/복원 (리포지토리 16종 + 백업 모듈)
 ```
 
 UI 코드는 supabase 클라이언트를 직접 호출하지 않는다. 반드시 리포지토리를 거친다. **이 규칙이 §14.5의 NAS 이전을 가능하게 한다.**
@@ -1253,31 +1384,47 @@ DB 응답도 Zod로 검증한다. 스키마 마이그레이션 누락을 조용�
 | K-2 | 주 1회 자동 내보내기. 앱 실행 시 마지막 백업이 7일 이상 지났으면 자동 실행하고 알린다. |
 | K-3 | 백업 파일은 최근 12개를 유지한다. 백업 폴더는 온보딩에서 지정한다(구글 드라이브 동기화 폴더 권장). |
 | K-4 | **전체 복원** 기능을 둔다. 복원 전 현재 상태를 자동 백업하고, 2단계 확인을 요구한다. |
-| K-5 | 내보내기 JSON에는 `schemaVersion`과 내보낸 시각·사용자를 기록한다. |
+| K-5 | 내보내기 JSON 형식(아래)을 지킨다. `schemaVersion` 불일치 파일의 복원은 거부한다. |
 | K-6 | 스키마 마이그레이션 직전에는 반드시 자동 백업을 강제한다. |
+| K-7 | 복원은 단일 RPC 트랜잭션으로 수행한다: FK 의존 **역순으로 전 행 DELETE → 정순으로 INSERT** (id 보존). 부분 복원·병합은 없다 — 전체 대체만. |
+| K-8 | `app_users`와 `app_settings.schema_version`은 백업에 **포함하되 복원하지 않는다** — auth.users와 어긋난 사용자 행이나 구 스키마 버전이 덮어써지는 것을 막는다. |
+
+**내보내기 JSON 형식** — 행은 **DB snake_case 원본 그대로** 담는다 (매퍼 버그로부터 독립).
+
+```ts
+interface BackupFile {
+  schemaVersion: number;              // app_settings.schema_version
+  exportedAt: string;                 // ISO 8601
+  exportedBy: { id: string; email: string };
+  tables: Record<string, unknown[]>;  // 테이블명(snake_case) → 행 배열
+}
+```
 
 ### 8.8 스키마 마이그레이션
 
 - Supabase CLI 마이그레이션(`supabase/migrations/*.sql`)으로 관리한다. 대시보드에서 직접 테이블을 고치지 않는다.
 - 마이그레이션 파일은 Git에 커밋한다. 이게 스키마의 진실 공급원이다.
-- 앱은 시작 시 `app_settings.schema_version`을 확인한다. 코드 기대값보다 **낮으면** 마이그레이션 안내를, **높으면** 앱 업데이트 안내를 띄우고 진입을 막는다.
+- 앱은 시작 시 `app_settings.schema_version`을 확인한다. 코드 기대값(`lib/constants.ts`의 `EXPECTED_SCHEMA_VERSION`)보다 **낮으면** 마이그레이션 안내를, **높으면** 앱 업데이트 안내를 띄우고 진입을 막는다.
+
 ---
 
 ## 9. 서버 액션 목록
 
 모든 액션은 Zod로 입력 검증, 성공 시 `revalidatePath()` 호출.
-반환 타입: `ActionResult<T> = { ok: true; data: T } | { ok: false; error: string; code?: 'STALE' | 'AUTH' | 'OFFLINE' }`
+반환 타입: `ActionResult<T> = { ok: true; data: T } | { ok: false; error: string; code?: 'STALE' | 'AUTH' | 'OFFLINE' | 'VALIDATION' | 'CONFLICT' | 'RULE' }`
+- `VALIDATION` = Zod 검증 실패, `CONFLICT` = 유니크 제약 충돌, `RULE` = 비즈니스 규칙 위반(H-6 마지막 Stage 삭제, H-8 주관기관 삭제 등). UI가 코드별로 다른 안내를 보여준다.
 
 | # | 규칙 |
 |---|---|
-| SA-1 | 모든 액션은 시작 시 세션과 `app_users.active`를 확인한다. RLS만 믿지 않는다. |
-| SA-2 | `update*` 계열은 `expectedUpdatedAt`을 선택 인자로 받는다. 넘어오면 낙관적 잠금을 건다 (§8.4 O-1). |
+| SA-1 | 모든 액션은 시작 시 세션과 `app_users.active`를 확인한다. RLS만 믿지 않는다. `lastSeenAt`은 이 확인 시 **하루 1회** 갱신한다. |
+| SA-2 | `update*` 계열은 `expectedVersion`을 선택 인자로 받는다. 넘어오면 낙관적 잠금을 건다 (§8.4 O-1). 모든 쓰기 액션은 `updated_by`(생성은 `created_by`)를 세션 사용자로 채운다. |
 | SA-3 | 연쇄 삭제·순서 재정렬·임포트 반영은 Postgres RPC를 호출한다 (§8.3). |
 | SA-4 | 에러 메시지에 DB 내부 정보(테이블명, 제약명)를 노출하지 않는다. |
 
 **Project / Stage / Year**
 ```
-createProject(input)                 // Stage 1개 + Year 1개 자동 생성
+createProject(input)                 // Stage 1개 + Year 1개 자동 생성. Year 기본값:
+                                     //   startDate=협약시작일, endDate=+1년-1일, status='planned', name=''
 updateProject(id, patch)
 deleteProject(id)                    // RPC: delete_project
 archiveProject(id, archived)
@@ -1286,11 +1433,14 @@ reorderProjects(orderedIds)
 createStage(projectId, input)
 updateStage(id, patch)
 deleteStage(id)                      // RPC: delete_stage (H-6)
+reorderStages(projectId, orderedIds)
 
-createYear(stageId, input)           // RPC: 비목 12종 자동 생성 + 기본 마일스톤 옵션
+createYear(stageId, input)           // RPC: stage 내 마지막 뒤 삽입 + 이후 전체 시프트 (§5.5),
+                                     //      비목 12종 자동 생성(on conflict do nothing) + 기본 마일스톤 옵션
 updateYear(id, patch)
 deleteYear(id)                       // RPC: delete_year (H-5)
-setYearStatus(id, status)
+setYearStatus(id, status)            // 'active' 지정 시 같은 과제의 기존 active를 'planned'로 해제 — 과제당 active 1개
+reorderYears(projectId, orderedIds)  // project 단위 normalize (H-10). 단계 경계를 넘는 순서는 거부
 ```
 
 **Task**
@@ -1325,6 +1475,7 @@ generateDefaultMilestones(yearId)    // 연차평가 + 실적계획서 제출 �
 createDeliverable(projectId, input)
 updateDeliverable(id, patch)
 deleteDeliverable(id)
+reorderDeliverables(projectId, orderedIds)
 setDeliverableYearTargets(id, targetByYear)
 addAchievement(deliverableId, input)
 updateAchievement(deliverableId, achievementId, patch)
@@ -1336,6 +1487,7 @@ deleteAchievement(deliverableId, achievementId)
 createTechTarget(projectId, input)
 updateTechTarget(id, patch)
 deleteTechTarget(id)
+reorderTechTargets(projectId, orderedIds)
 setTechTargetYearTargets(id, targetByYear)
 addTechRecord(techTargetId, input)
 updateTechRecord(techTargetId, recordId, patch)
@@ -1348,17 +1500,19 @@ createOrganization(projectId, input)
 updateOrganization(id, patch)
 deleteOrganization(id)               // H-8
 setLeadOrganization(projectId, orgId)
+reorderOrganizations(projectId, orderedIds)
 
 createMember(projectId, input)
 updateMember(id, patch)
 deleteMember(id)                     // RPC: delete_member (H-9)
 setMemberActive(id, active)
 setProjectPM(projectId, memberId)
+reorderMembers(projectId, orderedIds)
 ```
 
 **Budget**
 ```
-updateBudgetPlan(yearId, category, plannedAmount, cashAmount, inKindAmount)
+updateBudgetPlan(yearId, category, plannedAmount, cashAmount, inKindAmount, expectedVersion?)
 addExecution(budgetItemId, input)
 updateExecution(budgetItemId, executionId, patch)
 deleteExecution(budgetItemId, executionId)
@@ -1367,18 +1521,21 @@ deleteExecution(budgetItemId, executionId)
 **Budget Import** (모두 서버 전용, 파일은 `FormData`로 전달. 예산계획 전용)
 ```
 inspectWorkbook(formData)                      // 시트 목록 + 상위 30행 원본 그리드 + 추천 시트 + 구조 추정
-analyzeSheet(formData, sheetName, hints)       // 헤더행·방향·라벨열·금액단위·열매핑 추정
-previewImport(formData, profileDraft, projectId)
-   → { rows: PreviewRow[], summary: { new, overwrite, error, totalAmount } }
-commitImport(formData, profileDraft, projectId) // RPC 단일 트랜잭션. 반영 전 기존 계획액 스냅샷 저장 (I-17)
+analyzeSheet(formData, sheetName, hints)       // 헤더행·방향·라벨열·연차열·금액단위 추정
+previewImport(formData, draft: ImportDraft, projectId)
+   → { rows: PreviewRow[], summary: { new, overwrite, skipped, skippedAmount, error, totalAmount,
+       untouchedCategories }, fileHash }
+commitImport(formData, draft: ImportDraft, projectId)
+   // RPC 단일 트랜잭션. draft.fileHash와 업로드 파일의 해시가 다르면 거부 (미리보기와 다른 파일 차단).
+   // 반영 전 기존 계획액을 import_snapshots에 저장 (I-17)
 
 createImportProfile(input)
 updateImportProfile(id, patch)
 deleteImportProfile(id)
-listImportProfiles(kind, projectId)
+listImportProfiles(kind, projectId)            // kind는 v2의 'execution' 부활 대비 인자. v1은 항상 'budget_plan'
 ```
 
-> `previewImport`와 `commitImport`는 **같은 파싱 함수를 공유**한다. 미리보기에서 본 것과 반영되는 것이 다르면 안 된다. 파일은 두 번 업로드되지만(스테이트리스 유지), 결과는 결정론적으로 동일하다.
+> `previewImport`와 `commitImport`는 **같은 파싱 함수와 같은 `ImportDraft`를 공유**한다. 미리보기에서 본 것과 반영되는 것이 다르면 안 된다. 파일은 두 번 업로드되지만(스테이트리스 유지), `fileHash` 대조로 동일 파일임이 보장되고 결과는 결정론적으로 동일하다.
 
 **Risk**
 ```
@@ -1462,8 +1619,13 @@ getNotes(projectId, filter)
 │   ├── milestones.ts deliverables.ts        tech-targets.ts
 │   ├── organizations.ts  members.ts  budget.ts
 │   ├── risks.ts      notes.ts    todos.ts   settings.ts
+│   ├── auth.ts       getCurrentUser, approveUser 등 (§9 Auth)
+│   ├── backup.ts     exportAll, importAll (§8.7)
+│   └── import.ts     inspectWorkbook ~ commitImport (§9 Budget Import)
 ├── components/
 │   ├── ui/            버튼, 배지, 모달, 진행바, 게이지, 인라인편집 셀
+│   ├── auth/          LoginScreen, PendingScreen, OnboardingModal (§7.0)
+│   ├── settings/      SettingsForm, UserManagement, BackupPanel (§7.14)
 │   ├── dashboard/
 │   ├── project/       OverviewPanel, StageYearTimeline, TabNav
 │   ├── wbs/           TreeTable, TreeRow, TaskDetailPanel, YearSelector
@@ -1497,9 +1659,10 @@ getNotes(projectId, filter)
 │   └── constants.ts                    비목 라벨, 유형 라벨, 색상 맵
 ├── types/index.ts
 ├── supabase/
-│   ├── migrations/                     SQL 스키마 + RLS (진실 공급원)
+│   ├── migrations/                     SQL 스키마 + RLS + publication (진실 공급원)
 │   ├── functions/                      RPC 정의
-│   └── seed.sql                        개발용 시드
+│   └── seed.sql                        개발용 시드 — 부록 B.1 구조 그대로
+│                                       (과제 1 + 단계 1 + 연차 2 + Task 5). 검증 예시가 곧 테스트 데이터
 ├── src-tauri/                          Tauri 셸, 딥링크 핸들러
 └── .env.local                          SUPABASE_URL, SUPABASE_ANON_KEY
 ```
@@ -1517,14 +1680,14 @@ getNotes(projectId, filter)
 | **3. 목표 관리** | 성과목표·기술목표 CRUD, 실적/측정 기록, 달성률 계산 | 목표 대비 실적이 숫자로 보임 |
 | **4. 마일스톤 + 대시보드** | 마일스톤 CRUD·자동생성, 마감 판정, 대시보드 집계 | 평가·제출 마감이 먼저 보임 |
 | **5. 연구비** | 비목 매트릭스, 예산 편집, 집행 등록, 집행률 | 연차별 집행 현황이 보임 |
-| **5.5 엑셀 임포트** | 파싱 파이프라인, 5단계 마법사, 프로파일 저장, 배치 되돌리기 | 실제 보유 엑셀 파일이 오류 없이 반영됨 |
+| **5.5 엑셀 임포트** | 파싱 파이프라인, 5단계 마법사, 프로파일 저장, 반영 전 스냅샷(I-17) | 실제 보유 엑셀 파일이 오류 없이 반영됨 |
 | **6. 리스크 + 노트** | 리스크 매트릭스·대장, 마크다운 노트·회의록 템플릿 | 회의록이 과제에 붙음 |
 | **7. 간트 + 칸반** | 간트(연차 밴드·마일스톤 레인), 칸반 드래그 | 일정이 시각화됨 |
 | **8. To-Do + 설정 + 마감** | To-Do, 설정, 인쇄 레이아웃, 정리 | 전체 기능 동작 |
 
 > Phase 5.5는 **실제 엑셀 파일 샘플이 확보된 뒤에** 착수한다. 서식을 모르는 상태로 파서를 만들면 헛수고가 된다. `lib/import/` 전체를 순수 함수로 만들고 샘플 파일 기반 단위 테스트를 작성한다.
 
-> **필수 1**: `lib/tree.ts`, `lib/progress.ts`, `lib/goals.ts`, `lib/budget.ts`, `lib/priority.ts`는 순수 함수로 만들고 **단위 테스트를 반드시 작성**한다. 특히 §6.3 기술목표 달성률은 방향성·baseline 조합에서 실수가 나기 쉽다.
+> **필수 1**: `lib/tree.ts`, `lib/progress.ts`, `lib/goals.ts`, `lib/budget.ts`, `lib/priority.ts`, `lib/risk.ts`, `lib/dates.ts`는 순수 함수로 만들고 **단위 테스트를 반드시 작성**한다(Vitest). 특히 §6.3 기술목표 달성률은 방향성·baseline 조합에서 실수가 나기 쉽다.
 >
 > **필수 2**: Phase 0에서 RLS를 켜지 않고 시작하면 나중에 켤 때 전부 깨진다. **처음부터 켜고** 개발한다.
 >
@@ -1546,9 +1709,9 @@ getNotes(projectId, filter)
 | 금액 | 정수(원) 저장. 표시만 환산. 부동소수점 연산 금지 |
 | 백업 | 주 1회 자동 JSON 내보내기 (§8.7). 무료 플랜에 DB 백업 없음 |
 | 실시간 반영 | 다른 사람의 변경이 보이기까지 5초 이내 (Realtime), 폴백 시 30초 |
-| DB 용량 | 최대 규모에서 100MB 이내 유지 (무료 한도 500MB) |
-| 월 송신량 | 2GB 이내 유지 (무료 한도 5GB) |
-| 동시 접속 | Realtime 구독 6명 × 화면당 3테이블 = 20 연결 이내 (무료 한도 200) |
+| DB 용량 | 최대 규모에서 100MB 이내 유지. **200MB 도달 시 경고·원인 점검** (무료 한도 500MB, 이전 검토 400MB — §14.5) |
+| 월 송신량 | 2GB 이내 유지. **3GB 도달 시 경고** (무료 한도 5GB, 이전 검토 4GB) |
+| 동시 접속 | Realtime 구독 6명 × 화면당 최대 4테이블 = 24 연결 이내 (무료 한도 200, §8.5 구독표) |
 | 설치 | 관리자 권한 없이 사용자 폴더에 설치 가능할 것 |
 | 네트워크 단절 | 읽기 전용 배너로 명확히 알리고 쓰기 차단. 무음 실패 금지 |
 | 에러 | 데이터 손상 시 조용히 넘어가지 않고 명시적으로 알림 |
@@ -1622,42 +1785,43 @@ interface AppUser {
   memberId: string | null;  // 과제 참여인력(Member)과 연결. 선택
   active: boolean;     // false면 로그인은 되지만 데이터 접근 차단
   createdAt: string;
-  lastSeenAt: string;
+  updatedAt: string;
+  lastSeenAt: string;  // SA-1에서 하루 1회 갱신
 }
 ```
 
 | # | 규칙 |
 |---|---|
 | A-1 | 데스크톱 앱은 **시스템 브라우저**로 OAuth를 연다. WebView 안에서 구글 로그인을 처리하지 않는다(구글이 차단한다). 콜백은 `wbs://` 딥링크로 받는다. |
-| A-2 | `hd` 파라미터는 편의 기능일 뿐 보안 수단이 아니다. **서버 측에서 이메일 도메인을 반드시 재검증**한다. |
-| A-3 | 최초 로그인 시 `app_users`에 행이 자동 생성되되 `active=false`로 시작한다. 기존 사용자가 승인해야 접근이 열린다. 첫 사용자는 자동 승인. |
+| A-2 | `hd` 파라미터는 편의 기능일 뿐 보안 수단이 아니다. **서버 측에서 이메일 도메인을 반드시 재검증**한다. 허용 도메인은 env 변수 `ALLOWED_EMAIL_DOMAIN`에 둔다(하드코딩 금지). |
+| A-3 | **`app_users` 행 생성은 `auth.users` AFTER INSERT 트리거**(`security definer` 함수 `handle_new_user`, X-2 예외)가 수행한다 — 클라이언트·서버 액션의 INSERT가 아니다(INSERT 정책 자체가 없다). 기본 `active=false`. **첫 사용자 자동 승인**은 이 트리거 안에서 `pg_advisory_xact_lock` + `count(*)=0` 판정으로 처리한다(동시 첫 로그인 경합 차단). |
 | A-4 | 세션 토큰은 OS 키체인에 저장한다. 토큰 갱신 실패 시 재로그인을 요구한다. |
-| A-5 | 역할 구분은 없다. 승인된 사용자는 모두 동일한 읽기·쓰기 권한을 갖는다. |
+| A-5 | 역할 구분은 없다. 승인된 사용자는 모두 동일한 읽기·쓰기 권한을 가지며, **누구나 대기자를 승인할 수 있다**(`approve_user` RPC — 호출자가 active일 때만 통과). |
 
 ### 14.3 RLS 정책
 
 모든 테이블에 RLS를 켠다. 정책은 단순하다 — **승인된 사용자면 전부 허용, 아니면 전부 차단.**
 
 ```sql
+-- 헬퍼: 행마다 서브쿼리를 반복하지 않기 위한 함수 (stable + security definer)
+create or replace function is_approved() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from app_users where id = auth.uid() and active = true);
+$$;
+
 alter table tasks enable row level security;
 
 create policy "approved users full access" on tasks
-  for all
-  using (exists (
-    select 1 from app_users
-    where id = auth.uid() and active = true
-  ))
-  with check (exists (
-    select 1 from app_users
-    where id = auth.uid() and active = true
-  ));
+  for all to authenticated
+  using (is_approved())
+  with check (is_approved());
 ```
 
 | # | 규칙 |
 |---|---|
-| P-1 | **모든 테이블에 예외 없이 RLS를 켠다.** 새 테이블 추가 시 정책 작성이 누락되지 않도록 마이그레이션 체크리스트에 넣는다. |
-| P-2 | `app_users` 테이블 자체는 본인 행 읽기 + 관리자적 승인 갱신만 허용한다. 자기 자신을 `active=true`로 바꾸지 못하게 한다. |
-| P-3 | RLS 정책은 애플리케이션 검증의 **대체재가 아니라 최후 방어선**이다. 서버 액션의 Zod 검증은 그대로 유지한다. |
+| RLS-1 | **모든 테이블에 예외 없이 RLS를 켠다.** 새 테이블 추가 시 정책 작성이 누락되지 않도록 마이그레이션 체크리스트에 넣는다. 정책은 `to authenticated`를 명시한다(anon 평가 배제). |
+| RLS-2 | `app_users`는 별도 정책을 쓴다 — SELECT: 승인 사용자는 전체, 미승인은 본인 행만. UPDATE: **본인 행만** (`using/with check (id = auth.uid())`) + `active`·`email`·`id` 컬럼 변경은 BEFORE UPDATE **트리거로 거부** (RLS는 컬럼 단위를 표현하지 못한다). INSERT/DELETE 정책 없음 — 생성은 A-3 트리거, 승인·비활성화는 `approve_user`/`deactivate_user` RPC(`security definer`)만 가능. 자기 자신은 승인 불가. |
+| RLS-3 | RLS 정책은 애플리케이션 검증의 **대체재가 아니라 최후 방어선**이다. 서버 액션의 Zod 검증은 그대로 유지한다. |
 
 ### 14.4 온보딩
 
@@ -1708,6 +1872,7 @@ create policy "approved users full access" on tasks
 | F-4 | 활성 프로젝트 2개 제한. 개발용·운영용으로 정확히 나눠 쓴다. |
 | F-5 | 무료 플랜 한도를 넘기면 서비스가 402를 반환하며 전면 중단된다. 사용량 알림을 대시보드에서 켜둔다. |
 | F-6 | 한도 초과 시 즉시 대응책은 Pro 플랜($25/월) 전환이다. NAS 이전보다 빠른 임시 조치로 기억해 둔다. |
+
 ---
 
 ## 부록 A. 상수 정의
@@ -1743,6 +1908,7 @@ create policy "approved users full access" on tasks
 | `commercialization` | 사업화 | 건 |
 | `standard` | 표준화 | 건 |
 | `hr_training` | 인력양성 | 명 |
+| `other` | 기타 | 건 |
 
 ### A.3 색상 규약
 | 대상 | 값 | Tailwind |
@@ -1768,6 +1934,27 @@ create policy "approved users full access" on tasks
 | Org | `joint` | `sky-600` |
 | Org | `consign` | `slate-500` |
 
+### A.4 기타 enum 한글 라벨
+
+`lib/constants.ts`의 라벨 맵은 **모든 enum 값을 빠짐없이 덮는다** (누락 시 화면에 원시 코드가 노출된다).
+
+| enum | 값 → 표시 |
+|---|---|
+| ProjectStatus | planning 기획 · active 수행중 · on_hold 중단 · done 종료 · dropped 탈락 |
+| TaskStatus | todo 예정 · in_progress 진행중 · done 완료 · blocked 막힘 |
+| YearStatus | planned 계획 · active 수행중 · evaluating 평가중 · closed 종료 |
+| MilestoneType | annual_eval 연차평가 · stage_eval 단계평가 · final_eval 최종평가 · progress_check 진도점검 · report 보고서 제출 · contract 협약 · demo 시연/시험 · custom 기타 |
+| MilestoneStatus | planned 예정 · preparing 준비중 · done 완료 · delayed 지연 · cancelled 취소 |
+| OrgRole | lead 주관 · joint 공동 · consign 위탁 |
+| MemberRole | pm 총괄책임자 · pl 책임자 · researcher 연구원 · staff 지원 |
+| MeasureMethod | self 자체측정 · certified_lab 공인시험 · expert_review 전문가평가 · customer 수요처평가 · other 기타 |
+| Direction | higher_better 높을수록 우수 · lower_better 낮을수록 우수 · target_exact 목표값 일치 |
+| RiskCategory | technical 기술 · schedule 일정 · budget 예산 · resource 인력 · external 외부 · other 기타 |
+| RiskStrategy | mitigate 완화 · avoid 회피 · transfer 전가 · accept 수용 |
+| RiskStatus | identified 식별 · monitoring 관찰중 · occurred 발생 · resolved 해결 · closed 종결 |
+| NoteType | meeting 회의록 · tech 기술메모 · issue 이슈 · idea 아이디어 · report_draft 보고서 초안 · other 기타 |
+| Priority (Todo) | low 낮음 · normal 보통 · high 높음 |
+
 ---
 
 ## 부록 B. 계산 검증 예시
@@ -1776,12 +1963,12 @@ create policy "approved users full access" on tasks
 
 | 작업 | 중요도 | 마감일 | 오늘 기준 | 긴급도 | 점수 | 등급 |
 |---|---|---|---|---|---|---|
-| 학습·튜닝 (기술목표 연계) | 5 | 2일 후 | D-2 | 5 | **25** | 최우선 |
-| 중간보고서 초안 | 4 | 5일 후 | D-5 | 4 | **16** | 최우선 |
+| 학습·튜닝 (기술목표 연계) | 5 | 2일 후 | 마감 2일 전 | 5 | **25** | 최우선 |
+| 중간보고서 초안 | 4 | 5일 후 | 마감 5일 전 | 4 | **16** | 최우선 |
 | 데이터 정제 | 3 | 지난주 | 지연 | 5 | **15** | 최우선 |
-| 문헌 추가조사 | 2 | 20일 후 | D-20 | 2 | **4** | 보통 |
+| 문헌 추가조사 | 2 | 20일 후 | 마감 20일 전 | 2 | **4** | 보통 |
 | 코드 리팩터링 | 3 | 없음 | — | 2 | **6** | 보통 |
-| 요구사항 정의 (완료) | 4 | 지난달 | 완료 | 1 | **4** | 낮음(흐림) |
+| 요구사항 정의 (완료) | 4 | 지난달 | 완료 | 1 | **4** | 보통(흐림 — PR-6은 표시·정렬만 바꾸고 등급은 그대로다) |
 
 `데이터 정제`는 중요도가 3에 불과하지만 지연되어 긴급도 5를 받아 최우선으로 올라온다. **이것이 자동 긴급도를 쓰는 이유다** — 손으로 관리하면 이 전환을 놓친다.
 
@@ -1811,11 +1998,13 @@ create policy "approved users full access" on tasks
 
 | 항목 | 방향 | 비중 | 국내수준 | 목표치 | 현재 실적 | 달성률 |
 |---|---|---|---|---|---|---|
-| 객체 인식 정확도 | higher | 50% | 75 | 90 | 85 | (85−75)/(90−75) = **66.7** |
+| 객체 인식 정확도 | higher | 50% | 75 | 90 | 85 | (85−75)/(90−75) = **66.666…** (표시 66.7) |
 | 추론 지연시간 (ms) | lower | 30% | 200 | 50 | 80 | (200−80)/(200−50) = **80.0** |
 | 동시 처리 채널 수 | higher | 20% | 4 | 16 | 미측정 | **0** (분모 포함) |
 
-가중 달성률 = (66.7×50 + 80.0×30 + 0×20) / 100 = (3335 + 2400 + 0) / 100 = **57.4%**
+가중 달성률 = (66.666…×50 + 80.0×30 + 0×20) / 100 = (3333.33… + 2400 + 0) / 100 = **57.333… → 표시 57.3%**
+
+> **P-8 주의**: 중간값(66.666…)을 66.7로 반올림해 계산하면 57.4가 나온다 — 이는 틀린 값이다. 반올림은 최종 표시 단계에서만 한다. 테스트 기대값은 `57.33…`(소수 유지) 기준으로 작성한다.
 
 ### B.3 성과목표 달성률
 
@@ -1849,11 +2038,13 @@ create policy "approved users full access" on tasks
  4  (빈칸)     학생 인건비              일반        5,000,000    5,000,000    10,000,000
  5  (빈칸)     총 인건비1) (E=A+B+C+D)             75,000,000  115,000,000   190,000,000
  6  (빈칸)     연구시설‧장비비 (F)      현금 (R)            0   10,000,000    10,000,000
- 7  (빈칸)     연구활동비 (H)           현금 (T)    8,000,000       #REF!     8,000,000
- 8  (빈칸)     직접비 소계 (K)                     83,000,000          -    93,000,000
+ 7  (빈칸)     연구활동비 (H)           현금 (T)    8,000,000       #REF!        #REF!
+ 8  (빈칸)     직접비 소계 (K)                     83,000,000       #REF!        #REF!
  9  간접비 (L)                                      1,000,000    2,000,000     3,000,000
-10  연구개발비 총액 (M=K+L)                        84,000,000          -    96,000,000
+10  연구개발비 총액 (M=K+L)                        84,000,000       #REF!        #REF!
 ```
+
+> G열(합계)은 S-5에 의해 **파싱 대상에서 제외**되므로 값이 무엇이든 결과에 영향이 없다. 7행의 `#REF!`가 합계·소계 수식으로 전파된 상태를 그대로 반영했다(실측 서식과 동일한 양상). 8·10행은 스킵 행이므로 `#REF!`가 있어도 오류로 집계하지 않는다 — 오류 판정(I-12)은 **반영 대상 셀**에만 적용한다.
 
 **기대 파싱 결과**
 
@@ -1947,12 +2138,17 @@ export const MINISTRY_ALIAS_PRESETS: Record<string, Record<string, BudgetCategor
   // '국토교통부': {}, '과학기술정보통신부': {}, '중소벤처기업부': {}, ... 서식 확보 시 추가
 };
 
+// 현금/현물 축 라벨 — 스킵도 비목도 아니다. 금액의 귀속 축만 결정한다 (S-4)
+// 스킵 목록에 넣으면 현물 행의 금액이 통째로 유실되므로 반드시 분리해 둔다
+export const CASH_INKIND_LABELS = ['현금', '현물', '현금액', '현물액', '일반', '통합관리'];
+// '일반'/'통합관리'는 학생인건비의 세부 축 — 금액은 합산해 plannedAmount로
+
 // 집계·메모 행 — 비목으로 인식하지 않고 건너뛴다 (정규화 후 비교)
 export const SKIP_ROW_PATTERNS = [
   '소계', '합계', '계', '총계', '총합계',
   '직접비', '직접비계', '직접비소계',
   '간접비계', '간접비소계',
-  '정부지원연구개발비', '기관부담연구개발비', '현금', '현물',
+  '정부지원연구개발비', '기관부담연구개발비',
   // 실측 서식(산자부·행안부)에서 확인된 집계·비율·메모 행
   '총인건비', '수정인건비', '연구개발비총액', '사업비합계', '전체예산',
   '연구수당비율', '간접비비율', '인건비비율',
@@ -1969,6 +2165,6 @@ export const AMBIGUOUS_ALIASES: Record<string, BudgetCategory[]> = {
 };
 ```
 
-> **주의 1**: `SKIP_ROW_PATTERNS`의 `'계'`와 `'간접비'`가 충돌한다. 매칭 순서는 **① 완전일치 비목 → ② 별칭 사전 → ③ 건너뛰기 패턴** 이다. `간접비`는 ①에서 비목으로 확정되므로 건너뛰기 대상이 되지 않는다. `직접비`는 비목 목록에 없으므로 ③에서 걸러진다.
+> **주의 1**: 라벨 판정 순서는 **① 완전일치 비목 → ② 별칭 사전 → ③ 축 라벨(`CASH_INKIND_LABELS`) → ④ 건너뛰기 패턴** 이다. `간접비`는 ①에서 비목으로 확정되므로 건너뛰기 대상이 되지 않는다. `직접비`는 비목 목록에 없으므로 ④에서 걸러진다. `현금`/`현물`은 ③에서 축으로 판정되어 해당 행의 금액이 cashAmount/inKindAmount로 귀속된다(행 자체를 버리지 않는다).
 >
 > **주의 2**: 정규화가 괄호 내용·각주까지 지우므로 `총 인건비1) (E=A+B+C+D)` → `총인건비`, `* 연구수당 비율3) (I/E1)` → `연구수당비율`로 스킵 패턴에 걸린다. 전체가 괄호 메모인 라벨은 정규화 후 빈 문자열이 되어 I-5 규칙으로 건너뛴다.
