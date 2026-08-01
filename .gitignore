@@ -1,0 +1,20 @@
+node_modules/
+.next/
+.env.local
+.env*.local
+
+# 실제 예산 자료 — 절대 커밋 금지
+samples/
+*.xlsx
+*.xls
+!tests/fixtures/*.xlsx
+
+# 비밀번호·시크릿 메모 — 절대 커밋 금지
+*(gitignore)*
+데이터베이스 비밀번호(gitignore).txt
+
+# Tauri
+src-tauri/target/
+
+# 백업
+backups/
