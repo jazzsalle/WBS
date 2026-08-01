@@ -1,0 +1,451 @@
+// DB 응답 row 검증용 Zod 스키마 — snake_case 기준 (SOT §8.6)
+// "DB 응답도 Zod로 검증한다. 스키마 마이그레이션 누락을 조용히 넘기지 않기 위해서다."
+//
+// 컬럼 구성은 supabase/migrations/20260802000000_initial_schema.sql과 1:1이다.
+// 여기서 파싱된 row를 mapper.dbToApp으로 넘기면 types/index.ts의 앱 타입이 된다.
+// enum 값 목록은 §5의 타입 정의와 동일해야 한다 (Zod는 런타임 값이 필요해 중복이 불가피).
+
+import { z } from 'zod';
+
+// date/timestamptz는 PostgREST가 문자열로 준다. 형식 검증까지는 하지 않는다 —
+// 이 스키마의 목적은 스키마 드리프트(컬럼 누락·타입 변경) 감지다.
+const isoTimestamp = z.string(); // timestamptz → ISO 8601
+const isoDate = z.string();      // date → 'YYYY-MM-DD'
+
+// N-4 공통 컬럼 (예외: app_users, app_settings, 조인 테이블)
+const baseRow = {
+  id: z.uuid(),
+  created_at: isoTimestamp,
+  updated_at: isoTimestamp,
+  version: z.number(),
+  created_by: z.uuid().nullable(),
+  updated_by: z.uuid().nullable(),
+};
+
+// 1~5 척도 (importance, urgency, probability, impact)
+const levelSchema = z.union([
+  z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5),
+]);
+
+// ─── §14.2 app_users — N-4 예외: version/created_by/updated_by 없음 ─
+
+export const appUserRowSchema = z.object({
+  id: z.uuid(),
+  email: z.string(),
+  name: z.string(),
+  member_id: z.uuid().nullable(),
+  active: z.boolean(),
+  created_at: isoTimestamp,
+  updated_at: isoTimestamp,
+  last_seen_at: isoTimestamp,
+});
+
+// ─── §5.3 projects ───────────────────────────────────────────
+
+export const projectStatusSchema = z.enum(['planning', 'active', 'on_hold', 'done', 'dropped']);
+
+export const projectRowSchema = z.object({
+  ...baseRow,
+  name: z.string(),
+  project_no: z.string(),
+  ministry: z.string(),
+  agency: z.string(),
+  program_name: z.string(),
+  description: z.string(),
+  status: projectStatusSchema,
+  color: z.string(),
+  contract_start_date: isoDate.nullable(),
+  contract_end_date: isoDate.nullable(),
+  total_budget: z.number().nullable(),   // 금액은 원 단위 정수
+  gov_budget: z.number().nullable(),
+  own_budget: z.number().nullable(),
+  pm_member_id: z.uuid().nullable(),
+  lead_org_id: z.uuid().nullable(),
+  archived: z.boolean(),
+  sort_order: z.number(),
+});
+
+// ─── §5.4 stages ─────────────────────────────────────────────
+
+export const stageRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  sort_order: z.number(),
+  name: z.string(),
+  goal: z.string(),
+  start_date: isoDate.nullable(),
+  end_date: isoDate.nullable(),
+  budget: z.number().nullable(),
+});
+
+// ─── §5.5 years ──────────────────────────────────────────────
+
+export const yearStatusSchema = z.enum(['planned', 'active', 'evaluating', 'closed']);
+
+export const yearRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  stage_id: z.uuid(),
+  sort_order: z.number(),
+  name: z.string(),
+  goal: z.string(),
+  start_date: isoDate.nullable(),
+  end_date: isoDate.nullable(),
+  budget: z.number().nullable(),
+  status: yearStatusSchema,
+});
+
+// ─── §5.6 tasks — memberIds 등 조인 테이블 배열은 row에 없다 (N-2) ─
+
+export const taskStatusSchema = z.enum(['todo', 'in_progress', 'done', 'blocked']);
+export const progressModeSchema = z.enum(['manual', 'auto']);
+
+export const taskRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  year_id: z.uuid(),
+  parent_id: z.uuid().nullable(),
+  sort_order: z.number(),
+  title: z.string(),
+  description: z.string(),
+  status: taskStatusSchema,
+  progress_mode: progressModeSchema,
+  manual_progress: z.number(),
+  estimated_hours: z.number().nullable(),
+  actual_hours: z.number().nullable(),
+  start_date: isoDate.nullable(),
+  due_date: isoDate.nullable(),
+  importance: levelSchema,
+  urgency_mode: z.enum(['auto', 'manual']),
+  urgency_manual: levelSchema,
+  owner_member_id: z.uuid().nullable(),
+  org_id: z.uuid().nullable(),
+  tags: z.array(z.string()),
+});
+
+// ─── §5.7 milestones ─────────────────────────────────────────
+
+export const milestoneTypeSchema = z.enum([
+  'annual_eval', 'stage_eval', 'final_eval', 'progress_check',
+  'report', 'contract', 'demo', 'custom',
+]);
+export const milestoneStatusSchema = z.enum(['planned', 'preparing', 'done', 'delayed', 'cancelled']);
+
+export const milestoneRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  year_id: z.uuid().nullable(),
+  type: milestoneTypeSchema,
+  title: z.string(),
+  date: isoDate,
+  status: milestoneStatusSchema,
+  owner_member_id: z.uuid().nullable(),
+  description: z.string(),
+  result_note: z.string(),
+});
+
+// ─── §5.8 deliverables / deliverable_achievements ────────────
+
+export const deliverableTypeSchema = z.enum([
+  'paper_sci', 'paper_domestic', 'conference',
+  'patent_dom_apply', 'patent_dom_reg', 'patent_intl_apply', 'patent_intl_reg',
+  'sw_registration', 'tech_transfer', 'commercialization',
+  'standard', 'hr_training', 'other',
+]);
+
+export const deliverableRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  type: deliverableTypeSchema,
+  name: z.string(),
+  unit: z.string(),
+  target_total: z.number(),
+  target_by_year: z.record(z.string(), z.number()), // { yearId: 목표건수 } — 키는 변환 금지 (N-13)
+  org_id: z.uuid().nullable(),
+  note: z.string(),
+  sort_order: z.number(),
+});
+
+export const deliverableAchievementRowSchema = z.object({
+  ...baseRow,
+  deliverable_id: z.uuid(),
+  title: z.string(),
+  date: isoDate,
+  year_id: z.uuid().nullable(),
+  org_id: z.uuid().nullable(),
+  evidence_url: z.string(),
+  note: z.string(),
+});
+
+// ─── §5.9 tech_targets / tech_target_records ─────────────────
+
+export const directionSchema = z.enum(['higher_better', 'lower_better', 'target_exact']);
+export const measureMethodSchema = z.enum(['self', 'certified_lab', 'expert_review', 'customer', 'other']);
+
+export const techTargetRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  name: z.string(),
+  unit: z.string(),
+  direction: directionSchema,
+  weight: z.number(),
+  target_value: z.number(),
+  target_by_year: z.record(z.string(), z.number()),
+  baseline_domestic: z.number().nullable(),
+  world_best: z.number().nullable(),
+  world_best_holder: z.string(),
+  measure_method: measureMethodSchema,
+  measure_description: z.string(),
+  org_id: z.uuid().nullable(),
+  sort_order: z.number(),
+});
+
+export const techTargetRecordRowSchema = z.object({
+  ...baseRow,
+  tech_target_id: z.uuid(),
+  value: z.number(),
+  date: isoDate,
+  year_id: z.uuid().nullable(),
+  method: measureMethodSchema,
+  evaluator: z.string(),
+  evidence_url: z.string(),
+  note: z.string(),
+});
+
+// ─── §5.10 organizations ─────────────────────────────────────
+
+export const orgRoleSchema = z.enum(['lead', 'joint', 'consign']);
+
+export const organizationRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  name: z.string(),
+  role: orgRoleSchema,
+  type: z.string(),
+  representative: z.string(),
+  contact: z.string(),
+  responsibility: z.string(),
+  budget: z.number().nullable(),
+  sort_order: z.number(),
+});
+
+// ─── §5.11 members ───────────────────────────────────────────
+
+export const memberRoleSchema = z.enum(['pm', 'pl', 'researcher', 'staff']);
+
+export const memberRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  org_id: z.uuid().nullable(),
+  name: z.string(),
+  role: memberRoleSchema,
+  position: z.string(),
+  field: z.string(),
+  email: z.string(),
+  phone: z.string(),
+  active: z.boolean(),
+  sort_order: z.number(),
+});
+
+// ─── §5.12 budget_items / budget_executions ──────────────────
+
+export const budgetCategorySchema = z.enum([
+  'personnel', 'student_personnel', 'facility_equipment', 'material',
+  'consignment', 'international', 'burden', 'activity',
+  'promotion', 'allowance', 'indirect', 'other',
+]);
+
+export const budgetItemRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  year_id: z.uuid(),
+  category: budgetCategorySchema,
+  planned_amount: z.number(),
+  cash_amount: z.number().nullable(),
+  in_kind_amount: z.number().nullable(),
+  note: z.string(),
+});
+
+export const budgetExecutionRowSchema = z.object({
+  ...baseRow,
+  budget_item_id: z.uuid(),
+  date: isoDate,
+  amount: z.number(),
+  description: z.string(),
+  note: z.string(),
+});
+
+// ─── §5.13 risks ─────────────────────────────────────────────
+
+export const riskCategorySchema = z.enum(['technical', 'schedule', 'budget', 'resource', 'external', 'other']);
+export const riskStrategySchema = z.enum(['mitigate', 'avoid', 'transfer', 'accept']);
+export const riskStatusSchema = z.enum(['identified', 'monitoring', 'occurred', 'resolved', 'closed']);
+
+export const riskRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  year_id: z.uuid().nullable(),
+  task_id: z.uuid().nullable(),
+  title: z.string(),
+  category: riskCategorySchema,
+  description: z.string(),
+  probability: levelSchema,
+  impact: levelSchema,
+  strategy: riskStrategySchema,
+  response: z.string(),
+  contingency: z.string(),
+  owner_member_id: z.uuid().nullable(),
+  due_date: isoDate.nullable(),
+  status: riskStatusSchema,
+  sort_order: z.number(),
+});
+
+// ─── §5.14 notes ─────────────────────────────────────────────
+
+export const noteTypeSchema = z.enum(['meeting', 'tech', 'issue', 'idea', 'report_draft', 'other']);
+
+export const noteRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid().nullable(),
+  year_id: z.uuid().nullable(),
+  task_id: z.uuid().nullable(),
+  milestone_id: z.uuid().nullable(),
+  type: noteTypeSchema,
+  title: z.string(),
+  body: z.string(),
+  date: isoDate,
+  tags: z.array(z.string()),
+  pinned: z.boolean(),
+});
+
+// ─── §5.15 todos ─────────────────────────────────────────────
+
+export const prioritySchema = z.enum(['low', 'normal', 'high']);
+
+export const todoRowSchema = z.object({
+  ...baseRow,
+  title: z.string(),
+  done: z.boolean(),
+  project_id: z.uuid().nullable(),
+  due_date: isoDate.nullable(),
+  priority: prioritySchema,
+  sort_order: z.number(),
+  completed_at: isoTimestamp.nullable(),
+});
+
+// ─── §5.16 app_settings — N-10 단일 행. id는 boolean true ────
+// N-4 예외지만 마이그레이션이 낙관적 잠금(O-1)용 version 등을 둔다.
+
+export const appSettingsRowSchema = z.object({
+  id: z.literal(true),
+  due_soon_days: z.number(),
+  milestone_alert_days: z.number(),
+  week_starts_on: z.union([z.literal(0), z.literal(1)]),
+  default_gantt_scale: z.enum(['day', 'week', 'month']),
+  currency_unit: z.enum(['원', '천원', '백만원']),
+  progress_weight_basis: z.enum(['budget', 'equal']),
+  schema_version: z.number(),
+  created_at: isoTimestamp,
+  updated_at: isoTimestamp,
+  version: z.number(),
+  updated_by: z.uuid().nullable(),
+});
+
+// ─── §5.12.1 import_profiles ─────────────────────────────────
+
+export const importKindSchema = z.enum(['budget_plan']);
+
+export const importProfileRowSchema = z.object({
+  ...baseRow,
+  name: z.string(),
+  kind: importKindSchema,
+  ministry: z.string().nullable(),
+  project_id: z.uuid().nullable(),
+  sheet_name: z.string().nullable(),
+  header_row: z.number(),
+  data_start_row: z.number(),
+  orientation: z.enum(['row', 'column']),
+  label_columns: z.array(z.string()),
+  // jsonb 내부는 앱 형태 그대로 저장된다 — yearOrder는 camelCase (mapper 참조)
+  year_column_mappings: z.array(z.object({ column: z.string(), yearOrder: z.number() })),
+  category_aliases: z.record(z.string(), budgetCategorySchema), // 키 = 엑셀 원문 라벨. 변환 금지
+  amount_unit: z.union([z.literal(1), z.literal(1000), z.literal(1000000)]),
+  skip_row_patterns: z.array(z.string()),
+  last_used_at: isoTimestamp.nullable(),
+  use_count: z.number(),
+});
+
+// ─── I-17 import_snapshots (내부) ────────────────────────────
+// snapshot 구조는 commit_import RPC(Phase 5.5)가 정의한다. 여기서는 jsonb임만 보장.
+
+export const importSnapshotRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  snapshot: z.record(z.string(), z.unknown()),
+});
+
+// ─── N-2 조인 테이블 5종 — id·타임스탬프만 (N-4 예외) ────────
+
+const joinBase = {
+  id: z.uuid(),
+  created_at: isoTimestamp,
+  updated_at: isoTimestamp,
+};
+
+export const taskMemberRowSchema = z.object({
+  ...joinBase,
+  task_id: z.uuid(),
+  member_id: z.uuid(),
+});
+
+export const taskDeliverableRowSchema = z.object({
+  ...joinBase,
+  task_id: z.uuid(),
+  deliverable_id: z.uuid(),
+});
+
+export const taskTechTargetRowSchema = z.object({
+  ...joinBase,
+  task_id: z.uuid(),
+  tech_target_id: z.uuid(),
+});
+
+export const achievementMemberRowSchema = z.object({
+  ...joinBase,
+  achievement_id: z.uuid(),
+  member_id: z.uuid(),
+});
+
+export const noteAttendeeRowSchema = z.object({
+  ...joinBase,
+  note_id: z.uuid(),
+  member_id: z.uuid(),
+});
+
+// ─── 추론 타입 (리포지토리 내부용 — 앱 타입은 types/index.ts) ─
+
+export type AppUserRow = z.infer<typeof appUserRowSchema>;
+export type ProjectRow = z.infer<typeof projectRowSchema>;
+export type StageRow = z.infer<typeof stageRowSchema>;
+export type YearRow = z.infer<typeof yearRowSchema>;
+export type TaskRow = z.infer<typeof taskRowSchema>;
+export type MilestoneRow = z.infer<typeof milestoneRowSchema>;
+export type DeliverableRow = z.infer<typeof deliverableRowSchema>;
+export type DeliverableAchievementRow = z.infer<typeof deliverableAchievementRowSchema>;
+export type TechTargetRow = z.infer<typeof techTargetRowSchema>;
+export type TechTargetRecordRow = z.infer<typeof techTargetRecordRowSchema>;
+export type OrganizationRow = z.infer<typeof organizationRowSchema>;
+export type MemberRow = z.infer<typeof memberRowSchema>;
+export type BudgetItemRow = z.infer<typeof budgetItemRowSchema>;
+export type BudgetExecutionRow = z.infer<typeof budgetExecutionRowSchema>;
+export type RiskRow = z.infer<typeof riskRowSchema>;
+export type NoteRow = z.infer<typeof noteRowSchema>;
+export type TodoRow = z.infer<typeof todoRowSchema>;
+export type AppSettingsRow = z.infer<typeof appSettingsRowSchema>;
+export type ImportProfileRow = z.infer<typeof importProfileRowSchema>;
+export type ImportSnapshotRow = z.infer<typeof importSnapshotRowSchema>;
+export type TaskMemberRow = z.infer<typeof taskMemberRowSchema>;
+export type TaskDeliverableRow = z.infer<typeof taskDeliverableRowSchema>;
+export type TaskTechTargetRow = z.infer<typeof taskTechTargetRowSchema>;
+export type AchievementMemberRow = z.infer<typeof achievementMemberRowSchema>;
+export type NoteAttendeeRow = z.infer<typeof noteAttendeeRowSchema>;
