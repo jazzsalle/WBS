@@ -7,7 +7,13 @@ import { z } from 'zod';
 import type { Milestone } from '@/types';
 import { milestoneRowSchema } from './schema';
 import { appToDb, dbToApp } from './mapper';
-import { ConflictError, NotFoundError, StaleDataError, ValidationError } from './errors';
+import {
+  ConflictError,
+  NotFoundError,
+  RuleViolationError,
+  StaleDataError,
+  ValidationError,
+} from './errors';
 
 // N-4 공통 컬럼은 DB(트리거)와 서버 액션이 채운다 — 입력에서 제외
 type BaseFieldKeys = 'id' | 'createdAt' | 'updatedAt' | 'version' | 'createdBy' | 'updatedBy';
@@ -113,4 +119,37 @@ export async function removeMilestone(client: SupabaseClient, id: string): Promi
   const { data, error } = await client.from('milestones').delete().eq('id', id).select('id');
   if (error) throwDbError(error);
   if (!data || data.length === 0) throw new NotFoundError('마일스톤을 찾을 수 없습니다.');
+}
+
+// ─── 기본 마일스톤 자동 생성 (§7.8, X-1) ─────────────────────
+
+// 날짜를 생략하면 RPC가 연차 종료일을 쓴다. 종료일이 없으면 RuleViolationError다 —
+// 임의의 날짜로 대체하지 않는다.
+export interface DefaultMilestoneDates {
+  annualEvalDate?: string | null;
+  reportDate?: string | null;
+}
+
+// 중복 검사와 2건 삽입을 한 트랜잭션으로 묶기 위해 RPC를 쓴다 (SA-3, X-1).
+// 반환은 실제로 삽입된 행만 — 이미 있으면 0건일 수 있다(멱등).
+export async function generateDefaultMilestones(
+  client: SupabaseClient,
+  yearId: string,
+  dates: DefaultMilestoneDates = {}
+): Promise<Milestone[]> {
+  const { data, error } = await client.rpc('generate_default_milestones', {
+    p_year_id: yearId,
+    p_annual_eval_date: dates.annualEvalDate ?? null,
+    p_report_date: dates.reportDate ?? null,
+  });
+  // RPC의 raise exception(P0001)은 규칙 위반이다 — 일반 Error로 뭉개면 UI가 안내를 못 한다
+  if (error) {
+    if (error.code === 'P0001') throw new RuleViolationError(error.message);
+    throwDbError(error);
+  }
+  if (!Array.isArray(data)) {
+    console.error('[db] generate_default_milestones 반환값이 배열이 아닙니다:', data);
+    throw new ValidationError('저장소 응답이 기대 스키마와 다릅니다. 앱과 DB 버전을 확인하세요.');
+  }
+  return data.map(toMilestone);
 }

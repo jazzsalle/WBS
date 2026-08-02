@@ -37,7 +37,7 @@ import {
   leafFallbackProgress,
 } from '@/lib/progress';
 import { computePriorityScore, computeUrgency } from '@/lib/priority';
-import { toISODate } from '@/lib/dates';
+import { todayISO } from '@/lib/dates';
 
 // ─── 조회 모델 (§9 getYearTree / getProjectFullTree) ──────────────────────────
 
@@ -741,13 +741,14 @@ export async function getYearTree(yearId: string): Promise<ActionResult<YearTree
     const list = await tasksRepo.listTasksByYear(client, yid);
 
     const { roots, invalid } = buildTaskTree(list);
-    const todayISO = toISODate(new Date());
+    // 기준일은 Asia/Seoul 달력 (§6.5) — 서버 OS 타임존과 무관해야 한다
+    const today = todayISO(new Date());
 
     return {
       ok: true,
       data: {
         year,
-        nodes: toWbsNodes(roots, todayISO),
+        nodes: toWbsNodes(roots, today),
         yearProgress: computeYearProgress(roots),
         invalidTaskIds: invalid.map((t) => t.id),
       },
@@ -773,7 +774,7 @@ export async function getProjectFullTree(
       settingsRepo.getSettings(client),
     ]);
 
-    const todayISO = toISODate(new Date());
+    const today = todayISO(new Date()); // §6.5 기준일 — Asia/Seoul 달력
     const basis = settings.progressWeightBasis; // §6.1 ③ (P-9 폴백은 lib/progress가 처리)
 
     const invalidTaskIds: string[] = [];
@@ -787,7 +788,7 @@ export async function getProjectFullTree(
       invalidTaskIds.push(...invalid.map((t) => t.id));
       const yearProgress = computeYearProgress(roots);
       progressByYear.set(year.id, yearProgress);
-      return { year, nodes: toWbsNodes(roots, todayISO), yearProgress };
+      return { year, nodes: toWbsNodes(roots, today), yearProgress };
     });
 
     // 연차가 사라진 Task는 FK상 있을 수 없지만, 있으면 조용히 버리지 않고 알린다 (절대 규칙 5)

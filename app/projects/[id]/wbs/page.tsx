@@ -8,7 +8,7 @@ import { getCurrentUser } from '@/actions/auth';
 import { getProjectFullTree, getYearTree } from '@/actions/tasks';
 import { getTeam } from '@/actions/team';
 import { getGoalsData } from '@/actions/goals';
-import { toISODate } from '@/lib/dates';
+import { todayISO } from '@/lib/dates';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import RealtimeRefresher from '@/components/RealtimeRefresher';
 import WbsScreen, { type WbsGroup } from '@/components/wbs/WbsScreen';
@@ -146,8 +146,9 @@ export default async function WbsPage({ params, searchParams }: WbsPageProps) {
         techTargets={techTargets}
         selectedYearId={selectedYear === null ? ALL_YEARS : selectedYear.id}
         invalidTaskIds={invalidIds}
-        // 지연 판정 기준일을 서버에서 고정해 SSR/CSR 결과가 갈리지 않게 한다 (§6.5)
-        todayISO={toISODate(new Date())}
+        // 지연 판정 기준일을 서버에서 Asia/Seoul 달력으로 고정해
+        // SSR/CSR·서버 OS 타임존에 따라 결과가 갈리지 않게 한다 (§6.5)
+        todayISO={todayISO(new Date())}
       />
     </main>
   );

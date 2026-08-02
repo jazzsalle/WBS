@@ -7,15 +7,17 @@
 //       순서 변경은 HTML5 네이티브 드래그로만 한다(새 의존성 없이).
 //       연차 order는 과제 전체 기준이라 단계 경계를 넘는 순서는 서버가 RULE로 거부한다(§5.5) —
 //       그 경우 낙관적 순서를 버려 서버 순서로 되돌린다.
+//       연차 생성 시 기본 마일스톤(연차평가·연차실적계획서 제출) 동시 생성 옵션을 제공한다(§7.8).
 // 진척률은 서버가 계산해 내려준 값을 표시만 한다(§6.1, O-4). 금액은 원 단위 정수로 다룬다.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { ActionResult, Stage, Year, YearStatus } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import { YEAR_STATUS_LABELS } from '@/lib/constants';
 import { createStage, deleteStage, reorderStages, updateStage } from '@/actions/stages';
+import { generateDefaultMilestones } from '@/actions/milestones';
 import { createYear, deleteYear, reorderYears, setYearStatus, updateYear } from '@/actions/years';
 import Badge, { type BadgeTone } from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
@@ -119,6 +121,8 @@ interface EntityFormModalProps {
   onSubmit: (payload: EntityPayload, expectedVersion?: number) => Promise<ActionResult<unknown>>;
   onClose: () => void;
   onSaved: () => void;
+  /** 폼 하단 부가 옵션. 입력 중인 값(종료일 등)에 따라 달라져 폼 안에서 그린다 */
+  renderExtra?: (values: FormValues) => ReactNode;
 }
 
 function EntityFormModal({
@@ -130,6 +134,7 @@ function EntityFormModal({
   onSubmit,
   onClose,
   onSaved,
+  renderExtra,
 }: EntityFormModalProps) {
   const router = useRouter();
   const [values, setValues] = useState<FormValues>(() => (entity ? toValues(entity) : EMPTY_VALUES));
@@ -307,6 +312,8 @@ function EntityFormModal({
             </label>
           </div>
 
+          {renderExtra?.(values)}
+
           <div className="mt-6 flex justify-end gap-2">
             <Button size="md" onClick={onClose} disabled={saving}>
               취소
@@ -372,6 +379,8 @@ export default function StageYearPanel({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<{ message: string; code?: ActionErrorCode } | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
+  // §7.8 기본 마일스톤 동시 생성 옵션. 기본값 해제 — 사용자가 고를 때만 데이터를 만든다.
+  const [withDefaultMilestones, setWithDefaultMilestones] = useState(false);
 
   const stageOrderKey = stages.map((s) => s.id).join(',');
   const yearOrderKey = years.map((y) => y.year.id).join(',');
@@ -468,6 +477,29 @@ export default function StageYearPanel({
     if (!next) return;
     setLocalYearOrder(next);
     await run(() => reorderYears(projectId, next), () => setLocalYearOrder(null));
+  };
+
+  // §7.8 옵션이 켜져 있으면 연차 생성 직후 기본 마일스톤 2건을 만든다.
+  // 마일스톤만 실패해도 연차는 이미 만들어졌으므로 폼을 실패로 되돌리지 않는다 —
+  // 그러면 사용자가 재제출해 연차가 중복 생성된다. 대신 패널 배너에 "연차는 생성됨"을 명시한다 (절대 규칙 5).
+  const handleCreateYear = async (
+    stageId: string,
+    payload: EntityPayload
+  ): Promise<ActionResult<unknown>> => {
+    const res = await createYear(stageId, payload);
+    if (!res.ok) return res;
+
+    // 종료일이 없으면 RPC가 날짜를 지어낼 수 없어 RULE로 실패한다 — 애초에 호출하지 않는다
+    if (withDefaultMilestones && payload.endDate !== null) {
+      const generated = await generateDefaultMilestones(res.data.id);
+      if (!generated.ok) {
+        setFailure({
+          message: `연차는 만들어졌지만 기본 마일스톤 생성에 실패했습니다: ${generated.error} 마일스톤 화면에서 직접 추가하세요.`,
+          code: generated.code,
+        });
+      }
+    }
+    return res;
   };
 
   const handleYearStatus = async (yearId: string, status: YearStatus) => {
@@ -569,7 +601,10 @@ export default function StageYearPanel({
                     <Button
                       size="sm"
                       disabled={busy}
-                      onClick={() => setDialog({ kind: 'year-create', stageId: stage.id })}
+                      onClick={() => {
+                        setWithDefaultMilestones(false); // 매번 명시적으로 선택하게 한다
+                        setDialog({ kind: 'year-create', stageId: stage.id });
+                      }}
                     >
                       연차 추가
                     </Button>
@@ -761,7 +796,32 @@ export default function StageYearPanel({
           description="연차를 만들면 비목 12종이 함께 생성됩니다. 순서는 이 단계의 마지막 연차 뒤로 들어갑니다."
           namePlaceholder={`${years.length + 1}차년도`}
           submitLabel="연차 만들기"
-          onSubmit={(payload) => createYear(dialog.stageId, payload)}
+          onSubmit={(payload) => handleCreateYear(dialog.stageId, payload)}
+          renderExtra={(values) => {
+            // §7.8 날짜는 연차 종료일에서 제안된다 — 종료일이 없으면 만들 수 없다
+            const canGenerate = values.endDate !== '';
+            return (
+              <label className="mt-4 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <input
+                  type="checkbox"
+                  checked={canGenerate && withDefaultMilestones}
+                  disabled={!canGenerate}
+                  onChange={(e) => setWithDefaultMilestones(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span className="text-xs text-slate-600">
+                  <span className="block text-sm font-medium text-slate-800">
+                    기본 마일스톤 함께 생성(연차평가·연차실적계획서 제출)
+                  </span>
+                  <span className="mt-0.5 block">
+                    {canGenerate
+                      ? '연차 종료일을 기준으로 날짜가 제안됩니다. 만든 뒤 마일스톤 화면에서 수정할 수 있습니다.'
+                      : '연차 종료일을 입력하면 기본 마일스톤 날짜를 제안할 수 있습니다.'}
+                  </span>
+                </span>
+              </label>
+            );
+          }}
           onClose={() => setDialog(null)}
           onSaved={() => {
             setDialog(null);

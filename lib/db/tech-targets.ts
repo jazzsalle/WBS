@@ -32,7 +32,8 @@ const techTargetWithRecordsRowSchema = techTargetRowSchema.extend({
   tech_target_records: z.array(techTargetRecordRowSchema),
 });
 
-const TECH_TARGET_SELECT = '*, tech_target_records(*)';
+// export인 이유: 전 과제 벌크 조회(lib/db/dashboard.ts)가 같은 문자열을 써야 임베드 모양이 갈라지지 않는다
+export const TECH_TARGET_SELECT = '*, tech_target_records(*)';
 
 // ─── 파일 내부 헬퍼 ──────────────────────────────────────────
 
@@ -84,7 +85,7 @@ function toRecord(row: z.infer<typeof techTargetRecordRowSchema>): TechTargetRec
   };
 }
 
-function toTechTarget(raw: unknown): TechTarget {
+export function toTechTarget(raw: unknown): TechTarget {
   const { tech_target_records, ...base } = parseRow(techTargetWithRecordsRowSchema, raw);
   const records = tech_target_records
     // §5.9: "최신값이 현재 실적치" — 측정일 오름차순으로 정렬해 마지막 원소가 최신이 되게 한다

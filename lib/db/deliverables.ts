@@ -35,7 +35,8 @@ const deliverableWithChildrenRowSchema = deliverableRowSchema.extend({
   deliverable_achievements: z.array(achievementWithMembersRowSchema),
 });
 
-const DELIVERABLE_SELECT = '*, deliverable_achievements(*, achievement_members(member_id))';
+// export인 이유: 전 과제 벌크 조회(lib/db/dashboard.ts)가 같은 문자열을 써야 임베드 모양이 갈라지지 않는다
+export const DELIVERABLE_SELECT = '*, deliverable_achievements(*, achievement_members(member_id))';
 
 // ─── 파일 내부 헬퍼 ──────────────────────────────────────────
 
@@ -90,7 +91,7 @@ function toAchievement(
   };
 }
 
-function toDeliverable(raw: unknown): Deliverable {
+export function toDeliverable(raw: unknown): Deliverable {
   const { deliverable_achievements, ...base } = parseRow(deliverableWithChildrenRowSchema, raw);
   const achievements = deliverable_achievements
     // 임베드 배열의 순서는 보장되지 않는다 — 달성일순으로 결정적 정렬

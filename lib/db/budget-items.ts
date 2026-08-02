@@ -19,7 +19,8 @@ const CHILD_TABLE = 'budget_executions';
 // 앱의 BudgetExecution(§5.12)은 5개 필드만 노출한다 — 임베드 select도 그 형태로 맞춘다.
 // (snake/camel 표기가 동일한 컬럼들이라 매퍼 변환 결과도 같다)
 const EXECUTION_COLUMNS = 'id, date, amount, description, note';
-const ITEM_SELECT = `*, executions:budget_executions(${EXECUTION_COLUMNS})`;
+// export인 이유: 전 과제 벌크 조회(lib/db/dashboard.ts)가 같은 문자열을 써야 임베드 모양이 갈라지지 않는다
+export const ITEM_SELECT = `*, executions:budget_executions(${EXECUTION_COLUMNS})`;
 
 const executionEmbedSchema = budgetExecutionRowSchema.pick({
   id: true,
@@ -28,7 +29,7 @@ const executionEmbedSchema = budgetExecutionRowSchema.pick({
   description: true,
   note: true,
 });
-const itemWithExecutionsSchema = budgetItemRowSchema.extend({
+export const itemWithExecutionsSchema = budgetItemRowSchema.extend({
   executions: z.array(executionEmbedSchema),
 });
 type ItemWithExecutionsRow = z.infer<typeof itemWithExecutionsSchema>;
@@ -76,7 +77,7 @@ function definedOnly(obj: Record<string, unknown>): Record<string, unknown> {
 
 // 임베드 결과를 앱 형태(§5.12 executions 포함)로 조립한다.
 // 집행 내역은 집행일 순 정렬 — PostgREST 임베드 정렬 대신 여기서 정렬해 결정론을 보장
-function toBudgetItem(row: ItemWithExecutionsRow): BudgetItem {
+export function toBudgetItem(row: ItemWithExecutionsRow): BudgetItem {
   const { executions, ...itemRow } = row;
   const sorted = [...executions].sort((a, b) =>
     a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1

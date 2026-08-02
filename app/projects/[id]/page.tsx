@@ -1,6 +1,7 @@
-// 과제 개요 (SOT §7.3) — Phase 1 + Phase 3 범위
-// 이 Phase까지 구현한 것: 협약 정보 패널 + 단계·연차 타임라인(진척률·예산·상태) + 목표 달성 현황.
-// 임박 마일스톤(Phase 4)·고위험 리스크/최근 노트(Phase 6)는 자리표시로 둔다.
+// 과제 개요 (SOT §7.3) — Phase 1 + Phase 3 + Phase 4 범위
+// 이 Phase까지 구현한 것: 협약 정보 패널 + 단계·연차 타임라인(진척률·예산·상태) + 목표 달성 현황
+// + 임박 마일스톤 5건.
+// 고위험 리스크·최근 노트(Phase 6)는 자리표시로 둔다.
 // 데이터 로딩은 서버에서 — 액션(actions/)만 호출하고 supabase는 직접 부르지 않는다.
 // 진척률은 getProjectFullTree가 §6.1 4단계 롤업으로 계산해 내려준 값이다(저장하지 않는다, O-4).
 // 목표 달성률도 getGoalsData(→ lib/goals.ts)가 계산한 값을 그대로 쓴다 — 여기서 다시 나누지 않는다.
@@ -11,10 +12,12 @@ import { getCurrentUser } from '@/actions/auth';
 import { getProjectFullTree } from '@/actions/tasks';
 import { getTeam } from '@/actions/team';
 import { getGoalsData, type GoalsData } from '@/actions/goals';
-import type { ActionResult } from '@/types';
-import { PROJECT_STATUS_LABELS } from '@/lib/constants';
+import { getMilestonesData, type MilestonesData } from '@/actions/milestones';
+import type { ActionResult, Milestone, MilestoneStatus, Year } from '@/types';
+import { MILESTONE_TYPE_COLORS, MILESTONE_TYPE_LABELS, PROJECT_STATUS_LABELS } from '@/lib/constants';
+import { formatDday, isOverdueMilestone, isUpcomingMilestone, todayISO } from '@/lib/dates';
 import { formatRate } from '@/lib/goals';
-import Badge from '@/components/ui/Badge';
+import Badge, { type BadgeTone } from '@/components/ui/Badge';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import ProgressBar from '@/components/ui/ProgressBar';
 import RealtimeRefresher from '@/components/RealtimeRefresher';
@@ -155,6 +158,106 @@ function GoalSummaryCard({
   );
 }
 
+// ─── 임박 마일스톤 (§7.3, §6.5) ───────────────────────────────────────────────
+
+const OVERVIEW_MILESTONE_LIMIT = 5;
+
+// §6.5: done·cancelled는 마감 판정 대상이 아니다 — 개요 목록에서도 뺀다
+const CLOSED_MILESTONE_STATUSES: ReadonlySet<MilestoneStatus> = new Set(['done', 'cancelled']);
+
+// 부록 A.3 유형 색상 토큰 → Badge 톤. Badge에는 sky·teal 톤이 없어 계열이 가장 가까운 톤으로 옮긴다.
+const MILESTONE_TYPE_TONES: Record<string, BadgeTone> = {
+  'violet-600': 'violet',
+  'sky-600': 'blue',
+  'teal-600': 'green',
+  'slate-600': 'neutral',
+};
+
+/** §5.5: name이 있으면 name, 없으면 order+1 + '차년도' */
+function yearLabel(year: Year): string {
+  return year.name.trim() || `${year.order + 1}차년도`;
+}
+
+/**
+ * §7.3 임박 마일스톤 5건. 지연 항목을 먼저 보이고 그다음 오늘 이후를 가까운 순으로 —
+ * 지연 항목은 날짜가 오늘보다 앞서므로 날짜 오름차순 하나로 그 순서가 나온다.
+ * 같은 날짜는 제목으로 갈라 목록이 새로고침마다 뒤바뀌지 않게 한다.
+ * 기준일(today)은 서버가 계산해 내려준 Asia/Seoul 달력 오늘이다 (§6.5).
+ * 조회에 실패해도 개요 전체를 막지 않고 이 카드에만 사실을 남긴다 (절대 규칙 5).
+ */
+function UpcomingMilestoneCard({
+  projectId,
+  today,
+  result,
+}: {
+  projectId: string;
+  today: string;
+  result: ActionResult<MilestonesData>;
+}) {
+  const upcoming = result.ok
+    ? result.data.milestones
+        .filter((m) => !CLOSED_MILESTONE_STATUSES.has(m.status))
+        .sort((a, b) => (a.date === b.date ? a.title.localeCompare(b.title, 'ko') : a.date < b.date ? -1 : 1))
+        .slice(0, OVERVIEW_MILESTONE_LIMIT)
+    : [];
+
+  // 가리키는 연차가 사라졌다면 '미지정'으로 뭉개지 않는다 (절대 규칙 5)
+  const yearNameOf = (milestone: Milestone): string => {
+    if (!result.ok || milestone.yearId === null) return '과제 전체';
+    const year = result.data.years.find((y) => y.id === milestone.yearId);
+    return year ? yearLabel(year) : '(삭제된 연차)';
+  };
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-bold text-slate-900">임박 마일스톤</h2>
+        <Link
+          href={`/projects/${projectId}/milestones`}
+          className="text-xs font-medium text-blue-600 hover:underline"
+        >
+          마일스톤 관리 →
+        </Link>
+      </div>
+
+      {!result.ok ? (
+        <ErrorBanner message={result.error} code={result.code} className="mt-4" />
+      ) : upcoming.length === 0 ? (
+        <p className="mt-4 rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">
+          예정된 마일스톤이 없습니다.
+        </p>
+      ) : (
+        <ul className="mt-4 space-y-2">
+          {upcoming.map((m) => {
+            const overdue = isOverdueMilestone(m, today);
+            const alertDays = result.data.milestoneAlertDays;
+            const tone: BadgeTone = overdue
+              ? 'red'
+              : isUpcomingMilestone(m, today, alertDays)
+                ? 'amber'
+                : 'neutral';
+            return (
+              <li key={m.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50/60 px-3 py-2">
+                <Badge tone={MILESTONE_TYPE_TONES[MILESTONE_TYPE_COLORS[m.type]] ?? 'neutral'}>
+                  {MILESTONE_TYPE_LABELS[m.type]}
+                </Badge>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900" title={m.title}>
+                  {m.title}
+                </span>
+                <span className="text-xs text-slate-500">{yearNameOf(m)}</span>
+                <span className="text-xs tabular-nums text-slate-500">{m.date}</span>
+                <Badge tone={tone} className="tabular-nums" title={overdue ? '지연 (§6.5)' : undefined}>
+                  {formatDday(today, m.date)}
+                </Badge>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 /** 후속 Phase에서 채울 영역. 빈 화면을 말없이 두지 않고 언제 채워지는지 밝힌다. */
 function PlaceholderCard({ title, phase, detail }: { title: string; phase: number; detail: string }) {
   return (
@@ -177,13 +280,17 @@ export default async function ProjectOverviewPage({
 
   const { id } = await params;
   // PM·주관기관은 이름으로 보여야 하므로 인력·기관 목록을 함께 읽는다 (§7.3).
-  // 목표 달성 현황 요약도 같은 화면에 있으므로 함께 던진다 — 서로 기다릴 이유가 없다.
-  // 둘 다 실패해도 개요 전체를 막지는 않고 해당 행·카드에만 사실을 표시한다.
-  const [res, teamRes, goalsRes] = await Promise.all([
+  // 목표 달성 현황·임박 마일스톤 요약도 같은 화면에 있으므로 함께 던진다 — 서로 기다릴 이유가 없다.
+  // 어느 하나가 실패해도 개요 전체를 막지는 않고 해당 행·카드에만 사실을 표시한다.
+  const [res, teamRes, goalsRes, milestonesRes] = await Promise.all([
     getProjectFullTree(id),
     getTeam(id),
     getGoalsData(id),
+    getMilestonesData(id),
   ]);
+
+  // §6.5 기준일은 서버가 한 번 계산해 내려준다 — 클라이언트가 각자 '오늘'을 만들면 판정이 갈린다
+  const today = todayISO(new Date());
 
   if (!res.ok) {
     return (
@@ -275,11 +382,7 @@ export default async function ProjectOverviewPage({
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <GoalSummaryCard projectId={id} result={goalsRes} />
-        <PlaceholderCard
-          title="임박 마일스톤"
-          phase={4}
-          detail="마감이 가까운 마일스톤 5건 (§7.3, §6.5)."
-        />
+        <UpcomingMilestoneCard projectId={id} today={today} result={milestonesRes} />
         <PlaceholderCard title="고위험 리스크" phase={6} detail="리스크 점수 상위 5건 (§7.3, §6.5)." />
         <PlaceholderCard title="최근 노트" phase={6} detail="최근 작성된 노트 5건 (§7.3)." />
       </div>

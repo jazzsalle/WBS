@@ -32,8 +32,9 @@ function raiseDbError(error: PostgrestError): never {
   throw new Error(error.message);
 }
 
-// 조인 테이블 임베드 select — 목록·단건 조회가 같은 모양을 쓰게 상수로 고정
-const TASK_SELECT =
+// 조인 테이블 임베드 select — 목록·단건 조회가 같은 모양을 쓰게 상수로 고정.
+// export인 이유: 전 과제 벌크 조회(lib/db/dashboard.ts)가 같은 문자열을 써야 임베드 모양이 갈라지지 않는다
+export const TASK_SELECT =
   '*, task_members(member_id), task_deliverables(deliverable_id), task_tech_targets(tech_target_id)';
 
 const taskJoinsSchema = z.object({
@@ -44,7 +45,7 @@ const taskJoinsSchema = z.object({
 
 type TaskBase = Omit<Task, 'memberIds' | 'deliverableIds' | 'techTargetIds'>;
 
-function parseTaskRow(row: unknown): Task {
+export function parseTaskRow(row: unknown): Task {
   // taskRowSchema는 임베드 키를 모르므로 base와 joins를 따로 검증한다 (zod가 미선언 키를 제거)
   const base = taskRowSchema.safeParse(row);
   const joins = taskJoinsSchema.safeParse(row);
