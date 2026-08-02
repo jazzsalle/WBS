@@ -17,18 +17,25 @@ Phase 0.5 수동 검증 마무리 → Phase 1 (계층 + WBS 트리 + 진척률 �
 - 로그인 방식 결정: **구글 OAuth 유지** (HR API는 표준 SSO 미지원 — 로그인 부적합). HR API(hr.unes.kr)는 Phase 2에서 직원 명부 가져오기로 활용 검토
 
 ## In progress
-Phase 0.5 수동 검증 (아래 목록) — 완료 후 Phase 0.5 최종 종결 선언
+없음 — Phase 0.5 검증 대부분 완료 (아래 잔여 3건은 자연 검증으로 남김)
+
+## 수동 검증 결과 (2026-08-02)
+- ✅ 구글 콘솔 OAuth + Supabase provider 설정 (`google: true` 확인)
+- ✅ 실제 구글 로그인 성공 (브라우저 모드) — 첫 사용자 자동 승인(sangraedo@unes.co.kr, active=true), lastSeenAt 갱신
+- ✅ 홈·/settings·사용자 관리·백업 패널 화면 확인 (크롬 원격 검증)
+- ✅ 내보내기 실동작 — BackupFile 형식(4키·25테이블)·UTF-8 정상
+- ✅ Rust 툴체인 설치(winget: Rustup + VS BuildTools) → `cargo check` 에러 0
+- ✅ `npm run tauri:dev` 실기동 — 사이드카 기동, WebView가 /login 로드
+- ✅ `wbs://` 딥링크 전 구간 — 앱 도달 → 교환 시도 → 실패 명시 표시(/login?error=callback) + 세션 정리
+- ⏳ 잔여(자연 검증): ① Tauri 안에서 실제 구글 로그인 전체 왕복(시스템 브라우저→딥링크→키체인) ② 두 PC 동일 데이터 ③ 동료 첫 로그인 시 /pending→승인 흐름 (두 번째 회사 계정이 현재 없음)
 
 ## Next steps
-1. **사용자 선행 작업**:
-   - 구글 클라우드 콘솔(console.cloud.google.com — Developer Program 포털 아님!)에서 OAuth 클라이언트 생성 → Supabase 대시보드 Google provider + Redirect URLs(`wbs://auth-callback`, `http://localhost:3000/auth/callback`) 등록
-   - Rust 툴체인 설치: `winget install Rustlang.Rustup` (검증 절차는 src-tauri/README.md)
-2. **수동 검증 6건**: ① cargo check/tauri build ② 사이드카 실기동 ③ 실제 구글 로그인 + 딥링크 왕복 + 키체인 복원 ④ 첫/두 번째 사용자 승인 흐름 실화면 ⑤ 두 PC 동일 데이터 조회 ⑥ Tauri 자동 백업 실파일 동작
-3. 수동 검증 통과 후 `/phase-run 1`
+1. `/phase-run 1` — 계층 CRUD + WBS 트리 + 4단계 진척률 롤업 + 우선순위 (§6.1, §6.6~6.9, §7.4)
+2. Phase 1 검증 중 Tauri 실로그인 왕복도 겸사 확인 권장
+3. 집 PC 첫 세팅 시: git pull → npm install → `winget install Rustlang.Rustup` + VS BuildTools → .env.local 복사(다른 PC에서 가져오기 — gitignore라 저장소에 없음!)
 
 ## Blockers
-- 구글 OAuth 콘솔 설정 미완 (사용자 진행 중 — Developer Program 포털에서 헤맴, console.cloud.google.com으로 안내됨)
-- Rust 툴체인 미설치 (cargo check 미수행 — Rust 컴파일 에러 가능성 잔존)
+없음
 
 ## How to run
 - 테스트: `npm test` (통합은 실제 dev DB, 네트워크 필요) / 타입: `npx tsc --noEmit` / 개발 서버: `npm run dev` (브라우저 모드 로그인: http://localhost:3000)
