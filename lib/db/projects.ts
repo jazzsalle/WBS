@@ -3,7 +3,7 @@
 // 클라이언트는 호출자가 주입한다 — 테스트에서 service_role 클라이언트를 넣을 수 있게 (C-1 예외).
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
-import type { Project } from '@/types';
+import type { Project, ProjectStatus } from '@/types';
 import { projectRowSchema } from './schema';
 import { appToDb, dbToApp } from './mapper';
 import {
@@ -99,6 +99,52 @@ export async function createProject(
   return parseProjectRow(data);
 }
 
+// §9 createProject: Stage 1개 + Year 1개(비목 12종 포함)를 함께 만드는 실제 생성 경로.
+// pmMemberId·leadOrgId는 인력·기관이 아직 없으므로 받지 않는다 — 생성 후 updateProject로 지정한다.
+export interface ProjectWithDefaultsInput {
+  name?: string;
+  projectNo?: string;
+  ministry?: string;
+  agency?: string;
+  programName?: string;
+  description?: string;
+  status?: ProjectStatus;
+  color?: string;
+  contractStartDate?: string | null;
+  contractEndDate?: string | null;
+  totalBudget?: number | null;
+  govBudget?: number | null;
+  ownBudget?: number | null;
+}
+
+// 다중 테이블 생성이라 RPC 트랜잭션을 쓴다 (§8.3 X-1). created_by/updated_by는 RPC가 auth.uid()로 채운다.
+export async function createProjectWithDefaults(
+  client: SupabaseClient,
+  input: ProjectWithDefaultsInput
+): Promise<Project> {
+  const { data, error } = await client.rpc('create_project_with_defaults', {
+    p_name: input.name ?? '',
+    p_project_no: input.projectNo ?? '',
+    p_ministry: input.ministry ?? '',
+    p_agency: input.agency ?? '',
+    p_program_name: input.programName ?? '',
+    p_description: input.description ?? '',
+    p_status: input.status ?? 'planning',
+    p_color: input.color ?? '',
+    p_contract_start_date: input.contractStartDate ?? null,
+    p_contract_end_date: input.contractEndDate ?? null,
+    p_total_budget: input.totalBudget ?? null,
+    p_gov_budget: input.govBudget ?? null,
+    p_own_budget: input.ownBudget ?? null,
+  });
+  if (error) raiseDbError(error);
+  if (typeof data !== 'string') {
+    console.error('[db/projects] create_project_with_defaults 반환값이 uuid가 아닙니다:', data);
+    throw new ValidationError(SCHEMA_MISMATCH_MESSAGE);
+  }
+  return getProjectById(client, data);
+}
+
 // §8.4: expectedVersion이 오면 version 조건을 걸어 0행이면 StaleDataError (O-1)
 export async function updateProject(
   client: SupabaseClient,
@@ -116,6 +162,15 @@ export async function updateProject(
   if (error) raiseDbError(error);
   if (!data || data.length === 0) await raiseStaleOrNotFound(client, id, expectedVersion);
   return parseProjectRow(data[0]);
+}
+
+// H-10: 넘어온 순서대로 sort_order 0..n-1. 행마다 부르지 않고 한 번의 RPC로 일괄 갱신한다 (X-3)
+export async function reorderProjects(
+  client: SupabaseClient,
+  orderedIds: string[]
+): Promise<void> {
+  const { error } = await client.rpc('reorder_projects', { p_ordered_ids: orderedIds });
+  if (error) raiseDbError(error);
 }
 
 // H-7: 연쇄 삭제는 RPC 트랜잭션으로 — 순환 FK 해소(pm_member_id·lead_org_id) 후 cascade (§8.3)

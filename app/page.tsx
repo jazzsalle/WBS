@@ -19,6 +19,12 @@ export default async function DashboardPage() {
         <div className="flex items-center gap-4">
           <span className="text-sm text-slate-500">{res.data.name}</span>
           <Link
+            href="/projects"
+            className="text-sm text-slate-500 underline hover:text-slate-700"
+          >
+            과제 목록
+          </Link>
+          <Link
             href="/settings"
             className="text-sm text-slate-500 underline hover:text-slate-700"
           >

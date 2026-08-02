@@ -1,8 +1,9 @@
 // tasks 리포지토리 (SOT §5.6, §8.4, §8.6, §6.6 H-4)
 // Task 앱 타입의 memberIds/deliverableIds/techTargetIds는 조인 테이블(N-2)에 있다 —
 // 읽기는 PostgREST 임베드로 한 번에 가져오고, 쓰기는 배열 전체 치환으로 저장한다.
-// moveTask/moveTaskToYear/reorderTasks는 순환·깊이 검사를 DB에서 해야 하므로(X-4)
-// Phase 1의 RPC로 만든다 — 여기서 다루지 않는다.
+// moveTask/moveTaskToYear/reorderTasks는 순환(H-2)·깊이(H-3)·같은 과제(H-11) 검사를
+// DB에서 해야 하므로(X-4) move_task/move_task_to_year/reorder_tasks RPC를 호출한다
+// (20260805000000_task_tree_rpcs.sql). 파일 하단 참조.
 // 클라이언트는 호출자가 주입한다 — 테스트에서 service_role 클라이언트를 넣을 수 있게 (C-1 예외).
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
@@ -209,4 +210,55 @@ export async function deleteTask(client: SupabaseClient, id: string): Promise<vo
   const { data, error } = await client.from('tasks').delete().eq('id', id).select('id');
   if (error) raiseDbError(error);
   if (!data || data.length === 0) throw new NotFoundError('작업을 찾을 수 없습니다.');
+}
+
+// ─── 트리 조작 (RPC 전용 — X-3, X-4) ──────────────────────────────────────────
+// 규칙 위반은 RPC의 raise exception(P0001) → raiseDbError → RuleViolationError.
+// 갱신 대상이 여러 행이라 RPC는 void를 반환한다 — 호출자가 쓸 최신 행은 다시 읽어 준다.
+
+// H-12: newIndex는 대상을 제거한 뒤의 새 형제 배열 기준 0-based 삽입 위치.
+// 범위를 벗어나면 RPC가 양 끝으로 clamp하고, 이동 후 양쪽 그룹을 normalize한다 (H-10).
+export async function moveTask(
+  client: SupabaseClient,
+  id: string,
+  newParentId: string | null,
+  newIndex: number
+): Promise<Task> {
+  const { error } = await client.rpc('move_task', {
+    p_task_id: id,
+    p_new_parent_id: newParentId,
+    p_new_index: newIndex,
+  });
+  if (error) raiseDbError(error);
+  return getTaskById(client, id);
+}
+
+// H-11: 자손 전체가 함께 이동하고 대상은 새 연차의 루트가 된다. 같은 과제 내에서만.
+export async function moveTaskToYear(
+  client: SupabaseClient,
+  id: string,
+  newYearId: string
+): Promise<Task> {
+  const { error } = await client.rpc('move_task_to_year', {
+    p_task_id: id,
+    p_new_year_id: newYearId,
+  });
+  if (error) raiseDbError(error);
+  return getTaskById(client, id);
+}
+
+// H-10, X-3: orderedIds는 (yearId, parentId) 컨테이너의 자식 "전체"여야 한다.
+// 누락·초과·중복은 RPC가 거부한다 — 부분 반영으로 순서가 깨지는 편이 더 나쁘다.
+export async function reorderTasks(
+  client: SupabaseClient,
+  yearId: string,
+  parentId: string | null,
+  orderedIds: string[]
+): Promise<void> {
+  const { error } = await client.rpc('reorder_tasks', {
+    p_year_id: yearId,
+    p_parent_id: parentId,
+    p_ordered_ids: orderedIds,
+  });
+  if (error) raiseDbError(error);
 }

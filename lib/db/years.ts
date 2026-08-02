@@ -132,6 +132,31 @@ export async function updateYear(
   return parseYearRow(data[0]);
 }
 
+// H-10: 컨테이너는 project 전체(§5.5). 과제의 모든 연차를 넘겨야 하며,
+// 단계 경계를 넘는 순서는 RPC가 RuleViolationError로 거부한다.
+export async function reorderYears(
+  client: SupabaseClient,
+  projectId: string,
+  orderedIds: string[]
+): Promise<void> {
+  const { error } = await client.rpc('reorder_years', {
+    p_project_id: projectId,
+    p_ordered_ids: orderedIds,
+  });
+  if (error) raiseDbError(error);
+}
+
+// §5.5: 'active'는 과제당 1개 — 기존 active 해제와 지정을 한 트랜잭션으로 묶는다 (§8.3)
+export async function setYearStatus(
+  client: SupabaseClient,
+  id: string,
+  status: YearStatus
+): Promise<Year> {
+  const { error } = await client.rpc('set_year_status', { p_year_id: id, p_status: status });
+  if (error) raiseDbError(error);
+  return getYearById(client, id);
+}
+
 // H-5: Task·BudgetItem은 cascade, 나머지는 set null — RPC 트랜잭션이 보장한다
 export async function deleteYear(client: SupabaseClient, id: string): Promise<void> {
   const { error } = await client.rpc('delete_year', { p_year_id: id });

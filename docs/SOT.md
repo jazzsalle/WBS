@@ -743,7 +743,7 @@ computeTaskProgress(task):
 | P-6 | 리프에 자식이 처음 생기면 `progressMode`를 `'auto'`로 자동 전환. |
 | P-7 | `estimatedHours`가 0/null인 자식은 가중치 1. 음수 입력 불가. |
 | P-8 | 반올림은 표시 단계에서만. 중간 계산은 소수점 유지. |
-| P-9 | `year.budget`이 전부 null이면 `progressWeightBasis` 설정과 무관하게 균등 가중으로 폴백한다. |
+| P-9 | `year.budget`에 **양수가 하나도 없으면**(전부 null이거나 전부 0) `progressWeightBasis` 설정과 무관하게 균등 가중으로 폴백한다. 가중치 합이 0이면 진척률이 0으로 계산되어 거짓 값이 되기 때문이다. 양수가 하나라도 있으면 `budget ?? 1`을 그대로 쓴다(0인 연차는 가중치 0). |
 | P-10 | 신규 Task의 `progressMode` 기본값은 `'manual'`이다. (부모가 되는 순간 P-6이 `'auto'`로 전환) |
 | P-11 | `status`를 `done`에서 다른 상태로 되돌려도 `manualProgress`는 유지한다. P-1의 100 강제가 풀릴 뿐, 값을 임의로 리셋하지 않는다. |
 | P-12 | 마지막 자식이 삭제되어 부모가 다시 리프가 되면 `progressMode='manual'`, `manualProgress=직전 롤업값(반올림)`으로 고정한다. 삭제로 진척률이 널뛰지 않게 한다. |
@@ -1933,6 +1933,16 @@ create policy "approved users full access" on tasks
 | Org | `lead` | `indigo-600` |
 | Org | `joint` | `sky-600` |
 | Org | `consign` | `slate-500` |
+| Project 상태 | `planning` | `slate-400` |
+| Project 상태 | `active` | `blue-500` |
+| Project 상태 | `on_hold` | `amber-500` |
+| Project 상태 | `done` | `emerald-500` |
+| Project 상태 | `dropped` | `rose-500` |
+| Year 상태 | `planned` | `slate-400` |
+| Year 상태 | `active` | `blue-500` |
+| Year 상태 | `evaluating` | `amber-500` |
+| Year 상태 | `closed` | `emerald-500` |
+| Project 색상 미지정 폴백 | `''` | `slate-500` |
 
 ### A.4 기타 enum 한글 라벨
 

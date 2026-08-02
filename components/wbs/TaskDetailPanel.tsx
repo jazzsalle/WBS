@@ -1,0 +1,419 @@
+'use client';
+
+// 작업 상세 패널 (SOT §7.4 "행 클릭 → 우측 상세 패널", §6.9 중요도·긴급도 고정)
+// 여러 필드를 한 번에 바꾸므로 낙관적 잠금을 필수로 건다 — updateTask에 expectedVersion 전달 (O-1).
+// O-3: STALE이면 ConflictDialog를 띄우고, 다시 불러온 뒤에는 최신 서버 값(baseline)과 내 입력의
+//      상이 항목을 나란히 보여준다. 입력값은 절대 덮어쓰지 않는다.
+//      저장에 쓰는 version은 항상 baseline(사용자가 비교를 끝낸 서버 값)의 것이고,
+//      확인하지 않은 충돌 항목이 남아 있으면 저장 자체를 막는다 — 자동 갱신된 version으로
+//      남의 수정이 조용히 덮어써지는 경로를 없앤다.
+// 패널이 열려 있는 동안은 Realtime 자동 새로고침을 보류한다 (R-4).
+
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { Task, TaskStatus } from '@/types';
+import type { ActionErrorCode } from '@/lib/db/errors';
+import { TASK_STATUS_LABELS } from '@/lib/constants';
+import { priorityGrade } from '@/lib/priority';
+import { updateTask } from '@/actions/tasks';
+import { setRealtimePaused } from '@/components/RealtimeRefresher';
+import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
+import ErrorBanner from '@/components/ui/ErrorBanner';
+import ConflictDialog from '@/components/ui/ConflictDialog';
+import {
+  DETAIL_FIELDS,
+  adoptLatestValue,
+  buildUpdatePatch,
+  diffDetailValues,
+  displayDetailValue,
+  toDetailFormValues,
+  unresolvedConflicts,
+  type DetailFieldKey,
+  type DetailFormValues,
+  type Level,
+} from './conflict';
+
+export interface TaskDetailPanelProps {
+  task: Task;
+  /** 표시용 계산값 (§6.9). 저장하지 않는다 */
+  urgency: number;
+  priorityScore: number;
+  wbsCode: string;
+  onClose: () => void;
+}
+
+export default function TaskDetailPanel({
+  task,
+  urgency,
+  priorityScore,
+  wbsCode,
+  onClose,
+}: TaskDetailPanelProps) {
+  const router = useRouter();
+  const [form, setForm] = useState<DetailFormValues>(() => toDetailFormValues(task));
+  // O-3 비교 기준: 마지막으로 받아들인 서버 값. 저장에 쓰는 version도 여기서만 나온다.
+  const [baseline, setBaseline] = useState<Task>(task);
+  const [reloaded, setReloaded] = useState(false);
+  const [keptKeys, setKeptKeys] = useState<ReadonlySet<DetailFieldKey>>(
+    () => new Set<DetailFieldKey>()
+  );
+  const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState<{ message: string; code?: ActionErrorCode } | null>(null);
+  const [conflict, setConflict] = useState<string | null>(null);
+
+  // R-4: 편집 중에는 남의 변경으로 화면이 다시 그려지지 않게 보류한다("새 변경 있음" 배너만)
+  useEffect(() => {
+    setRealtimePaused(true);
+    return () => setRealtimePaused(false);
+  }, []);
+
+  // 다시 불러오기(또는 남의 저장) 후 부모가 최신 task를 내려주면 비교 기준만 갱신한다.
+  // 입력값(form)은 건드리지 않는다 — 작업 내용을 날리지 않는 것이 O-3의 핵심이다.
+  const baselineVersion = baseline.version;
+  useEffect(() => {
+    if (task.version === baselineVersion) return;
+    setBaseline(task);
+    setConflict(null);
+    setReloaded(true);
+    // 새 기준이 왔으므로 이전 판단은 무효다 — 다시 확인하게 한다
+    setKeptKeys(new Set<DetailFieldKey>());
+  }, [task, baselineVersion]);
+
+  const latest = useMemo(() => toDetailFormValues(baseline), [baseline]);
+  const diffKeys = useMemo(
+    () => (reloaded ? diffDetailValues(latest, form) : []),
+    [reloaded, latest, form]
+  );
+  const unresolved = useMemo(() => unresolvedConflicts(diffKeys, keptKeys), [diffKeys, keptKeys]);
+
+  const patch = <K extends keyof DetailFormValues>(key: K, value: DetailFormValues[K]): void => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = async (): Promise<void> => {
+    setFailure(null);
+
+    // 확인하지 않은 충돌이 남아 있으면 저장하지 않는다 (O-3: 조용한 덮어쓰기 차단)
+    if (unresolved.length > 0) {
+      setFailure({
+        message:
+          '최신 내용과 다른 항목이 남아 있습니다. 각 항목에서 [최신 값 사용] 또는 [내 입력 유지]를 고른 뒤 저장하세요.',
+        code: 'STALE',
+      });
+      return;
+    }
+
+    // 저장 payload는 비교 대상(DetailFormValues)에서만 만든다 — 비교되지 않는 필드가
+    // 끼어들 수 없게 conflict.ts가 키를 강제한다
+    const built = buildUpdatePatch(form);
+    if (!built.ok) {
+      setFailure({ message: built.message, code: 'VALIDATION' });
+      return;
+    }
+
+    setSaving(true);
+    // O-1: 여러 필드 동시 갱신 — 비교를 끝낸 baseline의 version을 조건으로 건다
+    const res = await updateTask(task.id, built.patch, baseline.version);
+    setSaving(false);
+
+    if (!res.ok) {
+      if (res.code === 'STALE') {
+        setConflict(res.error); // 입력값은 그대로 두고 선택지를 준다
+        return;
+      }
+      setFailure({ message: res.error, code: res.code });
+      return;
+    }
+
+    // 내 저장이 새 기준이 된다 — 뒤따라 들어올 refresh는 같은 version이라 비교가 뜨지 않는다
+    setBaseline(res.data);
+    setReloaded(false);
+    setKeptKeys(new Set<DetailFieldKey>());
+    router.refresh();
+  };
+
+  const grade = priorityGrade(priorityScore);
+
+  return (
+    <aside
+      aria-label="작업 상세"
+      className="fixed top-0 right-0 z-30 flex h-full w-[380px] flex-col border-l border-slate-200 bg-white shadow-xl"
+    >
+      <header className="flex items-start justify-between gap-2 border-b border-slate-200 p-4">
+        <div className="min-w-0">
+          <p className="font-mono text-xs text-slate-400">{wbsCode}</p>
+          <h2 className="truncate text-base font-bold">{task.title}</h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="상세 패널 닫기"
+          className="shrink-0 text-xl leading-none text-slate-400 hover:text-slate-600"
+        >
+          ×
+        </button>
+      </header>
+
+      <div className="flex-1 space-y-4 overflow-y-auto p-4 text-sm">
+        {failure && (
+          <ErrorBanner
+            message={failure.message}
+            code={failure.code}
+            onDismiss={() => setFailure(null)}
+          />
+        )}
+
+        {reloaded && (
+          // O-3 비교 UI: 최신 값과 내 입력을 나란히 두고 항목마다 사용자가 고르게 한다
+          <div
+            role="status"
+            className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+          >
+            <p className="font-semibold">최신 내용을 다시 불러왔습니다.</p>
+            {diffKeys.length === 0 ? (
+              <p className="mt-1 text-xs">내 입력과 다른 항목이 없습니다. 그대로 저장하면 됩니다.</p>
+            ) : (
+              <>
+                <p className="mt-1 text-xs">
+                  아래 항목이 서로 다릅니다. 내 입력은 그대로 두었습니다 — 항목마다 최신 값을 쓸지
+                  내 입력을 유지할지 고르세요. 고르기 전에는 저장할 수 없습니다.
+                </p>
+                <ul className="mt-2 space-y-1.5">
+                  {DETAIL_FIELDS.filter((field) => diffKeys.includes(field.key)).map((field) => {
+                    const kept = keptKeys.has(field.key);
+                    return (
+                      <li key={field.key} className="rounded-lg bg-white/70 px-2.5 py-1.5 text-xs">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold text-slate-700">{field.label}</span>
+                          <span className="text-slate-500">
+                            내 입력: {displayDetailValue(field.key, form)}
+                          </span>
+                          <span className="text-slate-500">
+                            최신: {displayDetailValue(field.key, latest)}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setForm((prev) => adoptLatestValue(prev, latest, field.key))
+                            }
+                            className="rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                          >
+                            최신 값 사용
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setKeptKeys((prev) => {
+                                const next = new Set(prev);
+                                next.add(field.key);
+                                return next;
+                              })
+                            }
+                            className={`rounded-md border px-2 py-0.5 font-semibold ${
+                              kept
+                                ? 'border-slate-300 bg-slate-100 text-slate-500'
+                                : 'border-amber-300 text-amber-800'
+                            }`}
+                          >
+                            {kept ? '내 입력 유지됨' : '내 입력 유지'}
+                          </button>
+                          {kept && (
+                            <span className="text-slate-500">저장하면 최신 값을 덮어씁니다.</span>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+
+        <label className="block">
+          <span className="text-xs font-semibold text-slate-500">작업명</span>
+          <input
+            value={form.title}
+            onChange={(e) => patch('title', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-semibold text-slate-500">설명</span>
+          <textarea
+            rows={4}
+            value={form.description}
+            onChange={(e) => patch('description', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+          />
+        </label>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="text-xs font-semibold text-slate-500">시작일</span>
+            <input
+              type="date"
+              value={form.startDate}
+              onChange={(e) => patch('startDate', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-slate-500">마감일</span>
+            <input
+              type="date"
+              value={form.dueDate}
+              onChange={(e) => patch('dueDate', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-slate-500">예상 공수(h)</span>
+            <input
+              inputMode="decimal"
+              value={form.estimatedHours}
+              placeholder="미입력 시 가중치 1"
+              onChange={(e) => patch('estimatedHours', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-slate-500">실적 공수(h)</span>
+            <input
+              inputMode="decimal"
+              value={form.actualHours}
+              onChange={(e) => patch('actualHours', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+            />
+          </label>
+        </div>
+
+        <label className="block">
+          <span className="text-xs font-semibold text-slate-500">상태</span>
+          <select
+            value={form.status}
+            onChange={(e) => patch('status', e.target.value as TaskStatus)}
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+          >
+            {(Object.keys(TASK_STATUS_LABELS) as TaskStatus[]).map((status) => (
+              <option key={status} value={status}>
+                {TASK_STATUS_LABELS[status]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <fieldset className="rounded-lg border border-slate-200 p-3">
+          <legend className="px-1 text-xs font-semibold text-slate-500">우선순위</legend>
+
+          <label className="block">
+            <span className="text-xs text-slate-500">중요도 {form.importance}</span>
+            <input
+              type="range"
+              min={1}
+              max={5}
+              step={1}
+              value={form.importance}
+              onChange={(e) => patch('importance', Number(e.target.value) as Level)}
+              className="mt-1 w-full"
+              aria-label="중요도"
+            />
+          </label>
+
+          <label className="mt-3 flex items-center gap-2 text-xs text-slate-600">
+            <input
+              type="checkbox"
+              checked={form.urgencyMode === 'manual'}
+              onChange={(e) => patch('urgencyMode', e.target.checked ? 'manual' : 'auto')}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            긴급도 고정 (마감일이 바뀌어도 값을 유지)
+          </label>
+
+          {form.urgencyMode === 'manual' ? (
+            <label className="mt-2 block">
+              <span className="text-xs text-slate-500">고정 긴급도 {form.urgencyManual}</span>
+              <input
+                type="range"
+                min={1}
+                max={5}
+                step={1}
+                value={form.urgencyManual}
+                onChange={(e) => patch('urgencyManual', Number(e.target.value) as Level)}
+                className="mt-1 w-full"
+                aria-label="고정 긴급도"
+              />
+            </label>
+          ) : (
+            <p className="mt-2 text-xs text-slate-500">
+              마감일에서 자동 계산한 긴급도: <strong>{urgency}</strong>
+            </p>
+          )}
+
+          <p className="mt-2 text-xs text-slate-500">
+            현재 점수{' '}
+            <Badge tone={grade.grade === '최우선' ? 'red' : grade.grade === '높음' ? 'amber' : 'neutral'}>
+              {priorityScore}
+            </Badge>{' '}
+            {grade.grade} · 저장하지 않고 매번 계산합니다 (PR-7)
+          </p>
+        </fieldset>
+
+        <label className="block">
+          <span className="text-xs font-semibold text-slate-500">태그 (쉼표 구분)</span>
+          <input
+            value={form.tags}
+            onChange={(e) => patch('tags', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+          />
+        </label>
+
+        <div className="space-y-2 rounded-lg border border-dashed border-slate-300 p-3 text-xs text-slate-500">
+          <p className="font-semibold text-slate-600">아직 준비 중</p>
+          <p>담당자·수행 기관 지정은 인력·기관을 등록하는 Phase 2에서 열립니다.</p>
+          <p>성과목표·기술목표 연계와 관련 노트는 Phase 3·Phase 6에서 열립니다.</p>
+        </div>
+      </div>
+
+      <footer className="flex items-center justify-between gap-2 border-t border-slate-200 p-4">
+        <span className="text-xs text-slate-400" title="저장 시 조건으로 거는 version (O-1)">
+          기준 v{baseline.version}
+        </span>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={onClose} disabled={saving}>
+            닫기
+          </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => void handleSave()}
+            disabled={saving || unresolved.length > 0}
+            title={
+              unresolved.length > 0
+                ? `확인하지 않은 충돌 항목이 ${unresolved.length}건 있습니다`
+                : undefined
+            }
+          >
+            {saving ? '저장 중…' : '저장'}
+          </Button>
+        </div>
+      </footer>
+
+      {conflict !== null && (
+        <ConflictDialog
+          message={conflict}
+          onReload={() => {
+            setConflict(null);
+            // 최신 값을 다시 가져온다. 도착하면 baseline만 갱신되고 비교 UI가 열린다 (O-3)
+            router.refresh();
+          }}
+          onKeepEditing={() => setConflict(null)}
+        />
+      )}
+    </aside>
+  );
+}

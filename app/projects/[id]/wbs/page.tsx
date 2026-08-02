@@ -1,0 +1,117 @@
+// WBS 트리 화면 (SOT §7.4, §7.1)
+// 데이터 로딩은 서버에서만 한다 — 액션(actions/)만 호출하고 supabase는 직접 부르지 않는다.
+// 진척률·WBS 코드·날짜 롤업·우선순위는 전부 서버 계산값이다(저장하지 않는다, §6.1 O-4·PR-7).
+// 실패는 조용히 삼키지 않고 ErrorBanner로 code별 안내를 띄운다 (§9).
+
+import { redirect } from 'next/navigation';
+import { getCurrentUser } from '@/actions/auth';
+import { getProjectFullTree, getYearTree } from '@/actions/tasks';
+import { toISODate } from '@/lib/dates';
+import ErrorBanner from '@/components/ui/ErrorBanner';
+import RealtimeRefresher from '@/components/RealtimeRefresher';
+import WbsScreen, { type WbsGroup } from '@/components/wbs/WbsScreen';
+import { ALL_YEARS } from '@/components/wbs/YearSelector';
+
+// R-1 §8.5 구독표: WBS 화면은 tasks·years만 구독한다. 전체 구독 금지.
+const REALTIME_TABLES = ['tasks', 'years'];
+
+// 레이아웃(§7.1)은 폭 제약을 걸지 않는다 — 컬럼이 10개라 WBS는 넓은 폭을 쓴다 (§12 반응형)
+const CONTENT_CLASS = 'mx-auto max-w-[1600px] p-8';
+
+interface WbsPageProps {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ yearId?: string | string[] }>;
+}
+
+export default async function WbsPage({ params, searchParams }: WbsPageProps) {
+  const { id: projectId } = await params;
+  const { yearId } = await searchParams;
+  const requestedYearId = Array.isArray(yearId) ? yearId[0] : yearId;
+
+  const me = await getCurrentUser();
+  // 미들웨어가 이미 거르지만, 세션 만료 직후 직접 접근을 방어한다 (A-4)
+  if (!me.ok) redirect('/login');
+
+  // 단계·연차 목록(셀렉터)과 "전체 연차 보기"가 여기서 함께 나온다.
+  const full = await getProjectFullTree(projectId);
+  if (!full.ok) {
+    return (
+      <main className={CONTENT_CLASS}>
+        <ErrorBanner message={full.error} code={full.code} />
+      </main>
+    );
+  }
+
+  const { stages, years: yearTrees, invalidTaskIds } = full.data;
+  const years = yearTrees.map((y) => y.year);
+
+  if (years.length === 0) {
+    return (
+      <main className={CONTENT_CLASS}>
+        <p className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">
+          아직 연차가 없습니다. 과제 개요에서 단계와 연차를 먼저 만드세요.
+        </p>
+      </main>
+    );
+  }
+
+  const showAll = requestedYearId === ALL_YEARS;
+  // 요청 연차 → 수행 중(active) 연차 → 첫 연차 순으로 고른다 (§7.4 연차 선택 탭)
+  const selectedYear = showAll
+    ? null
+    : (years.find((y) => y.id === requestedYearId) ??
+      years.find((y) => y.status === 'active') ??
+      years[0] ??
+      null);
+  const missingRequestedYear =
+    !showAll &&
+    requestedYearId !== undefined &&
+    !years.some((y) => y.id === requestedYearId);
+
+  let groups: WbsGroup[];
+  let invalidIds: string[];
+
+  if (selectedYear === null) {
+    // §6.7: 여러 연차가 섞이므로 WBS 코드에 '1차-' 접두가 붙은 전체 트리를 그대로 쓴다
+    groups = yearTrees;
+    invalidIds = invalidTaskIds;
+  } else {
+    // 단일 연차는 코드가 연차 단위로 리셋된 트리여야 한다(접두 없음) — 전체 트리를 재사용할 수 없다
+    const tree = await getYearTree(selectedYear.id);
+    if (!tree.ok) {
+      return (
+        <main className={CONTENT_CLASS}>
+          <ErrorBanner message={tree.error} code={tree.code} />
+        </main>
+      );
+    }
+    groups = [{ year: tree.data.year, nodes: tree.data.nodes, yearProgress: tree.data.yearProgress }];
+    invalidIds = tree.data.invalidTaskIds;
+  }
+
+  return (
+    <main className={CONTENT_CLASS}>
+      <RealtimeRefresher tables={REALTIME_TABLES} selfUserId={me.data.id} />
+
+      <h1 className="mb-4 text-xl font-bold">WBS 트리</h1>
+
+      {missingRequestedYear && (
+        <ErrorBanner
+          className="mb-4"
+          message="요청한 연차를 찾을 수 없어 다른 연차를 표시합니다. 다른 사람이 연차를 삭제했을 수 있습니다."
+        />
+      )}
+
+      <WbsScreen
+        projectId={projectId}
+        stages={stages}
+        years={years}
+        groups={groups}
+        selectedYearId={selectedYear === null ? ALL_YEARS : selectedYear.id}
+        invalidTaskIds={invalidIds}
+        // 지연 판정 기준일을 서버에서 고정해 SSR/CSR 결과가 갈리지 않게 한다 (§6.5)
+        todayISO={toISODate(new Date())}
+      />
+    </main>
+  );
+}

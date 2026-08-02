@@ -109,6 +109,19 @@ export async function updateStage(
   return parseStageRow(data[0]);
 }
 
+// H-10: 컨테이너는 project. 넘어온 순서대로 sort_order 0..n-1을 한 번의 RPC로 부여한다 (X-3)
+export async function reorderStages(
+  client: SupabaseClient,
+  projectId: string,
+  orderedIds: string[]
+): Promise<void> {
+  const { error } = await client.rpc('reorder_stages', {
+    p_project_id: projectId,
+    p_ordered_ids: orderedIds,
+  });
+  if (error) raiseDbError(error);
+}
+
 // H-6: 마지막 Stage 삭제 거부 + 소속 Year에 delete_year 로직(H-5) 적용은 RPC가 보장한다 (§8.3)
 export async function deleteStage(client: SupabaseClient, id: string): Promise<void> {
   const { error } = await client.rpc('delete_stage', { p_stage_id: id });
