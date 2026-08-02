@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Task, TaskStatus } from '@/types';
+import type { Member, Organization, Task, TaskStatus } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import { TASK_STATUS_LABELS } from '@/lib/constants';
 import { priorityGrade } from '@/lib/priority';
@@ -40,7 +40,33 @@ export interface TaskDetailPanelProps {
   urgency: number;
   priorityScore: number;
   wbsCode: string;
+  /** 배정 후보 (§5.11). 정렬은 서버가 sort_order로 맞춰 준다 */
+  members: Member[];
+  organizations: Organization[];
+  /** 충돌 비교(O-3)에서 id를 이름으로 바꾸는 사전. 트리와 같은 사전을 쓴다 */
+  memberNames: Record<string, string>;
+  orgNames: Record<string, string>;
   onClose: () => void;
+}
+
+const DELETED_MEMBER = '(삭제된 인력)';
+const DELETED_ORG = '(삭제된 기관)';
+
+/** 쉼표 문자열 → id 집합. 폼 값이 곧 저장 payload라 여기서 형태를 바꾸지 않는다 */
+function parseIds(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '');
+}
+
+// 정렬을 고정한다. toDetailFormValues가 서버 값을 정렬해 주므로, 내 입력도 같은 순서여야
+// "순서만 다른" 가짜 충돌이 O-3 비교에 뜨지 않는다.
+function toggleId(raw: string, id: string, checked: boolean): string {
+  const ids = new Set(parseIds(raw));
+  if (checked) ids.add(id);
+  else ids.delete(id);
+  return [...ids].sort().join(',');
 }
 
 export default function TaskDetailPanel({
@@ -48,6 +74,10 @@ export default function TaskDetailPanel({
   urgency,
   priorityScore,
   wbsCode,
+  members,
+  organizations,
+  memberNames,
+  orgNames,
   onClose,
 }: TaskDetailPanelProps) {
   const router = useRouter();
@@ -86,6 +116,38 @@ export default function TaskDetailPanel({
     [reloaded, latest, form]
   );
   const unresolved = useMemo(() => unresolvedConflicts(diffKeys, keptKeys), [diffKeys, keptKeys]);
+
+  // O-3 비교 UI에 id 대신 이름을 보여주기 위한 사전
+  const valueLabels = useMemo(
+    () => ({ members: memberNames, orgs: orgNames }),
+    [memberNames, orgNames]
+  );
+
+  const selectedMemberIds = useMemo(() => new Set(parseIds(form.memberIds)), [form.memberIds]);
+
+  // 목록에 없는 id(다른 사람이 지운 인력)도 선택지로 남긴다. 빼 버리면 select가 빈 값으로
+  // 보여 "미지정"과 구분되지 않고, 그대로 저장하면 배정이 조용히 사라진다.
+  const memberOptions = useMemo(() => {
+    const options = members.map((member) => ({
+      id: member.id,
+      // §7.10의 참여 종료는 삭제가 아니다 — 이미 배정된 사람을 목록에서 없애지 않고 표시만 구분한다
+      label: member.active ? member.name : `${member.name} (참여종료)`,
+    }));
+    const known = new Set(members.map((member) => member.id));
+    const assigned = [form.ownerMemberId, ...parseIds(form.memberIds)];
+    for (const id of new Set(assigned)) {
+      if (id !== '' && !known.has(id)) options.push({ id, label: DELETED_MEMBER });
+    }
+    return options;
+  }, [members, form.ownerMemberId, form.memberIds]);
+
+  const orgOptions = useMemo(() => {
+    const options = organizations.map((org) => ({ id: org.id, label: org.name }));
+    if (form.orgId !== '' && !organizations.some((org) => org.id === form.orgId)) {
+      options.push({ id: form.orgId, label: DELETED_ORG });
+    }
+    return options;
+  }, [organizations, form.orgId]);
 
   const patch = <K extends keyof DetailFormValues>(key: K, value: DetailFormValues[K]): void => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -187,10 +249,10 @@ export default function TaskDetailPanel({
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold text-slate-700">{field.label}</span>
                           <span className="text-slate-500">
-                            내 입력: {displayDetailValue(field.key, form)}
+                            내 입력: {displayDetailValue(field.key, form, valueLabels)}
                           </span>
                           <span className="text-slate-500">
-                            최신: {displayDetailValue(field.key, latest)}
+                            최신: {displayDetailValue(field.key, latest, valueLabels)}
                           </span>
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -363,6 +425,76 @@ export default function TaskDetailPanel({
           </p>
         </fieldset>
 
+        <fieldset className="rounded-lg border border-slate-200 p-3">
+          <legend className="px-1 text-xs font-semibold text-slate-500">담당 · 기관</legend>
+
+          {memberOptions.length === 0 ? (
+            <p className="text-xs text-slate-500">
+              등록된 인력이 없습니다. [인력·기관] 화면에서 먼저 등록하세요.
+            </p>
+          ) : (
+            <>
+              <label className="block">
+                <span className="text-xs text-slate-500">담당자 (책임자 1명)</span>
+                <select
+                  value={form.ownerMemberId}
+                  onChange={(e) => patch('ownerMemberId', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+                >
+                  <option value="">미지정</option>
+                  {memberOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="mt-3">
+                <p className="text-xs text-slate-500">참여 담당자</p>
+                {/* 저장하면 task_members가 이 목록으로 전체 치환된다 (체크 해제 = 배정 해제) */}
+                <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                  {memberOptions.map((option) => (
+                    <label key={option.id} className="flex items-center gap-2 text-xs text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={selectedMemberIds.has(option.id)}
+                        onChange={(e) =>
+                          patch('memberIds', toggleId(form.memberIds, option.id, e.target.checked))
+                        }
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          <label className="mt-3 block">
+            <span className="text-xs text-slate-500">수행 기관</span>
+            <select
+              value={form.orgId}
+              onChange={(e) => patch('orgId', e.target.value)}
+              disabled={orgOptions.length === 0}
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-slate-500 focus:outline-none disabled:bg-slate-50"
+            >
+              <option value="">미지정</option>
+              {orgOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {orgOptions.length === 0 && (
+            <p className="mt-1 text-xs text-slate-500">
+              등록된 기관이 없습니다. [인력·기관] 화면에서 먼저 등록하세요.
+            </p>
+          )}
+        </fieldset>
+
         <label className="block">
           <span className="text-xs font-semibold text-slate-500">태그 (쉼표 구분)</span>
           <input
@@ -374,7 +506,6 @@ export default function TaskDetailPanel({
 
         <div className="space-y-2 rounded-lg border border-dashed border-slate-300 p-3 text-xs text-slate-500">
           <p className="font-semibold text-slate-600">아직 준비 중</p>
-          <p>담당자·수행 기관 지정은 인력·기관을 등록하는 Phase 2에서 열립니다.</p>
           <p>성과목표·기술목표 연계와 관련 노트는 Phase 3·Phase 6에서 열립니다.</p>
         </div>
       </div>

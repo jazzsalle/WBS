@@ -857,7 +857,7 @@ achievementRate(target):
 | H-5 | Year 삭제 시 소속 Task·BudgetItem 전체 삭제. Milestone·Risk·Note와 실적(`deliverable_achievements`·`tech_target_records`)은 `yearId=null`로 남긴다. `targetByYear`의 해당 키는 `delete_year` RPC가 제거한다 (N-13). 삭제 확인 대화상자에 "관련 마일스톤·실적은 연차 없음 상태로 남습니다"를 표시한다. |
 | H-6 | Stage 삭제 시 소속 Year를 연쇄 삭제한다(H-5 적용). Stage가 1개뿐이면 삭제 불가. |
 | H-7 | Project 삭제 시 소속 전 엔티티 삭제. To-Do는 `projectId=null`로 남긴다. RPC는 순환 FK 해소를 위해 `pm_member_id`·`lead_org_id`를 먼저 null로 만든 뒤 삭제한다. |
-| H-8 | Organization 삭제 시 참조하던 Member는 `orgId=null`. 주관기관은 다른 기관을 주관으로 지정하기 전까지 삭제 불가. |
+| H-8 | Organization 삭제 시 참조하던 Member는 `orgId=null`. 주관기관은 다른 기관을 주관으로 지정하기 전까지 삭제 불가. **주관 재지정(`setLeadOrganization`)은 한 트랜잭션에서 ① 기존 `role='lead'` 기관을 `'joint'`로 강등 ② 대상 기관을 `'lead'`로 ③ `projects.lead_org_id` 갱신을 함께 수행한다** — 과제당 주관기관은 항상 정확히 1개여야 하고, 중간 상태(0개·2개)가 남으면 H-8의 삭제 차단 판정이 무너진다. |
 | H-9 | Member 삭제 대신 `active=false` 권장. 삭제 시 제거해야 할 참조는 **8곳**: `tasks.owner_member_id`, `task_members`, `milestones.owner_member_id`, `risks.owner_member_id`, `projects.pm_member_id`, `achievement_members`, `note_attendees`, `app_users.member_id`. 조인 테이블은 FK cascade, 나머지는 set null(N-8)로 스키마가 보장한다. |
 | H-10 | `order`(DB `sort_order`)는 같은 부모/컨테이너 내에서 0부터 연속 정수로 재정렬(normalize)한다. 컨테이너 단위: Task는 (yearId, parentId), Year는 **project 단위**(§5.5), Stage는 project, 나머지는 project. |
 | H-11 | `moveTaskToYear`: 자손 전체가 함께 이동한다(자손의 `yearId` 일괄 갱신, 부모-자식 관계는 보존). 이동 대상 노드는 새 연차의 **루트가 된다**(`parentId=null`, `order=말단+1`) — H-1을 만족하는 유일한 안전한 방법이다. **같은 과제 내 연차로만 이동 가능**하다(다른 과제로 옮기면 담당자·기관·목표 연계가 전부 남의 과제를 가리키게 된다). |

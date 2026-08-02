@@ -3,7 +3,8 @@
 // WBS 트리의 한 행 (SOT §7.4 계층형 테이블 컬럼)
 // 파생 값(wbsCode·progress·urgency·priorityScore·rolledUp*)은 서버가 계산해 내려준 값을
 // 표시만 한다 — 클라이언트에서 다시 계산하거나 저장하지 않는다 (PR-7, O-4, §6.1.1).
-// 담당·기관(Phase 2)·연계(Phase 3)는 이름을 붙일 데이터가 아직 없어 자리표시로 둔다.
+// 담당·기관 이름은 부모가 내려준 사전으로만 푼다 — 행마다 조회하지 않는다.
+// 연계(성과·기술목표) 편집은 Phase 3 몫이라 아직 건수만 보여준다.
 
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type { WbsNode } from '@/actions/tasks';
@@ -41,6 +42,15 @@ const GRADE_TONES: Record<PriorityGrade, BadgeTone> = {
 
 const INDENT_PX = 18;
 
+// 배정은 남아 있는데 인력·기관이 지워진 경우. 조용히 '—'로 만들면 "배정이 없다"로 읽혀
+// 사실이 바뀐다 — 이름을 못 찾았다는 것 자체를 보여준다 (절대 규칙 5).
+const DELETED_MEMBER = '(삭제된 인력)';
+const DELETED_ORG = '(삭제된 기관)';
+
+function nameOf(id: string, dict: Record<string, string>, missing: string): string {
+  return dict[id] ?? missing;
+}
+
 export interface TreeRowCallbacks {
   onSelect: (id: string) => void;
   onToggleCollapse: (id: string) => void;
@@ -62,6 +72,9 @@ export interface TreeRowProps {
   node: WbsNode;
   /** 지연 판정 기준일. 서버에서 내려받아 SSR/CSR 결과가 갈리지 않게 한다 (§6.5) */
   todayISO: string;
+  /** 담당·기관 컬럼용 id → 이름 사전 */
+  memberNames: Record<string, string>;
+  orgNames: Record<string, string>;
   selected: boolean;
   collapsed: boolean;
   /**
@@ -93,6 +106,8 @@ function formatHours(value: number | null): string {
 export default function TreeRow({
   node,
   todayISO,
+  memberNames,
+  orgNames,
   selected,
   collapsed,
   renameDraft,
@@ -117,6 +132,13 @@ export default function TreeRow({
   // 기간 컬럼은 롤업 기간을 보여주므로 지연 판정도 같은 날짜로 한다 — 리프는 자기 dueDate와 같다
   const overdue = isOverdueTask({ dueDate: node.rolledUpDueDate, status: task.status }, todayISO);
   const linkedCount = task.deliverableIds.length + task.techTargetIds.length;
+
+  // §7.4 담당 컬럼 = 책임자 이름 + 추가 인원 수. 책임자가 참여자에도 들어 있으면 두 번 세지 않는다
+  const ownerName =
+    task.ownerMemberId === null ? null : nameOf(task.ownerMemberId, memberNames, DELETED_MEMBER);
+  const extraMemberIds = task.memberIds.filter((id) => id !== task.ownerMemberId);
+  const extraMemberNames = extraMemberIds.map((id) => nameOf(id, memberNames, DELETED_MEMBER));
+  const orgName = task.orgId === null ? null : nameOf(task.orgId, orgNames, DELETED_ORG);
 
   const stop = (e: MouseEvent<HTMLElement>): void => e.stopPropagation();
 
@@ -225,21 +247,34 @@ export default function TreeRow({
         </div>
       </td>
 
-      {/* 담당·기관은 Member·Organization이 들어오는 Phase 2에서 이름으로 채운다 */}
-      <td className="px-2 py-1.5 text-xs text-slate-400">
-        {task.ownerMemberId === null ? (
-          '—'
+      <td className="px-2 py-1.5 text-xs text-slate-500">
+        {ownerName === null && extraMemberNames.length === 0 ? (
+          <span className="text-slate-300">—</span>
         ) : (
-          <Badge title="Phase 2에서 담당자 이름을 표시합니다">지정됨</Badge>
-        )}
-        {task.memberIds.length > 0 && (
-          <span className="ml-1" title="추가 참여 인원">
-            +{task.memberIds.length}
+          <span className="flex items-center gap-1">
+            <span className="truncate" title={ownerName ?? '책임자 미지정'}>
+              {ownerName ?? <span className="text-slate-400">미지정</span>}
+            </span>
+            {extraMemberNames.length > 0 && (
+              <Badge
+                className="shrink-0"
+                title={`참여 담당자: ${extraMemberNames.join(', ')}`}
+              >
+                +{extraMemberNames.length}
+              </Badge>
+            )}
           </span>
         )}
       </td>
-      <td className="px-2 py-1.5 text-xs text-slate-400">
-        {task.orgId === null ? '—' : <Badge title="Phase 2에서 기관 약칭을 표시합니다">지정됨</Badge>}
+      <td className="px-2 py-1.5 text-xs text-slate-500">
+        {orgName === null ? (
+          <span className="text-slate-300">—</span>
+        ) : (
+          // 기관명은 길다. 잘라 보여주되 전체 이름은 title로 남긴다
+          <span className="block truncate" title={orgName}>
+            {orgName}
+          </span>
+        )}
       </td>
 
       <td className="px-2 py-1.5" onClick={stop}>

@@ -6,6 +6,7 @@
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/actions/auth';
 import { getProjectFullTree, getYearTree } from '@/actions/tasks';
+import { getTeam } from '@/actions/team';
 import { toISODate } from '@/lib/dates';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import RealtimeRefresher from '@/components/RealtimeRefresher';
@@ -13,6 +14,9 @@ import WbsScreen, { type WbsGroup } from '@/components/wbs/WbsScreen';
 import { ALL_YEARS } from '@/components/wbs/YearSelector';
 
 // R-1 §8.5 구독표: WBS 화면은 tasks·years만 구독한다. 전체 구독 금지.
+// members·organizations는 구독표에 없다 — 다른 사람이 인력·기관 이름을 바꿔도 이 화면은
+// 즉시 다시 그려지지 않는다. 이름 표시가 늦는 대신 동시 연결 수를 지킨다(R-1). 이름을 고친
+// 쪽에서 revalidatePath('/projects/[id]/wbs')를 부르므로 다음 이동·새로고침에 반영된다.
 const REALTIME_TABLES = ['tasks', 'years'];
 
 // 레이아웃(§7.1)은 폭 제약을 걸지 않는다 — 컬럼이 10개라 WBS는 넓은 폭을 쓴다 (§12 반응형)
@@ -33,11 +37,21 @@ export default async function WbsPage({ params, searchParams }: WbsPageProps) {
   if (!me.ok) redirect('/login');
 
   // 단계·연차 목록(셀렉터)과 "전체 연차 보기"가 여기서 함께 나온다.
-  const full = await getProjectFullTree(projectId);
+  // 담당·기관 컬럼(§7.4)에 쓸 이름은 팀 조회에서 온다 — 서로 기다릴 이유가 없어 함께 던진다.
+  const [full, team] = await Promise.all([getProjectFullTree(projectId), getTeam(projectId)]);
   if (!full.ok) {
     return (
       <main className={CONTENT_CLASS}>
         <ErrorBanner message={full.error} code={full.code} />
+      </main>
+    );
+  }
+  // 절대 규칙 5: 인력·기관을 못 읽었다고 빈 목록으로 넘기면 배정된 담당자가 화면에서
+  // 사라진 것처럼 보이고, 그 상태로 저장하면 배정이 지워진다. 실패는 그대로 알린다.
+  if (!team.ok) {
+    return (
+      <main className={CONTENT_CLASS}>
+        <ErrorBanner message={team.error} code={team.code} />
       </main>
     );
   }
@@ -107,6 +121,8 @@ export default async function WbsPage({ params, searchParams }: WbsPageProps) {
         stages={stages}
         years={years}
         groups={groups}
+        members={team.data.members}
+        organizations={team.data.organizations}
         selectedYearId={selectedYear === null ? ALL_YEARS : selectedYear.id}
         invalidTaskIds={invalidIds}
         // 지연 판정 기준일을 서버에서 고정해 SSR/CSR 결과가 갈리지 않게 한다 (§6.5)

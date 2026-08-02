@@ -1,10 +1,10 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
-2026-08-02 (Phase 1 완료 세션)
+2026-08-02 (Phase 2 완료 세션)
 
 ## Current goal
-Phase 2 (인력 + 기관: 기관·인력 CRUD, Task 담당자 배정) — SOT §5.10~5.11, §7.10
+Phase 3 (목표 관리: 성과목표·기술목표 CRUD, 실적·측정, 달성률) — SOT §6.2~6.3, §7.7
 
 ## Done this session
 - **Phase 0 완료** (evaluator PASS 12/12, 커밋 07fa94a) — 스키마 25종+RLS+RPC, 리포지토리 16종, 테스트 48건
@@ -15,17 +15,24 @@ Phase 2 (인력 + 기관: 기관·인력 CRUD, Task 담당자 배정) — SOT §
   - 서버 액션 4종 + WBS 조회 모델(`getYearTree`/`getProjectFullTree`)
   - UI: 공통 프리미티브·`RealtimeRefresher`(R-1~R-7)·과제 목록/생성 → 과제 탭 10개·개요·단계연차 패널 → **WBS 트리 화면**(드래그·Tab/Shift+Tab·깊이 10 UI 차단·상세 패널)
   - O-3 충돌 처리: 상세 패널·인라인 이름 편집 모두 입력값 보존 + 항목별 비교/선택. 저장 payload 키 불변식은 **매핑 타입으로 컴파일 타임 강제**
-- SOT 보강 3건: §8.3 X-2 definer 예외 목록, §6.1 P-9(예산 전부 0인 경우), 부록 A.3(과제·연차 상태 색상 + 색상 폴백)
+- **Phase 2 완료** (evaluator PASS, 테스트 281건) — 인력 + 기관:
+  - RPC 5종: `delete_member`(H-9 참조 8곳 정리 + 건수 반환), `count_member_references`, `set_lead_organization`(H-8 재지정 트랜잭션), `reorder_organizations`/`reorder_members`
+  - `actions/team.ts` 액션 13종 + 조회 2종(getTeam, getTeamScreenData). H-8 삭제 차단·역할 강등 차단을 액션에서 수행
+  - **소속 무결성**: createTask/updateTask/assignTaskMembers/bulkUpdateTasks가 남의 과제 인력·기관을 거부. 일괄 수정은 여러 과제 혼합 시 쓰기 전에 거부(부분 반영 방지)
+  - UI: `/projects/[id]/team`(기관 카드·인력 기관별 그룹 테이블·PM 지정 경고·삭제 시 참조 8곳 건수·배정 작업 패널), WBS 트리 담당/기관 컬럼 + 필터, 상세 패널 담당자(단일+다중)·기관 편집(O-3 비교 대상 포함), 과제 개요 PM·주관기관 표시, 인력·기관 탭 활성화
+- SOT 보강 4건: §8.3 X-2 definer 예외 목록, §6.1 P-9(예산 전부 0인 경우), 부록 A.3(과제·연차 상태 색상 + 색상 폴백), §6.6 H-8(주관 재지정 트랜잭션 규칙)
 
 ## In progress
 없음
 
 ## Next steps
-1. `/phase-run 2` — 기관·인력 CRUD, 주관기관 삭제 차단(H-8), Member 삭제 시 참조 8곳 정리(H-9), Task 담당자 배정 → WBS 트리 표시
-2. Phase 2에서 함께 검토할 것:
-   - **HR API 연동 검토** — hr.unes.kr `/api/external/users`로 직원 명부 가져오기 (JWT/API 키, 필드: user_id·email·name·division·team·position·role·is_active). 가이드: https://hr.unes.kr/api/external/guide?t=e00b76d7e911539b3a2ea4fcfa4525f9
-   - 단일 과제 조회 액션(`getProject(id)`) 추가 — 현재 과제 탭 공통 헤더에 과제명을 못 띄운다
-3. Phase 1 후속 개선(블로킹 아님, evaluator 기록): ① 인라인 이름 편집 중 Enter 연타 시 in-flight 재입력이 제출값으로 되돌아감 ② 같은 이유로 자기 저장에 대한 가짜 STALE 배너(`disabled={saving}` 가드로 해소) ③ `bulkUpdateTasks` 부분 반영 가능성(트랜잭션 RPC화 검토)
+1. **후속 정리 (Phase 3 착수 전 권장)**:
+   - ⚠️ **백업 복원 테스트가 dev DB를 전체 대체한다** — 실데이터 입력 후에는 다른 PC에서 `npm test`를 돌리면 그 사이 추가분이 사라진다. 파괴적 테스트를 기본 `npm test`에서 분리 + 실데이터 감지 가드 필요
+   - `createOrganization`의 lead 생성이 insert 후 RPC 호출 2왕복 — RPC 실패 시 lead 2개가 남는다. joint로 insert 후 승격하면 해소 (evaluator 권고)
+   - `updateProject` patch가 `leadOrgId`/`pmMemberId`를 소속 검증 없이 받는다 — `setProjectPM`/`setLeadOrganization` 가드를 우회할 수 있다. 두 필드를 patch에서 제외 권장 (evaluator 권고)
+2. `/phase-run 3` — 성과목표·기술목표 CRUD, 실적/측정 기록, 달성률(§6.2 부록 B.2 57.333…, §6.3 direction 3종 × baseline 유무 전 분기)
+3. 미뤄둔 것: HR API 연동(hr.unes.kr 직원 명부 — SOT 추가 후 별도 진행), 단일 과제 조회 액션(`getProject(id)`)
+4. Phase 1 후속 개선(블로킹 아님): ① 인라인 이름 편집 중 Enter 연타 시 in-flight 재입력이 제출값으로 되돌아감 ② 자기 저장에 대한 가짜 STALE 배너(`disabled={saving}` 가드) ③ `bulkUpdateTasks` 부분 반영(트랜잭션 RPC화 검토)
 
 ## 수동 검증 (누적)
 ### 완료

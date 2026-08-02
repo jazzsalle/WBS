@@ -1,6 +1,6 @@
-// Organization(컨소시엄 기관) 리포지토리 (SOT §5.10, §8.4, §8.6)
-// H-8의 주관기관(lead) 삭제 차단은 Phase 2 서버 액션의 몫이고,
-// 여기서는 그 판단에 필요한 role 확인용 조회(getOrganizationRole)까지만 제공한다.
+// Organization(컨소시엄 기관) 리포지토리 (SOT §5.10, §6.6 H-8, §8.4, §8.6)
+// H-8의 주관기관(lead) 삭제 차단 판정은 서버 액션의 몫이고, 여기서는 그 판단에 필요한
+// role 조회(getOrganizationRole)와 주관 재지정 RPC(setLeadOrganization)를 제공한다.
 // 클라이언트는 호출자가 주입한다 — 서버 액션은 createServerClient(token), 테스트는 목/로컬.
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
@@ -8,7 +8,13 @@ import { z } from 'zod';
 import type { Organization, OrgRole } from '@/types';
 import { organizationRowSchema, orgRoleSchema } from './schema';
 import { appToDb, dbToApp } from './mapper';
-import { ConflictError, NotFoundError, StaleDataError, ValidationError } from './errors';
+import {
+  ConflictError,
+  NotFoundError,
+  RuleViolationError,
+  StaleDataError,
+  ValidationError,
+} from './errors';
 
 // N-4 공통 컬럼은 DB(트리거)와 서버 액션이 채운다 — 입력에서 제외
 type BaseFieldKeys = 'id' | 'createdAt' | 'updatedAt' | 'version' | 'createdBy' | 'updatedBy';
@@ -18,10 +24,11 @@ export type OrganizationPatch = Partial<OrganizationInput>;
 
 // ─── 파일 내부 헬퍼 ──────────────────────────────────────────
 
-// 23505(유니크 충돌)만 의미를 부여하고, 나머지는 일반 Error로 던져
-// toActionFailure가 테이블·제약명 노출을 막게 한다 (SA-4). 무음 처리는 없다.
+// 23505(유니크 충돌)와 P0001(RPC raise exception)만 의미를 부여하고, 나머지는 일반 Error로
+// 던져 toActionFailure가 테이블·제약명 노출을 막게 한다 (SA-4). 무음 처리는 없다.
 function throwDbError(error: PostgrestError): never {
   if (error.code === '23505') throw new ConflictError();
+  if (error.code === 'P0001') throw new RuleViolationError(error.message);
   throw new Error(`[db] ${error.code}: ${error.message}`);
 }
 
@@ -127,7 +134,35 @@ export async function updateOrganization(
   return toOrganization(data);
 }
 
-// H-8의 lead 차단 검사는 호출하는 서버 액션이 수행한다 (getOrganizationRole 참조).
+// H-8: 과제당 주관기관은 항상 정확히 1개다. 기존 lead 강등 + 대상 lead 승격 +
+// projects.lead_org_id 갱신을 한 트랜잭션으로 묶는다 (§8.3). 여러 행이 함께 바뀌므로
+// 단일 행을 돌려주지 않는다 — 호출자는 목록을 다시 읽는다.
+export async function setLeadOrganization(
+  client: SupabaseClient,
+  projectId: string,
+  orgId: string
+): Promise<void> {
+  const { error } = await client.rpc('set_lead_organization', {
+    p_project_id: projectId,
+    p_org_id: orgId,
+  });
+  if (error) throwDbError(error);
+}
+
+// H-10, X-3: orderedIds는 과제의 기관 목록 순서다. 한 번의 RPC로 0..n-1을 부여한다.
+export async function reorderOrganizations(
+  client: SupabaseClient,
+  projectId: string,
+  orderedIds: string[]
+): Promise<void> {
+  const { error } = await client.rpc('reorder_organizations', {
+    p_project_id: projectId,
+    p_ordered_ids: orderedIds,
+  });
+  if (error) throwDbError(error);
+}
+
+// H-8의 lead 차단 검사는 호출하는 서버 액션이 수행한다 (getOrganizationRole·setLeadOrganization 참조).
 // 참조하던 Member는 스키마의 set null(N-8)로 orgId=null이 된다.
 export async function removeOrganization(client: SupabaseClient, id: string): Promise<void> {
   // select를 붙여 0행 삭제(이미 지워짐)를 무음으로 넘기지 않는다

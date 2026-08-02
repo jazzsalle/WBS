@@ -9,7 +9,7 @@
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import type { ProgressMode, Stage, Task, TaskStatus, Year } from '@/types';
+import type { Member, Organization, ProgressMode, Stage, Task, TaskStatus, Year } from '@/types';
 import {
   createTask,
   deleteTask,
@@ -50,6 +50,10 @@ export interface WbsScreenProps {
   years: Year[];
   /** 표시할 연차 묶음. 단일 연차 보기면 1개, 전체 연차 보기면 전부 */
   groups: WbsGroup[];
+  /** 담당·기관 컬럼과 상세 패널 배정에 쓰는 과제 인력 (§5.11, §7.4) */
+  members: Member[];
+  /** 수행 기관 후보 (§5.10) */
+  organizations: Organization[];
   selectedYearId: string | typeof ALL_YEARS;
   /** 트리에 편입되지 못한 작업 (절대 규칙 5: 조용히 버리지 않는다) */
   invalidTaskIds: string[];
@@ -130,6 +134,8 @@ export default function WbsScreen({
   stages,
   years,
   groups,
+  members,
+  organizations,
   selectedYearId,
   invalidTaskIds,
   todayISO,
@@ -156,6 +162,21 @@ export default function WbsScreen({
   const [hideDone, setHideDone] = useState(false);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
   const [gradeFilter, setGradeFilter] = useState<PriorityGrade | 'all'>('all');
+  const [memberFilter, setMemberFilter] = useState<string>('all');
+  const [orgFilter, setOrgFilter] = useState<string>('all');
+
+  // id → 이름 사전. 행·상세 패널·충돌 비교가 같은 사전을 봐야 같은 이름이 나온다.
+  const memberNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const member of members) map[member.id] = member.name;
+    return map;
+  }, [members]);
+
+  const orgNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const org of organizations) map[org.id] = org.name;
+    return map;
+  }, [organizations]);
 
   // 원본 트리 색인. 필터·접기와 무관하게 이동 계산은 항상 원본 기준이어야 한다 (H-12).
   const index = useMemo(() => {
@@ -186,6 +207,15 @@ export default function WbsScreen({
       if (gradeFilter !== 'all' && priorityGrade(node.priorityScore).grade !== gradeFilter) {
         return false;
       }
+      // 담당 필터는 책임자와 참여자를 함께 본다 — 참여만 하는 작업이 빠지면 "내 일"을 못 찾는다
+      if (
+        memberFilter !== 'all' &&
+        node.task.ownerMemberId !== memberFilter &&
+        !node.task.memberIds.includes(memberFilter)
+      ) {
+        return false;
+      }
+      if (orgFilter !== 'all' && node.task.orgId !== orgFilter) return false;
       return true;
     };
 
@@ -200,7 +230,7 @@ export default function WbsScreen({
       });
       return { year: group.year, yearProgress: group.yearProgress, rows, totalCount: total };
     });
-  }, [groups, collapsedIds, hideDone, statusFilter, gradeFilter]);
+  }, [groups, collapsedIds, hideDone, statusFilter, gradeFilter, memberFilter, orgFilter]);
 
   const visibleRows = useMemo(
     () => displayGroups.flatMap((g) => g.rows),
@@ -630,7 +660,7 @@ export default function WbsScreen({
         </Button>
       </div>
 
-      {/* 툴바. 담당자·기관·태그 필터는 인력/기관이 들어오는 Phase 2 이후에 붙인다 */}
+      {/* 툴바 (§7.4). 태그 필터는 아직 없다 */}
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm">
         <Button size="sm" onClick={() => setCollapsedIds(new Set())}>
           전체 펼치기
@@ -660,6 +690,38 @@ export default function WbsScreen({
             {(Object.keys(TASK_STATUS_LABELS) as TaskStatus[]).map((status) => (
               <option key={status} value={status}>
                 {TASK_STATUS_LABELS[status]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex items-center gap-2 text-slate-600">
+          담당
+          <select
+            value={memberFilter}
+            onChange={(e) => setMemberFilter(e.target.value)}
+            className="max-w-40 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+          >
+            <option value="all">전체</option>
+            {members.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.active ? member.name : `${member.name} (참여종료)`}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex items-center gap-2 text-slate-600">
+          기관
+          <select
+            value={orgFilter}
+            onChange={(e) => setOrgFilter(e.target.value)}
+            className="max-w-40 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+          >
+            <option value="all">전체</option>
+            {organizations.map((org) => (
+              <option key={org.id} value={org.id}>
+                {org.name}
               </option>
             ))}
           </select>
@@ -747,6 +809,8 @@ export default function WbsScreen({
         <TreeTable
           groups={displayGroups}
           todayISO={todayISO}
+          memberNames={memberNames}
+          orgNames={orgNames}
           selectedId={selectedId}
           renaming={renaming}
           collapsedIds={collapsedIds}
@@ -799,6 +863,10 @@ export default function WbsScreen({
           urgency={selectedNode.urgency}
           priorityScore={selectedNode.priorityScore}
           wbsCode={selectedNode.wbsCode}
+          members={members}
+          organizations={organizations}
+          memberNames={memberNames}
+          orgNames={orgNames}
           onClose={() => setDetailOpen(false)}
         />
       )}

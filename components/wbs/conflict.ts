@@ -22,6 +22,9 @@ export interface DetailFormValues {
   importance: Level;
   urgencyMode: 'auto' | 'manual';
   urgencyManual: Level;
+  ownerMemberId: string; // '' = 미지정
+  memberIds: string; // 쉼표 구분 id 목록
+  orgId: string; // '' = 미지정
   tags: string;
 }
 
@@ -38,6 +41,9 @@ export const DETAIL_FIELDS: readonly { key: DetailFieldKey; label: string }[] = 
   { key: 'importance', label: '중요도' },
   { key: 'urgencyMode', label: '긴급도 모드' },
   { key: 'urgencyManual', label: '고정 긴급도' },
+  { key: 'ownerMemberId', label: '담당자' },
+  { key: 'memberIds', label: '참여 담당자' },
+  { key: 'orgId', label: '수행 기관' },
   { key: 'tags', label: '태그' },
 ];
 
@@ -53,12 +59,32 @@ export function toDetailFormValues(task: Task): DetailFormValues {
     importance: task.importance,
     urgencyMode: task.urgencyMode,
     urgencyManual: task.urgencyManual,
+    ownerMemberId: task.ownerMemberId ?? '',
+    // 정렬 고정: 참여자 순서만 다른 두 값이 "상이"로 잡히면 O-3 비교가 가짜 충돌로 뒤덮인다
+    memberIds: [...task.memberIds].sort().join(','),
+    orgId: task.orgId ?? '',
     tags: task.tags.join(', '),
   };
 }
 
+/** 비교 UI에서 id를 사람 이름·기관명으로 바꾸는 사전. 없으면 id를 감춘 문구로 대체한다 */
+export interface DetailValueLabels {
+  members?: Record<string, string>;
+  orgs?: Record<string, string>;
+}
+
+// id는 사용자에게 아무 의미도 없다. 사전에 없더라도 값을 숨기지는 않는다 —
+// "누군가 배정돼 있는데 그 인력이 지워졌다"는 사실 자체가 사용자가 판단할 정보다.
+function labelForId(id: string, dict: Record<string, string> | undefined, missing: string): string {
+  return dict?.[id] ?? missing;
+}
+
 /** 비교 UI에 보여줄 사람이 읽는 값. 빈 값은 '—'로 구분해 "지웠다"를 드러낸다 */
-export function displayDetailValue(key: DetailFieldKey, values: DetailFormValues): string {
+export function displayDetailValue(
+  key: DetailFieldKey,
+  values: DetailFormValues,
+  labels?: DetailValueLabels
+): string {
   switch (key) {
     case 'status':
       return TASK_STATUS_LABELS[values.status];
@@ -68,6 +94,17 @@ export function displayDetailValue(key: DetailFieldKey, values: DetailFormValues
       return String(values.importance);
     case 'urgencyManual':
       return String(values.urgencyManual);
+    case 'ownerMemberId':
+      return values.ownerMemberId === ''
+        ? '미지정'
+        : labelForId(values.ownerMemberId, labels?.members, '(삭제된 인력)');
+    case 'memberIds': {
+      const ids = splitIds(values.memberIds);
+      if (ids.length === 0) return '미지정';
+      return ids.map((id) => labelForId(id, labels?.members, '(삭제된 인력)')).join(', ');
+    }
+    case 'orgId':
+      return values.orgId === '' ? '미지정' : labelForId(values.orgId, labels?.orgs, '(삭제된 기관)');
     default: {
       const raw = values[key];
       return raw === '' ? '—' : String(raw);
@@ -111,11 +148,11 @@ export function adoptLatestValue<K extends DetailFieldKey>(
 // 키를 DetailFieldKey에서 파생시켜 "비교하지 않는 필드를 저장한다"가 컴파일되지 않게 한다.
 // 폼에 필드를 추가하면 여기도 반드시 따라와야 한다.
 export type TaskUpdatePatch = {
-  [K in DetailFieldKey]: K extends 'startDate' | 'dueDate'
+  [K in DetailFieldKey]: K extends 'startDate' | 'dueDate' | 'ownerMemberId' | 'orgId'
     ? string | null
     : K extends 'estimatedHours' | 'actualHours'
       ? number | null
-      : K extends 'tags'
+      : K extends 'tags' | 'memberIds'
         ? string[]
         : DetailFormValues[K];
 };
@@ -128,6 +165,16 @@ const HOUR_FIELDS: readonly { key: 'estimatedHours' | 'actualHours'; label: stri
   { key: 'estimatedHours', label: '예상 공수' },
   { key: 'actualHours', label: '실적 공수' },
 ];
+
+/** 쉼표 문자열 → id 배열. 중복은 접는다 — 조인 테이블에 같은 행을 두 번 넣을 수 없다 */
+function splitIds(raw: string): string[] {
+  const seen = new Set<string>();
+  for (const part of raw.split(',')) {
+    const id = part.trim();
+    if (id !== '') seen.add(id);
+  }
+  return [...seen];
+}
 
 /**
  * 폼 값을 updateTask patch로 바꾼다. 빈 문자열은 null(값 없음)이다.
@@ -164,6 +211,11 @@ export function buildUpdatePatch(values: DetailFormValues): BuildPatchResult {
       importance: values.importance,
       urgencyMode: values.urgencyMode,
       urgencyManual: values.urgencyManual,
+      ownerMemberId: values.ownerMemberId === '' ? null : values.ownerMemberId,
+      // 책임자를 memberIds에 자동으로 끼워 넣지 않는다. SOT §5.6은 두 필드의 포함 관계를
+      // 규정하지 않았다 — 규칙이 없는 곳에서 사용자 입력을 바꾸면 그 변형이 곧 사실이 된다.
+      memberIds: splitIds(values.memberIds),
+      orgId: values.orgId === '' ? null : values.orgId,
       tags: values.tags
         .split(',')
         .map((t) => t.trim())

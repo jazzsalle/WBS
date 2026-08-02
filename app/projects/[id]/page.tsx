@@ -7,6 +7,7 @@
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/actions/auth';
 import { getProjectFullTree } from '@/actions/tasks';
+import { getTeam } from '@/actions/team';
 import { PROJECT_STATUS_LABELS } from '@/lib/constants';
 import Badge from '@/components/ui/Badge';
 import ErrorBanner from '@/components/ui/ErrorBanner';
@@ -21,11 +22,14 @@ function formatWon(amount: number | null): string {
   return amount === null ? '미입력' : `${amount.toLocaleString('ko-KR')}원`;
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <div>
       <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className="mt-0.5 text-sm text-slate-900">{value || '미입력'}</dd>
+      {/* warn: 값을 못 읽은 행. 미입력과 구분되게 색으로 드러낸다 (절대 규칙 5) */}
+      <dd className={`mt-0.5 text-sm ${warn ? 'text-amber-700' : 'text-slate-900'}`}>
+        {value || '미입력'}
+      </dd>
     </div>
   );
 }
@@ -51,7 +55,9 @@ export default async function ProjectOverviewPage({
   if (!me.ok) redirect('/login');
 
   const { id } = await params;
-  const res = await getProjectFullTree(id);
+  // PM·주관기관은 이름으로 보여야 하므로 인력·기관 목록을 함께 읽는다 (§7.3).
+  // 실패해도 개요 전체를 막지는 않고 해당 행에만 사실을 표시한다.
+  const [res, teamRes] = await Promise.all([getProjectFullTree(id), getTeam(id)]);
 
   if (!res.ok) {
     return (
@@ -62,6 +68,20 @@ export default async function ProjectOverviewPage({
   }
 
   const { project, stages, years, stageProgress, projectProgress, invalidTaskIds } = res.data;
+
+  const TEAM_LOAD_FAILED = '인력·기관 정보를 불러오지 못했습니다';
+  // 가리키는 대상이 사라졌다면 '미입력'으로 뭉개지 않는다 — 사용자가 다시 지정해야 하는 상태다
+  const pmName = !teamRes.ok
+    ? TEAM_LOAD_FAILED
+    : project.pmMemberId === null
+      ? ''
+      : (teamRes.data.members.find((m) => m.id === project.pmMemberId)?.name ?? '(삭제된 인력)');
+  const leadOrgName = !teamRes.ok
+    ? TEAM_LOAD_FAILED
+    : project.leadOrgId === null
+      ? ''
+      : (teamRes.data.organizations.find((o) => o.id === project.leadOrgId)?.name ??
+        '(삭제된 기관)');
 
   return (
     <main className="mx-auto max-w-6xl px-8 py-6">
@@ -113,8 +133,8 @@ export default async function ProjectOverviewPage({
           <InfoRow label="총 연구개발비" value={formatWon(project.totalBudget)} />
           <InfoRow label="정부지원연구개발비" value={formatWon(project.govBudget)} />
           <InfoRow label="기관부담연구개발비" value={formatWon(project.ownBudget)} />
-          {/* PM·주관기관은 Member·Organization이 생기는 Phase 2에서 연결한다 (§7.3) */}
-          <InfoRow label="총괄책임자(PM) · 주관기관" value="Phase 2에서 연결됩니다." />
+          <InfoRow label="총괄책임자(PM)" value={pmName} warn={!teamRes.ok} />
+          <InfoRow label="주관기관" value={leadOrgName} warn={!teamRes.ok} />
         </dl>
       </section>
 

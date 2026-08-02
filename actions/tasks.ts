@@ -16,6 +16,8 @@ import * as stagesRepo from '@/lib/db/stages';
 import * as yearsRepo from '@/lib/db/years';
 import * as tasksRepo from '@/lib/db/tasks';
 import * as settingsRepo from '@/lib/db/settings';
+import * as membersRepo from '@/lib/db/members';
+import * as organizationsRepo from '@/lib/db/organizations';
 import {
   RuleViolationError,
   StaleDataError,
@@ -188,6 +190,48 @@ function assertParentAllowed(yearTasks: readonly Task[], parentId: string): void
   }
 }
 
+// 담당자·기관은 반드시 그 작업이 속한 과제의 것이어야 한다. 근거는 H-11과 같다 —
+// "다른 과제로 옮기면 담당자·기관·목표 연계가 전부 남의 과제를 가리키게 된다".
+// FK만으로는 과제 경계를 막지 못하므로(members·organizations는 과제별 테이블이 아니다)
+// 여기서 확인한다. 참조가 없는 patch는 조회 없이 통과시킨다.
+interface TeamRefs {
+  ownerMemberId?: string | null;
+  memberIds?: string[];
+  orgId?: string | null;
+}
+
+// 검증에 조회가 필요한지 판단한다 — 담당자·기관이 없는 입력은 추가 조회 없이 통과시킨다
+function hasTeamRefs(refs: TeamRefs): boolean {
+  return (
+    refs.ownerMemberId !== undefined || refs.memberIds !== undefined || refs.orgId !== undefined
+  );
+}
+
+async function assertTeamRefsInProject(
+  client: SupabaseClient,
+  projectId: string,
+  refs: TeamRefs
+): Promise<void> {
+  const referenced = new Set<string>(refs.memberIds ?? []);
+  if (refs.ownerMemberId != null) referenced.add(refs.ownerMemberId);
+
+  if (referenced.size > 0) {
+    const projectMembers = new Set(
+      (await membersRepo.listMembers(client, projectId)).map((m) => m.id)
+    );
+    if ([...referenced].some((id) => !projectMembers.has(id))) {
+      throw new RuleViolationError('이 과제에 속하지 않은 인력은 담당자로 지정할 수 없습니다.');
+    }
+  }
+
+  if (refs.orgId != null) {
+    const projectOrgs = await organizationsRepo.listOrganizations(client, projectId);
+    if (!projectOrgs.some((o) => o.id === refs.orgId)) {
+      throw new RuleViolationError('이 과제에 속하지 않은 기관은 수행 기관으로 지정할 수 없습니다.');
+    }
+  }
+}
+
 export async function createTask(yearId: string, input: unknown): Promise<ActionResult<Task>> {
   try {
     const yid = parseOrThrow(uuidSchema, yearId, '연차 ID 형식이 올바르지 않습니다.');
@@ -201,6 +245,9 @@ export async function createTask(yearId: string, input: unknown): Promise<Action
     const year = await yearsRepo.getYearById(client, yid);
     const yearTasks = await tasksRepo.listTasksByYear(client, yid);
     if (parentId !== null) assertParentAllowed(yearTasks, parentId);
+
+    // 생성 시점에도 담당자·기관은 그 연차가 속한 과제의 것이어야 한다 (updateTask와 같은 기준)
+    if (hasTeamRefs(fields)) await assertTeamRefsInProject(client, year.projectId, fields);
 
     // H-10: 같은 컨테이너(yearId, parentId)의 마지막 뒤에 붙인다 (DB 기본값 0을 두면 순서가 겹친다)
     const siblings = yearTasks.filter((t) => t.parentId === parentId);
@@ -255,6 +302,13 @@ export async function updateTask(
     );
     const ctx = await requireApprovedUser();
     client = ctx.client;
+
+    // 담당자·기관이 patch에 들어올 때만 소속을 확인한다 (조회 1~2회를 아끼기 위해)
+    if (hasTeamRefs(parsed)) {
+      const before = await tasksRepo.getTaskById(client, taskId);
+      await assertTeamRefsInProject(client, before.projectId, parsed);
+    }
+
     const updated = await tasksRepo.updateTask(
       client,
       taskId,
@@ -503,6 +557,44 @@ export async function setTaskUrgency(
   }
 }
 
+// §9 assignTaskMembers: 책임자 1명(ownerMemberId) + 참여자 다중(memberIds)을 함께 저장한다.
+// memberIds는 항상 patch에 담기므로 task_members가 매번 전체 치환된다(전체 치환 규약).
+// O-2: 배정 패널의 단일 조작이라 낙관적 잠금을 생략한다.
+export async function assignTaskMembers(
+  id: string,
+  ownerMemberId: string | null,
+  memberIds: string[]
+): Promise<ActionResult<Task>> {
+  try {
+    const taskId = parseOrThrow(uuidSchema, id, '작업 ID 형식이 올바르지 않습니다.');
+    const owner = parseOrThrow(
+      z.uuid().nullable(),
+      ownerMemberId,
+      '책임자 ID 형식이 올바르지 않습니다.'
+    );
+    const ids = parseOrThrow(uuidListSchema, memberIds, '담당자 목록이 올바르지 않습니다.');
+    const { user, client } = await requireApprovedUser();
+
+    const before = await tasksRepo.getTaskById(client, taskId);
+    await assertTeamRefsInProject(client, before.projectId, {
+      ownerMemberId: owner,
+      memberIds: ids,
+    });
+
+    const updated = await tasksRepo.updateTask(client, taskId, {
+      ownerMemberId: owner,
+      memberIds: ids,
+      updatedBy: user.id,
+    });
+    revalidateProject(updated.projectId);
+    // 팀 화면의 "배정된 작업 목록"(§7.10)도 이 저장으로 바뀐다
+    revalidatePath(`/projects/${updated.projectId}/team`);
+    return { ok: true, data: updated };
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
 // 다중 선택 일괄 편집. 여러 행이라 expectedVersion을 걸 수 없다(SA-2의 "선택 인자").
 // 중간 실패는 삼키지 않고 그대로 실패로 돌려준다 — 어디까지 반영됐는지는 UI가 다시 읽어 확인한다.
 export async function bulkUpdateTasks(
@@ -519,6 +611,22 @@ export async function bulkUpdateTasks(
     const parsed = parseOrThrow(taskPatchSchema, patch, '작업 정보가 올바르지 않습니다.');
     const ctx = await requireApprovedUser();
     client = ctx.client;
+    const db = ctx.client; // 콜백 안에서도 좁혀진 타입을 유지하려고 상수로 받는다
+
+    // 담당자·기관은 한 과제에만 속한다 — 여러 과제의 작업을 한 번에 배정하는 요청은
+    // 애초에 성립하지 않는다. 일부만 반영되는 실패 대신 먼저 거부해 이유를 분명히 알린다.
+    if (hasTeamRefs(parsed)) {
+      const targets = await Promise.all(taskIds.map((tid) => tasksRepo.getTaskById(db, tid)));
+      const projectIds = new Set(targets.map((t) => t.projectId));
+      if (projectIds.size > 1) {
+        throw new RuleViolationError(
+          '여러 과제의 작업에 담당자·기관을 한 번에 지정할 수 없습니다.'
+        );
+      }
+      const [projectId] = [...projectIds];
+      if (projectId === undefined) throw new ValidationError('수정할 작업을 선택하세요.');
+      await assertTeamRefsInProject(db, projectId, parsed);
+    }
 
     const updated: Task[] = [];
     for (const taskId of taskIds) {

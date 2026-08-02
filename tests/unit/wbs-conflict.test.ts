@@ -62,6 +62,21 @@ describe('toDetailFormValues', () => {
     const task = makeTask();
     expect(diffDetailValues(toDetailFormValues(task), toDetailFormValues(task))).toEqual([]);
   });
+
+  it('담당자·기관의 null은 빈 문자열로, 참여 담당자는 정렬된 쉼표 문자열로 옮긴다', () => {
+    const values = toDetailFormValues(
+      makeTask({ ownerMemberId: null, orgId: null, memberIds: ['m-2', 'm-1'] })
+    );
+    expect(values.ownerMemberId).toBe('');
+    expect(values.orgId).toBe('');
+    expect(values.memberIds).toBe('m-1,m-2');
+  });
+
+  it('원본 memberIds 배열을 정렬로 뒤집지 않는다 (부수효과 없음)', () => {
+    const task = makeTask({ memberIds: ['m-2', 'm-1'] });
+    toDetailFormValues(task);
+    expect(task.memberIds).toEqual(['m-2', 'm-1']);
+  });
 });
 
 describe('diffDetailValues', () => {
@@ -77,6 +92,24 @@ describe('diffDetailValues', () => {
     const latest = toDetailFormValues(makeTask({ importance: 5, urgencyManual: 4 }));
     const mine = toDetailFormValues(makeTask({ importance: 3, urgencyManual: 3 }));
     expect(diffDetailValues(latest, mine).sort()).toEqual(['importance', 'urgencyManual']);
+  });
+
+  it('참여 담당자는 순서만 다르면 차이로 잡지 않는다 (가짜 충돌 방지)', () => {
+    const latest = toDetailFormValues(makeTask({ memberIds: ['m-2', 'm-1', 'm-3'] }));
+    const mine = toDetailFormValues(makeTask({ memberIds: ['m-3', 'm-1', 'm-2'] }));
+    expect(diffDetailValues(latest, mine)).toEqual([]);
+  });
+
+  it('참여 담당자의 실제 구성이 다르면 차이로 잡는다', () => {
+    const latest = toDetailFormValues(makeTask({ memberIds: ['m-1', 'm-2'] }));
+    const mine = toDetailFormValues(makeTask({ memberIds: ['m-1'] }));
+    expect(diffDetailValues(latest, mine)).toEqual(['memberIds']);
+  });
+
+  it('담당자·수행 기관의 변경도 잡는다', () => {
+    const latest = toDetailFormValues(makeTask({ ownerMemberId: 'm-1', orgId: 'org-1' }));
+    const mine = toDetailFormValues(makeTask({ ownerMemberId: null, orgId: 'org-2' }));
+    expect(diffDetailValues(latest, mine).sort()).toEqual(['orgId', 'ownerMemberId']);
   });
 
   it('DETAIL_FIELDS에 없는 필드는 비교하지 않는다 (파생·읽기 전용 값 제외)', () => {
@@ -159,6 +192,49 @@ describe('buildUpdatePatch — 저장 payload와 비교 대상의 불변식', ()
     expect(built.patch.tags).toEqual(['데이터', '정제']);
   });
 
+  it('담당자·참여 담당자·기관이 왕복에서 보존된다', () => {
+    const built = buildUpdatePatch(
+      toDetailFormValues(
+        makeTask({ ownerMemberId: 'm-9', memberIds: ['m-2', 'm-1'], orgId: 'org-1' })
+      )
+    );
+    if (!built.ok) throw new Error(built.message);
+
+    expect(built.patch.ownerMemberId).toBe('m-9');
+    expect(built.patch.memberIds.sort()).toEqual(['m-1', 'm-2']);
+    expect(built.patch.orgId).toBe('org-1');
+  });
+
+  it('미지정(빈 문자열) 담당자·기관은 null로, 빈 참여 담당자는 빈 배열로 보낸다', () => {
+    const built = buildUpdatePatch(
+      toDetailFormValues(makeTask({ ownerMemberId: null, memberIds: [], orgId: null }))
+    );
+    if (!built.ok) throw new Error(built.message);
+
+    expect(built.patch.ownerMemberId).toBeNull();
+    expect(built.patch.orgId).toBeNull();
+    expect(built.patch.memberIds).toEqual([]); // null이 아니다 — 조인 배열은 "전체 치환"이다
+  });
+
+  it('참여 담당자의 중복·공백 입력은 접어서 보낸다 (조인 행 중복 방지)', () => {
+    const values = {
+      ...toDetailFormValues(makeTask()),
+      memberIds: ' m-1 , m-2 ,m-1,, ',
+    };
+    const built = buildUpdatePatch(values);
+    if (!built.ok) throw new Error(built.message);
+
+    expect(built.patch.memberIds).toEqual(['m-1', 'm-2']);
+  });
+
+  it('책임자를 참여 담당자에 임의로 끼워 넣지 않는다 (SOT 미명시)', () => {
+    const values = { ...toDetailFormValues(makeTask()), ownerMemberId: 'm-9', memberIds: 'm-1' };
+    const built = buildUpdatePatch(values);
+    if (!built.ok) throw new Error(built.message);
+
+    expect(built.patch.memberIds).toEqual(['m-1']);
+  });
+
   it('잘못된 입력은 저장하지 않고 사용자에게 보여줄 문구로 되돌린다', () => {
     const base = toDetailFormValues(makeTask());
 
@@ -185,5 +261,51 @@ describe('displayDetailValue', () => {
     expect(displayDetailValue('dueDate', values)).toBe('—');
     expect(displayDetailValue('urgencyMode', values)).toBe('고정(수동)');
     expect(displayDetailValue('importance', values)).toBe('3');
+  });
+
+  it('라벨 사전이 있으면 id 대신 이름·기관명을 보여준다', () => {
+    const values = toDetailFormValues(
+      makeTask({ ownerMemberId: 'm-1', memberIds: ['m-2', 'm-1'], orgId: 'org-1' })
+    );
+    const labels = {
+      members: { 'm-1': '홍길동', 'm-2': '김연구' },
+      orgs: { 'org-1': '유엔이' },
+    };
+
+    expect(displayDetailValue('ownerMemberId', values, labels)).toBe('홍길동');
+    expect(displayDetailValue('memberIds', values, labels)).toBe('홍길동, 김연구');
+    expect(displayDetailValue('orgId', values, labels)).toBe('유엔이');
+  });
+
+  it('사전에 없는 id는 삭제된 것으로 알리고 uuid를 노출하지 않는다', () => {
+    const values = toDetailFormValues(
+      makeTask({ ownerMemberId: 'm-gone', memberIds: ['m-1', 'm-gone'], orgId: 'org-gone' })
+    );
+    const labels = { members: { 'm-1': '홍길동' }, orgs: {} };
+
+    expect(displayDetailValue('ownerMemberId', values, labels)).toBe('(삭제된 인력)');
+    expect(displayDetailValue('memberIds', values, labels)).toBe('홍길동, (삭제된 인력)');
+    expect(displayDetailValue('orgId', values, labels)).toBe('(삭제된 기관)');
+  });
+
+  it('라벨 사전 없이 호출해도 uuid를 노출하지 않는다 (기존 2인자 호출 호환)', () => {
+    const values = toDetailFormValues(
+      makeTask({ ownerMemberId: 'm-1', memberIds: ['m-1'], orgId: 'org-1' })
+    );
+
+    expect(displayDetailValue('ownerMemberId', values)).toBe('(삭제된 인력)');
+    expect(displayDetailValue('memberIds', values)).toBe('(삭제된 인력)');
+    expect(displayDetailValue('orgId', values)).toBe('(삭제된 기관)');
+  });
+
+  it('배정이 없으면 미지정으로 보여 "비어 있음"을 드러낸다', () => {
+    const values = toDetailFormValues(
+      makeTask({ ownerMemberId: null, memberIds: [], orgId: null })
+    );
+    const labels = { members: { 'm-1': '홍길동' }, orgs: { 'org-1': '유엔이' } };
+
+    expect(displayDetailValue('ownerMemberId', values, labels)).toBe('미지정');
+    expect(displayDetailValue('memberIds', values, labels)).toBe('미지정');
+    expect(displayDetailValue('orgId', values, labels)).toBe('미지정');
   });
 });
