@@ -27,7 +27,8 @@ Phase 0.5 수동 검증 마무리 → Phase 1 (계층 + WBS 트리 + 진척률 �
 - ✅ Rust 툴체인 설치(winget: Rustup + VS BuildTools) → `cargo check` 에러 0
 - ✅ `npm run tauri:dev` 실기동 — 사이드카 기동, WebView가 /login 로드
 - ✅ `wbs://` 딥링크 전 구간 — 앱 도달 → 교환 시도 → 실패 명시 표시(/login?error=callback) + 세션 정리
-- ⏳ 잔여(자연 검증): ① Tauri 안에서 실제 구글 로그인 전체 왕복(시스템 브라우저→딥링크→키체인) ② 두 PC 동일 데이터 ③ 동료 첫 로그인 시 /pending→승인 흐름 (두 번째 회사 계정이 현재 없음)
+- ✅ **Tauri 실로그인 전체 왕복** — 시스템 브라우저→구글→wbs:// 딥링크→PKCE 교환→키체인 저장→홈 진입. 이 과정에서 결함 2건 발견·수정: ① opener 권한에 URL 허용 목록 부재("Not allowed to open url") ② Windows 자격 증명 관리자 2560바이트 제한 초과 → 키체인 청크 분할 저장(1200자 단위)으로 해결
+- ⏳ 잔여(자연 검증): ① 두 PC 동일 데이터 ② 동료 첫 로그인 시 /pending→승인 흐름 (두 번째 회사 계정이 현재 없음) ③ Tauri 자동 백업 실파일 (7일 경과 시 — 로직은 단위 테스트 완료)
 
 ## Next steps
 1. `/phase-run 1` — 계층 CRUD + WBS 트리 + 4단계 진척률 롤업 + 우선순위 (§6.1, §6.6~6.9, §7.4)
