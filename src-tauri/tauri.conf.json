@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "WBS",
+  "version": "0.1.0",
+  "identifier": "kr.co.unes.wbs",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "npm run build && node src-tauri/scripts/prepare-sidecar.mjs",
+    "frontendDist": "frontend-dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "R&D 과제 관리",
+        "width": 1400,
+        "height": 900,
+        "url": "index.html"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["wbs"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "icon": ["icons/icon.ico", "icons/icon.png"],
+    "resources": {
+      "resources/web": "web",
+      "resources/node": "node"
+    },
+    "windows": {
+      "nsis": {
+        "languages": ["Korean"],
+        "installMode": "currentUser"
+      }
+    }
+  }
+}

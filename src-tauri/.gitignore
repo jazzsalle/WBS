@@ -1,0 +1,8 @@
+# Rust 빌드 산출물
+/target/
+
+# Tauri CLI가 생성하는 스키마
+/gen/
+
+# prepare-sidecar.mjs가 만드는 사이드카 리소스 (빌드마다 재생성)
+/resources/

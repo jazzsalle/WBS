@@ -1295,7 +1295,7 @@ end; $$;
 | # | 규칙 |
 |---|---|
 | X-1 | 단순 CRUD는 PostgREST(supabase-js)를 직접 쓴다. RPC는 다중 테이블 작업에만 쓴다. |
-| X-2 | RPC는 `security invoker`로 만들어 RLS를 우회하지 않게 한다. **예외**: 인증 부트스트랩(`handle_new_user` 트리거 함수)과 사용자 승인(`approve_user`)은 RLS가 닿기 전/위 단계의 작업이므로 `security definer`로 만든다 (§14.2, §14.3). 그 외 definer 함수는 금지. |
+| X-2 | RPC는 `security invoker`로 만들어 RLS를 우회하지 않게 한다. **예외**: 인증 부트스트랩(`handle_new_user` 트리거 함수), 사용자 승인 관리(`approve_user`, `deactivate_user`), 승인 판정 헬퍼(`is_approved`), 전체 복원(`restore_backup` — 호출자 `active=true` 자기검증 + K-5 스키마 버전 검증을 함수 안에서 수행, §8.7 K-7)은 RLS가 닿기 전/위 단계의 작업이므로 `security definer`로 만든다 (§14.2, §14.3). 그 외 definer 함수는 금지. |
 | X-3 | 순서 재정렬(`reorderTasks` 등)은 한 번의 RPC에서 일괄 갱신한다. 행마다 호출하지 않는다. |
 | X-4 | Task 이동(`moveTask`)의 순환 검사(H-2)와 깊이 검사(H-3), `moveTaskToYear`의 같은 과제 검증(H-11)은 **DB 함수 안에서** 수행한다. 클라이언트 검증만 믿지 않는다. |
 

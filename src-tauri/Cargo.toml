@@ -1,0 +1,45 @@
+# Tauri v2 데스크톱 셸 (SOT §14.1, §10)
+# 데스크톱 전용이므로 lib 크레이트(모바일용 관례) 없이 main.rs 단일 바이너리로 구성한다.
+
+[package]
+name = "wbs"
+version = "0.1.0"
+description = "R&D 과제 관리 도구 데스크톱 셸"
+edition = "2021"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# wbs:// 스킴 등록 + 딥링크 URL을 프론트 이벤트로 전달 (SOT §14.2 A-1)
+tauri-plugin-deep-link = "2"
+# 두 번째 실행(브라우저가 wbs://를 열 때 OS가 새 프로세스를 띄운다)의 argv를
+# 기존 인스턴스로 넘긴다. "deep-link" feature가 argv 속 딥링크를 플러그인 이벤트로 연결한다.
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+# A-1: OAuth URL을 시스템 브라우저로 연다 — LoginScreen이 plugin:opener|open_url을 invoke
+tauri-plugin-opener = "2"
+# §8.7 백업 파일 쓰기·목록·삭제 + LocalConfig(§5.16) app config dir 저장
+tauri-plugin-fs = "2"
+# §7.14 백업 폴더 선택 대화상자
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# 세션 토큰 OS 키체인 저장 (SOT §14.2 A-4, §8.2 C-3).
+# 별도 커뮤니티 플러그인 대신 keyring 크레이트를 tauri::command로 직접 노출한다 —
+# Windows Credential Manager / macOS Keychain을 그대로 쓰면서 의존성을 최소화한다.
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[target.'cfg(not(any(windows, target_os = "macos")))'.dependencies]
+# Linux는 v1 대상이 아니다 — 스토어 feature 없이 컴파일만 가능하게 둔다 (런타임 호출 시 에러 반환)
+keyring = { version = "3" }
+
+[profile.release]
+strip = true
+lto = true

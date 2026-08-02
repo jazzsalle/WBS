@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "메인 창 권한. 프로덕션에서는 사이드카(http://127.0.0.1:{랜덤포트})가 원격 출처이므로 remote로 허용한다 (SOT §14.1). fs 스코프가 전체(**)인 이유: 백업 폴더(K-3)는 사용자가 임의 위치(드라이브 동기화 폴더 권장)로 지정하므로 경로를 미리 좁힐 수 없다.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:*", "http://localhost:*"]
+  },
+  "permissions": [
+    "core:default",
+    "deep-link:default",
+    "opener:allow-open-url",
+    "dialog:allow-open",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-dir",
+    "fs:allow-remove",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "**" }, { "path": "$APPCONFIG" }, { "path": "$APPCONFIG/**" }]
+    }
+  ]
+}
