@@ -26,7 +26,7 @@ vi.mock('next/headers', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: () => undefined }));
 
 const team = await import('@/actions/team');
-const { createProject } = await import('@/actions/projects');
+const { createProject, updateProject } = await import('@/actions/projects');
 const { assignTaskMembers, bulkUpdateTasks, createTask, deleteTask, updateTask } = await import(
   '@/actions/tasks'
 );
@@ -203,6 +203,43 @@ describe('Organization 액션 (§9, H-8, H-10)', () => {
 
   it('다른 과제의 기관은 주관으로 지정할 수 없다', async () => {
     expectRuleViolation(await team.setLeadOrganization(projectId, otherOrgId));
+  });
+
+  it('주관기관을 새로 만들어도 lead는 항상 정확히 1개다 (H-8)', async () => {
+    const created = unwrap(
+      await team.createOrganization(projectId, { name: '새주관기관', role: 'lead' })
+    );
+    expect(created.role).toBe('lead'); // 내부적으로 joint로 만들었더라도 결과는 lead다
+
+    const list = await organizationsRepo.listOrganizations(user.client, projectId);
+    expect(list.filter((o) => o.role === 'lead').map((o) => o.id)).toEqual([created.id]);
+    expect((await projectsRepo.getProjectById(user.client, projectId)).leadOrgId).toBe(created.id);
+
+    // 원상복구: 주관을 되돌리고 임시 기관을 지운다
+    unwrap(await team.setLeadOrganization(projectId, jointOrgId));
+    unwrap(await team.deleteOrganization(created.id));
+  });
+
+  it('승격 RPC가 실패해도 lead가 2개로 남지 않는다 (joint로 만든 뒤 승격)', async () => {
+    // insert(role='lead') → RPC 2왕복이던 시절의 실패 창을 재현한다.
+    // 지금은 joint로 insert하므로 RPC가 죽어도 lead 수가 변하지 않아야 한다.
+    const spy = vi
+      .spyOn(organizationsRepo, 'setLeadOrganization')
+      .mockRejectedValueOnce(new Error('승격 RPC 실패(테스트 주입)'));
+
+    const failed = await team.createOrganization(projectId, { name: '승격실패기관', role: 'lead' });
+    spy.mockRestore();
+    if (failed.ok) throw new Error('RPC 실패가 성공으로 보고됐습니다.');
+
+    const list = await organizationsRepo.listOrganizations(user.client, projectId);
+    expect(list.filter((o) => o.role === 'lead').map((o) => o.id)).toEqual([jointOrgId]);
+    expect((await projectsRepo.getProjectById(user.client, projectId)).leadOrgId).toBe(jointOrgId);
+
+    const orphan = list.find((o) => o.name === '승격실패기관');
+    if (!orphan) throw new Error('생성된 행이 사라졌습니다.');
+    expect(orphan.role).toBe('joint'); // lead가 아니므로 H-8 삭제 차단도 그대로 유지된다
+
+    unwrap(await team.deleteOrganization(orphan.id));
   });
 });
 
@@ -400,5 +437,41 @@ describe('팀 조회 (§7.10)', () => {
     const idle = unwrap(await team.createMember(projectId, { name: '배정없음' }));
     const after = unwrap(await team.getTeamScreenData(projectId));
     expect(after.assignedTasksByMember[idle.id]).toEqual([]);
+  });
+});
+
+// 서버 액션은 공개 표면이다. UI가 노출하지 않는다는 사실은 방어가 아니다 —
+// 일반 patch로 포인터만 바꾸면 setProjectPM(소속 검증)·setLeadOrganization(역할 동기화)의
+// 가드를 우회해 과제·인력·기관이 어긋난 상태가 만들어진다.
+describe('updateProject의 포인터 가드 우회 차단 (§7.10, H-8)', () => {
+  it('pmMemberId·leadOrgId는 updateProject로 바꿀 수 없다', async () => {
+    const before = await projectsRepo.getProjectById(user.client, projectId);
+
+    for (const patch of [
+      { pmMemberId: memberAId },
+      { leadOrgId: jointOrgId },
+      { pmMemberId: otherMemberId }, // 남의 과제 인력
+      { leadOrgId: otherOrgId }, // 남의 과제 기관
+      { pmMemberId: null },
+    ]) {
+      const result = await updateProject(projectId, patch, before.version);
+      if (result.ok) throw new Error(`updateProject가 ${Object.keys(patch)[0]}를 바꿨습니다.`);
+      expect(result.code).toBe('VALIDATION');
+    }
+
+    // 쓰기 자체가 일어나지 않았어야 한다 — version이 그대로다
+    const after = await projectsRepo.getProjectById(user.client, projectId);
+    expect(after.pmMemberId).toBe(before.pmMemberId);
+    expect(after.leadOrgId).toBe(before.leadOrgId);
+    expect(after.version).toBe(before.version);
+
+    // 일반 필드는 그대로 저장된다 (가드가 정상 저장을 막지 않는다)
+    const saved = unwrap(
+      await updateProject(projectId, { ministry: '산업통상자원부' }, before.version)
+    );
+    expect(saved.ministry).toBe('산업통상자원부');
+
+    // 전용 액션은 계속 동작한다
+    expect(unwrap(await team.setProjectPM(projectId, memberAId)).project.pmMemberId).toBe(memberAId);
   });
 });

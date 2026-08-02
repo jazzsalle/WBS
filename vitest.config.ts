@@ -1,19 +1,16 @@
-import { defineConfig } from "vitest/config";
-import path from "node:path";
+// 기본 실행(`npm test`) — 단위 + 통합. 자기가 만든 데이터만 지우는 테스트만 들어온다.
+//
+// tests/destructive/는 여기서 제외한다: 전체 복원(§8.7 K-7)은 dev DB의 전 행을 지우고
+// 백업 시점으로 되돌리므로, 다른 PC에서 그 사이 입력한 실데이터가 사라진다.
+// 파괴적 테스트는 `npm run test:destructive`로만 명시적으로 돌린다.
+
+import { defineConfig } from 'vitest/config';
+import { sharedConfig } from './vitest.shared';
 
 export default defineConfig({
-  resolve: {
-    alias: { "@": path.resolve(__dirname) },
-  },
+  ...sharedConfig,
   test: {
-    include: ["tests/**/*.test.ts"],
-    // .env.local + .env.test.local 로드. 통합 테스트의 직결 SQL 통로는 C-1 단서 참조
-    setupFiles: ["tests/setup.ts"],
-    // 통합 테스트(tests/integration)는 실제 dev DB 하나를 공유한다 —
-    // 파일 병렬 실행 시 데이터·시드 경합이 나므로 순차 실행한다
-    fileParallelism: false,
-    // 네트워크(Supabase API + postgres 직결)를 타므로 여유 있게
-    testTimeout: 30_000,
-    hookTimeout: 120_000,
+    ...sharedConfig.test,
+    include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
   },
 });

@@ -7,8 +7,8 @@
 //
 // H-8("과제당 주관기관은 항상 정확히 1개")의 판정과 차단은 이 계층의 몫이다:
 //  - 주관기관 삭제는 막는다.
-//  - role='lead'로 만드는 모든 쓰기는 set_lead_organization RPC를 거친다 —
-//    직접 update하면 lead 2개, 강등만 하면 lead 0개인 중간 상태가 남아 삭제 차단이 무너진다.
+//  - role='lead'로 만드는 모든 쓰기(생성 포함)는 set_lead_organization RPC를 거친다 —
+//    직접 insert/update하면 lead 2개, 강등만 하면 lead 0개인 중간 상태가 남아 삭제 차단이 무너진다.
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
@@ -167,13 +167,18 @@ export async function createOrganization(
     );
     const { user, client } = await requireApprovedUser();
 
+    // H-8: 주관 지정은 insert가 아니라 set_lead_organization RPC의 몫이다.
+    // role='lead'로 곧바로 insert하면 그 뒤 RPC가 실패했을 때 lead가 2개인 상태가 남아
+    // 삭제 차단 판정이 무너진다. joint로 만들어 두고 승격하면 실패해도 lead 수는 그대로다.
+    const wantsLead = fields.role === 'lead';
+
     const existing = await organizationsRepo.listOrganizations(client, pid);
-    const created = await organizationsRepo.createOrganization(
+    let created = await organizationsRepo.createOrganization(
       client,
       {
         projectId: pid,
         name: fields.name,
-        role: fields.role,
+        role: wantsLead ? 'joint' : fields.role,
         type: fields.type ?? '',
         representative: fields.representative ?? '',
         contact: fields.contact ?? '',
@@ -184,10 +189,11 @@ export async function createOrganization(
       user.id
     );
 
-    // H-8: 새 기관을 주관으로 만들면 기존 주관 강등 + projects.lead_org_id 갱신까지
-    // 한 트랜잭션으로 마쳐야 lead가 2개인 상태가 남지 않는다
-    if (created.role === 'lead') {
+    if (wantsLead) {
+      // 기존 주관 강등 + 대상 승격 + projects.lead_org_id 갱신이 한 트랜잭션이다
       await organizationsRepo.setLeadOrganization(client, pid, created.id);
+      // RPC가 role·version을 바꿨으므로 다시 읽어 최신 행을 돌려준다 (O-1 baseline)
+      created = await organizationsRepo.getOrganizationById(client, created.id);
     }
 
     revalidateTeam(pid);

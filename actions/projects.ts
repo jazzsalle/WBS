@@ -65,19 +65,38 @@ const projectCreateSchema = projectFieldsSchema.partial().extend({
   name: projectFieldsSchema.shape.name,
 });
 
-// pmMemberId·leadOrgId는 인력·기관이 생긴 뒤 지정한다. order는 reorderProjects 전용 (H-10)
+// pmMemberId·leadOrgId는 여기서 받지 않는다. 두 필드는 전용 액션만 바꿀 수 있다
+// (setProjectPM = "다른 과제 인력 거부", setLeadOrganization = 역할 동기화 H-8).
+// 일반 patch로 포인터만 갱신하면 그 가드를 우회해 과제·인력·기관이 어긋난 상태가 된다.
+// 서버 액션은 공개 표면이라 UI가 노출하지 않는다는 사실만으로는 막은 게 아니다.
+// strict: 모르는 키를 조용히 버리지 않는다 (절대 규칙 5).
 const projectPatchSchema = projectFieldsSchema
-  .extend({
-    pmMemberId: z.uuid().nullable(),
-    leadOrgId: z.uuid().nullable(),
-    archived: z.boolean(),
-  })
-  .partial();
+  .extend({ archived: z.boolean() })
+  .partial()
+  .strict();
+
+// 전용 액션으로만 바꿀 수 있는 필드 → 안내 메시지
+const GUARDED_PROJECT_FIELDS: Record<string, string> = {
+  pmMemberId: 'PM은 이 경로로 바꿀 수 없습니다. 인력·기관 화면에서 PM을 지정하세요.',
+  leadOrgId: '주관기관은 이 경로로 바꿀 수 없습니다. 인력·기관 화면에서 주관기관을 지정하세요.',
+};
+
+function rejectGuardedFields(patch: unknown): void {
+  if (typeof patch !== 'object' || patch === null) return;
+  for (const [field, message] of Object.entries(GUARDED_PROJECT_FIELDS)) {
+    if (field in patch) throw new ValidationError(message);
+  }
+}
 
 function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, fallback: string): T {
   const parsed = schema.safeParse(value);
   if (!parsed.success) {
-    throw new ValidationError(parsed.error.issues[0]?.message ?? fallback);
+    const issue = parsed.error.issues[0];
+    // Zod의 unrecognized_keys 기본 메시지는 영문이라 그대로 사용자에게 보이면 안 된다
+    if (issue?.code === 'unrecognized_keys') {
+      throw new ValidationError('저장할 수 없는 항목이 포함돼 있습니다.');
+    }
+    throw new ValidationError(issue?.message ?? fallback);
   }
   return parsed.data;
 }
@@ -164,6 +183,7 @@ export async function updateProject(
   let client: SupabaseClient | undefined;
   try {
     const projectId = parseOrThrow(uuidSchema, id, '과제 ID 형식이 올바르지 않습니다.');
+    rejectGuardedFields(patch);
     const parsed = parseOrThrow(projectPatchSchema, patch, '과제 정보가 올바르지 않습니다.');
     const ctx = await requireApprovedUser();
     client = ctx.client;

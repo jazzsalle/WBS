@@ -1,5 +1,10 @@
 // 백업 왕복 통합 테스트 — §8.7 K-1·K-5·K-7·K-8
 //
+// ⚠️ 파괴적 테스트다. `npm test`에 포함되지 않고 `npm run test:destructive`로만 돌린다.
+//    K-7 복원이 대상 25종 테이블의 전 행을 지우고 백업 시점 행으로 되돌리기 때문에,
+//    실데이터가 있는 dev DB에서 돌리면 export 이후 다른 PC에서 추가된 변경분이 사라진다.
+//    시작 전 assertNoForeignData가 테스트 소유가 아닌 데이터를 발견하면 실행을 거부한다.
+//
 // 서버 액션(actions/backup.ts)은 쿠키 세션(requireApprovedUser) 위에 있어 vitest에서
 // 직접 호출할 수 없다. 왕복·K-5·K-8 검증은 리포지토리 레벨(lib/db/backup, 실제 세션
 // 클라이언트 주입 = RLS·RPC 경로 실검증)로 수행하고, 액션이 쓰는 순수 부분
@@ -17,7 +22,8 @@ import {
   destroyTestUser,
   removeSeed,
   type TestUser,
-} from './helpers';
+} from '../integration/helpers';
+import { assertNoForeignData } from './guard';
 import * as backup from '@/lib/db/backup';
 import * as projects from '@/lib/db/projects';
 import * as stages from '@/lib/db/stages';
@@ -26,7 +32,11 @@ import * as tasks from '@/lib/db/tasks';
 import { RuleViolationError, ValidationError } from '@/lib/db/errors';
 import type { BackupFile } from '@/types';
 
-let sql: Sql;
+// 실데이터 감지 가드는 어떤 준비 작업보다 먼저 돈다. beforeAll이 아니라 모듈 최상위인 이유:
+// 여기서 멈추면 afterAll도 등록되지 않아 "정리하다 난 2차 에러"가 진짜 원인을 가리지 않는다.
+const sql: Sql = connectDirectDb();
+await assertNoForeignData(sql);
+
 let user: TestUser;
 const tempProjectIds: string[] = []; // afterAll 안전망 — 복원 실패로 남으면 직결 SQL로 지운다
 
@@ -40,7 +50,6 @@ function jsonRoundtrip(file: BackupFile): BackupFile {
 }
 
 beforeAll(async () => {
-  sql = connectDirectDb();
   await applySeed(sql);
   user = await createTestUser(sql);
 });
