@@ -100,6 +100,29 @@ describe('diffDetailValues', () => {
     expect(diffDetailValues(latest, mine)).toEqual([]);
   });
 
+  it('연계 목표는 순서만 다르면 차이로 잡지 않는다 (가짜 충돌 방지)', () => {
+    const latest = toDetailFormValues(
+      makeTask({ deliverableIds: ['d-2', 'd-1'], techTargetIds: ['t-3', 't-1', 't-2'] })
+    );
+    const mine = toDetailFormValues(
+      makeTask({ deliverableIds: ['d-1', 'd-2'], techTargetIds: ['t-1', 't-2', 't-3'] })
+    );
+    expect(diffDetailValues(latest, mine)).toEqual([]);
+  });
+
+  it('연계 목표의 실제 구성이 다르면 차이로 잡는다 (미확인 시 저장 차단)', () => {
+    const latest = toDetailFormValues(
+      makeTask({ deliverableIds: ['d-1', 'd-2'], techTargetIds: ['t-1'] })
+    );
+    const mine = toDetailFormValues(makeTask({ deliverableIds: ['d-1'], techTargetIds: [] }));
+
+    const diff = diffDetailValues(latest, mine);
+    expect(diff.sort()).toEqual(['deliverableIds', 'techTargetIds']);
+    // 확인 전에는 저장이 막힌다 — 남의 연계 변경을 조용히 덮어쓰지 않는다 (O-3)
+    expect(unresolvedConflicts(diff, new Set<DetailFieldKey>())).toEqual(diff);
+    expect(unresolvedConflicts(diff, new Set<DetailFieldKey>(diff))).toEqual([]);
+  });
+
   it('참여 담당자의 실제 구성이 다르면 차이로 잡는다', () => {
     const latest = toDetailFormValues(makeTask({ memberIds: ['m-1', 'm-2'] }));
     const mine = toDetailFormValues(makeTask({ memberIds: ['m-1'] }));
@@ -227,6 +250,25 @@ describe('buildUpdatePatch — 저장 payload와 비교 대상의 불변식', ()
     expect(built.patch.memberIds).toEqual(['m-1', 'm-2']);
   });
 
+  it('연계 목표는 중복을 접어 string[]로 보낸다 (조인 행 중복 방지, 전체 치환)', () => {
+    const values = {
+      ...toDetailFormValues(makeTask({ deliverableIds: ['d-1'], techTargetIds: ['t-1'] })),
+      deliverableIds: ' d-1 , d-2 ,d-1,, ',
+      techTargetIds: 't-2,t-2',
+    };
+    const built = buildUpdatePatch(values);
+    if (!built.ok) throw new Error(built.message);
+
+    expect(built.patch.deliverableIds).toEqual(['d-1', 'd-2']);
+    expect(built.patch.techTargetIds).toEqual(['t-2']);
+
+    // 연계를 모두 풀면 빈 배열이다 — null이 아니어야 조인이 전체 치환된다
+    const cleared = buildUpdatePatch({ ...values, deliverableIds: '', techTargetIds: '' });
+    if (!cleared.ok) throw new Error(cleared.message);
+    expect(cleared.patch.deliverableIds).toEqual([]);
+    expect(cleared.patch.techTargetIds).toEqual([]);
+  });
+
   it('책임자를 참여 담당자에 임의로 끼워 넣지 않는다 (SOT 미명시)', () => {
     const values = { ...toDetailFormValues(makeTask()), ownerMemberId: 'm-9', memberIds: 'm-1' };
     const built = buildUpdatePatch(values);
@@ -296,6 +338,20 @@ describe('displayDetailValue', () => {
     expect(displayDetailValue('ownerMemberId', values)).toBe('(삭제된 인력)');
     expect(displayDetailValue('memberIds', values)).toBe('(삭제된 인력)');
     expect(displayDetailValue('orgId', values)).toBe('(삭제된 기관)');
+  });
+
+  it('연계 목표는 사전으로 이름을 풀고, 없는 id는 삭제된 목표로 알린다', () => {
+    const values = toDetailFormValues(
+      makeTask({ deliverableIds: ['d-1', 'd-gone'], techTargetIds: ['t-1'] })
+    );
+    const labels = { deliverables: { 'd-1': 'SCI 논문' }, techTargets: { 't-1': '인식 정확도' } };
+
+    expect(displayDetailValue('deliverableIds', values, labels)).toBe('SCI 논문, (삭제된 목표)');
+    expect(displayDetailValue('techTargetIds', values, labels)).toBe('인식 정확도');
+    // 연계가 없으면 "지웠다"를 드러낸다
+    expect(displayDetailValue('deliverableIds', toDetailFormValues(makeTask()), labels)).toBe(
+      '연계 없음'
+    );
   });
 
   it('배정이 없으면 미지정으로 보여 "비어 있음"을 드러낸다', () => {

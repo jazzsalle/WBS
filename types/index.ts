@@ -149,6 +149,7 @@ export type DeliverableType =
 
 export interface DeliverableAchievement {
   id: string;
+  version: number;          // 낙관적 잠금용 — 실적 편집 폼이 여러 필드를 한 번에 바꾸므로 O-1 대상이다
   title: string;            // 실제 산출물명 (논문 제목, 특허명 등)
   date: string;             // 달성일
   yearId: string | null;    // 어느 연차에 달성했는지
@@ -178,6 +179,7 @@ export type MeasureMethod = 'self' | 'certified_lab' | 'expert_review' | 'custom
 
 export interface TechTargetRecord {
   id: string;
+  version: number;          // 낙관적 잠금용 — 측정 이력 편집 폼이 여러 필드를 한 번에 바꾸므로 O-1 대상이다
   value: number;            // 측정 실적치
   date: string;             // 측정일
   yearId: string | null;

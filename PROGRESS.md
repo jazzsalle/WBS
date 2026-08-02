@@ -1,10 +1,10 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
-2026-08-02 (Phase 2 완료 세션)
+2026-08-02 (Phase 3 완료 세션)
 
 ## Current goal
-Phase 3 (목표 관리: 성과목표·기술목표 CRUD, 실적·측정, 달성률) — SOT §6.2~6.3, §7.7
+Phase 4 (마일스톤 + 대시보드) — SOT §6.5, §7.2, §7.8
 
 ## Done this session
 - **Phase 0 완료** (evaluator PASS 12/12, 커밋 07fa94a) — 스키마 25종+RLS+RPC, 리포지토리 16종, 테스트 48건
@@ -26,11 +26,19 @@ Phase 3 (목표 관리: 성과목표·기술목표 CRUD, 실적·측정, 달성�
   - `createOrganization`: lead를 joint로 만든 뒤 `set_lead_organization`으로 승격 — 승격 RPC가 실패해도 lead가 2개로 남지 않는다 (H-8)
   - `updateProject`: `pmMemberId`·`leadOrgId`를 patch에서 제외(+`strict()`) — `setProjectPM`/`setLeadOrganization`의 가드를 우회할 수 없다
 
+- **Phase 3 완료** (evaluator 조건부 PASS + 후속 조치 반영, 테스트 374건) — 목표 관리:
+  - `lib/goals.ts` — §6.2 성과목표(D-1~D-5)·§6.3 기술목표(T-1~T-4) 계산. 부록 B.2 57.333…·B.3 수치 그대로 통과, **중간 반올림 시 57.4가 됨을 명시적으로 배제**하는 회귀 테스트 포함. direction 3종 × baseline 유무 6조합 + 경계값 전부 테스트(단위 47건)
+  - RPC 2종: `reorder_deliverables`, `reorder_tech_targets`
+  - `actions/goals.ts` 액션 16종 + `getGoalsData`(달성률은 저장하지 않고 `lib/goals.ts`로 계산). **N-13 과제 경계 검증**: targetByYear 키·achievement.yearId·record.yearId·orgId·memberIds가 남의 과제면 RULE 거부(FK가 못 막는 부분)
+  - UI: `/projects/[id]/goals` 2탭(성과목표 테이블·연차 매트릭스 인라인 편집·실적 목록·유형별 도넛 / 기술목표 테이블·측정 이력·스파크라인·가중 달성률 게이지·인쇄 레이아웃), 개요 목표 요약 카드, 목표 탭 활성화
+  - WBS 목표 연계: `linkTaskGoals` + createTask/updateTask/bulkUpdateTasks 목표 참조 경계 검증, 상세 패널 연계 편집(O-3 비교 대상 포함), 트리 연계 뱃지
+- SOT 보강 7건 (누적): §8.3 X-2, §6.1 P-9, 부록 A.3 상태 색상, §6.6 H-8 재지정 트랜잭션, **§6.1 P-8 표시 형식(소수 1자리 고정)**, **§5.8·§5.9 자식 타입에 `version` 추가**(실적·측정 이력 편집이 O-1 대상인데 잠금을 걸 방법이 없던 모순 해소)
+
 ## In progress
 없음
 
 ## Next steps
-1. `/phase-run 3` — 성과목표·기술목표 CRUD, 실적/측정 기록, 달성률(§6.2 부록 B.2 57.333…, §6.3 direction 3종 × baseline 유무 전 분기)
+1. `/phase-run 4` — 마일스톤 CRUD·연차 기본 마일스톤 자동 생성(§7.8), 마감 판정(`lib/dates.ts` §6.5 표 전 케이스, 기준 타임존 Asia/Seoul), 대시보드(§7.2 + 아카이브 제외)
 2. 미뤄둔 것: HR API 연동(hr.unes.kr 직원 명부 — SOT 추가 후 별도 진행), 단일 과제 조회 액션(`getProject(id)`)
 3. Phase 1 후속 개선(블로킹 아님): ① 인라인 이름 편집 중 Enter 연타 시 in-flight 재입력이 제출값으로 되돌아감 ② 자기 저장에 대한 가짜 STALE 배너(`disabled={saving}` 가드) ③ `bulkUpdateTasks` 부분 반영(트랜잭션 RPC화 검토)
 4. 남은 관찰 항목(블로킹 아님): `tests/integration/wbs-queries.test.ts`는 팀 공유 설정 `app_settings.progress_weight_basis`를 잠시 바꿨다 되돌린다. 데이터를 지우지 않아 기본 실행에 두었지만, **두 PC에서 `npm test`를 동시에 돌리면** 서로의 임시값을 원본으로 착각해 설정이 어긋날 수 있다. 테스트는 한 번에 한 PC에서만 돌린다

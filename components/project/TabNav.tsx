@@ -34,7 +34,7 @@ const SECONDARY_TABS: readonly TabDef[] = [
 ] as const;
 
 /** 현재까지 구현된 Phase. 다음 Phase를 마칠 때 이 값을 올린다 (§11) */
-const IMPLEMENTED_THROUGH = 2;
+const IMPLEMENTED_THROUGH = 3;
 
 const ACTIVE_CLASSES = 'border-slate-900 text-slate-900';
 const INACTIVE_CLASSES = 'border-transparent text-slate-500 hover:text-slate-800';

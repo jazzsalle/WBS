@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/actions/auth';
 import { getProjectFullTree, getYearTree } from '@/actions/tasks';
 import { getTeam } from '@/actions/team';
+import { getGoalsData } from '@/actions/goals';
 import { toISODate } from '@/lib/dates';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import RealtimeRefresher from '@/components/RealtimeRefresher';
@@ -14,9 +15,10 @@ import WbsScreen, { type WbsGroup } from '@/components/wbs/WbsScreen';
 import { ALL_YEARS } from '@/components/wbs/YearSelector';
 
 // R-1 §8.5 구독표: WBS 화면은 tasks·years만 구독한다. 전체 구독 금지.
-// members·organizations는 구독표에 없다 — 다른 사람이 인력·기관 이름을 바꿔도 이 화면은
-// 즉시 다시 그려지지 않는다. 이름 표시가 늦는 대신 동시 연결 수를 지킨다(R-1). 이름을 고친
-// 쪽에서 revalidatePath('/projects/[id]/wbs')를 부르므로 다음 이동·새로고침에 반영된다.
+// members·organizations·deliverables·tech_targets는 구독표에 없다 — 다른 사람이 인력·기관·목표
+// 이름을 바꿔도 이 화면은 즉시 다시 그려지지 않는다. 이름 표시가 늦는 대신 동시 연결 수를
+// 지킨다(R-1). 이름을 고친 쪽에서 revalidatePath('/projects/[id]/wbs')를 부르므로 다음
+// 이동·새로고침에 반영된다.
 const REALTIME_TABLES = ['tasks', 'years'];
 
 // 레이아웃(§7.1)은 폭 제약을 걸지 않는다 — 컬럼이 10개라 WBS는 넓은 폭을 쓴다 (§12 반응형)
@@ -37,8 +39,13 @@ export default async function WbsPage({ params, searchParams }: WbsPageProps) {
   if (!me.ok) redirect('/login');
 
   // 단계·연차 목록(셀렉터)과 "전체 연차 보기"가 여기서 함께 나온다.
-  // 담당·기관 컬럼(§7.4)에 쓸 이름은 팀 조회에서 온다 — 서로 기다릴 이유가 없어 함께 던진다.
-  const [full, team] = await Promise.all([getProjectFullTree(projectId), getTeam(projectId)]);
+  // 담당·기관 컬럼(§7.4)에 쓸 이름은 팀 조회에서, 연계 컬럼·상세 패널의 목표 후보는
+  // 목표 조회에서 온다 — 서로 기다릴 이유가 없어 함께 던진다.
+  const [full, team, goals] = await Promise.all([
+    getProjectFullTree(projectId),
+    getTeam(projectId),
+    getGoalsData(projectId),
+  ]);
   if (!full.ok) {
     return (
       <main className={CONTENT_CLASS}>
@@ -55,8 +62,20 @@ export default async function WbsPage({ params, searchParams }: WbsPageProps) {
       </main>
     );
   }
+  // 목표도 같은 기준이다. 빈 목록으로 넘기면 연계된 목표가 사라진 것처럼 보이고,
+  // 상세 패널을 그대로 저장하면 연계가 전체 치환으로 지워진다.
+  if (!goals.ok) {
+    return (
+      <main className={CONTENT_CLASS}>
+        <ErrorBanner message={goals.error} code={goals.code} />
+      </main>
+    );
+  }
 
   const { stages, years: yearTrees, invalidTaskIds } = full.data;
+  // 트리·패널은 목표의 이름과 id만 쓴다 — 달성률(파생 값)은 여기서 다루지 않는다
+  const deliverables = goals.data.deliverables.map((view) => view.deliverable);
+  const techTargets = goals.data.techTargets.map((view) => view.techTarget);
   const years = yearTrees.map((y) => y.year);
 
   if (years.length === 0) {
@@ -123,6 +142,8 @@ export default async function WbsPage({ params, searchParams }: WbsPageProps) {
         groups={groups}
         members={team.data.members}
         organizations={team.data.organizations}
+        deliverables={deliverables}
+        techTargets={techTargets}
         selectedYearId={selectedYear === null ? ALL_YEARS : selectedYear.id}
         invalidTaskIds={invalidIds}
         // 지연 판정 기준일을 서버에서 고정해 SSR/CSR 결과가 갈리지 않게 한다 (§6.5)

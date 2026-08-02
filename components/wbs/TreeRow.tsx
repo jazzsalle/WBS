@@ -3,8 +3,8 @@
 // WBS 트리의 한 행 (SOT §7.4 계층형 테이블 컬럼)
 // 파생 값(wbsCode·progress·urgency·priorityScore·rolledUp*)은 서버가 계산해 내려준 값을
 // 표시만 한다 — 클라이언트에서 다시 계산하거나 저장하지 않는다 (PR-7, O-4, §6.1.1).
-// 담당·기관 이름은 부모가 내려준 사전으로만 푼다 — 행마다 조회하지 않는다.
-// 연계(성과·기술목표) 편집은 Phase 3 몫이라 아직 건수만 보여준다.
+// 담당·기관·목표 이름은 부모가 내려준 사전으로만 푼다 — 행마다 조회하지 않는다.
+// 연계(성과·기술목표) 편집은 상세 패널에서 한다 — 여기서는 건수 뱃지와 이름 툴팁만 보여준다.
 
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type { WbsNode } from '@/actions/tasks';
@@ -13,6 +13,7 @@ import { TASK_STATUS_LABELS } from '@/lib/constants';
 import { priorityGrade, type PriorityGrade } from '@/lib/priority';
 import { isOverdueTask } from '@/lib/dates';
 import Badge, { type BadgeTone } from '@/components/ui/Badge';
+import { DELETED_GOAL } from './conflict';
 
 export type DropZone = 'before' | 'inside' | 'after';
 
@@ -75,6 +76,9 @@ export interface TreeRowProps {
   /** 담당·기관 컬럼용 id → 이름 사전 */
   memberNames: Record<string, string>;
   orgNames: Record<string, string>;
+  /** 연계 컬럼 툴팁용 id → 목표명 사전 */
+  deliverableNames: Record<string, string>;
+  techTargetNames: Record<string, string>;
   selected: boolean;
   collapsed: boolean;
   /**
@@ -108,6 +112,8 @@ export default function TreeRow({
   todayISO,
   memberNames,
   orgNames,
+  deliverableNames,
+  techTargetNames,
   selected,
   collapsed,
   renameDraft,
@@ -132,6 +138,13 @@ export default function TreeRow({
   // 기간 컬럼은 롤업 기간을 보여주므로 지연 판정도 같은 날짜로 한다 — 리프는 자기 dueDate와 같다
   const overdue = isOverdueTask({ dueDate: node.rolledUpDueDate, status: task.status }, todayISO);
   const linkedCount = task.deliverableIds.length + task.techTargetIds.length;
+  // 툴팁에 실제 목표명을 나열한다. 사전에 없으면 "지워진 목표를 가리키고 있다"를 그대로 알린다
+  const linkedDeliverableNames = task.deliverableIds.map((id) =>
+    nameOf(id, deliverableNames, DELETED_GOAL)
+  );
+  const linkedTechTargetNames = task.techTargetIds.map((id) =>
+    nameOf(id, techTargetNames, DELETED_GOAL)
+  );
 
   // §7.4 담당 컬럼 = 책임자 이름 + 추가 인원 수. 책임자가 참여자에도 들어 있으면 두 번 세지 않는다
   const ownerName =
@@ -403,12 +416,12 @@ export default function TreeRow({
         ) : (
           <span className="flex gap-1">
             {task.deliverableIds.length > 0 && (
-              <Badge tone="violet" title="연계된 성과목표 수 (Phase 3에서 편집)">
+              <Badge tone="violet" title={`연계 성과목표: ${linkedDeliverableNames.join(', ')}`}>
                 성과 {task.deliverableIds.length}
               </Badge>
             )}
             {task.techTargetIds.length > 0 && (
-              <Badge tone="blue" title="연계된 기술목표 수 (Phase 3에서 편집)">
+              <Badge tone="blue" title={`연계 기술목표: ${linkedTechTargetNames.join(', ')}`}>
                 기술 {task.techTargetIds.length}
               </Badge>
             )}

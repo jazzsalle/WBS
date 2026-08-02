@@ -9,7 +9,17 @@
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Member, Organization, ProgressMode, Stage, Task, TaskStatus, Year } from '@/types';
+import type {
+  Deliverable,
+  Member,
+  Organization,
+  ProgressMode,
+  Stage,
+  Task,
+  TaskStatus,
+  TechTarget,
+  Year,
+} from '@/types';
 import {
   createTask,
   deleteTask,
@@ -54,6 +64,9 @@ export interface WbsScreenProps {
   members: Member[];
   /** 수행 기관 후보 (§5.10) */
   organizations: Organization[];
+  /** 연계 컬럼과 상세 패널 목표 연계에 쓰는 과제 목표 (§5.8, §5.9, §7.4) */
+  deliverables: Deliverable[];
+  techTargets: TechTarget[];
   selectedYearId: string | typeof ALL_YEARS;
   /** 트리에 편입되지 못한 작업 (절대 규칙 5: 조용히 버리지 않는다) */
   invalidTaskIds: string[];
@@ -136,6 +149,8 @@ export default function WbsScreen({
   groups,
   members,
   organizations,
+  deliverables,
+  techTargets,
   selectedYearId,
   invalidTaskIds,
   todayISO,
@@ -177,6 +192,18 @@ export default function WbsScreen({
     for (const org of organizations) map[org.id] = org.name;
     return map;
   }, [organizations]);
+
+  const deliverableNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const deliverable of deliverables) map[deliverable.id] = deliverable.name;
+    return map;
+  }, [deliverables]);
+
+  const techTargetNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const techTarget of techTargets) map[techTarget.id] = techTarget.name;
+    return map;
+  }, [techTargets]);
 
   // 원본 트리 색인. 필터·접기와 무관하게 이동 계산은 항상 원본 기준이어야 한다 (H-12).
   const index = useMemo(() => {
@@ -811,6 +838,8 @@ export default function WbsScreen({
           todayISO={todayISO}
           memberNames={memberNames}
           orgNames={orgNames}
+          deliverableNames={deliverableNames}
+          techTargetNames={techTargetNames}
           selectedId={selectedId}
           renaming={renaming}
           collapsedIds={collapsedIds}
@@ -865,8 +894,12 @@ export default function WbsScreen({
           wbsCode={selectedNode.wbsCode}
           members={members}
           organizations={organizations}
+          deliverables={deliverables}
+          techTargets={techTargets}
           memberNames={memberNames}
           orgNames={orgNames}
+          deliverableNames={deliverableNames}
+          techTargetNames={techTargetNames}
           onClose={() => setDetailOpen(false)}
         />
       )}

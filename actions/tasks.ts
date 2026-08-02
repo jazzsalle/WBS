@@ -18,6 +18,8 @@ import * as tasksRepo from '@/lib/db/tasks';
 import * as settingsRepo from '@/lib/db/settings';
 import * as membersRepo from '@/lib/db/members';
 import * as organizationsRepo from '@/lib/db/organizations';
+import * as deliverablesRepo from '@/lib/db/deliverables';
+import * as techTargetsRepo from '@/lib/db/tech-targets';
 import {
   RuleViolationError,
   StaleDataError,
@@ -232,6 +234,45 @@ async function assertTeamRefsInProject(
   }
 }
 
+// 목표 연계도 같은 근거로 과제 경계를 지킨다 (H-11: "다른 과제로 옮기면 담당자·기관·목표
+// 연계가 전부 남의 과제를 가리키게 된다"). task_deliverables/task_tech_targets의 FK는
+// 목표가 존재하는지만 보고 어느 과제 것인지는 보지 못한다.
+interface GoalRefs {
+  deliverableIds?: readonly string[];
+  techTargetIds?: readonly string[];
+}
+
+// 검증에 조회가 필요한지 판단한다 — 연계가 없는 입력은 추가 조회 없이 통과시킨다
+function hasGoalRefs(refs: GoalRefs): boolean {
+  return refs.deliverableIds !== undefined || refs.techTargetIds !== undefined;
+}
+
+async function assertGoalRefsInProject(
+  client: SupabaseClient,
+  projectId: string,
+  refs: GoalRefs
+): Promise<void> {
+  const deliverableIds = new Set(refs.deliverableIds ?? []);
+  if (deliverableIds.size > 0) {
+    const projectDeliverables = new Set(
+      (await deliverablesRepo.listDeliverables(client, projectId)).map((d) => d.id)
+    );
+    if ([...deliverableIds].some((id) => !projectDeliverables.has(id))) {
+      throw new RuleViolationError('이 과제에 속하지 않은 목표는 연계할 수 없습니다.');
+    }
+  }
+
+  const techTargetIds = new Set(refs.techTargetIds ?? []);
+  if (techTargetIds.size > 0) {
+    const projectTechTargets = new Set(
+      (await techTargetsRepo.listTechTargets(client, projectId)).map((t) => t.id)
+    );
+    if ([...techTargetIds].some((id) => !projectTechTargets.has(id))) {
+      throw new RuleViolationError('이 과제에 속하지 않은 목표는 연계할 수 없습니다.');
+    }
+  }
+}
+
 export async function createTask(yearId: string, input: unknown): Promise<ActionResult<Task>> {
   try {
     const yid = parseOrThrow(uuidSchema, yearId, '연차 ID 형식이 올바르지 않습니다.');
@@ -246,8 +287,9 @@ export async function createTask(yearId: string, input: unknown): Promise<Action
     const yearTasks = await tasksRepo.listTasksByYear(client, yid);
     if (parentId !== null) assertParentAllowed(yearTasks, parentId);
 
-    // 생성 시점에도 담당자·기관은 그 연차가 속한 과제의 것이어야 한다 (updateTask와 같은 기준)
+    // 생성 시점에도 담당자·기관·목표 연계는 그 연차가 속한 과제의 것이어야 한다 (updateTask와 같은 기준)
     if (hasTeamRefs(fields)) await assertTeamRefsInProject(client, year.projectId, fields);
+    if (hasGoalRefs(fields)) await assertGoalRefsInProject(client, year.projectId, fields);
 
     // H-10: 같은 컨테이너(yearId, parentId)의 마지막 뒤에 붙인다 (DB 기본값 0을 두면 순서가 겹친다)
     const siblings = yearTasks.filter((t) => t.parentId === parentId);
@@ -303,10 +345,14 @@ export async function updateTask(
     const ctx = await requireApprovedUser();
     client = ctx.client;
 
-    // 담당자·기관이 patch에 들어올 때만 소속을 확인한다 (조회 1~2회를 아끼기 위해)
-    if (hasTeamRefs(parsed)) {
+    // 담당자·기관·목표 연계가 patch에 들어올 때만 소속을 확인한다 (조회를 아끼기 위해).
+    // 대상 작업은 한 번만 읽어 두 검증이 같은 projectId를 본다.
+    const needsTeamCheck = hasTeamRefs(parsed);
+    const needsGoalCheck = hasGoalRefs(parsed);
+    if (needsTeamCheck || needsGoalCheck) {
       const before = await tasksRepo.getTaskById(client, taskId);
-      await assertTeamRefsInProject(client, before.projectId, parsed);
+      if (needsTeamCheck) await assertTeamRefsInProject(client, before.projectId, parsed);
+      if (needsGoalCheck) await assertGoalRefsInProject(client, before.projectId, parsed);
     }
 
     const updated = await tasksRepo.updateTask(
@@ -316,6 +362,8 @@ export async function updateTask(
       version
     );
     revalidateProject(updated.projectId);
+    // 상세 패널 저장으로도 연계가 바뀐다 — 목표 화면의 연계 표시를 낡은 채로 두지 않는다
+    if (needsGoalCheck) revalidatePath(`/projects/${updated.projectId}/goals`);
     return { ok: true, data: updated };
   } catch (e) {
     return toFailure(e, client);
@@ -595,6 +643,41 @@ export async function assignTaskMembers(
   }
 }
 
+// §9 linkTaskGoals: 이 작업이 기여하는 성과목표·기술목표를 함께 저장한다 (§7.4 연계 컬럼).
+// 두 배열이 항상 patch에 담기므로 task_deliverables·task_tech_targets가 매번 전체 치환된다
+// (assignTaskMembers와 같은 전체 치환 규약 — 체크 해제 = 연계 해제).
+// O-2: 연계 목록 하나만 바꾸는 단일 조작이라 낙관적 잠금을 생략한다.
+export async function linkTaskGoals(
+  id: string,
+  deliverableIds: string[],
+  techTargetIds: string[]
+): Promise<ActionResult<Task>> {
+  try {
+    const taskId = parseOrThrow(uuidSchema, id, '작업 ID 형식이 올바르지 않습니다.');
+    const dIds = parseOrThrow(uuidListSchema, deliverableIds, '성과목표 목록이 올바르지 않습니다.');
+    const tIds = parseOrThrow(uuidListSchema, techTargetIds, '기술목표 목록이 올바르지 않습니다.');
+    const { user, client } = await requireApprovedUser();
+
+    const before = await tasksRepo.getTaskById(client, taskId);
+    await assertGoalRefsInProject(client, before.projectId, {
+      deliverableIds: dIds,
+      techTargetIds: tIds,
+    });
+
+    const updated = await tasksRepo.updateTask(client, taskId, {
+      deliverableIds: dIds,
+      techTargetIds: tIds,
+      updatedBy: user.id,
+    });
+    revalidateProject(updated.projectId);
+    // 목표 화면(§7.7)도 이 저장으로 바뀐다
+    revalidatePath(`/projects/${updated.projectId}/goals`);
+    return { ok: true, data: updated };
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
 // 다중 선택 일괄 편집. 여러 행이라 expectedVersion을 걸 수 없다(SA-2의 "선택 인자").
 // 중간 실패는 삼키지 않고 그대로 실패로 돌려준다 — 어디까지 반영됐는지는 UI가 다시 읽어 확인한다.
 export async function bulkUpdateTasks(
@@ -613,19 +696,22 @@ export async function bulkUpdateTasks(
     client = ctx.client;
     const db = ctx.client; // 콜백 안에서도 좁혀진 타입을 유지하려고 상수로 받는다
 
-    // 담당자·기관은 한 과제에만 속한다 — 여러 과제의 작업을 한 번에 배정하는 요청은
+    // 담당자·기관·목표는 한 과제에만 속한다 — 여러 과제의 작업을 한 번에 배정하는 요청은
     // 애초에 성립하지 않는다. 일부만 반영되는 실패 대신 먼저 거부해 이유를 분명히 알린다.
-    if (hasTeamRefs(parsed)) {
+    const needsTeamCheck = hasTeamRefs(parsed);
+    const needsGoalCheck = hasGoalRefs(parsed);
+    if (needsTeamCheck || needsGoalCheck) {
       const targets = await Promise.all(taskIds.map((tid) => tasksRepo.getTaskById(db, tid)));
       const projectIds = new Set(targets.map((t) => t.projectId));
       if (projectIds.size > 1) {
         throw new RuleViolationError(
-          '여러 과제의 작업에 담당자·기관을 한 번에 지정할 수 없습니다.'
+          '여러 과제의 작업에 담당자·기관·목표 연계를 한 번에 지정할 수 없습니다.'
         );
       }
       const [projectId] = [...projectIds];
       if (projectId === undefined) throw new ValidationError('수정할 작업을 선택하세요.');
-      await assertTeamRefsInProject(db, projectId, parsed);
+      if (needsTeamCheck) await assertTeamRefsInProject(db, projectId, parsed);
+      if (needsGoalCheck) await assertGoalRefsInProject(db, projectId, parsed);
     }
 
     const updated: Task[] = [];

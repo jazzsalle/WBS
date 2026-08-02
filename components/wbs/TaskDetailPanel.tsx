@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Member, Organization, Task, TaskStatus } from '@/types';
+import type { Deliverable, Member, Organization, Task, TaskStatus, TechTarget } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import { TASK_STATUS_LABELS } from '@/lib/constants';
 import { priorityGrade } from '@/lib/priority';
@@ -22,6 +22,7 @@ import Badge from '@/components/ui/Badge';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import ConflictDialog from '@/components/ui/ConflictDialog';
 import {
+  DELETED_GOAL,
   DETAIL_FIELDS,
   adoptLatestValue,
   buildUpdatePatch,
@@ -43,9 +44,14 @@ export interface TaskDetailPanelProps {
   /** 배정 후보 (§5.11). 정렬은 서버가 sort_order로 맞춰 준다 */
   members: Member[];
   organizations: Organization[];
+  /** 연계 후보 (§7.4 목표 연계, §5.8·§5.9). 같은 과제의 목표만 내려온다 */
+  deliverables: Deliverable[];
+  techTargets: TechTarget[];
   /** 충돌 비교(O-3)에서 id를 이름으로 바꾸는 사전. 트리와 같은 사전을 쓴다 */
   memberNames: Record<string, string>;
   orgNames: Record<string, string>;
+  deliverableNames: Record<string, string>;
+  techTargetNames: Record<string, string>;
   onClose: () => void;
 }
 
@@ -69,6 +75,19 @@ function toggleId(raw: string, id: string, checked: boolean): string {
   return [...ids].sort().join(',');
 }
 
+/** 후보 목록 + 목록에 없는데 이미 연계된 id(다른 사람이 지운 목표)를 함께 돌려준다 */
+function withSelectedMissing(
+  goals: readonly { id: string; name: string }[],
+  rawSelected: string
+): { id: string; label: string }[] {
+  const options = goals.map((goal) => ({ id: goal.id, label: goal.name }));
+  const known = new Set(goals.map((goal) => goal.id));
+  for (const id of new Set(parseIds(rawSelected))) {
+    if (!known.has(id)) options.push({ id, label: DELETED_GOAL });
+  }
+  return options;
+}
+
 export default function TaskDetailPanel({
   task,
   urgency,
@@ -76,8 +95,12 @@ export default function TaskDetailPanel({
   wbsCode,
   members,
   organizations,
+  deliverables,
+  techTargets,
   memberNames,
   orgNames,
+  deliverableNames,
+  techTargetNames,
   onClose,
 }: TaskDetailPanelProps) {
   const router = useRouter();
@@ -119,11 +142,24 @@ export default function TaskDetailPanel({
 
   // O-3 비교 UI에 id 대신 이름을 보여주기 위한 사전
   const valueLabels = useMemo(
-    () => ({ members: memberNames, orgs: orgNames }),
-    [memberNames, orgNames]
+    () => ({
+      members: memberNames,
+      orgs: orgNames,
+      deliverables: deliverableNames,
+      techTargets: techTargetNames,
+    }),
+    [memberNames, orgNames, deliverableNames, techTargetNames]
   );
 
   const selectedMemberIds = useMemo(() => new Set(parseIds(form.memberIds)), [form.memberIds]);
+  const selectedDeliverableIds = useMemo(
+    () => new Set(parseIds(form.deliverableIds)),
+    [form.deliverableIds]
+  );
+  const selectedTechTargetIds = useMemo(
+    () => new Set(parseIds(form.techTargetIds)),
+    [form.techTargetIds]
+  );
 
   // 목록에 없는 id(다른 사람이 지운 인력)도 선택지로 남긴다. 빼 버리면 select가 빈 값으로
   // 보여 "미지정"과 구분되지 않고, 그대로 저장하면 배정이 조용히 사라진다.
@@ -148,6 +184,17 @@ export default function TaskDetailPanel({
     }
     return options;
   }, [organizations, form.orgId]);
+
+  // 연계도 같은 이유로 "목록에 없는 선택된 id"를 남긴다 — 후보에서 빼면 체크가 풀린 것처럼
+  // 보이고, 그대로 저장하면 전체 치환이라 연계가 조용히 사라진다
+  const deliverableOptions = useMemo(
+    () => withSelectedMissing(deliverables, form.deliverableIds),
+    [deliverables, form.deliverableIds]
+  );
+  const techTargetOptions = useMemo(
+    () => withSelectedMissing(techTargets, form.techTargetIds),
+    [techTargets, form.techTargetIds]
+  );
 
   const patch = <K extends keyof DetailFormValues>(key: K, value: DetailFormValues[K]): void => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -504,9 +551,74 @@ export default function TaskDetailPanel({
           />
         </label>
 
+        <fieldset className="rounded-lg border border-slate-200 p-3">
+          <legend className="px-1 text-xs font-semibold text-slate-500">목표 연계</legend>
+
+          <p className="text-xs text-slate-500">
+            {/* PR-3: 목표에 연계된 작업은 중요도 4를 제안받는다 — 이미 정한 중요도는 바뀌지 않는다 */}
+            이 작업이 기여하는 목표를 고릅니다. 저장하면 선택한 목록으로 통째로 바뀝니다.
+          </p>
+
+          <div className="mt-2">
+            <p className="text-xs text-slate-500">성과목표</p>
+            {deliverableOptions.length === 0 ? (
+              <p className="mt-1 text-xs text-slate-500">
+                등록된 성과목표가 없습니다. [목표 관리] 화면에서 먼저 등록하세요.
+              </p>
+            ) : (
+              <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                {deliverableOptions.map((option) => (
+                  <label key={option.id} className="flex items-start gap-2 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={selectedDeliverableIds.has(option.id)}
+                      onChange={(e) =>
+                        patch(
+                          'deliverableIds',
+                          toggleId(form.deliverableIds, option.id, e.target.checked)
+                        )
+                      }
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300"
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3">
+            <p className="text-xs text-slate-500">기술목표</p>
+            {techTargetOptions.length === 0 ? (
+              <p className="mt-1 text-xs text-slate-500">
+                등록된 기술목표가 없습니다. [목표 관리] 화면에서 먼저 등록하세요.
+              </p>
+            ) : (
+              <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                {techTargetOptions.map((option) => (
+                  <label key={option.id} className="flex items-start gap-2 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={selectedTechTargetIds.has(option.id)}
+                      onChange={(e) =>
+                        patch(
+                          'techTargetIds',
+                          toggleId(form.techTargetIds, option.id, e.target.checked)
+                        )
+                      }
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300"
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </fieldset>
+
         <div className="space-y-2 rounded-lg border border-dashed border-slate-300 p-3 text-xs text-slate-500">
           <p className="font-semibold text-slate-600">아직 준비 중</p>
-          <p>성과목표·기술목표 연계와 관련 노트는 Phase 3·Phase 6에서 열립니다.</p>
+          <p>관련 노트는 Phase 6에서 열립니다.</p>
         </div>
       </div>
 

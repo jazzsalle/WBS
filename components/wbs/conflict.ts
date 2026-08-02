@@ -25,6 +25,8 @@ export interface DetailFormValues {
   ownerMemberId: string; // '' = 미지정
   memberIds: string; // 쉼표 구분 id 목록
   orgId: string; // '' = 미지정
+  deliverableIds: string; // 쉼표 구분 id 목록 (§7.4 연계)
+  techTargetIds: string; // 쉼표 구분 id 목록 (§7.4 연계)
   tags: string;
 }
 
@@ -44,6 +46,8 @@ export const DETAIL_FIELDS: readonly { key: DetailFieldKey; label: string }[] = 
   { key: 'ownerMemberId', label: '담당자' },
   { key: 'memberIds', label: '참여 담당자' },
   { key: 'orgId', label: '수행 기관' },
+  { key: 'deliverableIds', label: '연계 성과목표' },
+  { key: 'techTargetIds', label: '연계 기술목표' },
   { key: 'tags', label: '태그' },
 ];
 
@@ -63,15 +67,23 @@ export function toDetailFormValues(task: Task): DetailFormValues {
     // 정렬 고정: 참여자 순서만 다른 두 값이 "상이"로 잡히면 O-3 비교가 가짜 충돌로 뒤덮인다
     memberIds: [...task.memberIds].sort().join(','),
     orgId: task.orgId ?? '',
+    // 연계도 같은 이유로 정렬해 둔다 — 순서만 다른 목록이 O-3 비교에 가짜 충돌로 뜨면 안 된다
+    deliverableIds: [...task.deliverableIds].sort().join(','),
+    techTargetIds: [...task.techTargetIds].sort().join(','),
     tags: task.tags.join(', '),
   };
 }
 
-/** 비교 UI에서 id를 사람 이름·기관명으로 바꾸는 사전. 없으면 id를 감춘 문구로 대체한다 */
+/** 비교 UI에서 id를 사람 이름·기관명·목표명으로 바꾸는 사전. 없으면 id를 감춘 문구로 대체한다 */
 export interface DetailValueLabels {
   members?: Record<string, string>;
   orgs?: Record<string, string>;
+  deliverables?: Record<string, string>;
+  techTargets?: Record<string, string>;
 }
+
+/** 연계는 남았는데 목표가 지워진 경우. 트리 뱃지·상세 패널도 같은 문구를 쓴다 */
+export const DELETED_GOAL = '(삭제된 목표)';
 
 // id는 사용자에게 아무 의미도 없다. 사전에 없더라도 값을 숨기지는 않는다 —
 // "누군가 배정돼 있는데 그 인력이 지워졌다"는 사실 자체가 사용자가 판단할 정보다.
@@ -105,6 +117,16 @@ export function displayDetailValue(
     }
     case 'orgId':
       return values.orgId === '' ? '미지정' : labelForId(values.orgId, labels?.orgs, '(삭제된 기관)');
+    case 'deliverableIds': {
+      const ids = splitIds(values.deliverableIds);
+      if (ids.length === 0) return '연계 없음';
+      return ids.map((id) => labelForId(id, labels?.deliverables, DELETED_GOAL)).join(', ');
+    }
+    case 'techTargetIds': {
+      const ids = splitIds(values.techTargetIds);
+      if (ids.length === 0) return '연계 없음';
+      return ids.map((id) => labelForId(id, labels?.techTargets, DELETED_GOAL)).join(', ');
+    }
     default: {
       const raw = values[key];
       return raw === '' ? '—' : String(raw);
@@ -152,7 +174,7 @@ export type TaskUpdatePatch = {
     ? string | null
     : K extends 'estimatedHours' | 'actualHours'
       ? number | null
-      : K extends 'tags' | 'memberIds'
+      : K extends 'tags' | 'memberIds' | 'deliverableIds' | 'techTargetIds'
         ? string[]
         : DetailFormValues[K];
 };
@@ -216,6 +238,9 @@ export function buildUpdatePatch(values: DetailFormValues): BuildPatchResult {
       // 규정하지 않았다 — 규칙이 없는 곳에서 사용자 입력을 바꾸면 그 변형이 곧 사실이 된다.
       memberIds: splitIds(values.memberIds),
       orgId: values.orgId === '' ? null : values.orgId,
+      // 연계도 전체 치환이다 — 체크를 푼 목표는 이 목록에서 빠져 조인 행이 사라진다
+      deliverableIds: splitIds(values.deliverableIds),
+      techTargetIds: splitIds(values.techTargetIds),
       tags: values.tags
         .split(',')
         .map((t) => t.trim())

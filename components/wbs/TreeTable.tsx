@@ -27,6 +27,9 @@ export interface TreeTableProps {
   /** 담당·기관 컬럼에 쓸 id → 이름 사전 (§7.4) */
   memberNames: Record<string, string>;
   orgNames: Record<string, string>;
+  /** 연계 컬럼에 쓸 id → 목표명 사전 (§7.4) */
+  deliverableNames: Record<string, string>;
+  techTargetNames: Record<string, string>;
   selectedId: string | null;
   /** 이름 편집 중인 행과 그 입력값. 값은 화면 상태로 들고 있어야 저장 실패에도 살아남는다 (O-3) */
   renaming: { id: string; draft: string } | null;
@@ -50,6 +53,8 @@ export default function TreeTable({
   todayISO,
   memberNames,
   orgNames,
+  deliverableNames,
+  techTargetNames,
   selectedId,
   renaming,
   collapsedIds,
@@ -134,6 +139,8 @@ export default function TreeTable({
                   todayISO={todayISO}
                   memberNames={memberNames}
                   orgNames={orgNames}
+                  deliverableNames={deliverableNames}
+                  techTargetNames={techTargetNames}
                   selected={selectedId === node.task.id}
                   collapsed={collapsedIds.has(node.task.id)}
                   renameDraft={renaming?.id === node.task.id ? renaming.draft : null}

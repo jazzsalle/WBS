@@ -8,7 +8,13 @@ import { z } from 'zod';
 import type { Deliverable, DeliverableAchievement } from '@/types';
 import { deliverableAchievementRowSchema, deliverableRowSchema } from './schema';
 import { appToDb, dbToApp } from './mapper';
-import { ConflictError, NotFoundError, StaleDataError, ValidationError } from './errors';
+import {
+  ConflictError,
+  NotFoundError,
+  RuleViolationError,
+  StaleDataError,
+  ValidationError,
+} from './errors';
 
 // N-4 공통 컬럼은 DB(트리거)와 서버 액션이 채운다 — 입력에서 제외.
 // achievements는 자식 테이블이므로 add/update/deleteAchievement로만 조작한다.
@@ -17,7 +23,8 @@ type BaseFieldKeys = 'id' | 'createdAt' | 'updatedAt' | 'version' | 'createdBy' 
 export type DeliverableInput = Omit<Deliverable, BaseFieldKeys | 'achievements'>;
 export type DeliverablePatch = Partial<DeliverableInput>;
 
-export type AchievementInput = Omit<DeliverableAchievement, 'id'>;
+// version은 DB 트리거가 올린다(N-4) — 입력으로 받지 않고 조회에만 실어 보낸다(§5.8, O-1)
+export type AchievementInput = Omit<DeliverableAchievement, 'id' | 'version'>;
 export type AchievementPatch = Partial<AchievementInput>;
 
 // PostgREST 임베드 응답 검증용 — schema.ts의 row 스키마를 중첩 형태로 확장
@@ -32,10 +39,11 @@ const DELIVERABLE_SELECT = '*, deliverable_achievements(*, achievement_members(m
 
 // ─── 파일 내부 헬퍼 ──────────────────────────────────────────
 
-// 23505(유니크 충돌)만 의미를 부여하고, 나머지는 일반 Error로 던져
-// toActionFailure가 테이블·제약명 노출을 막게 한다 (SA-4). 무음 처리는 없다.
+// 23505(유니크 충돌)와 P0001(RPC raise exception)만 의미를 부여하고, 나머지는 일반 Error로
+// 던져 toActionFailure가 테이블·제약명 노출을 막게 한다 (SA-4). 무음 처리는 없다.
 function throwDbError(error: PostgrestError): never {
   if (error.code === '23505') throw new ConflictError();
+  if (error.code === 'P0001') throw new RuleViolationError(error.message);
   throw new Error(`[db] ${error.code}: ${error.message}`);
 }
 
@@ -62,14 +70,16 @@ async function throwStaleOrNotFound(
   throw new StaleDataError(parseRow(z.object({ updated_by: z.uuid().nullable() }), data).updated_by);
 }
 
-// §5.8 앱 형태로 변환. DB 전용 컬럼(deliverable_id, version 등)은 앱 타입에 없으므로
+// §5.8 앱 형태로 변환. DB 전용 컬럼(deliverable_id, created_by 등)은 앱 타입에 없으므로
 // 필드를 명시적으로 골라 담는다 — 스프레드로 새면 저장 시 되돌아온다.
+// version은 예외로 싣는다: 편집 폼이 expectedVersion을 걸려면 읽은 버전을 알아야 한다(§8.4 O-1).
 function toAchievement(
   row: z.infer<typeof deliverableAchievementRowSchema>,
   memberIds: string[]
 ): DeliverableAchievement {
   return {
     id: row.id,
+    version: row.version,
     title: row.title,
     date: row.date,
     yearId: row.year_id,
@@ -180,6 +190,19 @@ export async function updateDeliverable(
   if (error) throwDbError(error);
   if (!data) return throwStaleOrNotFound(client, 'deliverables', id);
   return toDeliverable(data);
+}
+
+// H-10, X-3: orderedIds는 과제의 성과목표 목록 순서다. 한 번의 RPC로 0..n-1을 부여한다.
+export async function reorderDeliverables(
+  client: SupabaseClient,
+  projectId: string,
+  orderedIds: string[]
+): Promise<void> {
+  const { error } = await client.rpc('reorder_deliverables', {
+    p_project_id: projectId,
+    p_ordered_ids: orderedIds,
+  });
+  if (error) throwDbError(error);
 }
 
 export async function removeDeliverable(client: SupabaseClient, id: string): Promise<void> {
