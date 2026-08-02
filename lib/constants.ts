@@ -30,6 +30,26 @@ export const EXPECTED_SCHEMA_VERSION = 1;
 
 // ─── 부록 A.1 비목 라벨 ──────────────────────────────────────
 
+// 부록 A.1 표 순서 그대로. 연구비 매트릭스(§7.9)의 행 순서 원본이며, 화면마다
+// 비목 순서가 달라지지 않게 여기 하나만 참조한다.
+export const BUDGET_CATEGORY_ORDER = [
+  'personnel',
+  'student_personnel',
+  'facility_equipment',
+  'material',
+  'consignment',
+  'international',
+  'burden',
+  'activity',
+  'promotion',
+  'allowance',
+  'indirect',
+  'other',
+] as const satisfies readonly BudgetCategory[];
+
+// 비목이 늘거나 줄면 여기서 컴파일 에러가 난다 — 순서 배열이 라벨 맵과 어긋난 채 남는 것을 막는다
+export const BUDGET_CATEGORY_COUNT: 12 = BUDGET_CATEGORY_ORDER.length;
+
 export const BUDGET_CATEGORY_LABELS: Record<BudgetCategory, string> = {
   personnel: '인건비',
   student_personnel: '학생인건비',

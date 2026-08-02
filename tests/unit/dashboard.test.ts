@@ -5,11 +5,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeDashboard,
-  computeExecutionRate,
   METRIC_MILESTONE_WINDOW_DAYS,
   type DashboardInput,
   type DashboardSettings,
 } from '@/lib/dashboard';
+// §6.4 집행률의 원본은 lib/budget.ts다 (대시보드는 호출만 한다)
+import { computeExecutionRate } from '@/lib/budget';
 import { computeDeliverableTotal, computeTechTargetTotal } from '@/lib/goals';
 import { addDays } from '@/lib/dates';
 import type {
@@ -223,6 +224,7 @@ function budgetItem(spec: {
     inKindAmount: null,
     executions: (spec.executions ?? []).map((amount, i) => ({
       id: `${spec.id}-e${i}`,
+      version: 1,
       date: d(-10),
       amount,
       description: '',

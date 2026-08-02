@@ -1,10 +1,10 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
-2026-08-02 (Phase 4 완료 세션)
+2026-08-02 (Phase 5 완료 — 이 세션 종료)
 
 ## Current goal
-Phase 5 (연구비: 비목 매트릭스, 예산 편집, 집행 등록, 집행률) — SOT §6.4, §7.9
+Phase 5.5 (엑셀 임포트: 파싱 파이프라인, 5단계 마법사, 프로파일, 스냅샷) — SOT §6.8, §7.9.1, 부록 C
 
 ## Done this session
 - **Phase 0 완료** (evaluator PASS 12/12, 커밋 07fa94a) — 스키마 25종+RLS+RPC, 리포지토리 16종, 테스트 48건
@@ -43,14 +43,24 @@ Phase 5 (연구비: 비목 매트릭스, 예산 편집, 집행 등록, 집행률
   - **대시보드**(`/`) — §7.2 6종 전부: 지표 5개·과제 요약 카드·임박 마일스톤 타임라인·오늘 집중할 작업·주의 필요·오늘의 To-Do. 아카이브 과제는 전 집계에서 제외(단위 테스트로 고정). 벌크 조회(N+1 없음) + **Supabase 1000행 페이징 처리**(§12 5,000 작업이 조용히 잘리는 것 방지)
 - SOT 보강 8건 (누적): …(이전 7건) + **§6.5 기준일을 Asia/Seoul 달력 오늘로 명문화**(로컬 타임존이면 화면마다 지연/정상이 달라짐)
 
+- **Phase 5 완료** (evaluator 조건부 PASS·결함 없음, 테스트 580건) — 연구비:
+  - `lib/budget.ts` — §6.4 집행률·B-1~B-3 판정·매트릭스 집계(항상 12행). 부록 B.4 수치 그대로 통과. **합계 집행률(94.3)이 개별 평균(90.93)이 아님**을 회귀 테스트로 배제, 중간 반올림 금지도 고정. Phase 4의 임시 `computeExecutionRate`를 이쪽으로 이전(정의 1곳)
+  - `lib/currency.ts` — B-4 표시 환산(원 단위 저장, 표시만 천원/백만원). 대시보드의 로컬 사본 제거
+  - **집행 내역 임베드 절단 대응** — PostgREST가 임베드 자식 1000행 초과를 **에러 없이 잘라서** 집행률이 조용히 틀리던 문제. 실측으로 확인(1,200건 중 1,000건만 반환) 후 부모 조회 + 자식 페이징 병합으로 교체. 1,200건 통합 테스트로 고정
+  - `actions/budget.ts` 4종 + `getBudgetMatrix`. 현금/현물 합계 검증(차액을 서버가 임의 배분하지 않음 — DB 재조회로 확인)
+  - 연구비 화면 — 12행 매트릭스(직접비/간접비 구분), 총액 인라인 편집, 집행 내역 패널(추가/수정/삭제), 하단 요약행(합계·집행률·잔액), B-1 경고 아이콘·B-2 빨강·B-3 배지, [엑셀 가져오기] 비활성(Phase 5.5 안내)
+- SOT 보강 11건 (누적): …(이전 8건) + **§5.12 `BudgetExecution.version` 추가**(집행 편집도 O-1 대상), **§5.12 `amount` 0 이상 정수 명시**(실무에서 음수 없음 — 사용자 확인, 환불·감액은 원래 행 수정), **§9 `updateExecution`에 `expectedVersion?` 명기**
+
 ## In progress
 없음
 
 ## Next steps
-1. `/phase-run 5` — 비목 매트릭스(12행 × 연차), 예산 인라인 편집(현금/현물), 집행 등록/삭제, `lib/budget.ts` 집행률(부록 B.4 수치), B-1~B-4 규칙
-   - ⚠️ **인계**: `lib/dashboard.ts:195` 부근의 `computeExecutionRate`가 §6.4 집행률의 임시 위치다. Phase 5에서 `lib/budget.ts`를 만들면 그쪽이 원본이 되고 대시보드는 호출만 하도록 옮긴다(주석에 명시됨)
-   - ⚠️ **확인 필요**: `lib/db/dashboard.ts`의 페이징은 최상위 행만 커버한다. `budget_items`에 임베드된 `executions`가 단일 항목에서 1000행을 넘으면 잘릴 수 있다
-2. 미뤄둔 것: HR API 연동(hr.unes.kr 직원 명부 — SOT 추가 후 별도 진행), 단일 과제 조회 액션(`getProject(id)`), `components/goals/TechRecordForm.tsx`의 측정일 기본값이 로컬 `new Date()` — Asia/Seoul 기준으로 통일 권장
+1. `/phase-run 5.5` — 엑셀 임포트: `lib/import/` 순수 함수(부록 B.5 시나리오), 5단계 마법사, 프로파일, `import_snapshots`. **실제 샘플 2종(`samples/`)의 총괄표가 미매핑 0건으로 미리보기까지 도달**해야 한다
+2. **후속 정리 (블로킹 아님)**:
+   - `getBudgetMatrix`가 집계만 반환해 화면이 `listBudgetItemsByProject`로 원본 행(itemId·version·cash/inKind null 여부·executions)을 한 번 더 조회한다. `BudgetMatrixData`에 `items` 추가로 흡수 권장 (`app/projects/[id]/budget/page.tsx:34` 주석에 명시)
+   - **테스트 중단 시 dev DB 잔여물이 남는다** — 오늘 2시간 전 중단된 `team-actions` 실행의 테스트 사용자·과제 2건을 수동 정리했다. 테스트 시작 시 오래된 `wbs-test+%` 잔여물을 먼저 청소하는 장치를 넣으면 재발하지 않는다
+   - `listBudgetItemsByProject`의 **부모** 조회는 무페이징 — 연차 84개 초과 과제에서 같은 절단이 발생한다(현실 규모에선 도달 안 함)
+3. 미뤄둔 것: HR API 연동(hr.unes.kr 직원 명부 — SOT 추가 후 별도 진행), 단일 과제 조회 액션(`getProject(id)`), `components/goals/TechRecordForm.tsx`의 측정일 기본값이 로컬 `new Date()` — Asia/Seoul 기준으로 통일 권장
 3. Phase 1 후속 개선(블로킹 아님): ① 인라인 이름 편집 중 Enter 연타 시 in-flight 재입력이 제출값으로 되돌아감 ② 자기 저장에 대한 가짜 STALE 배너(`disabled={saving}` 가드) ③ `bulkUpdateTasks` 부분 반영(트랜잭션 RPC화 검토)
 4. 남은 관찰 항목(블로킹 아님): `tests/integration/wbs-queries.test.ts`는 팀 공유 설정 `app_settings.progress_weight_basis`를 잠시 바꿨다 되돌린다. 데이터를 지우지 않아 기본 실행에 두었지만, **두 PC에서 `npm test`를 동시에 돌리면** 서로의 임시값을 원본으로 착각해 설정이 어긋날 수 있다. 테스트는 한 번에 한 PC에서만 돌린다
 
@@ -62,6 +72,7 @@ Phase 5 (연구비: 비목 매트릭스, 예산 편집, 집행 등록, 집행률
 ### 대기
 - Phase 1: ① 두 세션 동시 수정 시 STALE 비교 UI·입력 보존 ② 드래그 이동·Tab/Shift+Tab·깊이 10 초과 거절 문구 ③ 편집 중 R-4 배너 동작
 - Phase 4: ① `/projects/[id]/milestones` 실화면 CRUD·상태 인라인 변경·결과 메모 ② 연차 생성 시 기본 마일스톤 체크박스(종료일 없으면 비활성) ③ `/` 대시보드 6개 영역 실렌더
+- Phase 5: ① 셀 인라인 편집(Enter/Esc/blur)·잠금 셀 안내 ② 셀 클릭 → 집행 패널 → 추가/수정/삭제 후 매트릭스 갱신 ③ B-2 빨강·B-3 배지 실렌더 ④ STALE 시 ConflictDialog 입력값 보존
 - 공통: 두 PC 동일 데이터 조회, 동료 첫 로그인 시 /pending→승인 흐름(두 번째 회사 계정 필요), Tauri 자동 백업 7일 경과 실동작
 
 ## Blockers

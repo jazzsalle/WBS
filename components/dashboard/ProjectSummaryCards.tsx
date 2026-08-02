@@ -8,28 +8,10 @@ import Link from 'next/link';
 import type { ProjectSummaryCard } from '@/actions/dashboard';
 import type { Settings } from '@/types';
 import { PROJECT_STATUS_LABELS } from '@/lib/constants';
+import { formatAmount } from '@/lib/currency';
 import { formatRate } from '@/lib/goals';
 import Badge from '@/components/ui/Badge';
 import ProgressBar from '@/components/ui/ProgressBar';
-
-// B-4: 저장은 원 단위 정수, 표시만 환산한다.
-const UNIT_DIVISORS: Record<Settings['currencyUnit'], number> = {
-  '원': 1,
-  '천원': 1_000,
-  '백만원': 1_000_000,
-};
-
-/**
- * B-4 표시 환산. 금액은 0 이상의 원 단위 정수다.
- * 몫과 나머지로 반올림해 소수 연산에 기대지 않는다.
- */
-function formatAmount(won: number, unit: Settings['currencyUnit']): string {
-  const divisor = UNIT_DIVISORS[unit];
-  const quotient = Math.trunc(won / divisor);
-  const remainder = won - quotient * divisor;
-  const rounded = remainder * 2 >= divisor ? quotient + 1 : quotient;
-  return `${rounded.toLocaleString('ko-KR')}${unit}`;
-}
 
 function RateRow({ label, value }: { label: string; value: string }) {
   return (

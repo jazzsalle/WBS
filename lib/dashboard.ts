@@ -2,13 +2,15 @@
 // 부수효과 없는 순수 함수다. 파생 값은 저장하지 않고 읽을 때 계산한다.
 //
 // 계산식을 여기서 다시 쓰지 않는다 — 진척률 §6.1은 lib/progress.ts, 달성률 §6.2·§6.3은
-// lib/goals.ts, 마감·임박 판정 §6.5는 lib/dates.ts, 리스크 등급 §6.5는 lib/risk.ts,
-// 우선순위 §6.9는 lib/priority.ts, 트리 구성 §6.6은 lib/tree.ts가 원본이다.
+// lib/goals.ts, 집행률 §6.4는 lib/budget.ts, 마감·임박 판정 §6.5는 lib/dates.ts,
+// 리스크 등급 §6.5는 lib/risk.ts, 우선순위 §6.9는 lib/priority.ts,
+// 트리 구성 §6.6은 lib/tree.ts가 원본이다.
 // 단위 테스트: tests/unit/dashboard.test.ts
 
 import { buildTaskTree } from './tree';
 import { computeProjectProgress, computeStageProgress, computeYearProgress } from './progress';
 import { computeDeliverableTotal, computeTechTargetTotal } from './goals';
+import { computeProjectSummary } from './budget';
 import { computePriorityScore, computeUrgency, priorityGrade, type PriorityGrade } from './priority';
 import { daysBetween, formatDday, isOverdueTask, isUpcomingMilestone } from './dates';
 import { needsAttention, riskScore, riskSeverity } from './risk';
@@ -192,15 +194,6 @@ export interface DashboardData {
 
 // ─── 보조 순수 함수 ──────────────────────────────────────────
 
-/**
- * §6.4 집행률. Phase 5에서 lib/budget.ts가 생기면 그쪽이 원본이 되고 여기서는 호출만 한다.
- * B-1: 계획액 합계가 0이면 N/A(null) — 0으로 나누지 않는다.
- */
-export function computeExecutionRate(planned: number, executed: number): number | null {
-  if (planned === 0) return null;
-  return (executed / planned) * 100;
-}
-
 function groupBy<T>(items: readonly T[], keyOf: (item: T) => string): Map<string, T[]> {
   const map = new Map<string, T[]>();
   for (const item of items) {
@@ -318,14 +311,8 @@ export function computeDashboard(input: DashboardInput): DashboardData {
     const deliverableRate = computeDeliverableTotal(deliverablesByProject.get(project.id) ?? []).rate;
     const techTargetRate = computeTechTargetTotal(techTargetsByProject.get(project.id) ?? []).weightedRate;
 
-    const budgetItems = budgetItemsByProject.get(project.id) ?? [];
-    // 금액은 원 단위 정수 그대로 더한다 — 환산은 표시 단계에서만 (B-4)
-    let planned = 0;
-    let executed = 0;
-    for (const item of budgetItems) {
-      planned += item.plannedAmount;
-      for (const execution of item.executions) executed += execution.amount;
-    }
+    // §6.4는 lib/budget.ts가 원본이다. 금액은 원 단위 정수 그대로 — 환산은 표시 단계에서만 (B-4)
+    const budgetSummary = computeProjectSummary(budgetItemsByProject.get(project.id) ?? []);
 
     const nextMilestone =
       (milestonesByProject.get(project.id) ?? [])
@@ -346,10 +333,10 @@ export function computeDashboard(input: DashboardInput): DashboardData {
       deliverableRate,
       techTargetRate,
       budget: {
-        planned,
-        executed,
-        rate: computeExecutionRate(planned, executed),
-        offBudgetExecution: planned === 0 && executed > 0,
+        planned: budgetSummary.planned,
+        executed: budgetSummary.executed,
+        rate: budgetSummary.rate,
+        offBudgetExecution: budgetSummary.offBudget,
       },
       nextMilestone: nextMilestone === null ? null : toMilestoneRef(nextMilestone, today),
     };

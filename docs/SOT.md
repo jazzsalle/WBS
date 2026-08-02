@@ -525,8 +525,10 @@ type BudgetCategory =
 
 interface BudgetExecution {
   id: string;
+  version: number;           // 낙관적 잠금용 — 집행 내역 편집이 일자·금액·적요를 한 번에 바꾸므로 O-1 대상이다 (§5.8·§5.9와 같은 이유)
   date: string;              // 집행일
-  amount: number;            // 집행액 (원)
+  amount: number;            // 집행액 (원). **0 이상 정수만** — 실무에서 집행액을 음수로 잡는 경우가 없다(사용자 확인).
+                             // 환불·감액은 별도 행이 아니라 원래 집행 행을 수정한다.
   description: string;       // 적요
   note: string;
 }
@@ -1516,7 +1518,7 @@ reorderMembers(projectId, orderedIds)
 ```
 updateBudgetPlan(yearId, category, plannedAmount, cashAmount, inKindAmount, expectedVersion?)
 addExecution(budgetItemId, input)
-updateExecution(budgetItemId, executionId, patch)
+updateExecution(budgetItemId, executionId, patch, expectedVersion?)   // §5.12 version 추가로 O-1 잠금 대상
 deleteExecution(budgetItemId, executionId)
 ```
 

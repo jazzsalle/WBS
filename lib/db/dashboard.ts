@@ -20,7 +20,13 @@ import type {
   Todo,
   Year,
 } from '@/types';
-import { milestoneRowSchema, riskRowSchema, stageRowSchema, yearRowSchema } from './schema';
+import {
+  budgetItemRowSchema,
+  milestoneRowSchema,
+  riskRowSchema,
+  stageRowSchema,
+  yearRowSchema,
+} from './schema';
 import { dbToAppArray } from './mapper';
 import * as projectsRepo from './projects';
 import * as settingsRepo from './settings';
@@ -28,7 +34,7 @@ import * as todosRepo from './todos';
 import { TASK_SELECT, parseTaskRow } from './tasks';
 import { DELIVERABLE_SELECT, toDeliverable } from './deliverables';
 import { TECH_TARGET_SELECT, toTechTarget } from './tech-targets';
-import { ITEM_SELECT as BUDGET_ITEM_SELECT, itemWithExecutionsSchema, toBudgetItem } from './budget-items';
+import { ITEM_SELECT as BUDGET_ITEM_SELECT, attachExecutions } from './budget-items';
 import {
   AuthError,
   ConflictError,
@@ -139,6 +145,13 @@ export async function fetchDashboardSource(client: SupabaseClient): Promise<Dash
       todosRepo.listTodos(client),
     ]);
 
+  // 집행 내역은 임베드로 붙이지 않는다 — 임베드 자식은 max-rows에 걸려도 에러 없이 잘린다
+  // (budget-items.ts ITEM_SELECT 주석). 부모를 다 읽은 뒤 자식만 따로 페이징해 붙인다.
+  const budgetItems = await attachExecutions(
+    client,
+    parseRows('budget_items', z.array(budgetItemRowSchema), budgetRows)
+  );
+
   return {
     projects,
     stages: dbToAppArray<Stage>(parseRows('stages', z.array(stageRowSchema), stageRows)),
@@ -148,11 +161,7 @@ export async function fetchDashboardSource(client: SupabaseClient): Promise<Dash
       parseRows('milestones', z.array(milestoneRowSchema), milestoneRows)
     ),
     risks: dbToAppArray<Risk>(parseRows('risks', z.array(riskRowSchema), riskRows)),
-    budgetItems: parseRows(
-      'budget_items',
-      z.array(itemWithExecutionsSchema),
-      budgetRows
-    ).map(toBudgetItem),
+    budgetItems,
     deliverables: deliverableRows.map(toDeliverable),
     techTargets: techTargetRows.map(toTechTarget),
     todos,
