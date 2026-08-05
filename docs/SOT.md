@@ -2,10 +2,15 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v3.5** |
+| 문서 버전 | **v3.6** |
 | 최종 수정 | 2026-08-05 |
 | 상태 | 확정 (Phase 0 착수 가능) |
 | 목적 | 이 문서는 구현의 유일한 기준점이다. 코드와 문서가 다르면 **문서가 옳다**. |
+
+### v3.5 → v3.6 변경 요약 — Phase 7(간트 + 칸반) 구현 반영
+- **§7.5 접힘 상태 동기화 보류 명시**: "접힘 상태를 WBS 화면과 동기화"에 **저장 위치가 없어**(localStorage / URL 쿼리 / 사용자 설정 테이블) 지어내지 않고 보류한다. 셋 다 장단이 뚜렷해 사람이 정할 문제다. 결정 전까지 **화면별 로컬 상태**.
+- **§7.6에 "전체 연차 보기" 기록**: WBS·간트와 같은 UX. 전체 보기에서도 PR-9·X-3은 그대로 적용된다.
+- **§10 갱신**: `lib/gantt.ts`·`lib/board.ts` 신설, `components/ui/Matrix5x5.tsx`(§7.6·§7.11 공유 히트맵), `components/gantt/`·`components/board/` 실제 파일 목록.
 
 ### v3.4 → v3.5 변경 요약 — Phase 6(리스크 + 노트) 구현 반영
 - **§9 `reorderRisks` 시그니처 정정**: `reorderRisks(orderedIds)` → **`reorderRisks(projectId, orderedIds)`**. 과제 소속 reorder는 전부 컨테이너를 받는데 리스크만 빠져 있었다 — 컨테이너가 없으면 RPC가 "이 id들이 전부 이 과제 것인가"를 검증할 수 없다. (전역인 `reorderProjects`/`reorderTodos`만 정당하게 생략)
@@ -1121,7 +1126,8 @@ priorityScore = importance × urgency        # 1 ~ 25
 
 ### 7.5 간트 (`/projects/[id]/gantt`)
 
-- 좌측 고정 패널: 연차 > 작업 트리 (접힘 상태를 WBS 화면과 동기화)
+- 좌측 고정 패널: 연차 > 작업 트리
+  - ⚠️ **"접힘 상태를 WBS 화면과 동기화"는 저장 위치가 정해지지 않아 v1에서 보류한다.** 선택지: ① 브라우저 `localStorage`(PC마다 다름·서버 왕복 없음) ② URL 쿼리(공유 가능·주소가 길어짐) ③ 사용자 설정 테이블(두 PC 동기화·스키마 추가 필요). 셋 다 장단이 뚜렷해 **사람이 정할 문제다** — 지어내지 않는다. 결정 전까지 접힘 상태는 **화면별 로컬 상태**이고, 간트와 WBS는 각자 접힘을 관리한다.
 - 우측 시간축: 일/주/월 스케일 전환
 - 막대 안에 진척률 채움
 - 부모 Task는 얇은 요약 막대(양끝 캡)
@@ -1137,6 +1143,7 @@ priorityScore = importance × urgency        # 1 ~ 25
 ### 7.6 칸반 / 우선순위 매트릭스 (`/projects/[id]/board`)
 
 상단에 **뷰 전환 토글**을 둔다: `보드` / `매트릭스`. 연차 필터는 두 뷰가 공유한다.
+연차 필터에는 WBS·간트와 같은 **"전체 연차 보기"** 옵션을 둔다(§7.4와 동일 UX). 전체 보기에서도 PR-9(리프만)와 X-3(재정렬은 같은 컨테이너 안에서만)은 그대로 적용된다.
 
 **보드 뷰**
 
@@ -1680,14 +1687,16 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 │   ├── backup.ts     exportAll, importAll (§8.7)
 │   └── import.ts     inspectWorkbook ~ commitImport (§9 Budget Import)
 ├── components/
-│   ├── ui/            버튼, 배지, 모달, 진행바, 게이지, 인라인편집 셀
+│   ├── ui/            버튼, 배지, 모달, 진행바, 게이지, 인라인편집 셀,
+│   │                  Matrix5x5(§7.6 우선순위 · §7.11 리스크가 공유하는 5×5 히트맵)
 │   ├── auth/          LoginScreen, PendingScreen, OnboardingModal (§7.0)
 │   ├── settings/      SettingsForm, UserManagement, BackupPanel (§7.14)
 │   ├── dashboard/
 │   ├── project/       OverviewPanel, StageYearTimeline, TabNav
 │   ├── wbs/           TreeTable, TreeRow, TaskDetailPanel, YearSelector
 │   ├── gantt/         GanttChart, GanttBar, MilestoneLane, TimeAxis
-│   ├── board/         KanbanBoard, Column, Card, PriorityMatrix, ViewToggle
+│   ├── board/         BoardScreen, KanbanBoard, Column, Card, PriorityMatrix,
+│   │                  ViewToggle, priority-colors.ts(§6.9 등급 토큰 → 클래스)
 │   ├── goals/         DeliverableTable, TechTargetTable, AchievementForm
 │   ├── milestones/    MilestoneTimeline, MilestoneTable
 │   ├── budget/        BudgetMatrix, ExecutionPanel
@@ -1718,6 +1727,9 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 │   │   ├── preview.ts                  S-4·S-8·S-9 → PreviewRow[] + §9 summary
 │   │   └── index.ts                    재수출 (preview/commit 공용 파싱 엔트리)
 │   ├── priority.ts                     §6.9 긴급도·우선순위 점수
+│   ├── gantt.ts                        §7.5 좌표 — 차트 범위·x좌표·눈금·오늘선·
+│   │                                   연차 밴드·막대 기하·드래그 결과 날짜
+│   ├── board.ts                        §7.6 컬럼 정의·5×5 셀 집계·재정렬 헬퍼
 │   ├── risk.ts                         §6.5 등급 판정
 │   ├── notes.ts                        §7.12 마크다운 파싱(→AST)·URL 안전 판정·
 │   │                                   정렬/필터/검색·회의록 템플릿. ★ HTML 문자열을
