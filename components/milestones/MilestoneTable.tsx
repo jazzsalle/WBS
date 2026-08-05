@@ -15,6 +15,8 @@ import { MILESTONE_STATUS_LABELS, MILESTONE_TYPE_LABELS } from '@/lib/constants'
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import { setRealtimePaused } from '@/components/RealtimeRefresher';
+import LinkedNoteList from '@/components/notes/LinkedNoteList';
+import type { LinkedNote } from '@/actions/notes';
 
 /** 목록·타임라인이 함께 쓰는 행 모델. 판정은 전부 lib/dates.ts가 끝낸 값이다 (§6.5) */
 export interface MilestoneView {
@@ -96,6 +98,9 @@ export interface MilestoneTableProps {
   /** yearId → 표시 이름. 없는 키는 목록에 없는 연차다 (H-5) */
   yearNameById: Map<string, string>;
   memberNameById: Map<string, string>;
+  /** §7.12 역참조 — 마일스톤에 연결된 노트. 없는 키는 연결된 노트가 없는 마일스톤이다 */
+  notesByMilestoneId: Map<string, LinkedNote[]>;
+  projectId: string;
   busy: boolean;
   /** 타임라인 마커에서 고른 행 — 어디를 보라는 표시만 한다 */
   selectedId: string | null;
@@ -111,6 +116,8 @@ export default function MilestoneTable({
   views,
   yearNameById,
   memberNameById,
+  notesByMilestoneId,
+  projectId,
   busy,
   selectedId,
   expandedId,
@@ -259,7 +266,7 @@ export default function MilestoneTable({
                 {expanded && (
                   <tr className="bg-slate-50 print:hidden">
                     <td colSpan={COLUMN_COUNT} className="px-4 py-4">
-                      <div className="grid gap-4 lg:grid-cols-2">
+                      <div className="grid gap-4 lg:grid-cols-3">
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-slate-600">설명</p>
                           <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
@@ -279,6 +286,17 @@ export default function MilestoneTable({
                           onSave={(note) => onSaveNote(m.id, note)}
                           onCancel={() => onToggleExpand(m.id)}
                         />
+
+                        <div className="min-w-0">
+                          {/* §7.12 역참조. 연결은 Note.milestoneId 단방향이라 보여주기만 한다 */}
+                          <p className="text-xs font-semibold text-slate-600">관련 노트</p>
+                          <LinkedNoteList
+                            className="mt-1"
+                            notes={notesByMilestoneId.get(m.id) ?? []}
+                            projectId={projectId}
+                            emptyText="이 마일스톤에 연결된 노트가 없습니다. [노트] 화면에서 연결하세요."
+                          />
+                        </div>
                       </div>
                     </td>
                   </tr>

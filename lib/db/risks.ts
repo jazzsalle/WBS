@@ -96,6 +96,20 @@ export async function updateRisk(
   return dbToApp<Risk>(parseRow(riskRowSchema, row));
 }
 
+// X-3: orderedIds는 과제의 리스크 목록 순서다. 한 번의 RPC로 0..n-1을 부여한다.
+// 다른 과제의 리스크가 섞이면 RPC가 거부한다 (20260811000000_risk_rpcs.sql).
+export async function reorderRisks(
+  client: SupabaseClient,
+  projectId: string,
+  orderedIds: string[]
+): Promise<void> {
+  const { error } = await client.rpc('reorder_risks', {
+    p_project_id: projectId,
+    p_ordered_ids: orderedIds,
+  });
+  if (error) throwDbError(error);
+}
+
 export async function removeRisk(client: SupabaseClient, id: string): Promise<void> {
   const { data, error } = await client.from(TABLE).delete().eq('id', id).select('id');
   if (error) throwDbError(error);

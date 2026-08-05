@@ -8,6 +8,7 @@ import { getCurrentUser } from '@/actions/auth';
 import { getProjectFullTree, getYearTree } from '@/actions/tasks';
 import { getTeam } from '@/actions/team';
 import { getGoalsData } from '@/actions/goals';
+import { getLinkedNotes } from '@/actions/notes';
 import { todayISO } from '@/lib/dates';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import RealtimeRefresher from '@/components/RealtimeRefresher';
@@ -41,10 +42,12 @@ export default async function WbsPage({ params, searchParams }: WbsPageProps) {
   // 단계·연차 목록(셀렉터)과 "전체 연차 보기"가 여기서 함께 나온다.
   // 담당·기관 컬럼(§7.4)에 쓸 이름은 팀 조회에서, 연계 컬럼·상세 패널의 목표 후보는
   // 목표 조회에서 온다 — 서로 기다릴 이유가 없어 함께 던진다.
-  const [full, team, goals] = await Promise.all([
+  // 상세 패널의 관련 노트(§7.12 역참조)도 같은 왕복에서 가져온다
+  const [full, team, goals, linkedNotes] = await Promise.all([
     getProjectFullTree(projectId),
     getTeam(projectId),
     getGoalsData(projectId),
+    getLinkedNotes(projectId),
   ]);
   if (!full.ok) {
     return (
@@ -68,6 +71,15 @@ export default async function WbsPage({ params, searchParams }: WbsPageProps) {
     return (
       <main className={CONTENT_CLASS}>
         <ErrorBanner message={goals.error} code={goals.code} />
+      </main>
+    );
+  }
+
+  // 노트도 같은 기준이다. 빈 목록으로 넘기면 연결된 노트가 없는 것처럼 보인다.
+  if (!linkedNotes.ok) {
+    return (
+      <main className={CONTENT_CLASS}>
+        <ErrorBanner message={linkedNotes.error} code={linkedNotes.code} />
       </main>
     );
   }
@@ -146,6 +158,7 @@ export default async function WbsPage({ params, searchParams }: WbsPageProps) {
         techTargets={techTargets}
         selectedYearId={selectedYear === null ? ALL_YEARS : selectedYear.id}
         invalidTaskIds={invalidIds}
+        linkedNotes={linkedNotes.data}
         // 지연 판정 기준일을 서버에서 Asia/Seoul 달력으로 고정해
         // SSR/CSR·서버 OS 타임존에 따라 결과가 갈리지 않게 한다 (§6.5)
         todayISO={todayISO(new Date())}

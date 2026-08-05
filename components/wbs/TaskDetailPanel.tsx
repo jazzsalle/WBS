@@ -16,7 +16,9 @@ import type { ActionErrorCode } from '@/lib/db/errors';
 import { TASK_STATUS_LABELS } from '@/lib/constants';
 import { priorityGrade } from '@/lib/priority';
 import { updateTask } from '@/actions/tasks';
+import type { LinkedNote } from '@/actions/notes';
 import { setRealtimePaused } from '@/components/RealtimeRefresher';
+import LinkedNoteList from '@/components/notes/LinkedNoteList';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import ErrorBanner from '@/components/ui/ErrorBanner';
@@ -52,6 +54,8 @@ export interface TaskDetailPanelProps {
   orgNames: Record<string, string>;
   deliverableNames: Record<string, string>;
   techTargetNames: Record<string, string>;
+  /** §7.12 역참조 — 이 작업에 연결된 노트만 부모가 걸러서 내려준다 */
+  linkedNotes: LinkedNote[];
   onClose: () => void;
 }
 
@@ -101,6 +105,7 @@ export default function TaskDetailPanel({
   orgNames,
   deliverableNames,
   techTargetNames,
+  linkedNotes,
   onClose,
 }: TaskDetailPanelProps) {
   const router = useRouter();
@@ -616,10 +621,15 @@ export default function TaskDetailPanel({
           </div>
         </fieldset>
 
-        <div className="space-y-2 rounded-lg border border-dashed border-slate-300 p-3 text-xs text-slate-500">
-          <p className="font-semibold text-slate-600">아직 준비 중</p>
-          <p>관련 노트는 Phase 6에서 열립니다.</p>
-        </div>
+        <fieldset className="rounded-lg border border-slate-200 p-3">
+          {/* §7.12 역참조. 연결은 Note.taskId 단방향이라 여기서는 보여주기만 한다 */}
+          <legend className="px-1 text-xs font-semibold text-slate-500">관련 노트</legend>
+          <LinkedNoteList
+            notes={linkedNotes}
+            projectId={task.projectId}
+            emptyText="이 작업에 연결된 노트가 없습니다. [노트] 화면에서 노트를 이 작업에 연결하세요."
+          />
+        </fieldset>
       </div>
 
       <footer className="flex items-center justify-between gap-2 border-t border-slate-200 p-4">

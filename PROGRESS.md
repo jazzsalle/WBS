@@ -1,10 +1,10 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
-2026-08-05 (Phase 5.5 완료 — 집 PC 세션)
+2026-08-05 (Phase 5.5 + Phase 6 완료 — 집 PC 세션)
 
 ## Current goal
-Phase 6 (리스크 + 노트: 리스크 대장·매트릭스, 마크다운 노트) — SOT §5.13~5.14, §7.11~7.12
+Phase 7 (간트 + 칸반: 간트 연차 밴드·마일스톤 레인, 칸반·우선순위 매트릭스) — SOT §7.5~7.6
 
 ## Done this session
 - **Phase 0 완료** (evaluator PASS 12/12, 커밋 07fa94a) — 스키마 25종+RLS+RPC, 리포지토리 16종, 테스트 48건
@@ -69,6 +69,17 @@ Phase 6 (리스크 + 노트: 리스크 대장·매트릭스, 마크다운 노트
   - **결과: 실측 2종 모두 미매핑 0건.** 파싱 결과의 직접비 합·총액이 원본 `직접비 소계`·`연구개발비 총액` 행과 **원 단위까지 일치**(산자부 296,510,000 / 298,510,000, 행안부 133,340,000 / 133,340,000)
   - SOT 보강 (누적 11 → **20건**): 위 7건 + I-17 보강(20개 창은 과제별·복원은 스냅샷을 만들지 않고 행을 지우지 않음) + §7.9.1 Step 5 `신규`/`덮어씀` 판정 기준(행 존재가 아니라 **값의 존재**) + Step 4 아이콘 근거를 서버가 싣는다 + 계약 공백 4건(`yearMapping` 키 = 엑셀 열 문자 / `commitImport`의 `profileId`는 별도 인자 / `orientation='column'` 명시적 거부 / `ImportProfile`에 데이터 끝 행을 저장하지 않는 이유) + 부록 B.5 표 열 문자 정정 + §10 디렉터리 구조 갱신
 
+- **Phase 6 완료** (evaluator **PASS**, 테스트 898건) — 리스크 + 노트. SOT v3.4 → **v3.5**:
+  - **리스크** (`actions/risks.ts`, `components/risks/`, `reorder_risks` RPC): 5×5 히트맵(셀 클릭 필터)·목록 9컬럼·행 확장(내용/대응/비상/WBS 링크)·해결·종료 기본 숨김 토글. 점수·등급·색상은 전부 `lib/risk.ts`(Phase 4, 67건)에서만 나온다 — 경계값 8·15가 다른 곳에 복제되지 않은 것을 evaluator가 grep으로 확인
+    - 히트맵 셀이 **미해결/해결 id를 나눠 담아** "해결·종료 표시" 토글이 셀 개수와 목록 건수를 구조적으로 함께 움직인다(두 필터가 따로 놀 여지가 없다)
+    - §6.5 `occurred`: 해결·종료는 등급 판정 대상이 아니라 `severity=null`("판정 제외"), 미해결 `occurred`는 점수와 무관하게 "주의"
+  - **노트** (`actions/notes.ts`, `lib/notes.ts`, `components/notes/`): 2단 레이아웃·고정 상단→날짜 내림차순·필터 4종(유형/연차/태그/전문검색)·편집/분할/미리보기 토글·회의록 템플릿·참석자 다중 선택·Task/Milestone 연결 + **역참조**(WBS 상세 패널·마일스톤 펼친 행)·명시적 저장 + 3초 디바운스 자동 저장
+    - **마크다운 렌더링에 외부 라이브러리를 쓰지 않는다.** 노트 본문은 사용자 입력이라 HTML 문자열을 만들어 주입하면 저장형 XSS다. `lib/notes.ts`가 제한된 부분집합을 **데이터 AST**로 파싱하고 뷰어가 **React 엘리먼트**로 옮긴다 — AST에 "원시 HTML" 노드가 없어 주입이 걸러지는 게 아니라 **표현 자체가 불가능**하다. `dangerouslySetInnerHTML` 사용 0건(evaluator grep 확인), 새 npm 의존성 0개. 안전하지 않은 링크(`javascript:`·`data:`·`vbscript:`·`//host`)는 조용히 버리지 않고 원문 그대로 표시. **이 규칙은 SOT §7.12와 CLAUDE.md에 못 박아 뒀다**
+    - 자동 저장 × O-1: 저장 성공 시 baseline version을 갱신해 **자기 저장에 대한 가짜 STALE**을 막는다(Phase 1 후속 개선 ②에서 겪은 문제를 반복하지 않음). 삭제 중에는 자동 저장을 멈추고, `updateNote`는 upsert가 아니라 update 전용이라 **뒤늦은 자동 저장이 삭제된 노트를 되살리지 못한다** — 둘 다 통합 테스트로 고정
+  - **과제 개요(§7.3) 자리표시 제거** — 고위험 리스크 5건·최근 노트 5건 카드를 실제 데이터로 채웠다. 정렬·등급은 각각 `getRiskMatrix`/`sortNotes`가 계산한 값을 그대로 쓴다(개요와 전용 화면이 다른 순서를 보이지 않게)
+  - 탭 활성화: `TabNav.IMPLEMENTED_THROUGH = 6`
+  - SOT 보강: **§9 `reorderRisks(projectId, orderedIds)` 정정**(과제 소속 reorder는 전부 컨테이너를 받는데 리스크만 빠져 있었다 — 없으면 RPC가 과제 경계를 검증할 수 없다), §7.12 마크다운 렌더링 방식 명문화, §10 갱신, **§9 조회 블록 드리프트 경고**(아래 참조)
+
 - **후속 정리 2건** (PROGRESS 대기 목록에서 처리):
   - `TechRecordForm.tsx` 측정일 기본값을 로컬 `new Date()` → **Asia/Seoul**(`todayISO`). 타임존이 다른 PC에서 하루 어긋난 측정일이 저장되던 문제
   - **테스트 중단 시 dev DB 잔여물 자동 청소** — `tests/global-setup.ts`(실행 1회). `wbs-test+%` 중 2시간 이상 경과분만. **삭제 순서가 핵심**: 사용자를 지우기 전에 소유 행을 먼저 지운다(auth.users를 먼저 지우면 `created_by`가 set null이 되어 그때부터 실데이터와 구분 불가). 3시간 전으로 백데이트한 가짜 잔여물을 심어 감지·삭제·로그를 실제로 확인
@@ -77,17 +88,23 @@ Phase 6 (리스크 + 노트: 리스크 대장·매트릭스, 마크다운 노트
 없음
 
 ## Next steps
-1. `/phase-run 6` — 리스크 + 노트: 리스크 대장·5×5 매트릭스(`lib/risk.ts`는 Phase 4에서 이미 만들어 테스트 67건 통과), 마크다운 노트 + 회의록 템플릿 + Task/Milestone 연결 역참조
-2. **Phase 5.5 후속 (블로킹 아님)**:
+1. `/phase-run 7` — 간트 + 칸반: 간트(연차 밴드·마일스톤 레인·오늘선·막대 드래그/리사이즈), 칸반 ↔ 우선순위 매트릭스 전환(PR-8·PR-9 준수). `lib/dates.ts`의 간트 좌표와 `lib/priority.ts`(부록 B.0 통과)를 재사용한다
+2. **SOT §9 조회 블록 이름 정리 (문서 부채, 블로킹 아님)**:
+   - Phase 1~6에 걸쳐 조회 함수 이름이 §9 설계 목록과 갈렸다. `getProjectOverview`는 아예 구현되지 않았고(과제 개요가 6개 조회를 `Promise.all`), `getNotes(projectId, filter)`는 `getNotesData(projectId)`이며 필터는 화면 몫이다. `getMilestonesData`·`getTeamScreenData`·`getProjectsSummary`는 목록에 없다
+   - 지금 개명하면 6개 Phase의 코드를 건드려야 해서 **SOT §9에 드리프트 경고를 달아 두고** 넘겼다. 한가할 때 §9를 실제 이름으로 맞출 것
+3. **Phase 6 후속 (블로킹 아님)**:
+   - 노트 편집이 WBS·마일스톤 화면에 **실시간으로 전파되지 않는다** — 그 화면들은 §8.5 구독표대로 `tasks`/`years`/`milestones`만 구독한다. 역참조는 다음 이동·`revalidatePath` 때 갱신된다. 즉시 전파가 필요하면 §8.5 구독표를 먼저 고쳐야 한다
+   - 과제 개요의 고위험 리스크·최근 노트 카드도 같은 이유로 실시간이 아니다(§8.5 "화면당 최대 4테이블" 예산). 요약 카드라 현재는 충분하다고 판단
+4. **Phase 5.5 후속 (블로킹 아님)**:
    - **`restore_import_snapshot`을 감싸는 서버 액션이 없다.** RPC와 리포지토리는 있고 통합 테스트도 리포지토리를 직접 부른다. §7.14 설정 화면(Phase 8)에서 액션을 만들 때 `tests/integration/import-actions.test.ts`의 복원 부분도 액션 경유로 바꿀 것
    - CSV는 SheetJS가 UTF-8로 가정한다 — **CP949 CSV는 깨진다.** 실측 서식이 전부 xlsx라 v1에서는 두었다
    - `orientation === 'column'`(전치 서식)은 명시적 거부 상태다. 실제로 그런 서식이 오면 `parseMatrix` 확장 필요
-3. **후속 정리 (블로킹 아님)**:
+5. **연구비 후속 정리 (블로킹 아님)**:
    - `getBudgetMatrix`가 집계만 반환해 화면이 `listBudgetItemsByProject`로 원본 행(itemId·version·cash/inKind null 여부·executions)을 한 번 더 조회한다. `BudgetMatrixData`에 `items` 추가로 흡수 권장 (`app/projects/[id]/budget/page.tsx` 주석에 명시)
    - `listBudgetItemsByProject`의 **부모** 조회는 무페이징 — 연차 84개 초과 과제에서 같은 절단이 발생한다(현실 규모에선 도달 안 함)
-4. 미뤄둔 것: HR API 연동(hr.unes.kr 직원 명부 — SOT 추가 후 별도 진행), 단일 과제 조회 액션(`getProject(id)`)
-3. Phase 1 후속 개선(블로킹 아님): ① 인라인 이름 편집 중 Enter 연타 시 in-flight 재입력이 제출값으로 되돌아감 ② 자기 저장에 대한 가짜 STALE 배너(`disabled={saving}` 가드) ③ `bulkUpdateTasks` 부분 반영(트랜잭션 RPC화 검토)
-4. 남은 관찰 항목(블로킹 아님): `tests/integration/wbs-queries.test.ts`는 팀 공유 설정 `app_settings.progress_weight_basis`를 잠시 바꿨다 되돌린다. 데이터를 지우지 않아 기본 실행에 두었지만, **두 PC에서 `npm test`를 동시에 돌리면** 서로의 임시값을 원본으로 착각해 설정이 어긋날 수 있다. 테스트는 한 번에 한 PC에서만 돌린다
+6. Phase 1 후속 개선(블로킹 아님): ① 인라인 이름 편집 중 Enter 연타 시 in-flight 재입력이 제출값으로 되돌아감 ② 자기 저장에 대한 가짜 STALE 배너(`disabled={saving}` 가드) — **노트 에디터에서는 이미 해결했으니 그 방식을 옮기면 된다** ③ `bulkUpdateTasks` 부분 반영(트랜잭션 RPC화 검토)
+7. 미뤄둔 것: HR API 연동(hr.unes.kr 직원 명부 — SOT 추가 후 별도 진행), 단일 과제 조회 액션(`getProject(id)`)
+8. 남은 관찰 항목(블로킹 아님): `tests/integration/wbs-queries.test.ts`는 팀 공유 설정 `app_settings.progress_weight_basis`를 잠시 바꿨다 되돌린다. 데이터를 지우지 않아 기본 실행에 두었지만, **두 PC에서 `npm test`를 동시에 돌리면** 서로의 임시값을 원본으로 착각해 설정이 어긋날 수 있다. 테스트는 한 번에 한 PC에서만 돌린다
 
 ## 수동 검증 (누적)
 ### 완료
@@ -109,6 +126,8 @@ Phase 6 (리스크 + 노트: 리스크 대장·매트릭스, 마크다운 노트
   ⑧ Step 5: `#REF!` 셀이 빨강 오류 행이 되고 반영 버튼 비활성 → 그 행을 건너뛰면 활성화. 덮어씀 행에 `기존 → 신규` 표시
   ⑨ 반영 → 토스트 + 매트릭스 갱신. 프로파일 저장 후 다시 열어 프로파일 선택 시 Step 4로 직행
   ⑩ 마법사를 연 채 다른 브라우저에서 예산 셀 수정 → 자동 새로고침 대신 "새 변경 있음" 배너 (R-4)
+- **Phase 6 리스크**: ① 히트맵 셀 클릭 → 목록이 그 조합만 남고, 재클릭·필터 칩 ×로 해제 ② "해결·종료 항목 표시" 토글 시 **셀 개수와 목록 건수가 함께** 늘어남(어긋나면 안 됨) ③ 두 창 동시 편집 → ConflictDialog가 입력값을 보존한 채 항목별 비교(O-3) ④ 폼 열어 둔 채 다른 창에서 수정 시 입력이 안 날아감(R-4) ⑤ 상태를 `발생`으로 → "주의" 뱃지, `해결`로 → 등급 "판정 제외" 회색 + 기본 화면에서 사라짐 ⑥ 대시보드 "고위험 리스크"·"주의 필요" 숫자가 리스크 화면 요약과 일치 ⑦ 정렬 "수동 순서"에서 ↑↓ 후 새로고침해도 순서 유지 ⑧ 행 확장의 "WBS에서 보기"가 해당 연차 트리로 이동
+- **Phase 6 노트**: ① 타자 후 3초 정지 → "저장됨 HH:MM:SS", 목록 제목·날짜·태그가 **커서 위치를 잃지 않고** 갱신 ② 두 세션 동일 노트 → 앰버 배너 + 입력 보존 + `최신 내용 사용`/`내 입력 유지` 양쪽 동작 ③ 본문에 `<script>alert(1)</script>`, `<img src=x onerror=alert(1)>`, `[클릭](javascript:alert(1))`을 붙여넣어 **아무것도 실행되지 않고 글자 그대로 보이는지**(AST 단위로는 테스트됐지만 실제 브라우저에서 한 번 볼 것) ④ 참석자 체크박스 → `- 참석자:` 줄이 제자리에서 갱신되고 **중복 생성되지 않음** ⑤ WBS 상세 패널·마일스톤 펼친 행의 관련 노트 링크가 해당 노트를 선택한 상태로 이동
 - 공통: 두 PC 동일 데이터 조회, 동료 첫 로그인 시 /pending→승인 흐름(두 번째 회사 계정 필요), Tauri 자동 백업 7일 경과 실동작
 
 ## Blockers

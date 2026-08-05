@@ -30,6 +30,7 @@ import {
   updateTask,
   type WbsNode,
 } from '@/actions/tasks';
+import type { LinkedNote } from '@/actions/notes';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import { canMoveTask, getDescendantIds, type MoveRejectReason } from '@/lib/tree';
 import { priorityGrade, type PriorityGrade } from '@/lib/priority';
@@ -70,6 +71,8 @@ export interface WbsScreenProps {
   selectedYearId: string | typeof ALL_YEARS;
   /** 트리에 편입되지 못한 작업 (절대 규칙 5: 조용히 버리지 않는다) */
   invalidTaskIds: string[];
+  /** §7.12 역참조 — 작업에 연결된 노트. 상세 패널이 선택된 작업 몫만 골라 쓴다 */
+  linkedNotes: LinkedNote[];
   /** 지연 판정 기준일. 서버에서 넘겨 SSR/CSR 판정이 갈리지 않게 한다 */
   todayISO: string;
 }
@@ -153,6 +156,7 @@ export default function WbsScreen({
   techTargets,
   selectedYearId,
   invalidTaskIds,
+  linkedNotes,
   todayISO,
 }: WbsScreenProps) {
   const router = useRouter();
@@ -900,6 +904,7 @@ export default function WbsScreen({
           orgNames={orgNames}
           deliverableNames={deliverableNames}
           techTargetNames={techTargetNames}
+          linkedNotes={linkedNotes.filter((note) => note.taskId === selectedNode.task.id)}
           onClose={() => setDetailOpen(false)}
         />
       )}

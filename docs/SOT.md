@@ -2,10 +2,16 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v3.4** |
+| 문서 버전 | **v3.5** |
 | 최종 수정 | 2026-08-05 |
 | 상태 | 확정 (Phase 0 착수 가능) |
 | 목적 | 이 문서는 구현의 유일한 기준점이다. 코드와 문서가 다르면 **문서가 옳다**. |
+
+### v3.4 → v3.5 변경 요약 — Phase 6(리스크 + 노트) 구현 반영
+- **§9 `reorderRisks` 시그니처 정정**: `reorderRisks(orderedIds)` → **`reorderRisks(projectId, orderedIds)`**. 과제 소속 reorder는 전부 컨테이너를 받는데 리스크만 빠져 있었다 — 컨테이너가 없으면 RPC가 "이 id들이 전부 이 과제 것인가"를 검증할 수 없다. (전역인 `reorderProjects`/`reorderTodos`만 정당하게 생략)
+- **§7.12 마크다운 렌더링 방식 명문화**: 외부 라이브러리를 쓰지 않고 `lib/notes.ts`가 **데이터 AST**로 파싱, 뷰어가 **React 엘리먼트**로 옮긴다. AST에 원시 HTML 노드가 없어 저장형 XSS가 **표현 자체로 불가능**하다. 안전하지 않은 링크는 조용히 버리지 않고 원문 그대로 표시.
+- **§10 디렉터리 구조 갱신**: `lib/notes.ts` 신설, `components/risks/`·`components/notes/` 실제 파일 목록 반영.
+- **§9 조회 블록에 드리프트 경고 추가**: Phase 1~6에 걸쳐 조회 함수 이름이 설계 목록과 갈렸다(`getProjectOverview` 미구현, `getNotes`→`getNotesData`, 목록에 없는 `getMilestonesData`·`getTeamScreenData`·`getProjectsSummary`). 지금 전면 개명하면 6개 Phase의 코드를 건드려야 하므로, **사실을 문서에 드러내고** 다음 정리 항목으로 넘긴다 — 문서가 조용히 틀린 채로 남는 것이 가장 나쁘다.
 
 ### v3.3 → v3.4 변경 요약 — Phase 5.5 착수 전 실측 서식 재대조(산자부·행안부 `유엔이_총괄표`) 반영
 - **S-10 신설** (§6.8.2): 정규화 후 빈 문자열이 되는 라벨 행의 분기. 축 라벨이 있으면 직전 비목을 승계(현금/현물 쌍), 없으면 메모 행으로 건너뛴다. 행안부 서식의 `연구재료비` / `(G)` 2행 분절에서 **현물 금액이 유실되던 공백**을 메운다.
@@ -1251,6 +1257,7 @@ priorityScore = importance × urgency        # 1 ~ 25
 - 목록: 고정(pinned) 상단 → 날짜 내림차순. 유형 아이콘, 제목, 날짜, 태그
 - 필터: 유형, 연차, 태그, 전문 검색
 - 에디터: 마크다운 `textarea` + 프리뷰 토글 (분할 뷰 옵션)
+- **렌더링은 외부 마크다운 라이브러리를 쓰지 않는다.** 노트 본문은 사용자 입력이고, HTML 문자열을 만들어 주입하면 저장형 XSS가 된다. `lib/notes.ts`가 제한된 부분집합(제목·강조·목록·체크박스·코드·인용·구분선·링크)을 **데이터 AST**로 파싱하고, 뷰어가 AST를 **React 엘리먼트**로 옮긴다 — AST에 "원시 HTML" 노드가 없으므로 주입이 걸러지는 게 아니라 **표현 자체가 불가능**하다. 링크는 `http`/`https`/`mailto`만 `<a>`가 되고(제어문자·공백을 제거한 뒤 스킴을 본다), 그 외(`javascript:`·`data:`·`vbscript:`·`//host`)는 **조용히 버리지 않고 원문 그대로** 표시한다.
 - 회의록 템플릿 버튼: 일시/장소/참석자/안건/논의/결정사항/액션아이템 골격 삽입
 - 참석자는 Member에서 다중 선택 (자동으로 본문 상단에 삽입)
 - 노트를 특정 Task·Milestone에 연결 가능. 연결되면 해당 화면에서 역참조로 보인다.
@@ -1582,7 +1589,9 @@ createRisk(projectId, input)
 updateRisk(id, patch)
 deleteRisk(id)
 setRiskStatus(id, status)
-reorderRisks(orderedIds)
+reorderRisks(projectId, orderedIds)   // 다른 과제 소속 reorder와 같은 형태다 — 컨테이너가 없으면
+                                      // RPC가 "이 id들이 전부 이 과제 것인가"를 검증할 수 없다.
+                                      // (전역인 reorderProjects/reorderTodos만 projectId를 받지 않는다)
 ```
 
 **Note**
@@ -1614,9 +1623,18 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 ```
 
 **조회 (서버 컴포넌트에서 직접 호출, 집계 완료 형태로 반환)**
+
+> ⚠️ **이 블록은 설계 시점의 목록이고 구현과 이름이 어긋난 곳이 있다** (Phase 1~6에 걸쳐 누적).
+> 실제로는 화면마다 필요한 조회를 병렬로 던지는 형태로 갈렸다 — 예: `getProjectOverview`는
+> 구현되지 않았고 과제 개요가 `getProjectFullTree`+`getTeam`+`getGoalsData`+`getMilestonesData`
+> +`getRiskMatrix`+`getNotesData` 6개를 `Promise.all`로 부른다. `getNotes(projectId, filter)`는
+> `getNotesData(projectId)`이고 필터는 화면이 `lib/notes.ts`의 `filterNotes`로 건다.
+> `getMilestonesData`·`getTeamScreenData`·`getProjectsSummary`는 이 목록에 아예 없다.
+> **다음 정리 때 이 블록을 실제 이름으로 맞춘다.** 그때까지는 코드가 사실이다.
+
 ```
 getDashboardData()
-getProjectOverview(projectId)        // 협약정보 + 계층 요약 + 목표/예산 집계
+getProjectOverview(projectId)        // 미구현 — 위 주의 참조
 getYearTree(yearId)                  // 진척률·WBS코드·날짜롤업 계산 완료 트리
 getProjectFullTree(projectId)        // 전체 연차 통합 뷰
 getGanttData(projectId, scale)       // 마일스톤 포함
@@ -1625,7 +1643,7 @@ getPriorityMatrix(projectId, yearId?) // 5×5 집계 + 점수 정렬 목록
 getGoalsData(projectId)              // 성과목표 + 기술목표 + 달성률
 getBudgetMatrix(projectId)
 getRiskMatrix(projectId)
-getNotes(projectId, filter)
+getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터는 화면 몫
 ```
 
 ---
@@ -1677,8 +1695,10 @@ getNotes(projectId, filter)
 │   │                  Step1File ~ Step5Preview, SheetGrid(원본 그리드·병합 렌더),
 │   │                  CategoryMapper, ImportPreviewTable
 │   ├── team/          OrgCards, MemberTable
-│   ├── risks/         RiskMatrix, RiskTable
-│   ├── notes/         NoteList, MarkdownEditor, MarkdownViewer
+│   ├── risks/         RiskScreen, RiskMatrix, RiskTable, RiskFormModal,
+│   │                  severity.ts(부록 A.3 색상 토큰 → Tailwind 클래스 매핑)
+│   ├── notes/         NoteScreen, NoteList, MarkdownEditor, MarkdownViewer,
+│   │                  LinkedNoteList(§7.12 역참조 — Task·Milestone 화면이 쓴다)
 │   └── todos/
 ├── lib/
 │   ├── db/                             §8.6 리포지토리 레이어
@@ -1699,6 +1719,9 @@ getNotes(projectId, filter)
 │   │   └── index.ts                    재수출 (preview/commit 공용 파싱 엔트리)
 │   ├── priority.ts                     §6.9 긴급도·우선순위 점수
 │   ├── risk.ts                         §6.5 등급 판정
+│   ├── notes.ts                        §7.12 마크다운 파싱(→AST)·URL 안전 판정·
+│   │                                   정렬/필터/검색·회의록 템플릿. ★ HTML 문자열을
+│   │                                   만들지 않는다 — 뷰어가 AST를 React 엘리먼트로 옮긴다
 │   ├── dates.ts                        마감 판정, 간트 좌표
 │   ├── format.ts                       금액·퍼센트 표시 포맷
 │   └── constants.ts                    비목 라벨, 유형 라벨, 색상 맵

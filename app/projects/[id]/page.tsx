@@ -1,7 +1,6 @@
-// 과제 개요 (SOT §7.3) — Phase 1 + Phase 3 + Phase 4 범위
-// 이 Phase까지 구현한 것: 협약 정보 패널 + 단계·연차 타임라인(진척률·예산·상태) + 목표 달성 현황
-// + 임박 마일스톤 5건.
-// 고위험 리스크·최근 노트(Phase 6)는 자리표시로 둔다.
+// 과제 개요 (SOT §7.3) — Phase 1 + Phase 3 + Phase 4 + Phase 6 범위
+// §7.3의 6개 영역 전부: 협약 정보 패널 + 단계·연차 타임라인(진척률·예산·상태) + 목표 달성 현황
+// + 임박 마일스톤 5건 + 고위험 리스크 5건 + 최근 노트 5건.
 // 데이터 로딩은 서버에서 — 액션(actions/)만 호출하고 supabase는 직접 부르지 않는다.
 // 진척률은 getProjectFullTree가 §6.1 4단계 롤업으로 계산해 내려준 값이다(저장하지 않는다, O-4).
 // 목표 달성률도 getGoalsData(→ lib/goals.ts)가 계산한 값을 그대로 쓴다 — 여기서 다시 나누지 않는다.
@@ -13,10 +12,20 @@ import { getProjectFullTree } from '@/actions/tasks';
 import { getTeam } from '@/actions/team';
 import { getGoalsData, type GoalsData } from '@/actions/goals';
 import { getMilestonesData, type MilestonesData } from '@/actions/milestones';
+import { getRiskMatrix, type RiskMatrixData } from '@/actions/risks';
+import { getNotesData, type NotesData } from '@/actions/notes';
 import type { ActionResult, Milestone, MilestoneStatus, Year } from '@/types';
-import { MILESTONE_TYPE_COLORS, MILESTONE_TYPE_LABELS, PROJECT_STATUS_LABELS } from '@/lib/constants';
+import {
+  MILESTONE_TYPE_COLORS,
+  MILESTONE_TYPE_LABELS,
+  NOTE_TYPE_LABELS,
+  PROJECT_STATUS_LABELS,
+  RISK_CATEGORY_LABELS,
+} from '@/lib/constants';
 import { formatDday, isOverdueMilestone, isUpcomingMilestone, todayISO } from '@/lib/dates';
 import { formatRate } from '@/lib/goals';
+import { sortNotes } from '@/lib/notes';
+import { RISK_SEVERITY_LABELS, RISK_SEVERITY_TONES } from '@/components/risks/severity';
 import Badge, { type BadgeTone } from '@/components/ui/Badge';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import ProgressBar from '@/components/ui/ProgressBar';
@@ -24,6 +33,9 @@ import RealtimeRefresher from '@/components/RealtimeRefresher';
 import StageYearPanel from '@/components/project/StageYearPanel';
 
 // R-1 §8.5 구독표의 "과제 개요" 행 그대로. 다른 테이블은 구독하지 않는다.
+// 고위험 리스크·최근 노트 카드는 `risks`/`notes`를 구독하지 않아 실시간으로 따라오지 않는다 —
+// 구독표를 늘리면 §8.5의 "화면당 최대 4테이블" 예산을 깨고 연결 수가 늘어난다. 요약 카드라
+// 다음 이동·revalidate 때 갱신되면 충분하다. (대시보드도 리스크를 집계하면서 같은 선택을 했다)
 const REALTIME_TABLES = ['projects', 'years', 'milestones'];
 
 function formatWon(amount: number | null): string {
@@ -161,6 +173,8 @@ function GoalSummaryCard({
 // ─── 임박 마일스톤 (§7.3, §6.5) ───────────────────────────────────────────────
 
 const OVERVIEW_MILESTONE_LIMIT = 5;
+/** §7.3 "고위험 리스크 5건" / "최근 노트 5건" */
+const OVERVIEW_LIST_LIMIT = 5;
 
 // §6.5: done·cancelled는 마감 판정 대상이 아니다 — 개요 목록에서도 뺀다
 const CLOSED_MILESTONE_STATUSES: ReadonlySet<MilestoneStatus> = new Set(['done', 'cancelled']);
@@ -258,13 +272,103 @@ function UpcomingMilestoneCard({
   );
 }
 
-/** 후속 Phase에서 채울 영역. 빈 화면을 말없이 두지 않고 언제 채워지는지 밝힌다. */
-function PlaceholderCard({ title, phase, detail }: { title: string; phase: number; detail: string }) {
+/**
+ * §7.3 고위험 리스크 5건. 정렬·등급·색상은 전부 `getRiskMatrix`가 `lib/risk.ts`로 계산해
+ * 내려준 값이다 — 여기서 점수를 다시 곱하거나 경계값을 다시 쓰지 않는다 (O-4).
+ * 해결·종료는 §6.5상 등급 판정 대상이 아니므로(`severity=null`) 이 카드에서 제외한다.
+ */
+function HighRiskCard({ projectId, result }: { projectId: string; result: ActionResult<RiskMatrixData> }) {
+  // getRiskMatrix가 이미 "미해결 먼저, 점수 내림차순"으로 정렬해 내려준다
+  const top = result.ok ? result.data.risks.filter((v) => v.active).slice(0, OVERVIEW_LIST_LIMIT) : [];
+
   return (
-    <section className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-5">
-      <h2 className="text-base font-bold text-slate-700">{title}</h2>
-      <p className="mt-1 text-xs text-slate-500">{detail}</p>
-      <p className="mt-2 text-xs font-medium text-slate-400">Phase {phase}에서 구현됩니다.</p>
+    <section className="rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-bold text-slate-900">고위험 리스크</h2>
+        <Link
+          href={`/projects/${projectId}/risks`}
+          className="text-xs font-medium text-blue-600 hover:underline"
+        >
+          리스크 관리 →
+        </Link>
+      </div>
+
+      {!result.ok ? (
+        <ErrorBanner message={result.error} code={result.code} className="mt-4" />
+      ) : top.length === 0 ? (
+        <p className="mt-4 rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">
+          미해결 리스크가 없습니다.
+        </p>
+      ) : (
+        <ul className="mt-4 space-y-2">
+          {top.map((v) => (
+            <li
+              key={v.risk.id}
+              className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50/60 px-3 py-2"
+            >
+              <Badge tone={v.severity ? RISK_SEVERITY_TONES[v.severity] : 'neutral'} className="tabular-nums">
+                {v.severity ? RISK_SEVERITY_LABELS[v.severity] : '판정 제외'} {v.score}
+              </Badge>
+              <span
+                className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900"
+                title={v.risk.title}
+              >
+                {v.risk.title}
+              </span>
+              <span className="text-xs text-slate-500">{RISK_CATEGORY_LABELS[v.risk.category]}</span>
+              {/* §6.5: 발생한 리스크는 점수와 무관하게 주의 대상이다 */}
+              {v.attention && v.severity !== 'high' && <Badge tone="red">주의</Badge>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/**
+ * §7.3 최근 노트 5건. 목록 정렬(고정 상단 → 날짜 내림차순)은 `lib/notes.ts`의 `sortNotes`가
+ * 원본이다 — 노트 화면과 여기가 다른 순서를 보여주면 안 된다.
+ */
+function RecentNoteCard({ projectId, result }: { projectId: string; result: ActionResult<NotesData> }) {
+  const recent = result.ok ? sortNotes(result.data.notes).slice(0, OVERVIEW_LIST_LIMIT) : [];
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-bold text-slate-900">최근 노트</h2>
+        <Link
+          href={`/projects/${projectId}/notes`}
+          className="text-xs font-medium text-blue-600 hover:underline"
+        >
+          노트 열기 →
+        </Link>
+      </div>
+
+      {!result.ok ? (
+        <ErrorBanner message={result.error} code={result.code} className="mt-4" />
+      ) : recent.length === 0 ? (
+        <p className="mt-4 rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">
+          작성된 노트가 없습니다.
+        </p>
+      ) : (
+        <ul className="mt-4 space-y-2">
+          {recent.map((note) => (
+            <li key={note.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50/60 px-3 py-2">
+              <Badge tone="neutral">{NOTE_TYPE_LABELS[note.type]}</Badge>
+              <Link
+                href={`/projects/${projectId}/notes?note=${note.id}`}
+                className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900 hover:underline"
+                title={note.title}
+              >
+                {note.pinned && <span aria-label="고정됨">📌 </span>}
+                {note.title}
+              </Link>
+              <span className="text-xs tabular-nums text-slate-500">{note.date}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
@@ -282,11 +386,13 @@ export default async function ProjectOverviewPage({
   // PM·주관기관은 이름으로 보여야 하므로 인력·기관 목록을 함께 읽는다 (§7.3).
   // 목표 달성 현황·임박 마일스톤 요약도 같은 화면에 있으므로 함께 던진다 — 서로 기다릴 이유가 없다.
   // 어느 하나가 실패해도 개요 전체를 막지는 않고 해당 행·카드에만 사실을 표시한다.
-  const [res, teamRes, goalsRes, milestonesRes] = await Promise.all([
+  const [res, teamRes, goalsRes, milestonesRes, risksRes, notesRes] = await Promise.all([
     getProjectFullTree(id),
     getTeam(id),
     getGoalsData(id),
     getMilestonesData(id),
+    getRiskMatrix(id),
+    getNotesData(id),
   ]);
 
   // §6.5 기준일은 서버가 한 번 계산해 내려준다 — 클라이언트가 각자 '오늘'을 만들면 판정이 갈린다
@@ -383,8 +489,8 @@ export default async function ProjectOverviewPage({
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <GoalSummaryCard projectId={id} result={goalsRes} />
         <UpcomingMilestoneCard projectId={id} today={today} result={milestonesRes} />
-        <PlaceholderCard title="고위험 리스크" phase={6} detail="리스크 점수 상위 5건 (§7.3, §6.5)." />
-        <PlaceholderCard title="최근 노트" phase={6} detail="최근 작성된 노트 5건 (§7.3)." />
+        <HighRiskCard projectId={id} result={risksRes} />
+        <RecentNoteCard projectId={id} result={notesRes} />
       </div>
     </main>
   );

@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import type { ActionResult, Milestone, MilestoneStatus, Year } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import type { MilestonesData } from '@/actions/milestones';
+import type { LinkedNote } from '@/actions/notes';
 import { deleteMilestone, setMilestoneStatus } from '@/actions/milestones';
 import { formatDday, isOverdueMilestone, isUpcomingMilestone } from '@/lib/dates';
 import { MILESTONE_STATUS_LABELS } from '@/lib/constants';
@@ -30,9 +31,11 @@ export interface MilestoneScreenProps {
   data: MilestonesData;
   /** §6.5 기준일. 서버가 todayISO(new Date())로 Asia/Seoul 달력에 맞춰 고정한 값 */
   todayISO: string;
+  /** §7.12 역참조 — 마일스톤에 연결된 노트 (서버가 함께 조회해 내려준다) */
+  linkedNotes: LinkedNote[];
 }
 
-export default function MilestoneScreen({ data, todayISO }: MilestoneScreenProps) {
+export default function MilestoneScreen({ data, todayISO, linkedNotes }: MilestoneScreenProps) {
   const router = useRouter();
   const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -69,6 +72,18 @@ export default function MilestoneScreen({ data, todayISO }: MilestoneScreenProps
     () => new Map(data.members.map((member) => [member.id, member.name])),
     [data.members]
   );
+
+  // 마일스톤에 연결된 노트만 마일스톤별로 묶는다 (작업에만 붙은 노트는 여기 나오지 않는다)
+  const notesByMilestoneId = useMemo(() => {
+    const grouped = new Map<string, LinkedNote[]>();
+    for (const note of linkedNotes) {
+      if (note.milestoneId === null) continue;
+      const bucket = grouped.get(note.milestoneId) ?? [];
+      bucket.push(note);
+      grouped.set(note.milestoneId, bucket);
+    }
+    return grouped;
+  }, [linkedNotes]);
 
   // 편집·삭제 대상은 매번 최신 props에서 다시 찾는다 — O-3의 "다시 불러오기"가 모달까지 닿는 경로다
   const editingMilestone = editingId === null ? undefined : byId.get(editingId);
@@ -221,6 +236,8 @@ export default function MilestoneScreen({ data, todayISO }: MilestoneScreenProps
           views={views}
           yearNameById={yearNameById}
           memberNameById={memberNameById}
+          notesByMilestoneId={notesByMilestoneId}
+          projectId={data.projectId}
           busy={busy}
           selectedId={selectedId}
           expandedId={expandedId}
