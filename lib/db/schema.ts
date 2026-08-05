@@ -376,12 +376,37 @@ export const importProfileRowSchema = z.object({
 });
 
 // ─── I-17 import_snapshots (내부) ────────────────────────────
-// snapshot 구조는 commit_import RPC(Phase 5.5)가 정의한다. 여기서는 jsonb임만 보장.
+// snapshot 구조는 commit_import RPC(20260810000000_import_rpcs.sql)가 정의한다.
+// jsonb 내부는 앱 형태 그대로라 키가 camelCase다 (mapper의 JSONB_PASSTHROUGH_KEYS).
+// 형식을 느슨하게 두면 복원(restore_import_snapshot)이 잘못된 스냅샷을 먹고
+// 예산을 엉뚱한 값으로 되돌린다 — 여기서 구조를 끝까지 검증한다.
+
+export const importSnapshotItemSchema = z.object({
+  yearId: z.uuid(),
+  category: budgetCategorySchema,
+  plannedAmount: z.number(),
+  cashAmount: z.number().nullable(),
+  inKindAmount: z.number().nullable(),
+  existed: z.boolean(),
+});
+
+export const importSnapshotPayloadSchema = z.object({
+  schemaVersion: z.number(),
+  projectId: z.uuid(),
+  capturedAt: isoTimestamp,
+  source: z.object({
+    fileName: z.string(),
+    sheetName: z.string(),
+    profileId: z.uuid().nullable(),
+    fileHash: z.string(),
+  }),
+  items: z.array(importSnapshotItemSchema),
+});
 
 export const importSnapshotRowSchema = z.object({
   ...baseRow,
   project_id: z.uuid(),
-  snapshot: z.record(z.string(), z.unknown()),
+  snapshot: importSnapshotPayloadSchema,
 });
 
 // ─── N-2 조인 테이블 5종 — id·타임스탬프만 (N-4 예외) ────────

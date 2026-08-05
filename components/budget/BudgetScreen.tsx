@@ -9,7 +9,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { ActionResult, BudgetItem } from '@/types';
+import type { ActionResult, BudgetItem, ImportProfile } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import type { BudgetMatrixData } from '@/actions/budget';
 import { updateBudgetPlan } from '@/actions/budget';
@@ -19,20 +19,31 @@ import ErrorBanner from '@/components/ui/ErrorBanner';
 import ConflictDialog from '@/components/ui/ConflictDialog';
 import BudgetMatrixTable, { type CellRef, cellKey } from './BudgetMatrix';
 import BudgetDetailPanel, { type BudgetActionCallbacks } from './BudgetDetailPanel';
+import ImportWizard from './import/ImportWizard';
 
 export interface BudgetScreenProps {
   data: BudgetMatrixData;
   /** 매트릭스 집계에는 없는 원본 행 — 집행 CRUD의 부모 id, version(O-1), 현금/현물 null 여부 */
   items: BudgetItem[];
+  /** §7.9.1 Step 1 — 이 과제에서 쓸 수 있는 엑셀 매핑 프로파일 (전역 + 과제 소속) */
+  importProfiles: ImportProfile[];
+  /** 프로파일 조회 실패 문구. 빈 목록으로 눙치지 않는다 (절대 규칙 5) */
+  importProfilesError: string | null;
 }
 
-export default function BudgetScreen({ data, items }: BudgetScreenProps) {
+export default function BudgetScreen({
+  data,
+  items,
+  importProfiles,
+  importProfilesError,
+}: BudgetScreenProps) {
   const router = useRouter();
   const [selected, setSelected] = useState<CellRef | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<{ message: string; code?: ActionErrorCode } | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
-  const [importNotice, setImportNotice] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
 
   // (연차, 비목) → 원본 행. 유일 제약(§5.12)상 1개지만 2개 이상이면 감추지 않고 드러낸다
   const itemsByCell = useMemo(() => {
@@ -101,26 +112,27 @@ export default function BudgetScreen({ data, items }: BudgetScreenProps) {
         </p>
         <Button
           size="sm"
-          aria-disabled
-          title="Phase 5.5에서 구현됩니다"
-          onClick={() => setImportNotice(true)}
-          className="cursor-not-allowed opacity-50"
+          variant="primary"
+          disabled={busy}
+          title="예산계획 엑셀을 5단계 마법사로 가져옵니다 (§7.9.1)"
+          onClick={() => setImportOpen(true)}
         >
           엑셀 가져오기
         </Button>
       </div>
 
-      {importNotice && (
+      {/* 반영 결과 토스트 (§7.9.1 Step 5) */}
+      {importResult && (
         <p
           role="status"
-          className="flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-600"
+          className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"
         >
-          엑셀 가져오기 마법사(§7.9.1)는 Phase 5.5에서 구현됩니다.
+          {importResult}
           <button
             type="button"
-            onClick={() => setImportNotice(false)}
-            aria-label="안내 닫기"
-            className="ml-auto font-bold text-slate-400 hover:text-slate-600"
+            onClick={() => setImportResult(null)}
+            aria-label="알림 닫기"
+            className="ml-auto font-bold text-emerald-500 hover:text-emerald-700"
           >
             ×
           </button>
@@ -178,6 +190,23 @@ export default function BudgetScreen({ data, items }: BudgetScreenProps) {
             </aside>
           )}
         </div>
+      )}
+
+      {/* 모달을 닫으면 진행 상태는 폐기한다 — 언마운트로 상태를 버린다 (§7.9.1 설계 원칙) */}
+      {importOpen && (
+        <ImportWizard
+          projectId={data.projectId}
+          years={data.years}
+          currencyUnit={data.currencyUnit}
+          profiles={importProfiles}
+          profilesError={importProfilesError}
+          onClose={() => setImportOpen(false)}
+          onCommitted={(message) => {
+            setImportOpen(false);
+            setImportResult(message);
+            router.refresh();
+          }}
+        />
       )}
 
       {conflict && (

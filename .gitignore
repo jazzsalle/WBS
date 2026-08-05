@@ -2,6 +2,8 @@ node_modules/
 .next/
 .env.local
 .env*.local
+# 회사↔집 PC 이동용으로 복사해 온 env 사본 (anon 키·DB 비밀번호 포함) — 절대 커밋 금지
+env*.download
 
 # 실제 예산 자료 — 절대 커밋 금지
 samples/

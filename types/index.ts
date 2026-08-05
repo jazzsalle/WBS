@@ -1,6 +1,16 @@
 // SOT §5, §8.7, §9, §14.2의 타입 정의를 그대로 옮긴 파일.
 // 파생 값(wbsCode, depth, computedProgress 등)은 저장하지 않으므로 여기에 필드로 두지 않는다.
 
+// §9 Budget Import 액션 반환 형태가 쓰는 lib/import의 순수 타입.
+// type-only import라 런타임 의존은 생기지 않는다 (lib/import는 xlsx를 import하지 않는다).
+import type {
+  AmountUnit,
+  CategorySource,
+  DetectedStructure,
+  MergeRange,
+  SheetScore,
+} from '@/lib/import';
+
 // ─── §5.2 공통 필드 ───────────────────────────────────────────
 
 export interface BaseEntity {
@@ -318,11 +328,234 @@ export interface ImportDraft {
   profile: Omit<ImportProfile, keyof BaseEntity | 'lastUsedAt' | 'useCount'>;
 
   // 이번 실행에서만 유효한 결정들 (프로파일에 저장하지 않는다)
-  yearMapping: Record<string, string>;        // 연차 열 라벨 → yearId. 미대응 열이 있으면 반영 불가 (S-5)
+  // **엑셀 열 문자**(대문자, 예: 'F') → yearId. 헤더 텍스트가 아니다 — 헤더는 비거나 중복될 수
+  // 있고, ImportProfile.yearColumnMappings도 열 문자를 키로 쓰므로 이것만이 두 구조를
+  // 어긋남 없이 잇는다. 미대응 열이 있으면 반영 불가 (S-5)
+  yearMapping: Record<string, string>;
   skippedRowIndexes: number[];                // 사용자가 "이 행 건너뛰기"로 지정한 행 (0-based)
   manualCategoryByRow: Record<number, BudgetCategory>; // 행별 수동 지정 (I-4). I-6 모호 별칭의 선택 포함
   fileHash: string;                           // 업로드 파일 sha256. previewImport가 계산·반환하고
                                               // commitImport가 대조한다 — 다른 파일이 반영되는 것을 차단
+}
+
+// ─── I-17 ImportSnapshot (임포트 반영 전 계획액 스냅샷) ──────
+
+// commit_import RPC가 반영과 **같은 트랜잭션**에서 기록한다. 설정 화면(§7.14)에서
+// 확인·복원하며 과제별 최근 20개만 남는다.
+// jsonb 내부 키는 매퍼가 변환하지 않으므로(N-3) DB에도 이 camelCase 그대로 들어간다.
+export interface ImportSnapshotItem {
+  yearId: string;
+  category: BudgetCategory;
+  plannedAmount: number;             // 반영 직전 계획액
+  cashAmount: number | null;
+  inKindAmount: number | null;
+  existed: boolean;                  // 반영 전에 이 (연차, 비목) 행이 있었는지.
+                                     // false면 복원은 0/null/null로 되돌린다(행을 지우지 않는다)
+}
+
+export interface ImportSnapshotSource {
+  fileName: string;
+  sheetName: string;
+  profileId: string | null;          // 사용한 ImportProfile. 프로파일 없이 반영했으면 null
+  fileHash: string;                  // ImportDraft.fileHash — 어떤 파일이 반영됐는지 추적용
+}
+
+export interface ImportSnapshotPayload {
+  schemaVersion: number;             // 스냅샷 jsonb 자체의 형식 버전 (RPC가 채운다)
+  projectId: string;
+  capturedAt: string;
+  source: ImportSnapshotSource;
+  items: ImportSnapshotItem[];       // 파일에 등장한 (연차, 비목)만 담긴다 (S-9)
+}
+
+export interface ImportSnapshot extends BaseEntity {
+  projectId: string;
+  snapshot: ImportSnapshotPayload;
+}
+
+// ─── §7.9.1 Step 5 / §9 previewImport 반환 형태 ──────────────
+
+/** §7.9.1 Step 5 행 상태. 라벨은 부록 A와 같은 방식으로 lib/import가 붙인다 */
+export type PreviewRowStatus = 'new' | 'overwrite' | 'skipped' | 'error';
+
+/** 미리보기 행에 기여한 원본 시트 행 하나 (§7.9.1 Step 4) */
+export interface PreviewSourceRow {
+  /** 0-based 시트 행 인덱스 */
+  rowIndex: number;
+  /** 비목을 확정한 원본 라벨 */
+  label: string | null;
+  categorySource: CategorySource | null;
+}
+
+export interface PreviewRow {
+  status: PreviewRowStatus;
+  /** 화면 표기 (신규 / 덮어씀 / 건너뜀 / 오류) */
+  statusLabel: string;
+  /** 반영 대상 행이면 채워진다 */
+  yearId: string | null;
+  yearOrder: number | null;
+  category: BudgetCategory | null;
+  /** 원 단위 정수. 반영 대상이 아니면 null */
+  plannedAmount: number | null;
+  cashAmount: number | null;
+  inKindAmount: number | null;
+  /** 덮어쓸 기존 값 (`기존 → 신규` 표시용). 신규면 null */
+  existing: {
+    plannedAmount: number;
+    cashAmount: number | null;
+    inKindAmount: number | null;
+  } | null;
+  /** 이 행을 만든 원본 시트 행들 (S-8 합산이면 여러 개, 0-based) */
+  sourceRowIndexes: number[];
+  /** 건너뜀·오류 사유 */
+  reason: string | null;
+  /**
+   * 원본 라벨. 매핑 행도 채운다 — S-8로 합쳐진 행은 기여 라벨을 ` · `로 잇는다.
+   * 마법사 Step 4의 "원본 비목명" 열이 이 값을 그대로 쓴다.
+   */
+  label: string | null;
+  /**
+   * 비목 판정 근거 (§7.9.1 Step 4의 ✅ 완전일치 / 🔵 별칭사전 아이콘 근거).
+   * S-8로 근거가 섞이면 **가장 확인이 필요한 것**이 대표로 온다 — 완전일치 하나가 섞였다고
+   * ✅로 보여 주면 같은 셀에 합산된 별칭·승계 행을 사용자가 확인 없이 지나친다.
+   * UI가 classifyLabel을 다시 돌려 판정을 복제하지 않게 하려고 서버가 실어 보낸다 (O-4).
+   */
+  categorySource: CategorySource | null;
+  /**
+   * 이 행에 기여한 **원본 시트 행별** 라벨·판정 근거 (S-8 합산이면 여러 개, 행 번호 오름차순).
+   * 마법사 Step 4가 원본 행 단위로 드롭다운·건너뛰기를 달 때 쓴다.
+   */
+  sourceRows: PreviewSourceRow[];
+  /** I-11 반올림이 섞여 있는가 */
+  rounded: boolean;
+}
+
+/** S-9: 파일에 등장하지 않아 그대로 유지되는 (연차, 비목) */
+export interface UntouchedCategory {
+  yearId: string;
+  yearOrder: number | null;
+  category: BudgetCategory;
+  plannedAmount: number;
+}
+
+/** §9 previewImport의 summary */
+export interface ImportSummary {
+  new: number;
+  overwrite: number;
+  skipped: number;
+  /** 건너뛴 행들의 금액 합 (원) */
+  skippedAmount: number;
+  error: number;
+  /** 반영될 계획액 합 (원) */
+  totalAmount: number;
+  untouchedCategories: UntouchedCategory[];
+}
+
+export interface ImportPreview {
+  rows: PreviewRow[];
+  summary: ImportSummary;
+  /** §7.9.1: 오류가 1건이라도 있으면 반영 불가 */
+  blocked: boolean;
+  /** S-5: yearId에 대응되지 않은 연차 열의 order. 남아 있으면 반영 불가 */
+  unmappedYearOrders: number[];
+}
+
+// ─── §9 Budget Import 액션의 반환 형태 (마법사 §7.9.1이 쓴다) ─
+//
+// 'use server' 파일은 export가 전부 async 함수여야 해서 액션 파일에 타입을 둘 수 없다.
+// 구조 감지 결과는 lib/import의 순수 함수가 만든 형태를 그대로 내린다 — 여기서 다시 정의하면
+// 감지 규칙(S-5·I-10)이 두 곳에 생겨 반드시 어긋난다.
+
+export type { AmountUnit, DetectedStructure, MergeRange, SheetScore };
+
+/** §7.9.1 Step 2: 시트 탭 + 원본 미리보기 그리드 */
+export interface SheetGridPreview {
+  sheetName: string;
+  /** 상위 N행의 **원본**(병합 확장 전) 텍스트. 에러 셀은 원문(`#REF!`)이 그대로 들어온다 */
+  rows: { text: string; isError: boolean }[][];
+  /** 화면이 실제 서식대로 병합을 그리도록 함께 내린다 (표시 범위에 걸치는 것만) */
+  merges: MergeRange[];
+  totalRows: number;
+  totalColumns: number;
+  truncated: boolean;
+}
+
+/** §7.9.1 Step 2 시트 탭 — S-13 추천 점수를 함께 내려 하이라이트 근거를 보여준다 */
+export interface WorkbookSheetInfo extends SheetScore {
+  rowCount: number;
+  columnCount: number;
+}
+
+/** §9 inspectWorkbook */
+export interface InspectWorkbookResult {
+  fileName: string;
+  fileSize: number;
+  fileHash: string;
+  sheets: WorkbookSheetInfo[];
+  /** S-13 추천. **하이라이트일 뿐이고 확정은 사용자가 한다** */
+  recommendedSheet: string | null;
+  grids: SheetGridPreview[];
+  /** 추천 시트의 구조 추정. 시트가 없으면 null */
+  structure: DetectedStructure | null;
+}
+
+/** §9 analyzeSheet의 hints — 사용자가 Step 2·3에서 고친 값. 주면 추정보다 우선한다 */
+export interface AnalyzeSheetHints {
+  headerRow?: number | null;
+  dataStartRow?: number | null;
+  dataEndRow?: number | null;
+  labelColumns?: string[] | null;
+  amountUnit?: AmountUnit | null;
+  /** I-2 ②: 부처 프리셋 키 */
+  ministry?: string | null;
+  /** I-2 ①: 프로파일에 학습된 별칭 */
+  categoryAliases?: Record<string, BudgetCategory> | null;
+  /** I-5: 비우면 공통 SKIP_ROW_PATTERNS를 쓴다 */
+  skipRowPatterns?: string[] | null;
+}
+
+/** §7.9.1 Step 3 좌측 목록 — 열 문자 + 헤더 텍스트 + 샘플값 3개 */
+export interface SheetColumnInfo {
+  column: string;
+  columnIndex: number;
+  headerText: string;
+  samples: string[];
+}
+
+/** §9 analyzeSheet */
+export interface AnalyzeSheetResult {
+  fileHash: string;
+  structure: DetectedStructure;
+  columns: SheetColumnInfo[];
+  grid: SheetGridPreview;
+}
+
+/** §9 previewImport → { rows, summary, fileHash } + 마법사가 쓰는 부가 정보 */
+export interface PreviewImportResult extends ImportPreview {
+  fileHash: string;
+  fileName: string;
+  sheetName: string;
+  /**
+   * I-7 학습 후보 — 사용자가 수동 지정한 (원본 라벨 → 비목).
+   * 프로파일 저장 시 `categoryAliases`에 병합한다. **I-6 모호 별칭의 선택은 담기지 않는다**
+   * (§7.9.1 Step 4).
+   */
+  learnedAliases: Record<string, BudgetCategory>;
+}
+
+/** §9 commitImport */
+export interface CommitImportResult {
+  /** I-17 반영 직전 계획액 스냅샷 */
+  snapshotId: string;
+  /** 실제로 쓴 (연차, 비목) 셀 수 */
+  updated: number;
+  summary: ImportSummary;
+  /**
+   * 프로파일 사용 이력(`lastUsedAt`/`useCount`) 갱신 성공 여부.
+   * 반영은 이미 커밋되어 되돌릴 수 없으므로 이 갱신 실패로 전체를 실패시키지 않는다 —
+   * 대신 조용히 삼키지 않고 여기에 드러낸다 (절대 규칙 5).
+   */
+  profileUsageRecorded: boolean;
 }
 
 // ─── §5.13 Risk (리스크 관리대장) ────────────────────────────

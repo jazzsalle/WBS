@@ -12,7 +12,8 @@ export interface ModalProps {
   onClose: () => void;
   /** 배경 클릭으로 닫을지. 폼 모달은 false를 준다 */
   closeOnBackdrop?: boolean;
-  size?: 'md' | 'lg';
+  /** xl은 표·그리드를 담는 마법사용 (§7.9.1 엑셀 가져오기) */
+  size?: 'md' | 'lg' | 'xl';
   footer?: ReactNode;
   children: ReactNode;
 }
@@ -20,6 +21,7 @@ export interface ModalProps {
 const SIZE_CLASSES = {
   md: 'max-w-md',
   lg: 'max-w-2xl',
+  xl: 'max-w-6xl',
 } as const;
 
 export default function Modal({

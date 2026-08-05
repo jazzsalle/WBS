@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 import type { MeasureMethod, TechTargetRecord } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import { MEASURE_METHOD_LABELS } from '@/lib/constants';
+import { todayISO } from '@/lib/dates';
 import { addTechRecord, updateTechRecord } from '@/actions/goals';
 import Button from '@/components/ui/Button';
 import ErrorBanner from '@/components/ui/ErrorBanner';
@@ -54,12 +55,16 @@ export interface TechRecordFormProps {
   onCancel: () => void;
 }
 
-/** 오늘 날짜(YYYY-MM-DD). 이 폼은 사용자가 [측정값 추가]를 누른 뒤에만 마운트되므로 SSR/하이드레이션 차이가 없다 */
+/**
+ * 측정일 기본값(YYYY-MM-DD). 이 폼은 사용자가 [측정값 추가]를 누른 뒤에만 마운트되므로
+ * SSR/하이드레이션 차이가 없다.
+ *
+ * 로컬 달력이 아니라 **Asia/Seoul 달력**으로 찍는다 (§6.5, todayISO). 로컬 기준으로 만들면
+ * 다른 타임존 PC에서 같은 순간에 하루 어긋난 측정일이 저장되고, 그 날짜로 연차 귀속과
+ * 최신 측정값 판정(§6.3)이 갈린다.
+ */
 function today(): string {
-  const now = new Date();
-  const month = `${now.getMonth() + 1}`.padStart(2, '0');
-  const day = `${now.getDate()}`.padStart(2, '0');
-  return `${now.getFullYear()}-${month}-${day}`;
+  return todayISO(new Date());
 }
 
 // §5.9 측정치는 소수·음수가 정상이다 — 자릿수를 임의로 자르지 않고 입력창에 그대로 싣는다

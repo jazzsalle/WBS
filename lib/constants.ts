@@ -341,8 +341,21 @@ export const MINISTRY_ALIAS_PRESETS: Record<string, Record<string, BudgetCategor
 
 // 현금/현물 축 라벨 — 스킵도 비목도 아니다. 금액의 귀속 축만 결정한다 (S-4)
 // 스킵 목록에 넣으면 현물 행의 금액이 통째로 유실되므로 반드시 분리해 둔다
-export const CASH_INKIND_LABELS = ['현금', '현물', '현금액', '현물액', '일반', '통합관리'];
-// '일반'/'통합관리'는 학생인건비의 세부 축 — 금액은 합산해 plannedAmount로
+export type BudgetAxis = 'cash' | 'inKind' | 'unassigned';
+
+// 축 라벨 → 귀속 축. '일반'/'통합관리'는 학생인건비의 세부 축이라 현금/현물 어느 쪽도 아니다
+// — 'unassigned'로 모아 plannedAmount에만 합산한다 (cashAmount/inKindAmount는 null 유지).
+// 규칙을 주석이 아니라 상수로 둬야 구현이 임의로 현금에 몰아넣는 것을 막는다.
+export const CASH_INKIND_AXIS: Record<string, BudgetAxis> = {
+  '현금': 'cash',
+  '현금액': 'cash',
+  '현물': 'inKind',
+  '현물액': 'inKind',
+  '일반': 'unassigned',
+  '통합관리': 'unassigned',
+};
+
+export const CASH_INKIND_LABELS = Object.keys(CASH_INKIND_AXIS);
 
 // 집계·메모 행 — 비목으로 인식하지 않고 건너뛴다 (정규화 후 비교)
 export const SKIP_ROW_PATTERNS = [

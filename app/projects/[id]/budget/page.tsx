@@ -6,6 +6,7 @@
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/actions/auth';
 import { getBudgetMatrix } from '@/actions/budget';
+import { listImportProfiles } from '@/actions/import';
 import type { ActionResult, BudgetItem } from '@/types';
 import { requireApprovedUser } from '@/lib/auth/guard';
 import * as budgetItemsRepo from '@/lib/db/budget-items';
@@ -49,9 +50,12 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
   // 미들웨어가 이미 거르지만, 세션 만료 직후 직접 접근을 방어한다 (A-4)
   if (!me.ok) redirect('/login');
 
-  const [matrix, items] = await Promise.all([
+  const [matrix, items, profiles] = await Promise.all([
     getBudgetMatrix(projectId),
     loadBudgetItems(projectId),
+    // §7.9.1 Step 1: 저장된 프로파일 목록. 실패해도 매트릭스는 보여야 하므로 화면을 막지 않고
+    // 마법사 안에서 이유를 드러낸다 (절대 규칙 5 — 조용히 빈 목록으로 대체하지 않는다)
+    listImportProfiles('budget_plan', projectId),
   ]);
 
   // 절대 규칙 5: 빈 매트릭스로 대체하면 예산이 0원인 것처럼 보이고, 그 화면에서 저장하면
@@ -77,7 +81,12 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
 
       <h1 className="mb-6 text-xl font-bold">연구비</h1>
 
-      <BudgetScreen data={matrix.data} items={items.data} />
+      <BudgetScreen
+        data={matrix.data}
+        items={items.data}
+        importProfiles={profiles.ok ? profiles.data : []}
+        importProfilesError={profiles.ok ? null : profiles.error}
+      />
     </main>
   );
 }

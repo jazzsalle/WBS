@@ -1,10 +1,10 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
-2026-08-02 (Phase 5 완료 — 이 세션 종료)
+2026-08-05 (Phase 5.5 완료 — 집 PC 세션)
 
 ## Current goal
-Phase 5.5 (엑셀 임포트: 파싱 파이프라인, 5단계 마법사, 프로파일, 스냅샷) — SOT §6.8, §7.9.1, 부록 C
+Phase 6 (리스크 + 노트: 리스크 대장·매트릭스, 마크다운 노트) — SOT §5.13~5.14, §7.11~7.12
 
 ## Done this session
 - **Phase 0 완료** (evaluator PASS 12/12, 커밋 07fa94a) — 스키마 25종+RLS+RPC, 리포지토리 16종, 테스트 48건
@@ -51,16 +51,41 @@ Phase 5.5 (엑셀 임포트: 파싱 파이프라인, 5단계 마법사, 프로�
   - 연구비 화면 — 12행 매트릭스(직접비/간접비 구분), 총액 인라인 편집, 집행 내역 패널(추가/수정/삭제), 하단 요약행(합계·집행률·잔액), B-1 경고 아이콘·B-2 빨강·B-3 배지, [엑셀 가져오기] 비활성(Phase 5.5 안내)
 - SOT 보강 11건 (누적): …(이전 8건) + **§5.12 `BudgetExecution.version` 추가**(집행 편집도 O-1 대상), **§5.12 `amount` 0 이상 정수 명시**(실무에서 음수 없음 — 사용자 확인, 환불·감액은 원래 행 수정), **§9 `updateExecution`에 `expectedVersion?` 명기**
 
+- **Phase 5.5 완료** (evaluator **PASS** — 비차단 지적 2건(문서 드리프트)은 즉시 반영, 테스트 843건) — 엑셀 예산계획 임포트. **SOT를 v3.3 → v3.4로 먼저 고치고 구현했다.**
+  - **착수 전에 실측 샘플 2종을 프로토타입으로 직접 파싱해 SOT 규칙 공백 7건을 찾았다.** 머리로 검토했으면 전부 놓쳤을 것들이다:
+    - **S-2'** carry-forward는 **판정에 성공한 라벨만** 승계 — 행안부 B열 세로쓰기 `직`/`접`/`비`가 아래 행으로 번져 **미매핑 3건**을 만들어냈다. S-7의 "우측 우선 매칭으로 자연히 무시된다"는 우측에 매칭될 라벨이 있을 때만 성립한다
+    - **I-1 정규화 순서** 확정 — 각주 마커 `숫자)` 제거를 **괄호 제거보다 먼저**. `총 인건비1) (E=A+B+C+D)`의 `1)`은 짝 없는 닫는 괄호라, 순서가 뒤면 `총인건비1`이 남아 스킵되지 않고 **집계 행이 비목으로 반영**된다
+    - **S-10** 정규화 후 빈 라벨 행의 분기(축 라벨이 있으면 직전 비목 승계) — 행안부 `연구재료비`/`(G)` 2행 분절에서 **현물 금액이 통째로 유실**되던 공백
+    - **S-11** 병합 범위를 carry-forward보다 **먼저** 확장 — 산자부 `C16:E16` 가로 병합 메모가 위 행의 `현물` 축을 물려받아 **메모 행이 금액 행으로 둔갑**하던 문제
+    - **S-12** 라벨 판정을 우→좌 스캔 + 첫 판정 채택으로 알고리즘화. 라벨 없이 금액만 있는 행은 `건너뜀(라벨 없음)`으로 미리보기에 남긴다
+    - **S-13** 시트 추천을 비목 매칭 **행 수 → 행 비율**로 교체 — 워크북에 연차별 산출근거 시트(240~250행)가 같이 들어 있어 **행 수로 매기면 두 파일 모두 총괄표가 아닌 시트를 추천**했다 (산자부 0.655 vs 0.139, 행안부 0.379 vs 0.135)
+    - **`CASH_INKIND_AXIS`**(부록 C) — `일반`/`통합관리`가 `unassigned`(plannedAmount에만 합산)라는 규칙이 주석에만 있어 구현이 임의로 현금에 몰아넣을 수 있었다. 상수로 승격
+  - **부록 B.6 신설** — 실측 2종의 1차년도 기대 파싱값 + 구조 자동 감지 기대 동작. 통합 테스트 기준값
+  - `lib/import/` 순수 함수 9모듈(xlsx 무의존) — normalize·categorize·amount·grid·structure·matrix·preview. 부록 B.5 10행 시나리오를 픽스처로 그대로 통과
+  - `lib/import-adapter.ts` — SheetJS → `RawSheet` 어댑터. `import 'server-only'`로 I-13을 컴파일 타임에 못 박음
+  - `commit_import`/`restore_import_snapshot` RPC(security invoker) + `lib/db/import-snapshots.ts`. 단일 트랜잭션·과제 경계 검증·I-17 스냅샷(과제별 20개 창)
+  - `actions/import.ts` — `runImportPipeline`이 preview·commit의 **유일한** 파싱 경로다(§9: 미리보기와 반영이 달라선 안 된다). `fileHash` 대조, `blocked` 재계산 금지
+  - `components/budget/import/` 5단계 마법사 + 툴바 [엑셀 가져오기] 활성화
+  - **결과: 실측 2종 모두 미매핑 0건.** 파싱 결과의 직접비 합·총액이 원본 `직접비 소계`·`연구개발비 총액` 행과 **원 단위까지 일치**(산자부 296,510,000 / 298,510,000, 행안부 133,340,000 / 133,340,000)
+  - SOT 보강 (누적 11 → **20건**): 위 7건 + I-17 보강(20개 창은 과제별·복원은 스냅샷을 만들지 않고 행을 지우지 않음) + §7.9.1 Step 5 `신규`/`덮어씀` 판정 기준(행 존재가 아니라 **값의 존재**) + Step 4 아이콘 근거를 서버가 싣는다 + 계약 공백 4건(`yearMapping` 키 = 엑셀 열 문자 / `commitImport`의 `profileId`는 별도 인자 / `orientation='column'` 명시적 거부 / `ImportProfile`에 데이터 끝 행을 저장하지 않는 이유) + 부록 B.5 표 열 문자 정정 + §10 디렉터리 구조 갱신
+
+- **후속 정리 2건** (PROGRESS 대기 목록에서 처리):
+  - `TechRecordForm.tsx` 측정일 기본값을 로컬 `new Date()` → **Asia/Seoul**(`todayISO`). 타임존이 다른 PC에서 하루 어긋난 측정일이 저장되던 문제
+  - **테스트 중단 시 dev DB 잔여물 자동 청소** — `tests/global-setup.ts`(실행 1회). `wbs-test+%` 중 2시간 이상 경과분만. **삭제 순서가 핵심**: 사용자를 지우기 전에 소유 행을 먼저 지운다(auth.users를 먼저 지우면 `created_by`가 set null이 되어 그때부터 실데이터와 구분 불가). 3시간 전으로 백데이트한 가짜 잔여물을 심어 감지·삭제·로그를 실제로 확인
+
 ## In progress
 없음
 
 ## Next steps
-1. `/phase-run 5.5` — 엑셀 임포트: `lib/import/` 순수 함수(부록 B.5 시나리오), 5단계 마법사, 프로파일, `import_snapshots`. **실제 샘플 2종(`samples/`)의 총괄표가 미매핑 0건으로 미리보기까지 도달**해야 한다
-2. **후속 정리 (블로킹 아님)**:
-   - `getBudgetMatrix`가 집계만 반환해 화면이 `listBudgetItemsByProject`로 원본 행(itemId·version·cash/inKind null 여부·executions)을 한 번 더 조회한다. `BudgetMatrixData`에 `items` 추가로 흡수 권장 (`app/projects/[id]/budget/page.tsx:34` 주석에 명시)
-   - **테스트 중단 시 dev DB 잔여물이 남는다** — 오늘 2시간 전 중단된 `team-actions` 실행의 테스트 사용자·과제 2건을 수동 정리했다. 테스트 시작 시 오래된 `wbs-test+%` 잔여물을 먼저 청소하는 장치를 넣으면 재발하지 않는다
+1. `/phase-run 6` — 리스크 + 노트: 리스크 대장·5×5 매트릭스(`lib/risk.ts`는 Phase 4에서 이미 만들어 테스트 67건 통과), 마크다운 노트 + 회의록 템플릿 + Task/Milestone 연결 역참조
+2. **Phase 5.5 후속 (블로킹 아님)**:
+   - **`restore_import_snapshot`을 감싸는 서버 액션이 없다.** RPC와 리포지토리는 있고 통합 테스트도 리포지토리를 직접 부른다. §7.14 설정 화면(Phase 8)에서 액션을 만들 때 `tests/integration/import-actions.test.ts`의 복원 부분도 액션 경유로 바꿀 것
+   - CSV는 SheetJS가 UTF-8로 가정한다 — **CP949 CSV는 깨진다.** 실측 서식이 전부 xlsx라 v1에서는 두었다
+   - `orientation === 'column'`(전치 서식)은 명시적 거부 상태다. 실제로 그런 서식이 오면 `parseMatrix` 확장 필요
+3. **후속 정리 (블로킹 아님)**:
+   - `getBudgetMatrix`가 집계만 반환해 화면이 `listBudgetItemsByProject`로 원본 행(itemId·version·cash/inKind null 여부·executions)을 한 번 더 조회한다. `BudgetMatrixData`에 `items` 추가로 흡수 권장 (`app/projects/[id]/budget/page.tsx` 주석에 명시)
    - `listBudgetItemsByProject`의 **부모** 조회는 무페이징 — 연차 84개 초과 과제에서 같은 절단이 발생한다(현실 규모에선 도달 안 함)
-3. 미뤄둔 것: HR API 연동(hr.unes.kr 직원 명부 — SOT 추가 후 별도 진행), 단일 과제 조회 액션(`getProject(id)`), `components/goals/TechRecordForm.tsx`의 측정일 기본값이 로컬 `new Date()` — Asia/Seoul 기준으로 통일 권장
+4. 미뤄둔 것: HR API 연동(hr.unes.kr 직원 명부 — SOT 추가 후 별도 진행), 단일 과제 조회 액션(`getProject(id)`)
 3. Phase 1 후속 개선(블로킹 아님): ① 인라인 이름 편집 중 Enter 연타 시 in-flight 재입력이 제출값으로 되돌아감 ② 자기 저장에 대한 가짜 STALE 배너(`disabled={saving}` 가드) ③ `bulkUpdateTasks` 부분 반영(트랜잭션 RPC화 검토)
 4. 남은 관찰 항목(블로킹 아님): `tests/integration/wbs-queries.test.ts`는 팀 공유 설정 `app_settings.progress_weight_basis`를 잠시 바꿨다 되돌린다. 데이터를 지우지 않아 기본 실행에 두었지만, **두 PC에서 `npm test`를 동시에 돌리면** 서로의 임시값을 원본으로 착각해 설정이 어긋날 수 있다. 테스트는 한 번에 한 PC에서만 돌린다
 
@@ -73,6 +98,17 @@ Phase 5.5 (엑셀 임포트: 파싱 파이프라인, 5단계 마법사, 프로�
 - Phase 1: ① 두 세션 동시 수정 시 STALE 비교 UI·입력 보존 ② 드래그 이동·Tab/Shift+Tab·깊이 10 초과 거절 문구 ③ 편집 중 R-4 배너 동작
 - Phase 4: ① `/projects/[id]/milestones` 실화면 CRUD·상태 인라인 변경·결과 메모 ② 연차 생성 시 기본 마일스톤 체크박스(종료일 없으면 비활성) ③ `/` 대시보드 6개 영역 실렌더
 - Phase 5: ① 셀 인라인 편집(Enter/Esc/blur)·잠금 셀 안내 ② 셀 클릭 → 집행 패널 → 추가/수정/삭제 후 매트릭스 갱신 ③ B-2 빨강·B-3 배지 실렌더 ④ STALE 시 ConflictDialog 입력값 보존
+- **Phase 5.5 (마법사는 자동 검증이 안 되는 부분이 많다 — 실제 브라우저로 확인할 것)**:
+  ① 툴바 [엑셀 가져오기] → 모달. Esc/×/취소로 닫으면 상태 폐기(다시 열면 Step 1부터)
+  ② 10MB 초과 파일·`.pdf`를 올리면 **업로드 전에** 이유와 함께 거부
+  ③ 실측 총괄표 업로드 → Step 2에서 `유엔이_총괄표`가 ★와 S-13 점수로 하이라이트. 헤더 행 클릭 지정 시 연차·라벨 열 재감지
+  ④ 병합 셀이 그리드에 실제로 병합되어 보인다(행안부 `연구재료비`/`(G)`, 산자부 `C16:E16`)
+  ⑤ Step 2→3 진행이 **금액 단위 확인 체크박스**로 막힌다 (I-10: 1000배 오류는 치명적이라 자동 확정 금지)
+  ⑥ Step 3: 자동 추정 연차 드롭다운은 회색, 사용자가 바꾸면 파랑. 하나라도 `미지정`이면 다음 버튼 비활성 + S-5 사유 표시
+  ⑦ Step 4 아이콘(✅/🔵/⚠️/❌)이 실제 파일에서 기대대로. 미매핑에 비목 지정 시 ❌ 해제, 건너뛰기로 행 제외
+  ⑧ Step 5: `#REF!` 셀이 빨강 오류 행이 되고 반영 버튼 비활성 → 그 행을 건너뛰면 활성화. 덮어씀 행에 `기존 → 신규` 표시
+  ⑨ 반영 → 토스트 + 매트릭스 갱신. 프로파일 저장 후 다시 열어 프로파일 선택 시 Step 4로 직행
+  ⑩ 마법사를 연 채 다른 브라우저에서 예산 셀 수정 → 자동 새로고침 대신 "새 변경 있음" 배너 (R-4)
 - 공통: 두 PC 동일 데이터 조회, 동료 첫 로그인 시 /pending→승인 흐름(두 번째 회사 계정 필요), Tauri 자동 백업 7일 경과 실동작
 
 ## Blockers
@@ -80,6 +116,9 @@ Phase 5.5 (엑셀 임포트: 파싱 파이프라인, 5단계 마법사, 프로�
 
 ## How to run
 - 테스트: `npm test` — 단위(`tests/unit`) + 통합(`tests/integration`). 통합은 실제 dev DB를 쓰고(네트워크 필요) **자기가 만든 데이터만** 지운다. 안전하게 아무 때나 돌려도 된다
+  - 실행 1회 `tests/global-setup.ts`가 **중단된 이전 실행의 잔여물을 먼저 청소**한다(`wbs-test+%` 중 2시간 이상 경과분 + 그 소유 행). 무엇을 몇 건 지웠는지 콘솔에 남긴다
+  - `samples/`가 없으면 실측 검증(`tests/unit/import-samples.test.ts`, `tests/integration/import-actions.test.ts`)이 **안내를 출력하고** 건너뛴다. 조용히 통과하지 않는다
+  - ⚠️ vitest 기본 리포터는 **통과한** 테스트의 `console.log/warn`을 감춘다(`--reporter=verbose`에서만 보인다). 테스트에서 사람이 꼭 봐야 할 안내는 `process.stderr.write`로 쓴다
 - ⚠️ 파괴적 테스트: `npm run test:destructive` — `tests/destructive/`(§8.7 K-7 전체 대체 복원 검증)만 돌린다. **대상 25종 테이블의 전 행을 지웠다 백업 시점으로 되돌린다.** 사람이 명시적으로 부를 때만 실행되며, 시작 전 가드(`tests/destructive/guard.ts`)가 테스트 소유가 아닌 데이터(시드 고정 UUID·`wbs-test+%` 사용자 소유가 아닌 projects/todos/notes/import_profiles 행)를 발견하면 아무것도 건드리지 않고 거부한다
   - **실데이터를 입력하기 시작하면 이 명령을 dev DB에서 돌리지 않는다.** 백업 복원 로직을 고칠 때만 빈 전용 DB에서 실행한다
   - 중단된 테스트의 잔여물도 "남의 데이터"로 보고 거부한다 — 아래 잔여물 정리 후 다시 실행
@@ -92,3 +131,5 @@ Phase 5.5 (엑셀 임포트: 파싱 파이프라인, 5단계 마법사, 프로�
 - 테스트 직결 SQL: `.env.test.local`의 TEST_DATABASE_URL / 앱 키: `.env.local` (+`ALLOWED_EMAIL_DOMAIN=unes.co.kr`)
 - 테스트 중단 시 잔여물: `wbs-test+%` 패턴 사용자를 auth.users에서 직결 삭제 + 남은 테스트 과제(`created_by is null`) 삭제
 - 집 PC 첫 세팅: git pull → npm install → `winget install Rustlang.Rustup` + VS BuildTools → **`.env.local`·`.env.test.local`은 gitignore라 저장소에 없다 — 회사 PC에서 복사해 올 것**
+  - **`samples/`(실제 예산 엑셀)도 gitignore라 저장소에 없다.** 없으면 Phase 5.5 실측 검증이 건너뛰어진다 — 임포트를 건드릴 때는 회사 PC에서 복사해 올 것
+  - `xlsx`(SheetJS)는 npm 레지스트리가 아니라 **공식 CDN 타르볼**에서 받는다(`package.json`에 URL). 레지스트리판은 0.18.5에서 멈춰 있고 취약점 권고가 붙어 있다. **사내망에서 `cdn.sheetjs.com`이 막히면 `npm install`이 실패한다** — 그 경우 사내 미러나 vendoring을 검토할 것
