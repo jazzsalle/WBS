@@ -196,6 +196,10 @@
   - 중단된 테스트의 잔여물도 "남의 데이터"로 보고 거부한다 — 아래 잔여물 정리 후 다시 실행
 - 타입: `npx tsc --noEmit` / 빌드: `npm run build`
 - 개발 서버: `npm run dev` → http://localhost:3000 (로그인 후 /projects)
+  - ⚠️ **dev 서버를 띄운 채로 `npm run build`·`npm run tauri:build`를 돌리지 않는다.** 셋 다 같은 `.next`를 쓴다. 프로덕션 빌드가 dev 서버의 웹팩 캐시(`.next/cache/webpack/client-development/*.pack.gz`)를 덮어써서 `layout.css`가 503으로 떨어지고, **화면이 스타일 없이 뜨면서 버튼의 onClick이 붙지 않는다.** 2026-08-07 세션에서 "로그인 페이지가 망가졌다"로 나타났는데 코드는 멀쩡했다
+  - 빌드가 필요하면 **dev 서버를 먼저 멈춘다.** 빌드 후 화면을 다시 봐야 하면 `.next`를 지우고 새로 띄운다 — 프로덕션 산출물이 섞인 `.next` 위에서 dev를 재개하면 증상이 남는다. Tauri 사이드카는 `src-tauri/resources/`에 복사된 뒤라 `.next` 삭제와 무관하다
+  - 증상이 보이면 코드부터 뒤지지 말고 **CSS 응답 코드를 먼저 본다**(503/404면 이 문제다)
+  - ⚠️ **`npm test` 전체 실행은 dev DB의 시드 과제(`aaaa0000-…-0001`)를 지운다** — `repos-hierarchy`/`rls-approval`/`wbs-queries`가 `applySeed` 후 `removeSeed`를 하기 때문이며 결함이 아니다. 화면으로 검증하는 중이었다면 `supabase/seed.sql`을 다시 적용할 것
 - Tauri: `npm run tauri:dev` (Rust 필요) / 빌드: `npm run tauri:build`
 - DB 마이그레이션: supabase link 불가(CLI 로그인 없음) — 직결:
   `npx supabase db push --db-url "postgresql://postgres.oqdcvdmodnpxmosnuitz:<암호URL인코딩>@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres"`
@@ -203,5 +207,6 @@
 - 테스트 직결 SQL: `.env.test.local`의 TEST_DATABASE_URL / 앱 키: `.env.local` (+`ALLOWED_EMAIL_DOMAIN=unes.co.kr`)
 - 테스트 중단 시 잔여물: `wbs-test+%` 패턴 사용자를 auth.users에서 직결 삭제 + 남은 테스트 과제(`created_by is null`) 삭제
 - 집 PC 첫 세팅: git pull → npm install → `winget install Rustlang.Rustup` + VS BuildTools → **`.env.local`·`.env.test.local`은 gitignore라 저장소에 없다 — 회사 PC에서 복사해 올 것**
+  - **Rust 툴체인은 2026-08-07에 회사 PC에만 설치했다**(cargo 1.97.1 / rustc 1.97.1 / VS Build Tools 2022 VCTools). 집 PC에서 Tauri를 빌드하려면 거기서도 설치해야 한다: `winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override "--quiet --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"` 후 `winget install --id Rustlang.Rustup -e`. 첫 `npm run tauri:build`는 의존 크레이트 전체를 컴파일해 4분 남짓 걸린다(이후엔 증분)
   - **`samples/`(실제 예산 엑셀)도 gitignore라 저장소에 없다.** 없으면 Phase 5.5 실측 검증이 건너뛰어진다 — 임포트를 건드릴 때는 회사 PC에서 복사해 올 것
   - `xlsx`(SheetJS)는 npm 레지스트리가 아니라 **공식 CDN 타르볼**에서 받는다(`package.json`에 URL). 레지스트리판은 0.18.5에서 멈춰 있고 취약점 권고가 붙어 있다. **사내망에서 `cdn.sheetjs.com`이 막히면 `npm install`이 실패한다** — 그 경우 사내 미러나 vendoring을 검토할 것
