@@ -6,7 +6,7 @@ import { z } from 'zod';
 import type { BaseEntity, Todo } from '@/types';
 import { appToDb, dbToApp, dbToAppArray } from './mapper';
 import { todoRowSchema } from './schema';
-import { ConflictError, NotFoundError, StaleDataError, ValidationError } from './errors';
+import { ConflictError, NotFoundError, RuleViolationError, StaleDataError, ValidationError } from './errors';
 
 const TABLE = 'todos';
 
@@ -25,6 +25,13 @@ export type TodoPatch = Partial<Omit<Todo, keyof BaseEntity>> & {
 function throwDbError(error: PostgrestError): never {
   if (error.code === '23505') throw new ConflictError();
   throw error;
+}
+
+// RPC의 raise exception(P0001)은 규칙 위반이다 — 일반 Error로 뭉개면 UI가 안내를 못 한다.
+// reorder_todos의 거부 사유는 사용자에게 그대로 보여줄 문장이다.
+function throwRpcError(error: PostgrestError): never {
+  if (error.code === 'P0001') throw new RuleViolationError(error.message);
+  throwDbError(error);
 }
 
 // DB 응답 검증 실패 = 스키마 드리프트 신호. 조용히 넘기지 않는다 (§8.6, 절대 규칙 5).
@@ -94,6 +101,14 @@ export async function updateTodo(
   const row = (data ?? [])[0];
   if (row === undefined) return throwUpdateMiss(client, id);
   return dbToApp<Todo>(parseRow(todoRowSchema, row));
+}
+
+// X-3: 한 번의 RPC로 0..n-1을 부여한다. To-Do는 전역 목록이라 컨테이너 인자가 없다 (§7.13).
+// T-D10: orderedIds는 필터로 숨겨진 항목까지 포함한 "전체 순서"여야 한다 — 부분 배열을 보내면
+// RPC가 "배열 길이 = 갱신 행 수" 검사에서 거부한다 (20260812000000_todo_rpcs.sql).
+export async function reorderTodos(client: SupabaseClient, orderedIds: string[]): Promise<void> {
+  const { error } = await client.rpc('reorder_todos', { p_ordered_ids: orderedIds });
+  if (error) throwRpcError(error);
 }
 
 export async function removeTodo(client: SupabaseClient, id: string): Promise<void> {

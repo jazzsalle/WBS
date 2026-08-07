@@ -2,10 +2,24 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v3.6** |
-| 최종 수정 | 2026-08-05 |
+| 문서 버전 | **v3.7** |
+| 최종 수정 | 2026-08-07 |
 | 상태 | 확정 (Phase 0 착수 가능) |
 | 목적 | 이 문서는 구현의 유일한 기준점이다. 코드와 문서가 다르면 **문서가 옳다**. |
+
+### v3.6 → v3.7 변경 요약 — Phase 8(To-Do + 설정 + 마감) 착수 전 규칙 공백 메우기
+Phase 8 계획 중 **§7.13이 두 줄뿐이라 구현이 임의로 정해야 하는 지점 4곳**이 드러났다. 사람이 판단해 아래로 확정했다.
+- **§7.13 전면 보강 — T-D1~T-D9 신설**: `오늘` 필터의 정의(`done=false AND dueDate ≤ today`, **지난 마감 포함**), overdue/dueSoon 판정, 정렬 3종의 tie-break와 "마감일 없는 항목은 뒤로", 완료 항목 표시, 드래그 활성 조건. 정의 없이 구현하면 대시보드 "오늘의 To-Do"와 `/todos`의 건수가 **조용히 어긋난다**.
+- **T-D3 — 정의를 한 곳에 둔다**: 판정·정렬을 `lib/todos.ts` 순수 함수로 두고 대시보드가 그것을 쓴다. 대시보드에 이미 있는 정의(`lib/dashboard.ts`)를 그쪽으로 옮기고 재사용한다.
+- **T-D6 — 아카이브 과제 To-Do는 `/todos`에서 감추지 않는다**: 대시보드는 집계 화면이라 아카이브를 제외하지만 `/todos`는 To-Do의 유일한 접근 경로다. 여기서도 감추면 되살릴 방법이 사라진다. 두 화면의 차이는 의도된 것임을 명시.
+- **부록 A.3에 Todo 우선순위 색 3종 추가**: Task의 우선순위 **점수(1~25)** 색과 다른 축이다(To-Do는 점수를 계산하지 않는다). 토큰이 없어 구현이 임의로 고를 수 있었다.
+- **§7.5 접힘 상태 동기화 — 보류를 결정으로 마감**: 저장 위치 3안(localStorage / URL 쿼리 / 설정 테이블)을 놓고 **v1에서는 하지 않기로 확정**. 현행(화면별 로컬 상태) 유지, v2 재검토.
+- **§12에 검증 방법 표 추가**: 목표치만 있고 "어떻게 확인하나"가 없었다. 계산 성능은 Vitest로 5,000 작업 합성 측정, 인쇄·반응형·접근성은 사람이 확인 — **자동 검증을 흉내 내지 않는다**고 못 박았다.
+- **§10 갱신**: `lib/todos.ts` 신설, `components/todos/`·`components/settings/` 실제 파일 목록(`MyProfileForm`, `ImportSnapshotPanel` 추가). **§11 필수 1 순수 함수 목록에 `lib/todos.ts` 편입**.
+- **§7.13 To-Do 소유권 = 팀 공유로 명문화**: "개인 할 일 목록"이라는 표현과 실제 구현(RLS 전원 접근 + 조회에 `created_by` 필터 없음)이 어긋나 있었다. 문서를 실제에 맞추고 **"개인"은 *과제 계층에 안 매인다*는 뜻**임을 밝혔다. 소유자 분리가 필요해지면 조회 레벨에서 하고 **RLS는 건드리지 않는다** — 좁히면 §8.7 K-7 전체 대체 복원이 깨진다.
+- **T-D10 신설**: 필터가 걸린 채 드래그하면 **숨겨진 항목까지 포함한 전체 순서**를 보낸다. 보이는 것만 보내면 필터를 풀 때 순서가 섞이고, RPC가 "배열 길이 = 갱신 행 수" 검사를 못 해 존재하지 않는 id를 조용히 넘기게 된다. T-D9에 **기본 정렬 = `수동`** 추가.
+- **§14.1 배포 산출물을 MSI → NSIS로 정정**: Phase 8에서 처음으로 실제 번들을 만들어 보고 나서 드러난 모순이다. §14.1은 배포 형태를 `.msi`라 적었는데, Tauri v2는 MSI에 `installMode`를 지원하지 않아 WiX 산출물이 `InstallScope="perMachine"`이 되고 **관리자 권한을 요구한다** — §12의 "관리자 권한 없이 사용자 폴더에 설치"와 정면으로 어긋난다. NSIS만 `currentUser` + `$LOCALAPPDATA`로 §12를 만족하므로 **배포 산출물은 setup.exe 하나로 못박았다.** 빌드는 여전히 둘 다 내지만 MSI는 공유 폴더에 올리지 않는다.
+- **§12에 인쇄 레이아웃 규칙 P-R1~P-R5 신설**: "A4 인쇄 레이아웃 제공" 한 줄로는 구현이 용지 방향·머리말·흑백 대비를 임의로 정해야 했다. 방향은 **표마다 다르게**(예산 매트릭스·리스크 대장 가로, 기술목표표 세로), 머리말에 과제명·출력일, 색으로만 구분되는 정보는 흑백에서도 읽히게.
 
 ### v3.5 → v3.6 변경 요약 — Phase 7(간트 + 칸반) 구현 반영
 - **§7.5 접힘 상태 동기화 보류 명시**: "접힘 상태를 WBS 화면과 동기화"에 **저장 위치가 없어**(localStorage / URL 쿼리 / 사용자 설정 테이블) 지어내지 않고 보류한다. 셋 다 장단이 뚜렷해 사람이 정할 문제다. 결정 전까지 **화면별 로컬 상태**.
@@ -1127,7 +1141,7 @@ priorityScore = importance × urgency        # 1 ~ 25
 ### 7.5 간트 (`/projects/[id]/gantt`)
 
 - 좌측 고정 패널: 연차 > 작업 트리
-  - ⚠️ **"접힘 상태를 WBS 화면과 동기화"는 저장 위치가 정해지지 않아 v1에서 보류한다.** 선택지: ① 브라우저 `localStorage`(PC마다 다름·서버 왕복 없음) ② URL 쿼리(공유 가능·주소가 길어짐) ③ 사용자 설정 테이블(두 PC 동기화·스키마 추가 필요). 셋 다 장단이 뚜렷해 **사람이 정할 문제다** — 지어내지 않는다. 결정 전까지 접힘 상태는 **화면별 로컬 상태**이고, 간트와 WBS는 각자 접힘을 관리한다.
+  - ✅ **결정(2026-08-07, Phase 8 착수 시): 접힘 상태 동기화는 v1에서 하지 않는다.** 저장 위치 선택지 ① `localStorage` ② URL 쿼리 ③ 사용자 설정 테이블을 놓고 사람이 판단한 결과, 셋 다 v1이 감당할 값어치가 없다고 보고 **현행(화면별 로컬 상태)을 유지**한다. 간트와 WBS는 각자 접힘을 관리하고 새로고침하면 초기화된다. v2에서 다시 볼 항목이다.
 - 우측 시간축: 일/주/월 스케일 전환
 - 막대 안에 진척률 채움
 - 부모 Task는 얇은 요약 막대(양끝 캡)
@@ -1271,7 +1285,36 @@ priorityScore = importance × urgency        # 1 ~ 25
 - 저장은 명시적 저장 버튼 + 3초 디바운스 자동 저장 병행
 
 ### 7.13 To-Do (`/todos`)
-v1과 동일. 단일 리스트, 체크박스, 필터(전체/미완료/오늘/과제별), 정렬(수동·마감일·우선순위), 한 줄 빠른 추가.
+
+과제 계층에 매이지 않는 할 일 목록이다. **진척률·달성률 계산에 절대 포함되지 않는다**(§5.15).
+
+> **소유권: 팀 공유다.** "개인 할 일"이라는 표현은 *과제 계층에 매이지 않는다*는 뜻이지 *나만 본다*는 뜻이 아니다. `todos`의 RLS는 다른 테이블과 같은 `approved users full access`이고(§8.2 RLS-1) 조회에 `created_by` 필터가 없다 — **승인된 사용자 전원이 서로의 To-Do를 보고 고칠 수 있다.** 6명짜리 팀에서는 서로의 할 일이 보이는 편이 유용하다고 판단했다(2026-08-07 결정). 소유자별 분리가 필요해지면 조회 레벨 필터로 하고 **RLS는 건드리지 않는다** — RLS를 좁히면 §8.7 백업·복원(K-7 전 행 대체)이 깨진다.
+
+- 단일 리스트. 상단에 **한 줄 빠른 추가**(제목만 입력 → Enter). 추가한 뒤 행에서 마감일·우선순위·과제를 붙인다
+- 행 구성: 체크박스, 제목(인라인 편집), 과제 링크, 마감일, D-day 뱃지, 우선순위 뱃지, 삭제
+- 필터: **전체 / 미완료 / 오늘 / 과제별**
+- 정렬: **수동(드래그) · 마감일 · 우선순위**
+
+**필터·판정 규칙 (T-D)** — 기준일은 §6.5와 같은 **Asia/Seoul 달력 오늘**(`lib/dates.ts`의 `todayISO(now)`)이다. 서버 컴포넌트가 한 번 계산해 prop으로 내리고, 클라이언트 컴포넌트는 오늘을 스스로 만들지 않는다.
+
+| ID | 규칙 |
+|---|---|
+| T-D1 | `전체` = 모든 To-Do. `미완료` = `done=false`. 화면 진입 시 **기본 필터는 `미완료`** |
+| T-D2 | `오늘` = `done=false AND dueDate != null AND dueDate ≤ today`. **지난 마감을 포함한다** — 대시보드 "오늘의 To-Do"(§7.2 6)와 같은 정의다 |
+| T-D3 | 판정·정렬은 **`lib/todos.ts` 순수 함수 한 곳**에 두고 `/todos` 화면과 대시보드가 **같은 함수**를 쓴다. 정의가 두 벌이 되면 두 화면의 건수가 조용히 어긋난다 |
+| T-D4 | `overdue` = `done=false AND dueDate < today` → 빨강. `dueSoon` = `done=false AND 0 ≤ dueDate - today ≤ dueSoonDays` → 주황. §6.5 Task 판정과 같은 형태이나 `status`가 아니라 `done`을 본다 |
+| T-D5 | `과제별` 필터는 `projectId` 하나를 고른다. **`(과제 없음)`**(`projectId=null`)도 고를 수 있는 값이다 |
+| T-D6 | **`/todos`는 아카이브 과제의 To-Do도 감추지 않는다.** 대시보드는 집계 화면이라 아카이브를 제외하지만(§7.2), `/todos`는 To-Do의 유일한 접근 경로다 — 여기서 감추면 되살릴 방법이 없어진다. 이 차이는 의도된 것이다 |
+| T-D7 | 정렬 `마감일` = 마감일 오름차순 → 우선순위 → `order` → id. **마감일 없는 항목은 목록 뒤로** 보낸다(빼지 않는다). 정렬 `우선순위` = high → normal → low → 마감일 → `order` → id |
+| T-D8 | 완료 항목은 `미완료`·`오늘`에서 사라지고 `전체`에서는 취소선 + 흐린 스타일로 남는다. `completedAt`은 `toggleTodo`가 채우고 해제 시 `null`로 되돌린다 |
+| T-D9 | 수동 정렬 드래그는 **정렬이 `수동`일 때만** 활성이다. 마감일·우선순위 정렬 중에는 드래그해도 결과가 보이지 않으므로 비활성 + 안내 문구. 화면 진입 시 **기본 정렬은 `수동`** |
+| T-D10 | 필터가 걸린 채로 드래그하면, 화면은 **숨겨진 항목까지 포함한 전체 순서를 재계산해** `reorderTodos`에 보낸다. 보이는 것만 보내면 필터를 풀었을 때 순서가 섞인다. 이 덕분에 `reorder_todos` RPC는 **배열 길이 = 갱신 행 수**를 엄격히 검사할 수 있고, 존재하지 않는 id·중복을 조용히 넘기지 않는다 |
+
+- 우선순위 색: `high` 빨강 · `normal` 파랑 · `low` 회색 (부록 A.3). Task의 우선순위 **점수(1~25)** 색과는 다른 축이다 — To-Do는 점수를 계산하지 않는다
+- 체크박스 토글은 §8.4 **O-2**(사용자가 만진 필드가 1개인 갱신)로 낙관적 잠금을 생략한다. 제목·마감일·우선순위·과제 편집은 **O-1 대상**
+- 순서 변경은 `reorderTodos(orderedIds)` RPC 한 번(X-3). To-Do는 컨테이너가 없는 **전역** 목록이라 다른 reorder와 달리 `projectId`를 받지 않는다
+- 과제 삭제 시 To-Do는 남는다(`todos.project_id`는 cascade가 아니라 `set null`, N-8)
+- 실시간: `todos` 구독(§8.5)
 
 ### 7.14 설정 (`/settings`)
 
@@ -1586,6 +1629,11 @@ createImportProfile(input)
 updateImportProfile(id, patch)
 deleteImportProfile(id)
 listImportProfiles(kind, projectId)            // kind는 v2의 'execution' 부활 대비 인자. v1은 항상 'budget_plan'
+
+listImportSnapshots(projectId)                 // §7.14 설정 화면 목록. 최신순. 과제별 최근 20개만 존재한다 (I-17)
+restoreImportSnapshot(snapshotId)              // 스냅샷 시점의 계획액으로 되돌린다. 단일 RPC 트랜잭션.
+   // I-17: 복원은 **새 스냅샷을 만들지 않고 행을 삭제하지도 않는다**
+   // (임포트 시점에 없던 행은 0/null/null로 되돌릴 뿐이다)
 ```
 
 > `previewImport`와 `commitImport`는 **같은 파싱 함수와 같은 `ImportDraft`를 공유**한다. 미리보기에서 본 것과 반영되는 것이 다르면 안 된다. 파일은 두 번 업로드되지만(스테이트리스 유지), `fileHash` 대조로 동일 파일임이 보장되고 결과는 결정론적으로 동일하다.
@@ -1687,10 +1735,13 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 │   ├── backup.ts     exportAll, importAll (§8.7)
 │   └── import.ts     inspectWorkbook ~ commitImport (§9 Budget Import)
 ├── components/
-│   ├── ui/            버튼, 배지, 모달, 진행바, 게이지, 인라인편집 셀,
-│   │                  Matrix5x5(§7.6 우선순위 · §7.11 리스크가 공유하는 5×5 히트맵)
+│   ├── ui/            Button, Badge, Modal, ProgressBar, ConflictDialog(O-3), ErrorBanner,
+│   │                  Matrix5x5(§7.6 우선순위 · §7.11 리스크가 공유하는 5×5 히트맵),
+│   │                  priorityTone.ts(부록 A.3 Todo 우선순위 색 — /todos와 대시보드 공용)
+│   ├── print/         PrintHeader(§12 P-R1 @page 방향 주입 + P-R3 머리말), tokens.ts(표 인쇄 클래스)
 │   ├── auth/          LoginScreen, PendingScreen, OnboardingModal (§7.0)
-│   ├── settings/      SettingsForm, UserManagement, BackupPanel (§7.14)
+│   ├── settings/      SettingsForm(팀 설정), UserManagement, MyProfileForm,
+│   │                  BackupPanel, ImportSnapshotPanel(I-17 목록·복원) (§7.14)
 │   ├── dashboard/
 │   ├── project/       OverviewPanel, StageYearTimeline, TabNav
 │   ├── wbs/           TreeTable, TreeRow, TaskDetailPanel, YearSelector
@@ -1708,7 +1759,7 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 │   │                  severity.ts(부록 A.3 색상 토큰 → Tailwind 클래스 매핑)
 │   ├── notes/         NoteScreen, NoteList, MarkdownEditor, MarkdownViewer,
 │   │                  LinkedNoteList(§7.12 역참조 — Task·Milestone 화면이 쓴다)
-│   └── todos/
+│   └── todos/         TodoScreen, TodoQuickAdd, TodoList, TodoRow, TodoFilters
 ├── lib/
 │   ├── db/                             §8.6 리포지토리 레이어
 │   ├── tree.ts                         buildTree, flatten, 순환검사, WBS코드
@@ -1734,6 +1785,8 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 │   ├── notes.ts                        §7.12 마크다운 파싱(→AST)·URL 안전 판정·
 │   │                                   정렬/필터/검색·회의록 템플릿. ★ HTML 문자열을
 │   │                                   만들지 않는다 — 뷰어가 AST를 React 엘리먼트로 옮긴다
+│   ├── todos.ts                        §7.13 T-D 필터·정렬·지연 판정.
+│   │                                   ★ /todos 화면과 대시보드가 같은 함수를 쓴다(T-D3)
 │   ├── dates.ts                        마감 판정, 간트 좌표
 │   ├── format.ts                       금액·퍼센트 표시 포맷
 │   └── constants.ts                    비목 라벨, 유형 라벨, 색상 맵
@@ -1767,7 +1820,7 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 
 > Phase 5.5는 **실제 엑셀 파일 샘플이 확보된 뒤에** 착수한다. 서식을 모르는 상태로 파서를 만들면 헛수고가 된다. `lib/import/` 전체를 순수 함수로 만들고 샘플 파일 기반 단위 테스트를 작성한다.
 
-> **필수 1**: `lib/tree.ts`, `lib/progress.ts`, `lib/goals.ts`, `lib/budget.ts`, `lib/priority.ts`, `lib/risk.ts`, `lib/dates.ts`는 순수 함수로 만들고 **단위 테스트를 반드시 작성**한다(Vitest). 특히 §6.3 기술목표 달성률은 방향성·baseline 조합에서 실수가 나기 쉽다.
+> **필수 1**: `lib/tree.ts`, `lib/progress.ts`, `lib/goals.ts`, `lib/budget.ts`, `lib/priority.ts`, `lib/risk.ts`, `lib/dates.ts`, `lib/todos.ts`는 순수 함수로 만들고 **단위 테스트를 반드시 작성**한다(Vitest). 특히 §6.3 기술목표 달성률은 방향성·baseline 조합에서 실수가 나기 쉽다.
 >
 > **필수 2**: Phase 0에서 RLS를 켜지 않고 시작하면 나중에 켤 때 전부 깨진다. **처음부터 켜고** 개발한다.
 >
@@ -1795,6 +1848,25 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 | 설치 | 관리자 권한 없이 사용자 폴더에 설치 가능할 것 |
 | 네트워크 단절 | 읽기 전용 배너로 명확히 알리고 쓰기 차단. 무음 실패 금지 |
 | 에러 | 데이터 손상 시 조용히 넘어가지 않고 명시적으로 알림 |
+
+**검증 방법** (Phase 8 마감 시 확인한다):
+
+| 항목 | 어떻게 확인하나 |
+|---|---|
+| 계산 성능 | Vitest 단위 테스트로 **작업 5,000개를 합성해 `computeProgressMap` 왕복 시간을 측정**하고 100ms를 넘으면 실패시킨다. 실행 PC마다 편차가 있으므로 임계값은 **여유를 두되 실패는 실패로 다룬다** — 통과 로그를 남겨 회귀를 눈으로 볼 수 있게 한다 |
+| 인쇄 | 대상 3화면에서 `window.print()` 미리보기를 A4로 띄워 표가 잘리지 않고 헤더가 읽히는지 사람이 확인한다. 자동 검증 대상이 아니다 |
+
+**인쇄 레이아웃 규칙 (P-R)**
+
+| ID | 규칙 |
+|---|---|
+| P-R1 | 용지는 A4, 여백 12mm. **방향은 표마다 다르다** — 예산 매트릭스(12행 × 연차 N열)와 리스크 대장(9컬럼)은 **가로(landscape)**, 기술목표표는 **세로(portrait)**. `@page` 규칙을 화면별로 건다 |
+| P-R2 | 표 헤더(`thead`)는 페이지마다 반복하고, 행(`tr`)은 페이지 경계에서 쪼개지 않는다(`break-inside: avoid`) |
+| P-R3 | 머리말에 **과제명 · 출력일**을 넣는다. 인쇄물만 보고 무엇을 언제 뽑았는지 알 수 없으면 종이로서 쓸모가 없다 |
+| P-R4 | 내비게이션·탭·버튼·실시간 배너·편집 컨트롤은 `print:hidden`. 인쇄물에 UI 잔재를 남기지 않는다 |
+| P-R5 | 색으로만 구분되는 정보(집행률 초과 빨강, 리스크 등급)는 **흑백 출력에서도 읽히게** 글자나 기호를 함께 둔다 |
+| 데이터 규모 | 성능 테스트의 합성 데이터가 이 규모(작업 5,000)를 쓴다. DB 규모 검증은 실사용 축적 후 §14.6 F-5로 감시한다 |
+| 나머지(응답 속도·브라우저·반응형·접근성) | 사람이 실제 화면에서 확인한다. 자동 검증을 흉내 내지 않는다 |
 
 ---
 
@@ -1833,7 +1905,8 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 | 항목 | 내용 |
 |---|---|
 | 대상 OS | Windows 우선. macOS는 여력 되면 |
-| 배포 | 설치 파일(.msi) 또는 포터블 실행 파일. 사내 공유 폴더에 두고 각자 설치 |
+| 배포 | **NSIS 설치 파일(`*_x64-setup.exe`)을 배포한다.** 사내 공유 폴더에 두고 각자 설치 |
+| ⚠️ MSI를 쓰지 않는 이유 | `bundle.targets`가 `["msi","nsis"]`라 빌드하면 **둘 다 나오지만, MSI는 배포하지 않는다.** Tauri v2는 MSI에 `installMode`를 지원하지 않아 WiX 산출물이 구조적으로 `InstallScope="perMachine"`이 되고 **관리자 권한을 요구한다** — §12의 "관리자 권한 없이 사용자 폴더에 설치 가능할 것"을 만족하지 못한다. NSIS만 `installMode: "currentUser"` → `RequestExecutionLevel user` + `$LOCALAPPDATA` 설치로 §12를 만족한다. **두 파일을 함께 공유 폴더에 두면 사용자가 admin이 필요한 쪽을 집는다** — setup.exe만 올린다 |
 | 포트 | 랜덤 할당 후 사이드카에 전달. 고정 포트 금지 |
 | 코드 서명 | v1에서는 하지 않는다. Windows SmartScreen 경고는 감수 |
 | 자동 업데이트 | v1 제외. 공유 폴더의 새 설치 파일로 수동 갱신 |
@@ -2007,6 +2080,9 @@ create policy "approved users full access" on tasks
 | 우선순위 | score 8~14 (높음) | `amber-500` |
 | 우선순위 | score 4~7 (보통) | `slate-500` |
 | 우선순위 | score 1~3 (낮음) | `slate-400` |
+| Todo 우선순위 | `high` | `red` 뱃지 톤 |
+| Todo 우선순위 | `normal` | `blue` 뱃지 톤 |
+| Todo 우선순위 | `low` | `neutral` 뱃지 톤 |
 | Risk | score ≥ 15 | `red-600` |
 | Risk | 8 ≤ score < 15 | `amber-500` |
 | Risk | score < 8 | `emerald-600` |

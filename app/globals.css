@@ -1,1 +1,23 @@
 @import "tailwindcss";
+
+/* ── 인쇄 공통 (SOT §12 P-R1·P-R2) ────────────────────────────────────────────
+   @page는 선택자를 받지 못하는 문서 전역 규칙이라 CSS 파일 안에서 화면별로 방향을
+   나눌 수 없다. 기본을 세로로 깔아 두고, 가로가 필요한 화면(예산 매트릭스·리스크 대장)만
+   components/print/PrintHeader.tsx가 마운트되어 있는 동안 @page를 덧씌운다.
+   여기 기본값이 있어야 그 화면을 벗어났을 때 세로로 되돌아온다. */
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@media print {
+  /* P-R2: 표가 여러 쪽으로 넘어가도 머리행이 매 쪽 다시 나오고, 한 행이 쪽 경계에서 쪼개지지 않는다 */
+  thead {
+    display: table-header-group;
+  }
+
+  tr,
+  caption {
+    break-inside: avoid;
+  }
+}

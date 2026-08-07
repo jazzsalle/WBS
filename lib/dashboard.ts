@@ -4,7 +4,7 @@
 // 계산식을 여기서 다시 쓰지 않는다 — 진척률 §6.1은 lib/progress.ts, 달성률 §6.2·§6.3은
 // lib/goals.ts, 집행률 §6.4는 lib/budget.ts, 마감·임박 판정 §6.5는 lib/dates.ts,
 // 리스크 등급 §6.5는 lib/risk.ts, 우선순위 §6.9는 lib/priority.ts,
-// 트리 구성 §6.6은 lib/tree.ts가 원본이다.
+// 트리 구성 §6.6은 lib/tree.ts, To-Do 필터·정렬 §7.13은 lib/todos.ts가 원본이다.
 // 단위 테스트: tests/unit/dashboard.test.ts
 
 import { buildTaskTree } from './tree';
@@ -14,6 +14,7 @@ import { computeProjectSummary } from './budget';
 import { computePriorityScore, computeUrgency, priorityGrade, type PriorityGrade } from './priority';
 import { daysBetween, formatDday, isOverdueTask, isUpcomingMilestone } from './dates';
 import { needsAttention, riskScore, riskSeverity } from './risk';
+import { filterTodos, sortTodos } from './todos';
 import type {
   BudgetItem,
   Deliverable,
@@ -268,8 +269,6 @@ function kindRank(kind: AttentionKind): number {
   return ATTENTION_KIND_ORDER.indexOf(kind);
 }
 
-const TODO_PRIORITY_ORDER: Record<Todo['priority'], number> = { high: 0, normal: 1, low: 2 };
-
 // ─── 집계 ────────────────────────────────────────────────────
 
 export function computeDashboard(input: DashboardInput): DashboardData {
@@ -452,27 +451,27 @@ export function computeDashboard(input: DashboardInput): DashboardData {
   );
 
   // ─ 오늘의 To-Do (§7.2 6) ─
-  // To-Do는 과제에 매이지 않는다(§5.15) — projectId가 아카이브 과제를 가리킬 때만 뺀다.
-  const todayTodos: TodayTodoItem[] = input.todos
-    .filter((todo) => !todo.done && todo.dueDate !== null)
-    .filter((todo) => daysBetween(today, todo.dueDate!) <= 0) // 오늘 마감 + 지난 마감
-    .filter((todo) => todo.projectId === null || inScope(todo.projectId))
-    .sort(
-      (a, b) =>
-        compareText(a.dueDate!, b.dueDate!) ||
-        TODO_PRIORITY_ORDER[a.priority] - TODO_PRIORITY_ORDER[b.priority] ||
-        a.order - b.order ||
-        compareText(a.id, b.id)
-    )
-    .map((todo) => ({
-      id: todo.id,
-      title: todo.title,
-      dueDate: todo.dueDate!,
-      dday: formatDday(today, todo.dueDate!),
-      priority: todo.priority,
-      projectId: todo.projectId,
-      projectName: todo.projectId === null ? null : (projectNameById.get(todo.projectId) ?? null),
-    }));
+  // T-D3: "오늘"의 정의(미완료 + 마감 ≤ 오늘, 지난 마감 포함)와 마감일 정렬은
+  // lib/todos.ts가 원본이다. 여기서 다시 쓰면 /todos와 건수가 조용히 어긋난다.
+  //
+  // 아카이브 제외만 이쪽에 남긴다 — T-D6: 대시보드는 집계 화면이라 아카이브를 빼지만
+  // /todos는 To-Do의 유일한 접근 경로라 감추지 않는다. 두 화면의 이 차이는 의도된 것이다.
+  // To-Do는 과제에 매이지 않으므로(§5.15) projectId가 아카이브 과제를 가리킬 때만 뺀다.
+  const todayTodos: TodayTodoItem[] = sortTodos(
+    filterTodos(input.todos, { mode: 'today' }, today).filter(
+      (todo) => todo.projectId === null || inScope(todo.projectId)
+    ),
+    'due'
+  ).map((todo) => ({
+    id: todo.id,
+    title: todo.title,
+    // mode='today'가 dueDate != null을 보장한다. 여기서 판정을 다시 쓰지 않으려고 단언만 한다
+    dueDate: todo.dueDate!,
+    dday: formatDday(today, todo.dueDate!),
+    priority: todo.priority,
+    projectId: todo.projectId,
+    projectName: todo.projectId === null ? null : (projectNameById.get(todo.projectId) ?? null),
+  }));
 
   // ─ 지표 카드 (§7.2 1) ─
   const progressSum = projectCards.reduce((sum, card) => sum + card.progress, 0);

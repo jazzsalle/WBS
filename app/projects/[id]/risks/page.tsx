@@ -44,7 +44,8 @@ export default async function RisksPage({ params }: RisksPageProps) {
     <main className={CONTENT_CLASS}>
       <RealtimeRefresher tables={REALTIME_TABLES} selfUserId={me.data.id} />
 
-      <h1 className="mb-6 text-xl font-bold">리스크 관리대장</h1>
+      {/* §12 P-R4: 인쇄 제목은 대장의 인쇄 머리말(과제명 · 출력일)이 대신한다 */}
+      <h1 className="mb-6 text-xl font-bold print:hidden">리스크 관리대장</h1>
 
       <RiskScreen data={risks.data} />
     </main>

@@ -24,11 +24,17 @@ import Button from '@/components/ui/Button';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import Modal from '@/components/ui/Modal';
 import ProgressBar from '@/components/ui/ProgressBar';
+import PrintHeader from '@/components/print/PrintHeader';
+import { PRINT_TABLE, PRINT_TABLE_WRAP, PRINT_TD, PRINT_TH } from '@/components/print/tokens';
 import TechRecordForm from './TechRecordForm';
 import TechTargetFormModal from './TechTargetFormModal';
 
 export interface TechTargetSectionProps {
   projectId: string;
+  /** 인쇄 머리말 (§12 P-R3) */
+  projectName: string;
+  /** 인쇄 출력일 (§12 P-R3). 서버가 만든 오늘을 그대로 쓴다 — new Date() 금지 (§6.5) */
+  todayISO: string;
   views: TechTargetView[];
   summary: GoalsData['techSummary'];
   years: Year[];
@@ -38,8 +44,8 @@ export interface TechTargetSectionProps {
 // 계획서 표 그대로: 평가항목 / 단위 / 비중 / 국내수준 / 세계최고 / 목표치 / 현재 실적 / 달성률 / 측정방법 / 동작
 const COLUMN_COUNT = 10;
 
-const TH_CLASS = 'px-3 py-2 font-medium print:border print:border-slate-500';
-const TD_CLASS = 'px-3 py-2 align-top print:border print:border-slate-400';
+const TH_CLASS = `px-3 py-2 font-medium ${PRINT_TH}`;
+const TD_CLASS = `px-3 py-2 align-top ${PRINT_TD}`;
 
 /** §5.9 측정치는 소수·음수가 정상이다. 자릿수를 임의로 잘라 값이 달라 보이지 않게 한다 */
 function formatNumber(value: number): string {
@@ -175,6 +181,8 @@ function Sparkline({ records, unit }: { records: readonly TechTargetRecord[]; un
 
 export default function TechTargetSection({
   projectId,
+  projectName,
+  todayISO,
   views,
   summary,
   years,
@@ -273,7 +281,16 @@ export default function TechTargetSection({
 
   return (
     <section aria-labelledby="tech-target-section-title" className="print:text-black">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* P-R1 세로 + P-R3 머리말. 계획서 표는 10열이라 A4 세로에 들어간다 */}
+      <PrintHeader
+        title="정량적 기술목표"
+        projectName={projectName}
+        todayISO={todayISO}
+        orientation="portrait"
+      />
+
+      {/* 제목은 인쇄 머리말이 대신한다 — 종이에 같은 줄을 두 번 남기지 않는다 (P-R4) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <h2 id="tech-target-section-title" className="text-base font-bold text-slate-900">
           정량적 기술목표
           <span className="ml-2 text-xs font-normal text-slate-500">{views.length}개 항목</span>
@@ -363,8 +380,8 @@ export default function TechTargetSection({
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white print:overflow-visible print:rounded-none print:border-0">
-        <table className="w-full min-w-[1040px] text-left text-sm print:min-w-0 print:border-collapse print:text-xs">
+      <div className={`mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white ${PRINT_TABLE_WRAP}`}>
+        <table className={`w-full min-w-[1040px] text-left text-sm ${PRINT_TABLE}`}>
           <caption className="hidden px-3 py-2 text-left text-sm font-bold text-slate-900 print:table-caption">
             정량적 기술목표
           </caption>

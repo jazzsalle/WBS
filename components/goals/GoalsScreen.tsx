@@ -69,6 +69,8 @@ export default function GoalsScreen({ projectId, data }: GoalsScreenProps) {
         ) : (
           <TechTargetSection
             projectId={projectId}
+            projectName={data.projectName}
+            todayISO={data.todayISO}
             views={data.techTargets}
             summary={data.techSummary}
             years={data.years}

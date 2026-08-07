@@ -33,8 +33,13 @@ const SECONDARY_TABS: readonly TabDef[] = [
   { segment: '/notes', label: '노트', phase: 6 },
 ] as const;
 
-/** 현재까지 구현된 Phase. 다음 Phase를 마칠 때 이 값을 올린다 (§11) */
-const IMPLEMENTED_THROUGH = 7;
+/**
+ * 현재까지 구현된 Phase. 다음 Phase를 마칠 때 이 값을 올린다 (§11).
+ * Phase 8로 올려도 화면은 그대로다 — 위 탭 10개가 전부 phase ≤ 7이라 비활성 탭이 애초에 없다.
+ * Phase 8 산출물(To-Do·설정)은 과제 밖 라우트라 이 탭 배열에 들어가지 않는다 (§7.1).
+ * 이 값은 "어디까지 구현됐는가"를 코드에 남기는 용도다.
+ */
+const IMPLEMENTED_THROUGH = 8;
 
 const ACTIVE_CLASSES = 'border-slate-900 text-slate-900';
 const INACTIVE_CLASSES = 'border-transparent text-slate-500 hover:text-slate-800';

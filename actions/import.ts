@@ -24,6 +24,7 @@ import type {
   ImportKind,
   ImportPreview,
   ImportProfile,
+  ImportSnapshot,
   InspectWorkbookResult,
   PreviewImportResult,
   SheetColumnInfo,
@@ -34,6 +35,7 @@ import { budgetCategorySchema, importKindSchema } from '@/lib/db/schema';
 import * as budgetItemsRepo from '@/lib/db/budget-items';
 import * as profilesRepo from '@/lib/db/import-profiles';
 import * as snapshotsRepo from '@/lib/db/import-snapshots';
+import type { ImportRestoreResult } from '@/lib/db/import-snapshots';
 import * as yearsRepo from '@/lib/db/years';
 import {
   buildPreview,
@@ -562,6 +564,52 @@ export async function commitImport(
         profileUsageRecorded,
       },
     };
+  } catch (e) {
+    return toActionFailure(e);
+  }
+}
+
+// ─── §7.14 ImportSnapshot 목록·복원 (I-17) ────────────────────────────────────
+
+/**
+ * 설정 화면(§7.14)의 스냅샷 목록. 최신순이고 **과제별** 최근 20개까지만 존재한다 —
+ * 20개 창 유지는 commit_import RPC의 몫이라 여기서 자르지 않는다 (I-17).
+ */
+export async function listImportSnapshots(
+  projectId: string
+): Promise<ActionResult<ImportSnapshot[]>> {
+  try {
+    const pid = parseOrThrow(uuidSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
+    const { client } = await requireApprovedUser();
+
+    const snapshots = await snapshotsRepo.listImportSnapshots(client, pid);
+    return { ok: true, data: snapshots };
+  } catch (e) {
+    return toActionFailure(e);
+  }
+}
+
+/**
+ * 스냅샷 시점의 계획액으로 되돌린다 (I-17·I-18 단일 RPC 트랜잭션).
+ *
+ * I-17: 복원은 **새 스냅샷을 만들지 않고**(복원분이 20개 창을 밀어내면 되돌릴 임포트 이력이
+ * 사라진다) **행을 삭제하지도 않는다**(임포트 이후 그 비목에 붙은 집행 내역이 cascade로 사라진다).
+ *
+ * RPC는 snapshotId와 건수만 돌려주므로 revalidate 대상 과제를 알 수 없다 — 먼저 읽는다
+ * (없으면 NotFoundError. deleteImportProfile과 같은 패턴).
+ */
+export async function restoreImportSnapshot(
+  snapshotId: string
+): Promise<ActionResult<ImportRestoreResult>> {
+  try {
+    const sid = parseOrThrow(uuidSchema, snapshotId, '스냅샷 ID 형식이 올바르지 않습니다.');
+    const { client } = await requireApprovedUser();
+
+    const snapshot = await snapshotsRepo.getImportSnapshotById(client, sid);
+    const restored = await snapshotsRepo.restoreImportSnapshot(client, sid);
+
+    revalidateImport(snapshot.projectId);
+    return { ok: true, data: restored };
   } catch (e) {
     return toActionFailure(e);
   }

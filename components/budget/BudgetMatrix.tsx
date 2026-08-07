@@ -10,14 +10,21 @@
 //  - B-2 cell.over(집행률 100% 초과) → red-600 계열로 표시. 저장은 막지 않는다
 //  - B-3 yearBudgetChecks[yearId].mismatch → 연차 헤더에 경고 배지(title에 차액)
 //  - B-4 표시는 currencyUnit으로 환산(formatAmount), 입력은 언제나 원 단위 정수
+//
+// 인쇄(§12 P-R1~P-R5): 12행 × 연차 N열이라 A4 가로로 뽑는다. 편집 컨트롤(계획액 입력·집행 패널
+// 트리거)은 감추고 같은 숫자를 정적 텍스트로 대신 남긴다 — 종이에 빈 입력상자를 남기지 않으면서
+// 값은 잃지 않는다.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { BudgetCategory, BudgetItem, Settings } from '@/types';
 import type { BudgetMatrix, BudgetMatrixCell, YearBudgetMismatch } from '@/lib/budget';
 import { BUDGET_CATEGORY_GROUPS, BUDGET_CATEGORY_LABELS } from '@/lib/constants';
 import { formatAmount } from '@/lib/currency';
 import { formatRate } from '@/lib/goals';
 import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
+import PrintHeader from '@/components/print/PrintHeader';
+import { PRINT_TABLE, PRINT_TABLE_WRAP, PRINT_TD, PRINT_TH } from '@/components/print/tokens';
 import { setRealtimePaused } from '@/components/RealtimeRefresher';
 
 export interface CellRef {
@@ -33,6 +40,10 @@ export function cellKey(yearId: string, category: BudgetCategory): string {
 export interface BudgetMatrixTableProps {
   matrix: BudgetMatrix;
   currencyUnit: Settings['currencyUnit'];
+  /** 인쇄 머리말 (§12 P-R3) */
+  projectName: string;
+  /** 인쇄 출력일 (§12 P-R3). 서버가 만든 오늘을 그대로 쓴다 — new Date() 금지 (§6.5) */
+  todayISO: string;
   /** B-3 판정. 값이 null이면 비교 대상(year.budget)이 없어 배지를 띄우지 않는다 */
   yearBudgetChecks: Record<string, YearBudgetMismatch | null>;
   /** 셀별 원본 행 — 현금/현물 분리 여부로 총액 인라인 편집 가능 여부가 갈린다 */
@@ -60,11 +71,13 @@ function lockMessage(reason: Exclude<LockReason, null>): string {
 function PlannedInput({
   value,
   label,
+  currencyUnit,
   disabled,
   onSave,
 }: {
   value: number;
   label: string;
+  currencyUnit: Settings['currencyUnit'];
   disabled: boolean;
   onSave: (plannedAmount: number) => void;
 }) {
@@ -107,6 +120,10 @@ function PlannedInput({
 
   return (
     <span className="inline-flex items-center gap-1">
+      {/* P-R4: 종이에 입력상자를 남기지 않는다. 값은 다른 셀과 같은 표시 단위로 환산해 남긴다 */}
+      <span className="hidden text-xs font-semibold tabular-nums text-black print:inline">
+        {formatAmount(value, currencyUnit)}
+      </span>
       <input
         type="number"
         inputMode="numeric"
@@ -130,15 +147,54 @@ function PlannedInput({
             e.currentTarget.blur();
           }
         }}
-        className={`w-28 rounded-md border px-1.5 py-1 text-right text-xs tabular-nums focus:outline-none ${
+        className={`w-28 rounded-md border px-1.5 py-1 text-right text-xs tabular-nums focus:outline-none print:hidden ${
           invalid ? 'border-red-400 bg-red-50' : 'border-slate-300 focus:border-slate-500'
         }`}
       />
-      <span className="text-[10px] text-slate-400">원</span>
+      <span className="text-[10px] text-slate-400 print:hidden">원</span>
       {invalid && (
         <span className="block text-[10px] text-red-600">0 이상 정수(원)만 저장됩니다.</span>
       )}
     </span>
+  );
+}
+
+/** 집행액 + 집행률 표시. 화면·인쇄가 같은 숫자를 쓰도록 한 곳에서 만든다 */
+function executionSummary(
+  cell: BudgetMatrixCell,
+  currencyUnit: Settings['currencyUnit']
+): ReactNode {
+  return (
+    <>
+      <span className="block text-xs tabular-nums text-slate-600 print:text-black">
+        집행 {formatAmount(cell.executed, currencyUnit)}
+      </span>
+      <span className="mt-0.5 flex items-center justify-end gap-1">
+        {cell.offBudget && (
+          // B-1: 계획액 0인데 집행이 있다. 아이콘만 두지 않고 title로 뜻을 밝힌다
+          <span
+            aria-label="예산 외 집행 경고"
+            title="예산 외 집행: 계획액이 0인데 집행액이 있습니다 (B-1)"
+            className="text-amber-600 print:text-black"
+          >
+            ⚠
+          </span>
+        )}
+        <span
+          // B-2: 집행률 100% 초과는 빨강 (부록 A.3 red-600)
+          className={`text-xs font-semibold tabular-nums ${
+            cell.over ? 'text-red-600' : 'text-slate-500'
+          }`}
+          title={cell.over ? '집행률이 100%를 넘었습니다 (B-2)' : undefined}
+        >
+          {formatRate(cell.rate)}
+        </span>
+        {/* P-R5: 흑백 출력에서는 빨간 글씨·빨간 셀이 사라진다. 초과를 글자로도 남긴다 */}
+        {cell.over && (
+          <span className="hidden text-xs font-bold text-black print:inline">초과</span>
+        )}
+      </span>
+    </>
   );
 }
 
@@ -154,44 +210,28 @@ function ExecutionButton({
   currencyUnit: Settings['currencyUnit'];
   onSelect: () => void;
 }) {
+  const summary = executionSummary(cell, currencyUnit);
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-label={`${label} 집행 내역 열기`}
-      className="mt-1 block w-full rounded-md px-1.5 py-1 text-right hover:bg-slate-100"
-    >
-      <span className="block text-xs tabular-nums text-slate-600">
-        집행 {formatAmount(cell.executed, currencyUnit)}
-      </span>
-      <span className="mt-0.5 flex items-center justify-end gap-1">
-        {cell.offBudget && (
-          // B-1: 계획액 0인데 집행이 있다. 아이콘만 두지 않고 title로 뜻을 밝힌다
-          <span
-            aria-label="예산 외 집행 경고"
-            title="예산 외 집행: 계획액이 0인데 집행액이 있습니다 (B-1)"
-            className="text-amber-600"
-          >
-            ⚠
-          </span>
-        )}
-        <span
-          // B-2: 집행률 100% 초과는 빨강 (부록 A.3 red-600)
-          className={`text-xs font-semibold tabular-nums ${
-            cell.over ? 'text-red-600' : 'text-slate-500'
-          }`}
-          title={cell.over ? '집행률이 100%를 넘었습니다 (B-2)' : undefined}
-        >
-          {formatRate(cell.rate)}
-        </span>
-      </span>
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-label={`${label} 집행 내역 열기`}
+        // P-R4: 패널 트리거는 인쇄에서 빠진다. 숫자는 아래 정적 블록이 그대로 남긴다
+        className="mt-1 block w-full rounded-md px-1.5 py-1 text-right hover:bg-slate-100 print:hidden"
+      >
+        {summary}
+      </button>
+      <span className="mt-1 hidden px-1.5 py-1 text-right print:block">{summary}</span>
+    </>
   );
 }
 
 export default function BudgetMatrixTable({
   matrix,
   currencyUnit,
+  projectName,
+  todayISO,
   yearBudgetChecks,
   itemsByCell,
   selected,
@@ -210,193 +250,230 @@ export default function BudgetMatrixTable({
   };
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-      <table className="w-full text-left text-sm">
-        <caption className="sr-only">
-          비목 × 연차 예산 매트릭스. 각 셀은 예산·집행·집행률입니다.
-        </caption>
-        <thead className="text-xs text-slate-500">
-          <tr className="border-b border-slate-100">
-            <th scope="col" className="px-3 py-2 font-medium">
-              비목
-            </th>
-            {matrix.columns.map((column) => {
-              const check = yearBudgetChecks[column.yearId] ?? null;
+    <div>
+      {/* P-R1 가로 + P-R3 머리말. 12행 × 연차 N열이라 A4 세로에는 들어가지 않는다.
+          표시 단위를 머리말에 함께 남긴다 — 종이에서는 단위를 되물을 수 없다 (B-4) */}
+      <PrintHeader
+        title="연구비 비목 매트릭스"
+        projectName={projectName}
+        todayISO={todayISO}
+        orientation="landscape"
+        subtitle={`금액 표시 단위 ${currencyUnit}`}
+      />
+
+      <div className="mb-2 flex justify-end print:hidden">
+        <Button size="sm" onClick={() => window.print()}>
+          인쇄
+        </Button>
+      </div>
+
+      <div className={`overflow-x-auto rounded-xl border border-slate-200 bg-white ${PRINT_TABLE_WRAP}`}>
+        <table className={`w-full text-left text-sm ${PRINT_TABLE}`}>
+          <caption className="sr-only">
+            비목 × 연차 예산 매트릭스. 각 셀은 예산·집행·집행률입니다.
+          </caption>
+          <thead className="text-xs text-slate-500 print:text-black">
+            <tr className="border-b border-slate-100">
+              <th scope="col" className={`px-3 py-2 font-medium ${PRINT_TH}`}>
+                비목
+              </th>
+              {matrix.columns.map((column) => {
+                const check = yearBudgetChecks[column.yearId] ?? null;
+                return (
+                  <th
+                    key={column.yearId}
+                    scope="col"
+                    className={`px-3 py-2 text-right font-medium ${PRINT_TH}`}
+                  >
+                    <span className="block text-slate-700 print:text-black">{column.name}</span>
+                    <span className="block text-[11px] font-normal tabular-nums text-slate-400 print:text-black">
+                      연차 예산{' '}
+                      {column.yearBudget === null
+                        ? '미입력'
+                        : formatAmount(column.yearBudget, currencyUnit)}
+                    </span>
+                    {check?.mismatch && (
+                      // B-3: 연차 예산 합계와 year.budget 불일치. 저장은 막지 않고 사실만 알린다
+                      <Badge
+                        tone="amber"
+                        className="mt-1"
+                        title={`비목 편성 합계가 연차 예산보다 ${formatAmount(
+                          Math.abs(check.diff),
+                          currencyUnit
+                        )} ${check.diff > 0 ? '많습니다' : '적습니다'} (B-3)`}
+                      >
+                        연차 예산 불일치
+                      </Badge>
+                    )}
+                  </th>
+                );
+              })}
+              <th scope="col" className={`px-3 py-2 text-right font-medium text-slate-700 ${PRINT_TH}`}>
+                합계
+              </th>
+            </tr>
+          </thead>
+  
+          <tbody className="divide-y divide-slate-100">
+            {matrix.rows.map((row, rowIndex) => {
+              const group = BUDGET_CATEGORY_GROUPS[row.category];
+              const previous = rowIndex === 0 ? undefined : matrix.rows[rowIndex - 1];
+              const groupChanged =
+                previous === undefined || BUDGET_CATEGORY_GROUPS[previous.category] !== group;
+  
               return (
-                <th key={column.yearId} scope="col" className="px-3 py-2 text-right font-medium">
-                  <span className="block text-slate-700">{column.name}</span>
-                  <span className="block text-[11px] font-normal tabular-nums text-slate-400">
-                    연차 예산{' '}
-                    {column.yearBudget === null
-                      ? '미입력'
-                      : formatAmount(column.yearBudget, currencyUnit)}
-                  </span>
-                  {check?.mismatch && (
-                    // B-3: 연차 예산 합계와 year.budget 불일치. 저장은 막지 않고 사실만 알린다
-                    <Badge
-                      tone="amber"
-                      className="mt-1"
-                      title={`비목 편성 합계가 연차 예산보다 ${formatAmount(
-                        Math.abs(check.diff),
-                        currencyUnit
-                      )} ${check.diff > 0 ? '많습니다' : '적습니다'} (B-3)`}
-                    >
-                      연차 예산 불일치
-                    </Badge>
-                  )}
-                </th>
-              );
-            })}
-            <th scope="col" className="px-3 py-2 text-right font-medium text-slate-700">
-              합계
-            </th>
-          </tr>
-        </thead>
-
-        <tbody className="divide-y divide-slate-100">
-          {matrix.rows.map((row, rowIndex) => {
-            const group = BUDGET_CATEGORY_GROUPS[row.category];
-            const previous = rowIndex === 0 ? undefined : matrix.rows[rowIndex - 1];
-            const groupChanged =
-              previous === undefined || BUDGET_CATEGORY_GROUPS[previous.category] !== group;
-
-            return (
-              <tr
-                key={row.category}
-                data-category={row.category}
-                className={`align-top ${groupChanged && rowIndex > 0 ? 'border-t-2 border-t-slate-200' : ''}`}
-              >
-                <th scope="row" className="px-3 py-2 text-left font-medium text-slate-800">
-                  {BUDGET_CATEGORY_LABELS[row.category]}
-                  <span className="mt-0.5 block text-[11px] font-normal text-slate-400">
-                    {/* 부록 A.1에서 'other'는 어느 쪽도 아니다 — 없는 구분을 지어내지 않는다 */}
-                    {group ?? '구분 없음'}
-                  </span>
-                </th>
-
-                {row.cells.map((cell) => {
-                  const label = `${
-                    matrix.columns.find((c) => c.yearId === cell.yearId)?.name ?? '연차'
-                  } ${BUDGET_CATEGORY_LABELS[cell.category]}`;
-                  const isSelected =
-                    selected?.yearId === cell.yearId && selected?.category === cell.category;
-                  const lock = lockReasonOf(cell);
-
-                  return (
-                    <td
-                      key={cell.yearId}
-                      className={`px-3 py-2 text-right ${cell.over ? 'bg-red-50' : ''} ${
-                        isSelected ? 'ring-2 ring-inset ring-slate-900' : ''
-                      }`}
-                    >
-                      {lock === null ? (
-                        <PlannedInput
-                          value={cell.planned}
+                <tr
+                  key={row.category}
+                  data-category={row.category}
+                  className={`align-top ${groupChanged && rowIndex > 0 ? 'border-t-2 border-t-slate-200' : ''}`}
+                >
+                  <th
+                    scope="row"
+                    className={`px-3 py-2 text-left font-medium text-slate-800 ${PRINT_TD}`}
+                  >
+                    {BUDGET_CATEGORY_LABELS[row.category]}
+                    <span className="mt-0.5 block text-[11px] font-normal text-slate-400 print:text-black">
+                      {/* 부록 A.1에서 'other'는 어느 쪽도 아니다 — 없는 구분을 지어내지 않는다 */}
+                      {group ?? '구분 없음'}
+                    </span>
+                  </th>
+  
+                  {row.cells.map((cell) => {
+                    const label = `${
+                      matrix.columns.find((c) => c.yearId === cell.yearId)?.name ?? '연차'
+                    } ${BUDGET_CATEGORY_LABELS[cell.category]}`;
+                    const isSelected =
+                      selected?.yearId === cell.yearId && selected?.category === cell.category;
+                    const lock = lockReasonOf(cell);
+  
+                    return (
+                      <td
+                        key={cell.yearId}
+                        className={`px-3 py-2 text-right ${PRINT_TD} ${cell.over ? 'bg-red-50' : ''} ${
+                          // 선택 표시는 조작 흔적이라 인쇄에서 지운다 (P-R4)
+                          isSelected ? 'ring-2 ring-inset ring-slate-900 print:ring-0' : ''
+                        }`}
+                      >
+                        {lock === null ? (
+                          <PlannedInput
+                            value={cell.planned}
+                            label={label}
+                            currencyUnit={currencyUnit}
+                            disabled={busy}
+                            onSave={(planned) =>
+                              onInlineSave({ yearId: cell.yearId, category: cell.category }, planned)
+                            }
+                          />
+                        ) : (
+                          <span
+                            title={lockMessage(lock)}
+                            className="inline-flex items-center gap-1 text-xs tabular-nums text-slate-700 print:text-black"
+                          >
+                            {/* 자물쇠는 편집 가능 여부라는 화면 사정이다 — 종이에는 금액만 남긴다 */}
+                            <span aria-hidden className="print:hidden">
+                              🔒
+                            </span>
+                            {formatAmount(cell.planned, currencyUnit)}
+                          </span>
+                        )}
+  
+                        <ExecutionButton
+                          cell={cell}
                           label={label}
-                          disabled={busy}
-                          onSave={(planned) =>
-                            onInlineSave({ yearId: cell.yearId, category: cell.category }, planned)
+                          currencyUnit={currencyUnit}
+                          onSelect={() =>
+                            onSelect({ yearId: cell.yearId, category: cell.category })
                           }
                         />
-                      ) : (
-                        <span
-                          title={lockMessage(lock)}
-                          className="inline-flex items-center gap-1 text-xs tabular-nums text-slate-700"
-                        >
-                          <span aria-hidden>🔒</span>
-                          {formatAmount(cell.planned, currencyUnit)}
-                        </span>
-                      )}
-
-                      <ExecutionButton
-                        cell={cell}
-                        label={label}
-                        currencyUnit={currencyUnit}
-                        onSelect={() =>
-                          onSelect({ yearId: cell.yearId, category: cell.category })
-                        }
-                      />
-                    </td>
-                  );
-                })}
-
-                <td className="px-3 py-2 text-right">
-                  <span className="block text-xs font-semibold tabular-nums text-slate-800">
-                    {formatAmount(row.total.planned, currencyUnit)}
+                      </td>
+                    );
+                  })}
+  
+                  <td className={`px-3 py-2 text-right ${PRINT_TD}`}>
+                    <span className="block text-xs font-semibold tabular-nums text-slate-800">
+                      {formatAmount(row.total.planned, currencyUnit)}
+                    </span>
+                    <span className="block text-xs tabular-nums text-slate-600 print:text-black">
+                      집행 {formatAmount(row.total.executed, currencyUnit)}
+                    </span>
+                    <span
+                      className={`block text-xs font-semibold tabular-nums ${
+                        row.total.over ? 'text-red-600' : 'text-slate-500'
+                      }`}
+                    >
+                      {formatRate(row.total.rate)}
+                      {/* P-R5: 흑백에서 빨간 글씨가 사라져도 초과를 알 수 있게 글자로 남긴다 */}
+                      {row.total.over && <span className="hidden print:inline"> 초과</span>}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+  
+          {/* 하단 요약 행 (§7.9): 연차별 합계 / 집행률 / 잔액. 합계 열도 같은 3값 */}
+          <tfoot className="border-t-2 border-slate-200 bg-slate-50 text-xs">
+            <tr>
+              <th
+                scope="row"
+                className={`px-3 py-2 text-left font-semibold text-slate-800 ${PRINT_TH}`}
+              >
+                합계
+              </th>
+              {matrix.columns.map((column) => (
+                <td key={column.yearId} className={`px-3 py-2 text-right ${PRINT_TD}`}>
+                  <span className="block font-semibold tabular-nums text-slate-800">
+                    {formatAmount(column.total.planned, currencyUnit)}
                   </span>
-                  <span className="block text-xs tabular-nums text-slate-600">
-                    집행 {formatAmount(row.total.executed, currencyUnit)}
+                  <span className="block tabular-nums text-slate-600 print:text-black">
+                    집행 {formatAmount(column.total.executed, currencyUnit)}
                   </span>
                   <span
-                    className={`block text-xs font-semibold tabular-nums ${
-                      row.total.over ? 'text-red-600' : 'text-slate-500'
+                    className={`block font-semibold tabular-nums ${
+                      column.total.over ? 'text-red-600' : 'text-slate-500'
                     }`}
                   >
-                    {formatRate(row.total.rate)}
+                    {formatRate(column.total.rate)}
+                    {column.total.over && <span className="hidden print:inline"> 초과</span>}
+                  </span>
+                  <span
+                    className={`block tabular-nums ${
+                      column.total.remaining < 0 ? 'text-red-600' : 'text-slate-500'
+                    }`}
+                    title="잔액 = 예산 − 집행"
+                  >
+                    잔액 {formatAmount(column.total.remaining, currencyUnit)}
                   </span>
                 </td>
-              </tr>
-            );
-          })}
-        </tbody>
-
-        {/* 하단 요약 행 (§7.9): 연차별 합계 / 집행률 / 잔액. 합계 열도 같은 3값 */}
-        <tfoot className="border-t-2 border-slate-200 bg-slate-50 text-xs">
-          <tr>
-            <th scope="row" className="px-3 py-2 text-left font-semibold text-slate-800">
-              합계
-            </th>
-            {matrix.columns.map((column) => (
-              <td key={column.yearId} className="px-3 py-2 text-right">
-                <span className="block font-semibold tabular-nums text-slate-800">
-                  {formatAmount(column.total.planned, currencyUnit)}
+              ))}
+              <td className={`px-3 py-2 text-right ${PRINT_TD}`}>
+                <span className="block font-semibold tabular-nums text-slate-900">
+                  {formatAmount(matrix.total.planned, currencyUnit)}
                 </span>
-                <span className="block tabular-nums text-slate-600">
-                  집행 {formatAmount(column.total.executed, currencyUnit)}
+                <span className="block tabular-nums text-slate-600 print:text-black">
+                  집행 {formatAmount(matrix.total.executed, currencyUnit)}
                 </span>
                 <span
                   className={`block font-semibold tabular-nums ${
-                    column.total.over ? 'text-red-600' : 'text-slate-500'
+                    matrix.total.over ? 'text-red-600' : 'text-slate-500'
                   }`}
                 >
-                  {formatRate(column.total.rate)}
+                  {formatRate(matrix.total.rate)}
+                  {matrix.total.over && <span className="hidden print:inline"> 초과</span>}
                 </span>
                 <span
                   className={`block tabular-nums ${
-                    column.total.remaining < 0 ? 'text-red-600' : 'text-slate-500'
+                    matrix.total.remaining < 0 ? 'text-red-600' : 'text-slate-500'
                   }`}
                   title="잔액 = 예산 − 집행"
                 >
-                  잔액 {formatAmount(column.total.remaining, currencyUnit)}
+                  잔액 {formatAmount(matrix.total.remaining, currencyUnit)}
                 </span>
               </td>
-            ))}
-            <td className="px-3 py-2 text-right">
-              <span className="block font-semibold tabular-nums text-slate-900">
-                {formatAmount(matrix.total.planned, currencyUnit)}
-              </span>
-              <span className="block tabular-nums text-slate-600">
-                집행 {formatAmount(matrix.total.executed, currencyUnit)}
-              </span>
-              <span
-                className={`block font-semibold tabular-nums ${
-                  matrix.total.over ? 'text-red-600' : 'text-slate-500'
-                }`}
-              >
-                {formatRate(matrix.total.rate)}
-              </span>
-              <span
-                className={`block tabular-nums ${
-                  matrix.total.remaining < 0 ? 'text-red-600' : 'text-slate-500'
-                }`}
-                title="잔액 = 예산 − 집행"
-              >
-                잔액 {formatAmount(matrix.total.remaining, currencyUnit)}
-              </span>
-            </td>
-          </tr>
-        </tfoot>
-      </table>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   );
 }

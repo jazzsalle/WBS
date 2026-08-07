@@ -48,6 +48,13 @@ export default async function DashboardPage() {
           >
             과제 목록
           </Link>
+          {/* /todos·/settings는 과제 밖 라우트라 과제 탭에 없다 (§7.1) — 여기가 유일한 진입점이다 */}
+          <Link
+            href="/todos"
+            className="text-sm text-slate-500 underline hover:text-slate-700"
+          >
+            To-Do
+          </Link>
           <Link
             href="/settings"
             className="text-sm text-slate-500 underline hover:text-slate-700"

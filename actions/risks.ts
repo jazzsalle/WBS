@@ -16,6 +16,7 @@ import type { ActionResult, Member, Risk, RiskLevel, Year } from '@/types';
 import { requireApprovedUser } from '@/lib/auth/guard';
 import * as appUsers from '@/lib/db/app-users';
 import * as membersRepo from '@/lib/db/members';
+import * as projectsRepo from '@/lib/db/projects';
 import * as risksRepo from '@/lib/db/risks';
 import * as tasksRepo from '@/lib/db/tasks';
 import * as yearsRepo from '@/lib/db/years';
@@ -26,6 +27,7 @@ import {
   toActionFailure,
 } from '@/lib/db/errors';
 import { riskCategorySchema, riskStatusSchema, riskStrategySchema } from '@/lib/db/schema';
+import { todayISO } from '@/lib/dates';
 import {
   isActiveRisk,
   needsAttention,
@@ -75,6 +77,10 @@ export interface RiskTaskRef {
 
 export interface RiskMatrixData {
   projectId: string;
+  /** 인쇄 머리말(§12 P-R3)에 쓴다 — 종이만 보고 어느 과제인지 알 수 있어야 한다 */
+  projectName: string;
+  /** 인쇄 출력일(§12 P-R3). 서버가 Asia/Seoul 달력으로 만든다 (§6.5) */
+  todayISO: string;
   /** §7.11 기본 정렬 — 미해결 먼저, 그 안에서 점수 내림차순 */
   risks: RiskView[];
   /** 25칸. impact 5→1(위에서 아래), probability 1→5(왼→오른) 순 */
@@ -425,7 +431,9 @@ export async function getRiskMatrix(projectId: string): Promise<ActionResult<Ris
 
     // 하나라도 실패하면 실패를 그대로 올린다 — 빈 배열 폴백은 데이터 손상을 감춘다 (절대 규칙 5).
     // 특히 리스크 조회가 부분 실패한 채 매트릭스를 그리면 고위험 건수가 조용히 낮게 나온다.
-    const [risks, years, members, tasks] = await Promise.all([
+    const [project, risks, years, members, tasks] = await Promise.all([
+      // 인쇄 머리말용 과제명 (§12 P-R3). 조회 실패는 그대로 올린다 — 화면은 어차피 실패다
+      projectsRepo.getProjectById(client, pid),
       risksRepo.listRisks(client, pid),
       yearsRepo.listYears(client, pid),
       membersRepo.listMembers(client, pid),
@@ -438,6 +446,8 @@ export async function getRiskMatrix(projectId: string): Promise<ActionResult<Ris
       ok: true,
       data: {
         projectId: pid,
+        projectName: project.name,
+        todayISO: todayISO(new Date()), // §6.5 기준일 — Asia/Seoul 달력
         risks: views,
         cells: buildCells(views),
         years,

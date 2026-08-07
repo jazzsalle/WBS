@@ -15,11 +15,13 @@ import type { ActionResult, BudgetExecution, BudgetItem, Settings, Year } from '
 import { requireApprovedUser } from '@/lib/auth/guard';
 import * as appUsers from '@/lib/db/app-users';
 import * as budgetItemsRepo from '@/lib/db/budget-items';
+import * as projectsRepo from '@/lib/db/projects';
 import * as settingsRepo from '@/lib/db/settings';
 import * as yearsRepo from '@/lib/db/years';
 import { StaleDataError, ValidationError, toActionFailure } from '@/lib/db/errors';
 import { budgetCategorySchema } from '@/lib/db/schema';
 import { buildBudgetMatrix, type BudgetMatrix, type YearBudgetMismatch } from '@/lib/budget';
+import { todayISO } from '@/lib/dates';
 
 // ─── 조회 모델 (§9 getBudgetMatrix, §7.9) ─────────────────────────────────────
 
@@ -27,6 +29,10 @@ import { buildBudgetMatrix, type BudgetMatrix, type YearBudgetMismatch } from '@
 // 표시 단위 환산은 화면(lib/currency.ts)의 몫이므로 금액은 원 단위 정수 그대로 내린다 (B-4).
 export interface BudgetMatrixData {
   projectId: string;
+  /** 인쇄 머리말(§12 P-R3)에 쓴다 — 종이만 보고 어느 과제인지 알 수 있어야 한다 */
+  projectName: string;
+  /** 인쇄 출력일(§12 P-R3). 서버가 Asia/Seoul 달력으로 만든다 (§6.5) */
+  todayISO: string;
   years: Year[];
   matrix: BudgetMatrix;
   /** B-3: 키는 yearId. year.budget이 null이면 비교 대상이 없어 null (배지를 띄우지 않는다) */
@@ -261,7 +267,9 @@ export async function getBudgetMatrix(projectId: string): Promise<ActionResult<B
 
     // 하나라도 실패하면 실패를 그대로 올린다 — 빈 배열 폴백은 데이터 손상을 감춘다 (절대 규칙 5).
     // 특히 비목 조회가 부분 실패한 채 매트릭스를 그리면 집행률이 조용히 낮게 나온다.
-    const [years, items, settings] = await Promise.all([
+    const [project, years, items, settings] = await Promise.all([
+      // 인쇄 머리말용 과제명 (§12 P-R3). 조회 실패는 그대로 올린다 — 화면은 어차피 실패다
+      projectsRepo.getProjectById(client, pid),
       yearsRepo.listYears(client, pid),
       budgetItemsRepo.listBudgetItemsByProject(client, pid),
       settingsRepo.getSettings(client),
@@ -286,6 +294,8 @@ export async function getBudgetMatrix(projectId: string): Promise<ActionResult<B
       ok: true,
       data: {
         projectId: pid,
+        projectName: project.name,
+        todayISO: todayISO(new Date()), // §6.5 기준일 — Asia/Seoul 달력
         years: orderedYears,
         matrix,
         yearBudgetChecks,

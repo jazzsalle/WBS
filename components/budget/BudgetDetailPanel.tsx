@@ -246,7 +246,8 @@ export default function BudgetDetailPanel({
   return (
     <aside
       aria-label={`${yearName} ${categoryLabel} 집행 내역`}
-      className="h-fit space-y-4 rounded-xl border border-slate-200 bg-white p-4"
+      // P-R4: 집행 등록·편집 패널은 화면 조작용이다. 인쇄물에는 매트릭스만 남는다
+      className="h-fit space-y-4 rounded-xl border border-slate-200 bg-white p-4 print:hidden"
     >
       <div className="flex items-start justify-between gap-3">
         <div>

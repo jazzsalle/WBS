@@ -22,8 +22,8 @@
 // samples/는 실제 예산 자료라 .gitignore 대상이다. 없으면 **조용히 통과시키지 않고**
 // 무엇이 없어 건너뛰는지 알린 뒤 skip 한다 (부록 B.6, 절대 규칙 5).
 //
-// 복원(restore_import_snapshot)은 아직 서버 액션이 없다(§7.14 설정 화면 미구현) — 리포지토리를
-// 직접 부른다. 임포트 반영 경로만 액션을 거치면 이 테스트의 목적(액션 왕복)은 충족된다.
+// 스냅샷 목록·복원도 §7.14 설정 화면이 쓰는 **액션**(listImportSnapshots/restoreImportSnapshot)을
+// 그대로 부른다 — 화면이 지나는 길과 다른 길을 검증하면 액션 계층 테스트가 아니다.
 //
 // 자기가 만든 과제·사용자만 지운다 — 파괴적 테스트가 아니다.
 
@@ -42,7 +42,6 @@ import type {
 import { BUDGET_CATEGORY_ORDER } from '@/lib/constants';
 import * as budgetItemsRepo from '@/lib/db/budget-items';
 import * as projectsRepo from '@/lib/db/projects';
-import * as snapshotsRepo from '@/lib/db/import-snapshots';
 import * as stagesRepo from '@/lib/db/stages';
 import * as yearsRepo from '@/lib/db/years';
 
@@ -53,9 +52,14 @@ vi.mock('next/headers', () => ({
 }));
 vi.mock('next/cache', () => ({ revalidatePath: () => undefined }));
 
-const { analyzeSheet, commitImport, inspectWorkbook, previewImport } = await import(
-  '@/actions/import'
-);
+const {
+  analyzeSheet,
+  commitImport,
+  inspectWorkbook,
+  listImportSnapshots,
+  previewImport,
+  restoreImportSnapshot,
+} = await import('@/actions/import');
 
 // ─── 샘플 파일 ────────────────────────────────────────────────────────────────
 
@@ -629,7 +633,7 @@ describe.skipIf(!hasSample(SAMPLES[0]!.prefix))('I-17 스냅샷과 복원', () =
     const after = await readYearPlan(yearIds[0]!);
     expect(after.personnel).not.toEqual(before.personnel);
 
-    const snapshots = await snapshotsRepo.listImportSnapshots(user.client, projectId);
+    const snapshots = unwrap(await listImportSnapshots(projectId));
     expect(snapshots).toHaveLength(1);
     const snapshot = snapshots[0]!;
     expect(snapshot.id).toBe(committed.snapshotId);
@@ -652,7 +656,7 @@ describe.skipIf(!hasSample(SAMPLES[0]!.prefix))('I-17 스냅샷과 복원', () =
       existed: true,
     });
 
-    const restored = await snapshotsRepo.restoreImportSnapshot(user.client, snapshot.id);
+    const restored = unwrap(await restoreImportSnapshot(snapshot.id));
     expect(restored.snapshotId).toBe(snapshot.id);
     expect(restored.restored).toBe(committed.updated);
 

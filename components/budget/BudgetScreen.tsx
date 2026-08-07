@@ -104,8 +104,9 @@ export default function BudgetScreen({
 
   return (
     <div className="space-y-4">
-      {/* 툴바 (§7.9) */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* 툴바 (§7.9). P-R4: 인쇄에서는 [엑셀 가져오기]와 입력 안내를 뺀다 —
+          표시 단위는 매트릭스의 인쇄 머리말이 대신 알린다 */}
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <p className="text-xs text-slate-500">
           표시 단위 <span className="font-semibold text-slate-700">{data.currencyUnit}</span>
           <span className="ml-2">· 입력은 언제나 원 단위 정수입니다 (B-4)</span>
@@ -125,7 +126,7 @@ export default function BudgetScreen({
       {importResult && (
         <p
           role="status"
-          className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"
+          className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 print:hidden"
         >
           {importResult}
           <button
@@ -144,6 +145,7 @@ export default function BudgetScreen({
           message={failure.message}
           code={failure.code}
           onDismiss={() => setFailure(null)}
+          className="print:hidden"
         />
       )}
 
@@ -160,10 +162,13 @@ export default function BudgetScreen({
           연차가 없습니다. 과제 개요에서 단계·연차를 먼저 만드세요.
         </p>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        // 인쇄에서는 집행 패널이 빠지므로 2열 격자를 풀어 매트릭스가 A4 폭을 다 쓰게 한다
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem] print:block">
           <BudgetMatrixTable
             matrix={data.matrix}
             currencyUnit={data.currencyUnit}
+            projectName={data.projectName}
+            todayISO={data.todayISO}
             yearBudgetChecks={data.yearBudgetChecks}
             itemsByCell={itemsByCell}
             selected={selected}
@@ -185,7 +190,7 @@ export default function BudgetScreen({
               {...callbacks}
             />
           ) : (
-            <aside className="h-fit rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-400">
+            <aside className="h-fit rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-400 print:hidden">
               셀을 클릭하면 집행 내역과 현금·현물 편집 패널이 열립니다.
             </aside>
           )}

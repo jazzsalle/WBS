@@ -198,6 +198,7 @@ export default function RiskScreen({ data }: RiskScreenProps) {
           size="sm"
           variant="primary"
           disabled={busy}
+          className="print:hidden" // P-R4
           onClick={() => {
             setEditingId(null);
             setFormMode('create');
@@ -212,14 +213,14 @@ export default function RiskScreen({ data }: RiskScreenProps) {
           message={failure.message}
           code={failure.code}
           onDismiss={() => setFailure(null)}
-          className="mt-3"
+          className="mt-3 print:hidden"
         />
       )}
 
       {notice && (
         <div
           role="status"
-          className="mt-3 flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+          className="mt-3 flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 print:hidden"
         >
           <p className="min-w-0 break-words">{notice}</p>
           <button
@@ -233,7 +234,8 @@ export default function RiskScreen({ data }: RiskScreenProps) {
         </div>
       )}
 
-      <div className="mt-4">
+      {/* P-R4: 5×5 히트맵은 클릭 필터용 버튼 격자다. 종이에서는 조작할 수 없어 대장만 남긴다 */}
+      <div className="mt-4 print:hidden">
         <RiskMatrix
           cells={data.cells}
           showResolved={showResolved}
@@ -242,7 +244,8 @@ export default function RiskScreen({ data }: RiskScreenProps) {
         />
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+      {/* P-R4: 필터·정렬은 편집 컨트롤이다. 인쇄물에는 그 결과(대장)만 남는다 */}
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 print:hidden">
         {/* §7.11: 해결/종료 항목은 기본 숨김, 토글로 표시 */}
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input
@@ -289,6 +292,8 @@ export default function RiskScreen({ data }: RiskScreenProps) {
         <RiskTable
           views={visible}
           projectId={data.projectId}
+          projectName={data.projectName}
+          todayISO={data.todayISO}
           memberNameById={memberNameById}
           yearNameById={yearNameById}
           taskById={taskById}

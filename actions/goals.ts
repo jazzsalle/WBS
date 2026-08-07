@@ -28,6 +28,7 @@ import * as deliverablesRepo from '@/lib/db/deliverables';
 import * as techTargetsRepo from '@/lib/db/tech-targets';
 import * as membersRepo from '@/lib/db/members';
 import * as organizationsRepo from '@/lib/db/organizations';
+import * as projectsRepo from '@/lib/db/projects';
 import * as yearsRepo from '@/lib/db/years';
 import {
   NotFoundError,
@@ -43,6 +44,7 @@ import {
   summarizeDeliverable,
   summarizeTechTarget,
 } from '@/lib/goals';
+import { todayISO } from '@/lib/dates';
 
 // ─── 조회 모델 (§9 getGoalsData, §7.7) ────────────────────────────────────────
 
@@ -73,6 +75,10 @@ export interface TechTargetView {
 
 export interface GoalsData {
   projectId: string;
+  /** 인쇄 머리말(§12 P-R3)에 쓴다 — 종이만 보고 어느 과제인지 알 수 있어야 한다 */
+  projectName: string;
+  /** 인쇄 출력일(§12 P-R3). 서버가 Asia/Seoul 달력으로 만든다 (§6.5) */
+  todayISO: string;
   years: Year[];
   organizations: Organization[];
   members: Member[];
@@ -799,7 +805,9 @@ export async function getGoalsData(projectId: string): Promise<ActionResult<Goal
     const { client } = await requireApprovedUser();
 
     // 하나라도 실패하면 실패를 그대로 올린다 — 빈 배열 폴백은 데이터 손상을 감춘다 (절대 규칙 5)
-    const [years, organizations, members, deliverables, techTargets] = await Promise.all([
+    const [project, years, organizations, members, deliverables, techTargets] = await Promise.all([
+      // 인쇄 머리말용 과제명 (§12 P-R3). 조회 실패는 그대로 올린다 — 화면은 어차피 실패다
+      projectsRepo.getProjectById(client, pid),
       yearsRepo.listYears(client, pid),
       organizationsRepo.listOrganizations(client, pid),
       membersRepo.listMembers(client, pid),
@@ -873,6 +881,8 @@ export async function getGoalsData(projectId: string): Promise<ActionResult<Goal
       ok: true,
       data: {
         projectId: pid,
+        projectName: project.name,
+        todayISO: todayISO(new Date()), // §6.5 기준일 — Asia/Seoul 달력
         years,
         organizations,
         members,

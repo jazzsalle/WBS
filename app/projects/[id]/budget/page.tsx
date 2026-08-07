@@ -79,7 +79,8 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
     <main className={CONTENT_CLASS}>
       <RealtimeRefresher tables={REALTIME_TABLES} selfUserId={me.data.id} />
 
-      <h1 className="mb-6 text-xl font-bold">연구비</h1>
+      {/* §12 P-R4: 인쇄 제목은 매트릭스의 인쇄 머리말(과제명 · 출력일)이 대신한다 */}
+      <h1 className="mb-6 text-xl font-bold print:hidden">연구비</h1>
 
       <BudgetScreen
         data={matrix.data}

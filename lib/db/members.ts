@@ -22,6 +22,12 @@ type BaseFieldKeys = 'id' | 'createdAt' | 'updatedAt' | 'version' | 'createdBy' 
 export type MemberInput = Omit<Member, BaseFieldKeys>;
 export type MemberPatch = Partial<MemberInput>;
 
+// §7.14 내 프로필의 Member 연결 선택지용. app_users.member_id는 과제에 매이지 않는 링크라
+// (§14.2) 전 과제 인력이 후보인데, 이름만으로는 동명이인을 구분할 수 없어 기관명을 함께 읽는다.
+export interface MemberWithOrg extends Member {
+  orgName: string | null;
+}
+
 // H-9의 참조 8곳. RPC가 삭제 직전에 센 건수 그대로다 (조인 테이블은 삭제된 행 수).
 export interface MemberReferenceCounts {
   tasks: number;
@@ -71,6 +77,16 @@ function toMember(row: unknown): Member {
   return dbToApp<Member>(parseRow(memberRowSchema, row));
 }
 
+// members.org_id → organizations 임베드. 관계가 끊긴 인력(org_id=null)은 null로 온다.
+const memberWithOrgRowSchema = memberRowSchema.extend({
+  organizations: z.object({ name: z.string() }).nullable(),
+});
+
+function toMemberWithOrg(row: unknown): MemberWithOrg {
+  const { organizations, ...memberRow } = parseRow(memberWithOrgRowSchema, row);
+  return { ...dbToApp<Member>(memberRow), orgName: organizations?.name ?? null };
+}
+
 // RPC가 돌려주는 jsonb는 DB 표기(snake_case)다 — 케이스 변환은 매퍼에만 맡긴다.
 const memberReferenceCountsRowSchema = z.object({
   tasks: z.number().int().nonnegative(),
@@ -98,6 +114,19 @@ export async function listMembers(client: SupabaseClient, projectId: string): Pr
   if (error) throwDbError(error);
   if (!data) throw new Error('[db] members 조회 응답이 비어 있습니다.');
   return data.map(toMember);
+}
+
+// 전 과제 인력. listMembers는 projectId가 필수라 과제 경계를 넘는 선택지를 만들 수 없다.
+// sort_order는 과제 안에서만 의미가 있으므로(H-10) 여기서는 이름순으로 읽는다 —
+// 같은 이름이 여럿이면 화면이 기관명을 붙여 구분한다.
+export async function listAllMembers(client: SupabaseClient): Promise<MemberWithOrg[]> {
+  const { data, error } = await client
+    .from('members')
+    .select('*, organizations (name)')
+    .order('name', { ascending: true });
+  if (error) throwDbError(error);
+  if (!data) throw new Error('[db] members 전체 조회 응답이 비어 있습니다.');
+  return data.map(toMemberWithOrg);
 }
 
 export async function getMemberById(client: SupabaseClient, id: string): Promise<Member> {

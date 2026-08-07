@@ -1,19 +1,14 @@
 // 대시보드 "오늘의 To-Do" (SOT §7.2 6)
-// Phase 4 범위에서는 읽기 전용이다 — 체크·추가·수정은 To-Do 화면(§7.13, Phase 8)에서 한다.
-// 목록은 서버가 미완료 + 마감이 오늘 이하인 항목을 정렬해 내려준 것이다(지난 마감 포함).
-// /todos 라우트가 아직 없으므로 링크를 걸지 않는다.
+// 여기는 읽기 전용 요약이다 — 체크·추가·수정은 /todos(§7.13)에서 한다.
+// 목록은 서버가 lib/todos.ts의 'today' 필터로 골라 마감일순으로 내려준 것이다(지난 마감 포함).
+// 대시보드는 집계 화면이라 아카이브 과제의 To-Do가 빠져 있다 — /todos는 감추지 않으므로
+// 이 목록의 건수가 /todos의 `오늘` 건수보다 적을 수 있다. 의도된 차이다 (T-D6).
 
 import Link from 'next/link';
 import type { TodayTodoItem } from '@/actions/dashboard';
 import { PRIORITY_LABELS } from '@/lib/constants';
-import Badge, { type BadgeTone } from '@/components/ui/Badge';
-import type { Priority } from '@/types';
-
-const PRIORITY_TONES: Record<Priority, BadgeTone> = {
-  high: 'red',
-  normal: 'blue',
-  low: 'neutral',
-};
+import Badge from '@/components/ui/Badge';
+import { PRIORITY_TONES } from '@/components/ui/priorityTone';
 
 export interface TodayTodosProps {
   items: TodayTodoItem[];
@@ -60,9 +55,11 @@ export default function TodayTodos({ items }: TodayTodosProps) {
         </ul>
       )}
 
-      <p className="mt-3 text-[11px] text-slate-400">
-        완료 체크·추가·수정은 To-Do 화면(Phase 8)에서 지원됩니다. 여기서는 읽기 전용입니다.
-      </p>
+      <div className="mt-3 text-right">
+        <Link href="/todos" className="text-xs text-slate-500 hover:text-blue-600 hover:underline">
+          To-Do 전체 보기 →
+        </Link>
+      </div>
     </section>
   );
 }

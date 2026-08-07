@@ -166,7 +166,8 @@ export default function RealtimeRefresher({ tables, selfUserId }: RealtimeRefres
   if (!pendingChange && !disconnected) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 z-40 flex flex-col gap-2">
+    // §12 P-R4: 화면 상태 배너다. 종이에 남으면 뜻 없는 잔재가 된다
+    <div className="fixed bottom-4 left-4 z-40 flex flex-col gap-2 print:hidden">
       {pendingChange && (
         <div
           role="status"
