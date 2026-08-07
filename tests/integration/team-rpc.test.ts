@@ -16,7 +16,7 @@ import * as deliverables from '@/lib/db/deliverables';
 import * as organizations from '@/lib/db/organizations';
 import * as members from '@/lib/db/members';
 import * as appUsers from '@/lib/db/app-users';
-import { RuleViolationError } from '@/lib/db/errors';
+import { NotFoundError, RuleViolationError } from '@/lib/db/errors';
 
 let sql: Sql;
 let user: TestUser;
@@ -75,6 +75,8 @@ function newMember(projectId: string, name: string, order: number) {
       email: '',
       phone: '',
       active: true,
+      annualSalary: null,
+      hireType: 'existing',
       order,
     },
     user.id
@@ -191,6 +193,9 @@ describe('delete_member — H-9 참조 8곳 정리', () => {
       achievementMembers: 1,
       noteAttendees: 1,
       appUsers: 1,
+      // H-9a: 산출근거는 "정리되는 참조"가 아니라 "삭제를 막는 참조"라 별도 항목이다.
+      // 0건이므로 이 삭제는 통과한다
+      budgetDetails: 0,
     };
     // 삭제 확인 대화상자용 집계와 삭제가 같은 숫자를 봐야 한다
     expect(await members.countMemberReferences(user.client, member.id)).toEqual(expected);
@@ -261,18 +266,21 @@ describe('delete_member — H-9 참조 8곳 정리', () => {
       achievementMembers: 0,
       noteAttendees: 0,
       appUsers: 0,
+      budgetDetails: 0, // H-9a
     };
     expect(await members.countMemberReferences(user.client, member.id)).toEqual(zeros);
     expect(await members.removeMember(user.client, member.id)).toEqual(zeros);
   });
 
+  // Phase 9: members.ts의 P0001 해석이 budget-details.ts와 같은 규약을 쓴다 —
+  // '…찾을 수 없습니다'는 NotFoundError, '먼저 수정'은 StaleDataError(§8.4 O-1),
+  // 나머지가 RuleViolationError다. 전부 RULE로 보내면 apply_salary_change의 잠금 실패가
+  // STALE로 잡히지 않아 O-3 충돌 다이얼로그가 뜨지 않는다. 무음 성공이 아닌 것은 그대로다.
   it('없는 인력의 삭제·집계는 조용히 성공하지 않는다', async () => {
     const missing = 'bbbb0000-0000-4000-8000-0000000000fe';
-    await expect(members.removeMember(user.client, missing)).rejects.toBeInstanceOf(
-      RuleViolationError
-    );
+    await expect(members.removeMember(user.client, missing)).rejects.toBeInstanceOf(NotFoundError);
     await expect(members.countMemberReferences(user.client, missing)).rejects.toBeInstanceOf(
-      RuleViolationError
+      NotFoundError
     );
   });
 });

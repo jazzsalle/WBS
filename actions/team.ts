@@ -13,15 +13,25 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { ActionResult, Member, Organization, Project, Task } from '@/types';
+import type {
+  ActionResult,
+  BudgetCategory,
+  BudgetDetail,
+  Member,
+  Organization,
+  Project,
+  Task,
+} from '@/types';
 import { requireApprovedUser } from '@/lib/auth/guard';
+import { computeDetailAmount, type DetailAmountResult } from '@/lib/budget-plan';
 import * as appUsers from '@/lib/db/app-users';
 import * as organizationsRepo from '@/lib/db/organizations';
 import * as membersRepo from '@/lib/db/members';
 import * as projectsRepo from '@/lib/db/projects';
 import * as tasksRepo from '@/lib/db/tasks';
+import * as yearsRepo from '@/lib/db/years';
 import { RuleViolationError, StaleDataError, ValidationError, toActionFailure } from '@/lib/db/errors';
-import { memberRoleSchema, orgRoleSchema } from '@/lib/db/schema';
+import { hireTypeSchema, memberRoleSchema, orgRoleSchema } from '@/lib/db/schema';
 
 export type { MemberReferenceCounts } from '@/lib/db/members';
 
@@ -56,6 +66,35 @@ export interface TeamScreenData {
 export interface ProjectPMResult {
   project: Project;
   previousPmMemberId: string | null;
+}
+
+// PL-10b 확인 대화상자용 — (연차 × 비목) 단위의 전후 금액. 연차 이름을 여기서 붙여
+// 화면이 연차를 다시 조회하지 않게 한다.
+export interface SalaryImpactCell {
+  yearId: string;
+  /** 목록에 없는 연차도 감추지 않는다 (절대 규칙 5) */
+  yearName: string;
+  category: BudgetCategory;
+  rowCount: number;
+  beforeAmount: number;
+  afterAmount: number;
+}
+
+// PL-10b: 저장하지 않는다. "이 연봉을 쓰는 산출근거 N건의 금액이 함께 바뀝니다"를 만들 재료다.
+export interface SalaryChangePreview {
+  memberId: string;
+  memberName: string;
+  currentAnnualSalary: number | null;
+  nextAnnualSalary: number | null;
+  /** 0이면 확인 없이 저장한다 (§7.10) */
+  detailCount: number;
+  beforeTotal: number;
+  afterTotal: number;
+  /** afterTotal − beforeTotal. 예산이 얼마나 흔들리는지가 확인의 핵심이다 */
+  delta: number;
+  /** 연봉을 지우면 인건비 행 금액이 0이 된다 — 조용히 넘기지 않고 경고로 드러낸다 */
+  missingSalaryCount: number;
+  cells: SalaryImpactCell[];
 }
 
 // ─── 입력 검증 ────────────────────────────────────────────────────────────────
@@ -95,6 +134,10 @@ const organizationCreateSchema = organizationFieldsSchema.partial().extend({
 
 const organizationPatchSchema = organizationFieldsSchema.partial();
 
+// §5.11 연봉은 실지급액이라 음수가 없다. 미입력은 null이다 — 0원과 구분한다
+// (0원은 "연봉이 0"이고 null은 "아직 모른다"다. PL-1이 두 경우를 다르게 다룬다).
+const annualSalarySchema = amountSchema.min(0, '연봉은 0원 이상이어야 합니다.').nullable();
+
 const memberFieldsSchema = z.object({
   orgId: z.uuid().nullable(),
   name: nameSchema,
@@ -104,6 +147,9 @@ const memberFieldsSchema = z.object({
   email: emailSchema,
   phone: z.string().trim().max(50),
   active: z.boolean(),
+  // Phase 9 (§5.11). 참여율(%)은 여기 없다 — (연차 × 인력)의 속성이라 BudgetDetail이 갖는다
+  annualSalary: annualSalarySchema,
+  hireType: hireTypeSchema,
 });
 
 const memberCreateSchema = memberFieldsSchema.partial().extend({
@@ -145,6 +191,11 @@ function revalidateTeam(projectId: string): void {
   revalidatePath(`/projects/${projectId}`);
   revalidatePath(`/projects/${projectId}/team`);
   revalidatePath(`/projects/${projectId}/wbs`);
+}
+
+// PL-10b 파급은 비목 총액(budget_items)까지 바꾼다 — 연구비 화면도 다시 그려야 한다
+function revalidateBudget(projectId: string): void {
+  revalidatePath(`/projects/${projectId}/budget`);
 }
 
 // H-10: 같은 컨테이너(project)의 마지막 뒤에 붙인다. DB 기본값 0을 그대로 두면 순서가 겹친다.
@@ -355,6 +406,9 @@ export async function createMember(
         // N-11: DB 기본값은 false다. 새로 등록한 인력은 참여 중이므로 명시적으로 true를 넣는다
         active: fields.active ?? true,
         order: nextOrder(existing),
+        // Phase 9 (§5.11): 미입력 연봉은 null이다. hireType 기본은 'existing'
+        annualSalary: fields.annualSalary ?? null,
+        hireType: fields.hireType ?? 'existing',
       },
       user.id
     );
@@ -366,7 +420,100 @@ export async function createMember(
   }
 }
 
+// PL-10a: 새 금액은 액션이 lib/budget-plan.ts로 계산한다. RPC는 적용만 한다 —
+// 산식이 두 곳에 생기면 반올림 경계에서 1원씩 어긋난다.
+function recalcAmounts(
+  details: readonly BudgetDetail[],
+  memberId: string,
+  annualSalary: number | null
+): { amounts: membersRepo.SalaryDetailAmount[]; results: DetailAmountResult[] } {
+  const member = { id: memberId, annualSalary };
+  const results = details.map((detail) => computeDetailAmount(detail, member));
+  return {
+    amounts: details.map((detail, i) => ({ id: detail.id, amount: results[i]!.amount })),
+    results,
+  };
+}
+
+/**
+ * PL-10b 확인용 미리보기. **저장하지 않는다.**
+ *
+ * 영향받는 산출근거를 전부 읽어 새 금액을 계산하고 (연차 × 비목)별 전후 금액과 건수를 돌려준다.
+ * 화면은 detailCount가 0이면 확인 없이 저장하고, 1건 이상이면 이 결과로 확인 대화상자를 띄운다 (§7.10).
+ */
+export async function previewSalaryChange(
+  id: string,
+  annualSalary: unknown
+): Promise<ActionResult<SalaryChangePreview>> {
+  try {
+    const memberId = parseOrThrow(uuidSchema, id, '인력 ID 형식이 올바르지 않습니다.');
+    const nextSalary = parseOrThrow(annualSalarySchema, annualSalary, '연봉이 올바르지 않습니다.');
+    const { client } = await requireApprovedUser();
+
+    const member = await membersRepo.getMemberById(client, memberId);
+    const details = await membersRepo.listSalaryImpactedDetails(client, memberId);
+    const { results } = recalcAmounts(details, memberId, nextSalary);
+
+    // 연차 이름은 화면 표시용이다. 이름이 비어 있으면 순번으로 부른다 (GanttChart와 같은 관례).
+    // 목록에 없는 연차는 감추지 않고 그대로 드러낸다
+    const years = await yearsRepo.listYears(client, member.projectId);
+    const yearNames = new Map(
+      years.map((year) => [year.id, year.name.trim() || `${year.order + 1}차년도`])
+    );
+
+    const cells = new Map<string, SalaryImpactCell>();
+    let beforeTotal = 0;
+    let afterTotal = 0;
+    let missingSalaryCount = 0;
+
+    details.forEach((detail, i) => {
+      const result = results[i]!;
+      beforeTotal += detail.amount;
+      afterTotal += result.amount;
+      if (result.missingSalary) missingSalaryCount += 1;
+
+      const key = `${detail.yearId}|${detail.category}`;
+      let cell = cells.get(key);
+      if (!cell) {
+        cell = {
+          yearId: detail.yearId,
+          yearName: yearNames.get(detail.yearId) ?? '(목록에 없는 연차)',
+          category: detail.category,
+          rowCount: 0,
+          beforeAmount: 0,
+          afterAmount: 0,
+        };
+        cells.set(key, cell);
+      }
+      cell.rowCount += 1;
+      cell.beforeAmount += detail.amount;
+      cell.afterAmount += result.amount;
+    });
+
+    return {
+      ok: true,
+      data: {
+        memberId,
+        memberName: member.name,
+        currentAnnualSalary: member.annualSalary,
+        nextAnnualSalary: nextSalary,
+        detailCount: details.length,
+        beforeTotal,
+        afterTotal,
+        delta: afterTotal - beforeTotal,
+        missingSalaryCount,
+        cells: [...cells.values()],
+      },
+    };
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
 // O-1: 인력 행 편집은 여러 필드를 한 번에 바꾸므로 expectedVersion을 받아 잠금을 건다
+//
+// PL-10b: 연봉이 **실제로 바뀌는** 경우에만 apply_salary_change 경로를 탄다. 그 외 필드만 바뀌면
+// 기존 경로 그대로다. 금액 파급을 마지막에 두는 이유: 앞 단계가 실패하면 예산은 손대지 않은 채 남는다.
 export async function updateMember(
   id: string,
   patch: unknown,
@@ -384,15 +531,54 @@ export async function updateMember(
       await assertOrgInProject(client, before.projectId, parsed.orgId);
     }
 
-    const updated = await membersRepo.updateMember(
+    const { annualSalary: nextSalary, ...rest } = parsed;
+    const salaryChanged = nextSalary !== undefined && nextSalary !== before.annualSalary;
+
+    if (!salaryChanged) {
+      const updated = await membersRepo.updateMember(
+        client,
+        memberId,
+        parsed,
+        ctx.user.id,
+        expectedVersion
+      );
+      revalidateTeam(before.projectId);
+      return { ok: true, data: updated };
+    }
+
+    // 연봉 외 필드를 먼저 저장해 O-1 잠금을 사용자의 baseline version에서 판정한다.
+    // 여기서 STALE이면 예산은 아직 아무것도 건드리지 않은 상태다.
+    let lockVersion = expectedVersion;
+    if (Object.keys(rest).length > 0) {
+      const saved = await membersRepo.updateMember(
+        client,
+        memberId,
+        rest,
+        ctx.user.id,
+        expectedVersion
+      );
+      // 방금 저장으로 version이 올랐다 — 잠금을 끊지 않도록 그 값으로 잇는다
+      if (expectedVersion !== undefined) lockVersion = saved.version;
+    }
+
+    const details = await membersRepo.listSalaryImpactedDetails(client, memberId);
+    const { amounts } = recalcAmounts(details, memberId, nextSalary ?? null);
+
+    // 연봉 + 인건비 행 금액 + budget_items를 한 트랜잭션으로 적용한다 (PL-10b).
+    // 목록이 그 사이 늘어났으면 RPC가 집합 불일치로 거부한다 — 부분 반영은 없다.
+    const applied = await membersRepo.applySalaryChange(
       client,
       memberId,
-      parsed,
-      ctx.user.id,
-      expectedVersion
+      nextSalary ?? null,
+      amounts,
+      lockVersion
     );
+
     revalidateTeam(before.projectId);
-    return { ok: true, data: updated };
+    if (applied.cells > 0) revalidateBudget(before.projectId);
+
+    // RPC는 요약 jsonb만 돌려준다 — 화면이 쓰는 최신 행(O-1 baseline)은 다시 읽어 준다
+    return { ok: true, data: await membersRepo.getMemberById(client, memberId) };
   } catch (e) {
     return toFailure(e, client);
   }
@@ -400,6 +586,8 @@ export async function updateMember(
 
 // H-9: 참조 8곳을 한 트랜잭션으로 정리하고 정리된 건수를 돌려준다 —
 // UI가 "작업 3건의 책임자가 비었습니다"처럼 결과를 그대로 알린다 (절대 규칙 5).
+// H-9a: 인건비 산출근거가 1건이라도 걸려 있으면 RPC가 거부한다(RULE). 사람을 지운 조작만으로
+// 비목 총액이 줄어드는 것을 막는 차단이며, 화면은 countMemberReferences로 미리 알린다.
 export async function deleteMember(
   id: string
 ): Promise<ActionResult<membersRepo.MemberReferenceCounts>> {

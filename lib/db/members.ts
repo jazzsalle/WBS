@@ -5,9 +5,10 @@
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
-import type { Member } from '@/types';
+import type { BudgetDetail, Member } from '@/types';
 import { memberRowSchema } from './schema';
 import { appToDb, dbToApp } from './mapper';
+import { listByMember } from './budget-details';
 import {
   ConflictError,
   NotFoundError,
@@ -19,6 +20,9 @@ import {
 // N-4 공통 컬럼은 DB(트리거)와 서버 액션이 채운다 — 입력에서 제외
 type BaseFieldKeys = 'id' | 'createdAt' | 'updatedAt' | 'version' | 'createdBy' | 'updatedBy';
 
+// Phase 9(§5.11)의 annualSalary·hireType도 여기에 포함된다 — Member에서 파생되므로
+// 필드를 다시 나열하지 않는다. snake_case 변환은 appToDb가 전담한다 (§8.6).
+// annualSalary는 원 단위 정수 또는 null(미입력)이고, 값 검증은 서버 액션의 Zod 몫이다.
 export type MemberInput = Omit<Member, BaseFieldKeys>;
 export type MemberPatch = Partial<MemberInput>;
 
@@ -29,6 +33,9 @@ export interface MemberWithOrg extends Member {
 }
 
 // H-9의 참조 8곳. RPC가 삭제 직전에 센 건수 그대로다 (조인 테이블은 삭제된 행 수).
+// budgetDetails만 성격이 다르다: 나머지는 "정리되는 참조"지만 이것은 **삭제를 막는 참조**다
+// (H-9a·PL-D8 — member_id가 on delete restrict). 화면이 별도 줄로 세고, 1건 이상이면
+// 삭제 버튼 대신 연구비 화면 링크를 보여 준다.
 export interface MemberReferenceCounts {
   tasks: number;
   taskMembers: number;
@@ -38,15 +45,29 @@ export interface MemberReferenceCounts {
   achievementMembers: number;
   noteAttendees: number;
   appUsers: number;
+  budgetDetails: number;
 }
 
 // ─── 파일 내부 헬퍼 ──────────────────────────────────────────
+
+// P0001(PL/pgSQL raise exception) 해석 규칙. budget-details.ts와 **같은 규약**을 쓴다 —
+// PostgREST는 모든 raise exception을 P0001 하나로 내려보내므로 코드만으로는 낙관적 잠금 실패와
+// 규칙 위반을 가를 수 없다. 전부 RuleViolationError로 보내면 apply_salary_change의 version
+// 불일치가 RULE로 보고돼 §8.4 O-3 충돌 다이얼로그가 뜨지 않는다.
+// H-9a 거부 문구('인건비 산출근거 N건이 …')는 두 패턴 어디에도 걸리지 않아 RULE로 간다 — 의도된 것이다.
+const STALE_MESSAGE_PATTERN = /먼저 수정|stale/i;
+const NOT_FOUND_MESSAGE_PATTERN = /찾을 수 없습니다|not found/i;
 
 // 23505(유니크 충돌)와 P0001(RPC raise exception)만 의미를 부여하고, 나머지는 일반 Error로
 // 던져 toActionFailure가 테이블·제약명 노출을 막게 한다 (SA-4). 무음 처리는 없다.
 function throwDbError(error: PostgrestError): never {
   if (error.code === '23505') throw new ConflictError();
-  if (error.code === 'P0001') throw new RuleViolationError(error.message);
+  if (error.code === 'P0001') {
+    // O-3 표시용 updated_by는 예외에 실려 오지 않는다 — 필요한 호출부가 행을 한 번 더 읽어 채운다
+    if (STALE_MESSAGE_PATTERN.test(error.message)) throw new StaleDataError();
+    if (NOT_FOUND_MESSAGE_PATTERN.test(error.message)) throw new NotFoundError(error.message);
+    throw new RuleViolationError(error.message);
+  }
   throw new Error(`[db] ${error.code}: ${error.message}`);
 }
 
@@ -97,6 +118,8 @@ const memberReferenceCountsRowSchema = z.object({
   achievement_members: z.number().int().nonnegative(),
   note_attendees: z.number().int().nonnegative(),
   app_users: z.number().int().nonnegative(),
+  // H-9a: 인건비 산출근거 건수. 다른 항목과 달리 이 값이 0이 아니면 삭제가 거부된다
+  budget_details: z.number().int().nonnegative(),
 });
 
 function toReferenceCounts(payload: unknown): MemberReferenceCounts {
@@ -169,7 +192,78 @@ export async function updateMember(
   return toMember(data);
 }
 
+/**
+ * PL-10b — 연봉 변경이 파급되는 인건비 산출근거 전량 (연차·비목·현재 amount·근거 필드 포함).
+ * 서버 액션이 이 행들로 새 amount를 계산해 previewSalaryChange의 전후 비교를 만들고,
+ * 사용자가 확인하면 같은 값으로 저장한다 (§7.10 — 조용히 바꾸지 않는다).
+ *
+ * 인력 화면이 연구비 리포지토리를 직접 알 필요가 없도록 여기서 한 번 감싼다.
+ * 질의 자체는 budget-details.ts 한 곳에만 둔다 — 같은 조회가 두 곳에 생기면 어긋난다.
+ */
+export async function listSalaryImpactedDetails(
+  client: SupabaseClient,
+  memberId: string
+): Promise<BudgetDetail[]> {
+  return listByMember(client, memberId);
+}
+
+/** apply_salary_change의 p_amounts 한 항목. amount는 액션이 lib/budget-plan.ts로 계산한 값이다 */
+export interface SalaryDetailAmount {
+  id: string;
+  amount: number;
+}
+
+export interface SalaryChangeResult {
+  memberId: string;
+  projectId: string;
+  /** 금액이 다시 계산된 산출근거 행 수 */
+  updated: number;
+  /** 총액을 다시 맞춘 (연차 × 비목) 셀 수 */
+  cells: number;
+}
+
+// 이 RPC는 jsonb 키를 이미 camelCase로 돌려준다(마이그레이션 참고) — 매퍼를 태우지 않는다
+const salaryChangeResultSchema = z.object({
+  memberId: z.uuid(),
+  projectId: z.uuid(),
+  updated: z.number().int().nonnegative(),
+  cells: z.number().int().nonnegative(),
+});
+
+/**
+ * PL-10b — 연봉 저장 + 인건비 행 금액 + 관련 budget_items를 한 트랜잭션으로 적용한다.
+ *
+ * `amounts`는 **그 인력의 산출근거 전량**이어야 한다(집합 일치). 일부만 보내면 RPC가 거부한다 —
+ * 부분 갱신은 비목 총액이 근거와 어긋난 채 남는다는 뜻이기 때문이다.
+ * PL-10a: 금액은 여기서 계산하지 않는다. 서버 액션이 computeDetailAmount로 계산해 넘긴 값을 적용만 한다.
+ *
+ * 확인 절차(영향 건수·전후 금액)는 액션의 previewSalaryChange가 담당한다 (§7.10).
+ */
+export async function applySalaryChange(
+  client: SupabaseClient,
+  memberId: string,
+  annualSalary: number | null,
+  amounts: readonly SalaryDetailAmount[],
+  expectedVersion?: number
+): Promise<SalaryChangeResult> {
+  const { data, error } = await client.rpc('apply_salary_change', {
+    p_member_id: memberId,
+    p_annual_salary: annualSalary,
+    p_amounts: amounts,
+    p_expected_version: expectedVersion ?? null,
+  });
+  if (error) {
+    // O-1: 잠금 실패는 P0001로만 오므로 메시지로 가른 뒤 updated_by를 채워 던진다 (O-3)
+    if (error.code === 'P0001' && STALE_MESSAGE_PATTERN.test(error.message)) {
+      await throwStaleOrNotFound(client, memberId);
+    }
+    throwDbError(error);
+  }
+  return parseRow(salaryChangeResultSchema, data);
+}
+
 // 삭제 확인 대화상자용 — 어떤 참조가 몇 건 정리되는지 미리 보여준다 (H-9).
+// budgetDetails가 1건 이상이면 removeMember는 H-9a로 거부된다 — 대화상자가 미리 막는다.
 export async function countMemberReferences(
   client: SupabaseClient,
   id: string
@@ -181,6 +275,8 @@ export async function countMemberReferences(
 
 // H-9: 참조 8곳 정리(set null 4곳 + cascade 3곳 + app_users)를 한 트랜잭션으로 묶고
 // 정리된 건수를 돌려준다 (§8.3). 대상이 없으면 RPC가 실패한다 — 무음 삭제는 없다.
+// H-9a: 인건비 산출근거가 1건이라도 있으면 RPC가 거부한다(RuleViolationError) —
+// 사람을 지운 조작만으로 비목 총액이 줄어드는 것을 막기 위해서다 (PL-D8).
 export async function removeMember(
   client: SupabaseClient,
   id: string

@@ -229,6 +229,8 @@ describe('stages / years / tasks CRUD 왕복 (임시 과제 위에서)', () => {
         email: '',
         phone: '',
         active: true,
+        annualSalary: null,
+        hireType: 'existing',
         order: 0,
       },
       user.id

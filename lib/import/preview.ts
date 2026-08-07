@@ -19,13 +19,24 @@ export const PREVIEW_STATUS_LABELS: Record<PreviewRowStatus, string> = {
   new: '신규',
   overwrite: '덮어씀',
   skipped: '건너뜀',
+  locked: '잠김',   // S-14: 산출근거가 있어 덮어쓸 수 없는 셀. 건너뜀과 섞지 않는다
   error: '오류',
 };
 
-/** 기존 계획액 비교 대상. BudgetItem을 그대로 대입할 수 있는 최소 형태 */
+/**
+ * S-14 잠김 행에 붙이는 안내. 라벨과 함께 화면 두 곳(테이블 비고, Step 5 안내 상자)이
+ * 쓰므로 문장을 여기 한 곳에만 둔다 — 복사하면 반드시 어긋난다.
+ */
+export const LOCKED_ROW_GUIDE =
+  '산출근거가 있어 덮어쓰지 않습니다. 풀려면 연구비 화면에서 산출근거를 먼저 지우세요.';
+
+/**
+ * 기존 계획액 비교 대상. BudgetItem을 그대로 대입할 수 있는 최소 형태.
+ * `detailCount`는 S-14 잠금 판정에 쓴다 — 리포지토리가 조회 시 채워 준다 (§5.12).
+ */
 export type ExistingBudgetItem = Pick<
   BudgetItem,
-  'yearId' | 'category' | 'plannedAmount' | 'cashAmount' | 'inKindAmount'
+  'yearId' | 'category' | 'plannedAmount' | 'cashAmount' | 'inKindAmount' | 'detailCount'
 >;
 
 export interface BuildPreviewInput {
@@ -123,6 +134,8 @@ function rowLabel(row: ParsedRow): string | null {
  * - I-12: 오류 셀이 있는 행은 별도의 `오류` 행으로 남기고 반영을 막는다. **스킵 행의 오류 셀은
  *   반영 대상이 아니므로 오류로 세지 않는다** (부록 B.5의 8·10행 주석)
  * - S-9: 파일에 등장하지 않은 (연차, 비목)은 건드리지 않고 `untouchedCategories`로 보고한다
+ * - S-14: 대상 셀에 산출근거가 있으면(`detailCount > 0`) `잠김`으로 남기고 반영 대상에서 뺀다.
+ *   총액으로 덮으면 근거와 합계가 소리 없이 어긋나기 때문이다. 오류가 아니므로 `blocked`는 아니다
  */
 export function buildPreview(input: BuildPreviewInput): ImportPreview {
   const { rows, yearIdByOrder, existingItems } = input;
@@ -250,6 +263,7 @@ export function buildPreview(input: BuildPreviewInput): ImportPreview {
   }
 
   const mappedRows: PreviewRow[] = [];
+  const lockedRows: PreviewRow[] = [];
   const touched = new Set<string>();
 
   const sortedBuckets = [...buckets.values()].sort(
@@ -265,7 +279,42 @@ export function buildPreview(input: BuildPreviewInput): ImportPreview {
     const inKind = bucket.hasAxisSplit ? bucket.inKind : null;
 
     const existing = yearId ? (existingByKey.get(`${yearId}|${bucket.category}`) ?? null) : null;
+    // 잠긴 셀도 "파일에 등장한" 조합이다 — S-9의 "이 파일에 없는 비목" 목록에 넣으면
+    // 사용자에게 거짓말이 된다. 유지된다는 사실은 `잠김` 행이 따로 알린다
     if (yearId) touched.add(`${yearId}|${bucket.category}`);
+
+    // S-14: 산출근거가 있는 셀은 계획액의 소유권이 내역에 있다(PL-9). 신규/덮어씀 판정보다
+    // **먼저** 본다 — 덮어쓸 값이 있느냐 없느냐와 무관하게 임포트가 손댈 수 없는 셀이다.
+    //
+    // 사용자가 Step 4에서 명시적으로 `건너뛰기`한 원본 행은 여기까지 오지 않는다(위 루프에서
+    // `skipped`로 빠진다). 즉 **사용자의 선택이 잠금보다 앞선다** — 잠금은 시스템이 대신 막아
+    // 주는 것이고, 건너뛰기는 사람이 내린 결정이라 그 결정을 화면에서 지워 버리면 안 된다.
+    // (두 행이 같은 셀에 걸리면 건너뛴 행은 `건너뜀`으로, 남은 행이 만든 셀은 `잠김`으로 보인다)
+    if (existing !== null && existing.detailCount > 0) {
+      lockedRows.push(
+        makeRow('locked', {
+          yearId,
+          yearOrder: bucket.yearOrder,
+          category: bucket.category,
+          // 반영 대상이 아니므로 금액은 비운다. 무시되는 파일 값은 사유에 남긴다 (절대 규칙 5)
+          plannedAmount: null,
+          cashAmount: null,
+          inKindAmount: null,
+          existing: {
+            plannedAmount: existing.plannedAmount,
+            cashAmount: existing.cashAmount,
+            inKindAmount: existing.inKindAmount,
+          },
+          sourceRowIndexes: [...bucket.sourceRowIndexes].sort((a, b) => a - b),
+          rounded: bucket.rounded,
+          reason: `${LOCKED_ROW_GUIDE} (산출근거 ${existing.detailCount}건 · 파일 값 ${planned.toLocaleString('ko-KR')}원은 반영되지 않습니다)`,
+          label: joinLabels(bucket.sourceRows),
+          categorySource: pickSource(bucket.sourceRows),
+          sourceRows: [...bucket.sourceRows].sort((a, b) => a.rowIndex - b.rowIndex),
+        })
+      );
+      continue;
+    }
 
     // 연차 생성 시 12비목이 0으로 자동 생성되므로(§5.12), "값이 없는 기존 레코드"는 신규로 본다
     const isEmptyExisting =
@@ -320,13 +369,16 @@ export function buildPreview(input: BuildPreviewInput): ImportPreview {
         (categoryRank.get(a.category) ?? 99) - (categoryRank.get(b.category) ?? 99)
     );
 
-  const previewRows = [...mappedRows, ...errorRows, ...skippedRows];
+  const previewRows = [...mappedRows, ...errorRows, ...lockedRows, ...skippedRows];
   const summary: ImportSummary = {
     new: mappedRows.filter((r) => r.status === 'new').length,
     overwrite: mappedRows.filter((r) => r.status === 'overwrite').length,
     skipped: skippedRows.length,
     skippedAmount,
+    // S-14: `건너뜀`과 별도로 센다 — 건너뜀은 사용자가 고를 수 있지만 잠김은 고를 수 없다
+    locked: lockedRows.length,
     error: errorRows.length,
+    // 잠김 행은 mappedRows에 없으므로 합계에서도 자연히 빠진다 (반영되지 않을 돈을 더하지 않는다)
     totalAmount: mappedRows.reduce((sum, r) => sum + (r.plannedAmount ?? 0), 0),
     untouchedCategories,
   };
@@ -334,6 +386,7 @@ export function buildPreview(input: BuildPreviewInput): ImportPreview {
   return {
     rows: previewRows,
     summary,
+    // S-14: 잠김은 오류가 아니므로 반영을 막지 않는다. blocked에 넣지 않는다
     blocked: summary.error > 0 || unmappedYearOrders.size > 0,
     unmappedYearOrders: [...unmappedYearOrders].sort((a, b) => a - b),
   };

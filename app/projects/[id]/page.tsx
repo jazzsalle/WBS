@@ -1,4 +1,4 @@
-// 과제 개요 (SOT §7.3) — Phase 1 + Phase 3 + Phase 4 + Phase 6 범위
+// 과제 개요 (SOT §7.3) — Phase 1 + Phase 3 + Phase 4 + Phase 6 + Phase 9(지침 한도) 범위
 // §7.3의 6개 영역 전부: 협약 정보 패널 + 단계·연차 타임라인(진척률·예산·상태) + 목표 달성 현황
 // + 임박 마일스톤 5건 + 고위험 리스크 5건 + 최근 노트 5건.
 // 데이터 로딩은 서버에서 — 액션(actions/)만 호출하고 supabase는 직접 부르지 않는다.
@@ -30,6 +30,7 @@ import Badge, { type BadgeTone } from '@/components/ui/Badge';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import ProgressBar from '@/components/ui/ProgressBar';
 import RealtimeRefresher from '@/components/RealtimeRefresher';
+import BudgetRateLimitCard from '@/components/project/BudgetRateLimitCard';
 import StageYearPanel from '@/components/project/StageYearPanel';
 
 // R-1 §8.5 구독표의 "과제 개요" 행 그대로. 다른 테이블은 구독하지 않는다.
@@ -476,6 +477,12 @@ export default async function ProjectOverviewPage({
           <InfoRow label="주관기관" value={leadOrgName} warn={!teamRes.ok} />
         </dl>
       </section>
+
+      {/* PL-14 한도 2종은 협약 정보와 같은 과제 단위 상수라 바로 아래에 둔다.
+          project는 이미 위에서 읽은 값이다 — 같은 화면에서 과제를 두 번 조회하지 않는다. */}
+      <div className="mt-6">
+        <BudgetRateLimitCard projectId={project.id} project={project} />
+      </div>
 
       <div className="mt-6">
         <StageYearPanel

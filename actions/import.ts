@@ -532,6 +532,12 @@ export async function commitImport(
     // 판정은 buildPreview의 blocked를 그대로 쓴다 (toCommitRows가 던진다)
     const rows = toCommitRows(result.preview);
     if (rows.length === 0) {
+      // S-14로 전부 잠긴 경우를 "매핑을 확인하세요"로 안내하면 사용자가 없는 문제를 찾는다
+      if (result.preview.summary.locked > 0) {
+        throw new RuleViolationError(
+          `반영할 내역이 없습니다 — 대상 ${result.preview.summary.locked}건이 모두 산출근거가 있는 셀입니다. 덮어쓰려면 연구비 화면에서 산출근거를 먼저 지우세요.`
+        );
+      }
       throw new RuleViolationError('반영할 내역이 없습니다. 비목 매핑과 연차 열 대응을 확인하세요.');
     }
 
@@ -560,6 +566,9 @@ export async function commitImport(
       data: {
         snapshotId: committed.snapshotId,
         updated: committed.updated,
+        // S-14. 미리보기의 summary.locked가 아니라 **RPC가 실제로 잠근 수**를 올린다 —
+        // 미리보기 이후 다른 사람이 산출근거를 추가하면 두 값이 갈리고, 이때 맞는 쪽은 DB다
+        locked: committed.locked,
         summary: result.preview.summary,
         profileUsageRecorded,
       },

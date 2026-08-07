@@ -18,7 +18,12 @@ import * as budgetItemsRepo from '@/lib/db/budget-items';
 import * as projectsRepo from '@/lib/db/projects';
 import * as settingsRepo from '@/lib/db/settings';
 import * as yearsRepo from '@/lib/db/years';
-import { StaleDataError, ValidationError, toActionFailure } from '@/lib/db/errors';
+import {
+  RuleViolationError,
+  StaleDataError,
+  ValidationError,
+  toActionFailure,
+} from '@/lib/db/errors';
 import { budgetCategorySchema } from '@/lib/db/schema';
 import { buildBudgetMatrix, type BudgetMatrix, type YearBudgetMismatch } from '@/lib/budget';
 import { todayISO } from '@/lib/dates';
@@ -149,6 +154,15 @@ export async function updateBudgetPlan(
 
     const ctx = await requireApprovedUser();
     client = ctx.client;
+
+    // PL-9: 산출근거가 있는 셀의 계획액은 사람이 입력하는 값이 아니라 내역 합계다
+    // (§5.12 "계획액의 소유권"). 저장을 허용하면 화면은 산출 행을 그대로 보여주는데
+    // 총액만 다른 숫자가 되고, RPC가 다음 편집에서 그 값을 덮어 입력이 조용히 사라진다.
+    if ((await budgetItemsRepo.getCellDetailCount(client, yid, cat)) > 0) {
+      throw new RuleViolationError(
+        '산출근거가 있는 셀은 내역 합계로 확정됩니다. 산출근거 패널에서 수정하세요.'
+      );
+    }
 
     const updated = await budgetItemsRepo.updateBudgetPlan(
       client,

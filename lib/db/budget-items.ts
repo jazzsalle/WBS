@@ -12,6 +12,11 @@ import type { BudgetCategory, BudgetExecution, BudgetItem } from '@/types';
 import { appToDb, dbToApp } from './mapper';
 import { budgetExecutionRowSchema, budgetItemRowSchema, type BudgetItemRow } from './schema';
 import { ConflictError, NotFoundError, StaleDataError, ValidationError } from './errors';
+import {
+  countDetailsByCell,
+  detailCountKey,
+  fetchDetailCountsByYearIds,
+} from './budget-details';
 
 const TABLE = 'budget_items';
 const CHILD_TABLE = 'budget_executions';
@@ -143,21 +148,41 @@ function sortByDate(executions: BudgetExecution[]): BudgetExecution[] {
   );
 }
 
-// 부모 행 + 따로 읽은 집행 내역을 앱 형태(§5.12 executions 포함)로 조립한다.
+// 부모 행 + 따로 읽은 자식(집행 내역·산출근거 건수)을 앱 형태(§5.12)로 조립한다.
 // export인 이유: 대시보드 벌크 조회(lib/db/dashboard.ts)와 조립 방식이 갈라지면
-// 대시보드만 조용히 다른 집행액을 보게 된다.
+// 대시보드만 조용히 다른 집행액·다른 잠금 상태를 보게 된다.
+// (이름은 호출부를 건드리지 않으려고 유지한다 — 지금은 detailCount도 함께 붙인다)
 export async function attachExecutions(
   client: SupabaseClient,
   rows: readonly BudgetItemRow[]
 ): Promise<BudgetItem[]> {
-  const byItem = await fetchExecutionsByItemIds(
-    client,
-    rows.map((row) => row.id)
-  );
+  // 두 자식 조회는 서로 독립이라 동시에 쏜다. detailCount는 임베드로 세지 않는다 —
+  // 임베드 자식은 max-rows에 걸려도 에러 없이 잘려 건수가 조용히 작아진다 (ITEM_SELECT 주석).
+  const [byItem, detailCounts] = await Promise.all([
+    fetchExecutionsByItemIds(
+      client,
+      rows.map((row) => row.id)
+    ),
+    // 산출근거는 budget_item_id가 아니라 (year_id, category)로 셀을 가리킨다 (§5.17)
+    fetchDetailCountsByYearIds(client, [...new Set(rows.map((row) => row.year_id))]),
+  ]);
   return rows.map((row) => ({
     ...dbToApp<Omit<BudgetItem, 'executions'>>(row),
     executions: sortByDate(byItem.get(row.id) ?? []),
+    // 조회 자체가 실패하면 위에서 예외가 난다. 여기 0은 "그 셀에 행이 없다"는 뜻뿐이다 —
+    // 실패를 0으로 눙치면 잠긴 셀이 편집 가능해 보인다 (PL-9, 절대 규칙 5)
+    detailCount: detailCounts.get(detailCountKey(row.year_id, row.category)) ?? 0,
   }));
+}
+
+// PL-9 거부 판정용. updateBudgetPlan을 부르기 **전에** 액션이 이 값을 보고 잠긴 셀이면
+// RULE로 거부한다 — 잠금은 계획액의 소유권 규칙이지 리포지토리의 저장 조건이 아니다 (§5.12).
+export async function getCellDetailCount(
+  client: SupabaseClient,
+  yearId: string,
+  category: BudgetCategory
+): Promise<number> {
+  return countDetailsByCell(client, yearId, category);
 }
 
 // 연차 하나의 비목 12종 (§5.12 매트릭스의 한 열). 표시 순서(부록 A.1)는 UI 몫 —

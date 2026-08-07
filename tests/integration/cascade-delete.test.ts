@@ -329,6 +329,8 @@ describe('H-7: Project 삭제 (delete_project RPC)', () => {
         email: '',
         phone: '',
         active: true,
+        annualSalary: null,
+        hireType: 'existing',
         order: 0,
       },
       user.id
@@ -411,6 +413,8 @@ describe('H-8: Organization 삭제', () => {
         email: '',
         phone: '',
         active: true,
+        annualSalary: null,
+        hireType: 'existing',
         order: 0,
       },
       user.id

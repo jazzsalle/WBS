@@ -61,6 +61,8 @@ export const projectRowSchema = z.object({
   own_budget: z.number().nullable(),
   pm_member_id: z.uuid().nullable(),
   lead_org_id: z.uuid().nullable(),
+  allowance_rate_limit: z.number().nullable(), // % (PL-14). null이면 경고를 띄우지 않는다
+  indirect_rate_limit: z.number().nullable(),
   archived: z.boolean(),
   sort_order: z.number(),
 });
@@ -232,6 +234,7 @@ export const organizationRowSchema = z.object({
 // ─── §5.11 members ───────────────────────────────────────────
 
 export const memberRoleSchema = z.enum(['pm', 'pl', 'researcher', 'staff']);
+export const hireTypeSchema = z.enum(['existing', 'new']);
 
 export const memberRowSchema = z.object({
   ...baseRow,
@@ -245,6 +248,8 @@ export const memberRowSchema = z.object({
   phone: z.string(),
   active: z.boolean(),
   sort_order: z.number(),
+  annual_salary: z.number().nullable(), // 실지급액(연봉), 원 단위 정수 (§6.10.1 PL-1의 단가)
+  hire_type: hireTypeSchema,
 });
 
 // ─── §5.12 budget_items / budget_executions ──────────────────
@@ -273,6 +278,39 @@ export const budgetExecutionRowSchema = z.object({
   amount: z.number(),
   description: z.string(),
   note: z.string(),
+});
+
+// ─── §5.17 budget_details (산출근거) ─────────────────────────
+// budget_items에는 detail_count 컬럼이 없다 — 조회 시 세어 싣는 파생 값이다 (§5.12 주석).
+
+export const detailAxisSchema = z.enum(['cash', 'in_kind']);
+export const detailFormulaSchema = z.enum(['personnel', 'quantity']);
+
+// jsonb 내부는 앱 형태 그대로 저장된다 — isPercent는 camelCase (mapper의 JSONB_PASSTHROUGH_KEYS).
+// passthrough로 두면 라벨 오타·문자열 숫자가 그대로 통과해 §6.10.1 계산이 NaN을 낳는다.
+export const detailFactorSchema = z.object({
+  label: z.string(),
+  value: z.number(),
+  isPercent: z.boolean(),
+});
+
+export const budgetDetailRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  year_id: z.uuid(),
+  category: budgetCategorySchema,
+  subcategory: z.string(),        // 부록 A.5 세목 코드. 세목이 없는 비목은 'default'
+  axis: detailAxisSchema,
+  formula: detailFormulaSchema,
+  member_id: z.uuid().nullable(),
+  name: z.string(),
+  unit_price: z.number(),
+  spec: z.string(),
+  factors: z.array(detailFactorSchema),
+  adjustment: z.number(),         // 음수 허용 (PL-D5)
+  note: z.string(),
+  sort_order: z.number(),
+  amount: z.number(),             // 서버가 lib/budget-plan.ts로 계산해 넣은 값 (PL-D7)
 });
 
 // ─── §5.13 risks ─────────────────────────────────────────────
@@ -463,6 +501,7 @@ export type OrganizationRow = z.infer<typeof organizationRowSchema>;
 export type MemberRow = z.infer<typeof memberRowSchema>;
 export type BudgetItemRow = z.infer<typeof budgetItemRowSchema>;
 export type BudgetExecutionRow = z.infer<typeof budgetExecutionRowSchema>;
+export type BudgetDetailRow = z.infer<typeof budgetDetailRowSchema>;
 export type RiskRow = z.infer<typeof riskRowSchema>;
 export type NoteRow = z.infer<typeof noteRowSchema>;
 export type TodoRow = z.infer<typeof todoRowSchema>;

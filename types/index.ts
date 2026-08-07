@@ -47,6 +47,11 @@ export interface Project extends BaseEntity {
   pmMemberId: string | null;         // 총괄책임자(PM)
   leadOrgId: string | null;          // 주관연구개발기관
 
+  // ─ Phase 9(예산 제안) 추가 — 지침 한도 (§6.10.3 PL-14) ─
+  // null이면 그 검사를 수행하지 않는다 — 모르는 값을 0으로 취급해 전 과제에 경고를 띄우는 것이 더 나쁘다
+  allowanceRateLimit: number | null; // 연구수당 한도율 (%). 기본 20 (혁신법 공통)
+  indirectRateLimit: number | null;  // 간접비 한도율 (%). 부처·기관 유형별 고시율이라 기본값 없음
+
   archived: boolean;
   order: number;
 }
@@ -242,6 +247,8 @@ export interface Organization extends BaseEntity {
 export type MemberRole = 'pm' | 'pl' | 'researcher' | 'staff';
 // pm: 총괄책임자, pl: 세부/기관 책임자, researcher: 참여연구원, staff: 행정/지원
 
+export type HireType = 'existing' | 'new';   // 기존인력 / 신규채용 (예정자 포함)
+
 export interface Member extends BaseEntity {
   projectId: string;
   orgId: string | null;         // 소속 기관
@@ -253,6 +260,11 @@ export interface Member extends BaseEntity {
   phone: string;
   active: boolean;              // 참여 종료자는 false
   order: number;
+
+  // ─ Phase 9(예산 제안) 추가 — 인건비 산출근거의 단가 원본 (§6.10.1) ─
+  // 참여율(%)은 여기 두지 않는다. (연차 × 인력)의 속성이라 BudgetDetail이 갖는다 (§5.11 주석)
+  annualSalary: number | null;  // 실지급액(연봉), 원 단위 정수. 미입력이면 null
+  hireType: HireType;           // 기본 'existing'. 'new'는 아직 사람이 정해지지 않은 자리
 }
 
 // ─── §5.12 BudgetItem (비목별 예산·집행) ─────────────────────
@@ -291,6 +303,11 @@ export interface BudgetItem extends BaseEntity {
   inKindAmount: number | null;       // 그중 현물
   executions: BudgetExecution[];     // 집행 내역 (수동 입력)
   note: string;
+
+  // ─ Phase 9 추가 — 이 셀에 산출근거가 있는가 (§5.17, PL-9) ─
+  // 저장 컬럼이 아니다. 리포지토리가 budget_details를 세어 조회 시 실어 보낸다.
+  // 0보다 크면 계획액 3종이 내역 합계로 확정돼 직접 편집·임포트 덮어쓰기가 잠긴다 (PL-9, S-14)
+  detailCount: number;
 }
 
 // ─── §5.12.1 ImportProfile (엑셀 매핑 프로파일 = 부처 템플릿) ─
@@ -375,8 +392,12 @@ export interface ImportSnapshot extends BaseEntity {
 
 // ─── §7.9.1 Step 5 / §9 previewImport 반환 형태 ──────────────
 
-/** §7.9.1 Step 5 행 상태. 라벨은 부록 A와 같은 방식으로 lib/import가 붙인다 */
-export type PreviewRowStatus = 'new' | 'overwrite' | 'skipped' | 'error';
+/**
+ * §7.9.1 Step 5 행 상태. 라벨은 부록 A와 같은 방식으로 lib/import가 붙인다.
+ * `locked`(S-14)는 `skipped`와 **별개 값이다** — 건너뜀은 사용자가 고를 수 있지만
+ * 잠김은 고를 수 없다. 섞으면 산출근거가 있는 셀을 사용자가 되살려 덮어쓸 수 있게 된다.
+ */
+export type PreviewRowStatus = 'new' | 'overwrite' | 'skipped' | 'locked' | 'error';
 
 /** 미리보기 행에 기여한 원본 시트 행 하나 (§7.9.1 Step 4) */
 export interface PreviewSourceRow {
@@ -445,6 +466,8 @@ export interface ImportSummary {
   skipped: number;
   /** 건너뛴 행들의 금액 합 (원) */
   skippedAmount: number;
+  /** S-14: 산출근거가 있어 반영 대상에서 빠진 (연차, 비목) 수. 오류가 아니므로 blocked에 넣지 않는다 */
+  locked: number;
   error: number;
   /** 반영될 계획액 합 (원) */
   totalAmount: number;
@@ -549,6 +572,12 @@ export interface CommitImportResult {
   snapshotId: string;
   /** 실제로 쓴 (연차, 비목) 셀 수 */
   updated: number;
+  /**
+   * S-14: 산출근거가 있어 덮어쓰지 않은 셀 수. **서버가 반영 시점에 판정한 값**이라
+   * `summary.locked`(미리보기 시점)와 다를 수 있다 — 그 사이 다른 사람이 산출근거를
+   * 추가했다면 이쪽이 맞다. 오류가 아니므로 반영은 성공한 것이다.
+   */
+  locked: number;
   summary: ImportSummary;
   /**
    * 프로파일 사용 이력(`lastUsedAt`/`useCount`) 갱신 성공 여부.
@@ -643,6 +672,50 @@ export interface LocalConfig {
   lastBackupAt: string | null;
   lastOpenedProjectId: string | null;
   ganttScale: 'day' | 'week' | 'month';   // 개인 화면 취향
+}
+
+// ─── §5.17 BudgetDetail (산출근거 = 예산 제안의 내역) ────────
+
+// 이름 충돌 주의: lib/constants.ts의 BudgetAxis('cash' | 'inKind' | 'unassigned')는
+// 임포트 파이프라인 전용이다(S-4) — 총괄표의 축 라벨이 판정되지 않는 경우까지 담아야 해서
+// 'unassigned'가 있다. 산출근거 행은 축 없이 존재할 수 없으므로 별개 타입으로 둔다.
+export type DetailAxis = 'cash' | 'in_kind';
+
+// 금액 산식 (§6.10.1). 실측 서식 전부가 이 둘로 표현된다
+export type DetailFormula =
+  | 'personnel'   // 인건비류: member.annualSalary × 참여율/100 × 개월/12
+  | 'quantity';   // 나머지 전부: unitPrice × (인자들의 곱)
+
+/** 수량 인자. 세목마다 의미가 다르므로 라벨을 값과 함께 저장한다 (PL-3) */
+export interface DetailFactor {
+  label: string;      // '수량' | '회' | '월' | '인원' | '횟수' | '참여율(%)' | '참여기간(월)' …
+  value: number;      // 소수 허용 (참여율 10.0, 참여기간 8)
+  isPercent: boolean; // true면 계산 시 100으로 나눈다
+}
+
+export interface BudgetDetail extends BaseEntity {
+  projectId: string;
+  yearId: string;
+  category: BudgetCategory;    // 어느 매트릭스 셀에 속하는가
+  subcategory: string;         // 세목 코드 (부록 A.5). 세목이 없는 비목은 'default'
+  axis: DetailAxis;            // 현금/현물. null이 없다 — 축이 없으면 합계를 나눌 수 없다
+
+  formula: DetailFormula;
+
+  // formula = 'personnel' 전용
+  memberId: string | null;     // 필수. 단가(연봉)·이름·직위의 유일한 출처 (§5.11)
+
+  // formula = 'quantity' 전용
+  name: string;                // 품명/내역명. personnel이면 빈 문자열
+  unitPrice: number;           // 단가 (원 단위 정수, 0 이상)
+
+  spec: string;                // 규격 / 산출내역 메모 (자유 텍스트)
+  factors: DetailFactor[];     // 0~3개. 빈 배열이면 금액 = unitPrice + adjustment
+  adjustment: number;          // 조정액 (원). 음수 허용 — 서식의 절사·미세조정용
+  note: string;                // 비고
+  order: number;               // 세목 안에서의 표시 순서
+
+  amount: number;              // 계산된 금액 (원 단위 정수). 사람이 입력하지 않는다 (PL-D7, PL-10a)
 }
 
 // ─── §14.2 AppUser ───────────────────────────────────────────

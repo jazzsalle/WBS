@@ -7,6 +7,10 @@
 //    임의로 배분하지 않는다 — 서버도 배분하지 않고 VALIDATION으로 거부한다 (§5.12).
 //  - 예산 저장·집행 편집은 여러 필드를 한 번에 바꾸므로 낙관적 잠금을 건다 (O-1).
 //    STALE이면 부모가 ConflictDialog를 띄우고, 이 패널의 입력값은 그대로 남는다 (O-3).
+//  - PL-9: `detailCount > 0`인 셀은 계획액의 소유권이 산출근거로 넘어가 있다(§5.12). 서버가
+//    거부하니 눌러도 손상은 없지만, **누를 수 없는 버튼을 누르게 두지 않는다** — 계획액 입력과
+//    저장 버튼을 비활성화하고 이유와 갈 곳(제안 모드 산출근거 패널)을 밝힌다.
+//    **집행 내역은 잠기지 않는다.** 잠기는 것은 계획액이지 집행이 아니다.
 //  - R-4: 패널이 열려 있는 동안 자동 새로고침을 보류한다.
 // 쓰기는 전부 actions/budget.ts를 거친다 (§8.2 C-2).
 
@@ -82,6 +86,11 @@ export default function BudgetDetailPanel({
   const item = items[0] ?? null;
   const duplicated = items.length > 1;
 
+  // PL-9 잠금. 판정의 원본은 매트릭스와 같은 `BudgetItem.detailCount`다 — 같은 셀을 두 곳에서
+  // 다르게 판정하면 표는 자물쇠인데 패널은 저장 버튼을 여는 상태가 생긴다 (O-4)
+  const detailCount = item?.detailCount ?? 0;
+  const planLocked = detailCount > 0;
+
   const [cashDraft, setCashDraft] = useState(() => toDraft(item?.cashAmount ?? null));
   const [inKindDraft, setInKindDraft] = useState(() => toDraft(item?.inKindAmount ?? null));
   const [totalDraft, setTotalDraft] = useState(() => String(item?.plannedAmount ?? 0));
@@ -149,6 +158,14 @@ export default function BudgetDetailPanel({
 
   const handlePlanSave = (): void => {
     if (!item) return;
+    // 버튼이 이미 비활성이라 정상 경로로는 오지 않는다. 그래도 조용히 반환하지 않고 이유를 남긴다
+    if (planLocked) {
+      onError(
+        `산출근거 ${detailCount}건이 있어 계획액이 내역 합계로 확정됩니다. 제안 모드의 산출근거 패널에서 수정하세요 (PL-9).`,
+        'RULE'
+      );
+      return;
+    }
     const expectedVersion = baselineVersion ?? item.version;
 
     if (splitMode) {
@@ -346,9 +363,19 @@ export default function BudgetDetailPanel({
             </div>
           )}
 
-          {/* 예산 편집 — 현금/현물 분리 (§7.9, §5.12) */}
+          {/* 예산 편집 — 현금/현물 분리 (§7.9, §5.12). 잠긴 셀은 읽기 전용이다 (PL-9) */}
           <section aria-label="예산 편집" className="space-y-2">
             <p className="text-xs font-semibold text-slate-700">예산 (원 단위 정수)</p>
+
+            {planLocked && (
+              // 이유와 갈 곳을 함께 밝힌다. 막기만 하면 사용자가 "왜 안 되는지" 알 수 없다
+              <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                🔒 산출근거 <strong>{detailCount}건</strong>이 있어 계획액이 내역 합계로 확정됩니다.
+                제안 모드의 산출근거 패널에서 수정하세요. 마지막 행을 지우면 잠금이 풀리고 직전
+                합계가 그대로 남습니다 (PL-9). 아래 집행 내역은 그대로 등록·수정할 수 있습니다.
+              </p>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               <label className="text-xs text-slate-600">
                 현금(원)
@@ -358,7 +385,7 @@ export default function BudgetDetailPanel({
                   min={0}
                   step={1}
                   value={cashDraft}
-                  disabled={busy}
+                  disabled={busy || planLocked}
                   placeholder="미입력"
                   onChange={(e) => setCashDraft(e.target.value)}
                   className={inputClass}
@@ -372,7 +399,7 @@ export default function BudgetDetailPanel({
                   min={0}
                   step={1}
                   value={inKindDraft}
-                  disabled={busy}
+                  disabled={busy || planLocked}
                   placeholder="미입력"
                   onChange={(e) => setInKindDraft(e.target.value)}
                   className={inputClass}
@@ -389,23 +416,28 @@ export default function BudgetDetailPanel({
                 step={1}
                 value={splitMode ? (splitTotal === null ? '' : String(splitTotal)) : totalDraft}
                 readOnly={splitMode}
-                disabled={busy}
+                disabled={busy || planLocked}
                 onChange={(e) => setTotalDraft(e.target.value)}
                 aria-describedby="plan-total-hint"
                 className={`${inputClass} ${splitMode ? 'bg-slate-100 text-slate-500' : ''}`}
               />
             </label>
             <p id="plan-total-hint" className="text-[11px] text-slate-500">
-              {splitMode
-                ? '현금·현물이 입력되어 총액은 두 값의 합으로 자동 계산됩니다. 총액만 바꾸려면 현금·현물을 모두 비우세요.'
-                : '현금·현물이 비어 있어 총액을 직접 입력합니다. 현금·현물을 채우면 총액은 합계로 바뀝니다.'}
+              {planLocked
+                ? '표시된 값은 산출근거 합계입니다. 여기서는 바꿀 수 없습니다.'
+                : splitMode
+                  ? '현금·현물이 입력되어 총액은 두 값의 합으로 자동 계산됩니다. 총액만 바꾸려면 현금·현물을 모두 비우세요.'
+                  : '현금·현물이 비어 있어 총액을 직접 입력합니다. 현금·현물을 채우면 총액은 합계로 바뀝니다.'}
             </p>
 
-            <div className="flex justify-end">
-              <Button size="sm" variant="primary" disabled={busy} onClick={handlePlanSave}>
-                {busy ? '저장 중…' : '예산 저장'}
-              </Button>
-            </div>
+            {/* PL-9: 누를 수 없는 버튼을 누르게 두지 않는다 — 잠긴 셀에서는 아예 감춘다 */}
+            {!planLocked && (
+              <div className="flex justify-end">
+                <Button size="sm" variant="primary" disabled={busy} onClick={handlePlanSave}>
+                  {busy ? '저장 중…' : '예산 저장'}
+                </Button>
+              </div>
+            )}
           </section>
 
           {/* 집행 내역 (§7.9: 일자, 금액, 적요 + 추가/수정/삭제) */}

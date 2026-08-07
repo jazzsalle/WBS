@@ -18,6 +18,7 @@ import * as importProfiles from '@/lib/db/import-profiles';
 import * as appUsers from '@/lib/db/app-users';
 import * as settings from '@/lib/db/settings';
 import { NotFoundError } from '@/lib/db/errors';
+import { EXPECTED_SCHEMA_VERSION } from '@/lib/constants';
 
 let sql: Sql;
 let user: TestUser;
@@ -49,6 +50,8 @@ beforeAll(async () => {
       email: '',
       phone: '',
       active: true,
+      annualSalary: null,
+      hireType: 'existing',
       order: 0,
     },
     user.id
@@ -280,7 +283,9 @@ describe('app-users (§14.2 — 생성은 트리거, 승인은 RPC 전용)', () 
 describe('settings (§5.16, N-10 — 단일 행)', () => {
   it('get → update → 원복 (dev DB 원상 유지)', async () => {
     const original = await settings.getSettings(user.client);
-    expect(original.schemaVersion).toBe(1); // Phase 0 최초 스키마 = 1
+    // §8.8: DB와 코드 기대값이 어긋나면 앱이 진입을 막는다. 여기서 상수와 대조해 두면
+    // 마이그레이션만 올리고 EXPECTED_SCHEMA_VERSION을 안 올린 실수가 테스트에서 먼저 걸린다
+    expect(original.schemaVersion).toBe(EXPECTED_SCHEMA_VERSION);
 
     const changed = await settings.updateSettings(user.client, {
       dueSoonDays: original.dueSoonDays + 3,
@@ -316,6 +321,6 @@ describe('settings (§5.16, N-10 — 단일 행)', () => {
     expect(error!.message).toContain('마이그레이션만 갱신');
 
     const row = await sql`select schema_version::int as v from public.app_settings`;
-    expect(row[0]!.v).toBe(1); // 값이 바뀌지 않았음을 직결 SQL로 재확인
+    expect(row[0]!.v).toBe(EXPECTED_SCHEMA_VERSION); // 값이 바뀌지 않았음을 직결 SQL로 재확인
   });
 });

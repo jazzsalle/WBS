@@ -1,17 +1,21 @@
 'use client';
 
-// 인력 섹션 (SOT §7.10 "기관별로 그룹핑된 테이블", §5.11, §6.6 H-9, 부록 A.4)
+// 인력 섹션 (SOT §7.10 "기관별로 그룹핑된 테이블", §5.11, §6.6 H-9·H-9a, 부록 A.4)
 // 표시 규칙:
 //  - 소속 기관이 없는 인력도 "소속 미지정" 그룹으로 반드시 드러낸다. 목록에서 빼지 않는다(절대 규칙 5).
 //  - PM은 과제당 1명. 지정해도 기존 PM의 role은 자동으로 바뀌지 않는다 — 경고만 띄운다(§7.10).
 //  - 삭제는 H-9의 참조 8곳 건수를 먼저 보여주고, 삭제 후에는 실제로 정리된 건수를 알린다.
+//  - H-9a: 인건비 산출근거는 정리 대상이 아니라 **삭제 차단 사유**다. 별도 줄로 세고 1건 이상이면
+//    삭제 버튼을 막는다 — 사람을 지운 조작만으로 비목 총액이 줄어드는 것을 막는다.
+//  - hireType='new'는 '채용예정' 배지로 구분한다 (§5.11 — 사람이 정해지지 않은 자리도 Member다).
 // 쓰기는 전부 actions/team.ts를 거친다. supabase를 직접 부르지 않는다(§8.2 C-2).
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import type { ActionResult, Member, OrgRole, Organization } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import type { AssignedTask, MemberReferenceCounts } from '@/actions/team';
-import { MEMBER_ROLE_LABELS, ORG_ROLE_LABELS } from '@/lib/constants';
+import { HIRE_TYPE_LABELS, MEMBER_ROLE_LABELS, ORG_ROLE_LABELS } from '@/lib/constants';
 import {
   countMemberReferences,
   deleteMember,
@@ -50,8 +54,9 @@ const ORG_ROLE_TONES: Record<OrgRole, BadgeTone> = {
   consign: 'neutral',
 };
 
-// H-9의 참조 8곳. 삭제 확인과 삭제 결과가 같은 정의를 쓴다 — 한쪽만 빠지면
+// H-9의 참조 8곳 — **정리되는** 참조다. 삭제 확인과 삭제 결과가 같은 정의를 쓴다 — 한쪽만 빠지면
 // "무엇이 정리됐는지"가 사용자에게 어긋나 보인다.
+// budgetDetails(H-9a)는 여기 없다: 성격이 달라 별도 줄로 세고 삭제 자체를 막는다.
 const REFERENCE_FIELDS: readonly { key: keyof MemberReferenceCounts; label: string }[] = [
   { key: 'tasks', label: '담당 작업' },
   { key: 'taskMembers', label: '참여 작업' },
@@ -145,6 +150,8 @@ export default function MemberSection({
   const selectedMember = selectedId === null ? null : (byId.get(selectedId) ?? null);
   const pmTarget = pmTargetId === null ? null : (byId.get(pmTargetId) ?? null);
   const deletingMember = deletingId === null ? null : (byId.get(deletingId) ?? null);
+  // H-9a: 산출근거가 1건이라도 있으면 삭제 자체가 불가능하다 (서버 RPC도 같은 판단으로 거부한다)
+  const deleteBlocked = counts !== null && counts.budgetDetails > 0;
   const currentPmName =
     pmMemberId === null ? null : (byId.get(pmMemberId)?.name ?? '(삭제된 인력)');
 
@@ -296,6 +303,7 @@ export default function MemberSection({
                     <th className="px-4 py-2 font-medium">직급</th>
                     <th className="px-4 py-2 font-medium">분야</th>
                     <th className="px-4 py-2 font-medium">연락처</th>
+                    <th className="px-4 py-2 text-right font-medium">연봉</th>
                     <th className="px-4 py-2 font-medium">활성</th>
                     <th className="px-4 py-2 text-right font-medium">동작</th>
                   </tr>
@@ -326,6 +334,12 @@ export default function MemberSection({
                               PM
                             </Badge>
                           )}
+                          {/* §7.10: 아직 사람이 정해지지 않은 자리를 목록에서 구분한다 */}
+                          {member.hireType === 'new' && (
+                            <Badge tone="amber" className="ml-2">
+                              {HIRE_TYPE_LABELS.new}
+                            </Badge>
+                          )}
                         </td>
                         <td className="px-4 py-2.5 text-slate-600">
                           {MEMBER_ROLE_LABELS[member.role]}
@@ -343,6 +357,12 @@ export default function MemberSection({
                               )}
                             </>
                           )}
+                        </td>
+                        {/* 미입력(null)은 0원과 다르다 — '—'로 구분해 보여준다 (§5.11) */}
+                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-600">
+                          {member.annualSalary === null
+                            ? '—'
+                            : `${member.annualSalary.toLocaleString('ko-KR')}원`}
                         </td>
                         <td className="px-4 py-2.5">
                           <Badge tone={member.active ? 'green' : 'neutral'}>
@@ -492,8 +512,9 @@ export default function MemberSection({
               <Button
                 size="sm"
                 variant="danger"
-                // 무엇이 정리되는지 모른 채 삭제하지 않는다
-                disabled={busy || countsLoading || counts === null}
+                // 무엇이 정리되는지 모른 채 삭제하지 않는다.
+                // H-9a: 인건비 산출근거가 걸려 있으면 아예 막는다 — 서버도 같은 판단으로 거부한다
+                disabled={busy || countsLoading || counts === null || deleteBlocked}
                 onClick={() => handleDelete(deletingMember)}
               >
                 {busy ? '삭제 중…' : '삭제'}
@@ -522,6 +543,40 @@ export default function MemberSection({
                 </li>
               ))}
             </ul>
+          )}
+
+          {/* H-9a: 위 8곳과 성격이 다르다 — 정리되는 참조가 아니라 삭제를 막는 참조다 */}
+          {counts && (
+            <div
+              className={`mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg p-3 text-sm ${
+                deleteBlocked ? 'bg-red-50 text-red-800' : 'bg-slate-50 text-slate-600'
+              }`}
+            >
+              <span>인건비 산출근거</span>
+              <span className={`tabular-nums ${deleteBlocked ? 'font-semibold' : 'text-slate-400'}`}>
+                {counts.budgetDetails}건
+              </span>
+            </div>
+          )}
+
+          {deleteBlocked && counts && (
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              <p>
+                <strong>인건비 산출근거 {counts.budgetDetails}건</strong>이 이 인력을 참조합니다.
+                함께 지우면 사람을 지운 조작만으로 비목 총액이 줄어들기 때문에 삭제할 수 없습니다.
+                연구비 화면에서 먼저 정리하세요.
+              </p>
+              <Link
+                href={`/projects/${projectId}/budget`}
+                className="mt-2 inline-block font-semibold underline underline-offset-2"
+              >
+                연구비로 이동
+              </Link>
+              <p className="mt-2 text-xs">
+                참여가 끝난 인력이라면 <strong>[비활성]</strong>은 그대로 가능합니다. 비활성 인력의
+                지난 연차 인건비는 남아 있어야 정상입니다.
+              </p>
+            </div>
           )}
 
           <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">

@@ -81,3 +81,55 @@ evaluator는 이 체크리스트로 PASS/FAIL을 판정한다. 모든 항목은 
 - [ ] To-Do, 설정 화면(§7.14: 팀 설정 + 사용자 관리 + 백업), 인쇄 레이아웃 3종 (§12)
 - [ ] §12 비기능 기준 샘플 검증: 5,000 노드 롤업 100ms 이내
 - [ ] `npm run build` 성공 + Tauri 번들 생성
+
+## Phase 9 — 예산 제안 모드 (SOT v4.0)
+
+**스키마·타입**
+- [ ] `budget_details` 테이블 + **RLS 활성**(`is_approved()` + `to authenticated`, RLS-1) + N-4 공통 컬럼(`version`·`created_by`/`updated_by`·`sort_order`) + `year_id` cascade
+- [ ] `members.annual_salary`·`members.hire_type`, `projects.allowance_rate_limit`·`projects.indirect_rate_limit` 추가 (§5.11, §5.3)
+- [ ] Realtime publication에 `budget_details` 추가 (R-7, §8.5 구독표)
+- [ ] `budget_details.member_id`가 **`on delete restrict`**, `year_id`·`project_id`는 cascade (PL-D8, H-9a)
+- [ ] `types/index.ts`에 `BudgetDetail`(`amount` 포함)·`DetailAxis`·`DetailFormula`·`DetailFactor`·`HireType` (§5.17). **`DetailAxis`는 `lib/constants.ts`의 기존 `BudgetAxis`와 별개 타입**이어야 한다 — 이름을 재사용하면 임포트 파이프라인의 `'unassigned'`가 섞인다
+- [ ] `lib/constants.ts`에 `SUBCATEGORY_PRESETS` — 부록 A.5의 세목 33종 전부, 비목별 `formula`·`defaultFactors` 포함. 부록 A.4 라벨(`HireType`·`DetailAxis`·`DetailFormula`) 추가
+
+**순수 함수 — 여기가 틀리면 나머지가 전부 틀린다**
+- [ ] `lib/budget-plan.ts` 단위 테스트가 **부록 B.7 수치를 그대로 통과**: 인건비 19행 개별 금액, 셀 합계 현금 `180,840,000` / 현물 `88,650,000` / 계 `269,490,000`, 연구활동비 `27,020,000`, 총액 `298,510,000`
+- [ ] **PL-2 회귀 테스트 존재** — 월액(`연봉/12`)을 먼저 반올림하면 박선욱이 `15,540,001`이 됨을 **명시적으로 배제**하는 케이스. (§6.1 P-8·§6.2 D-5와 같은 형태의 테스트)
+- [ ] PL-4: 조정액을 **더한 뒤** 반올림. PL-8: 합계는 **반올림된 행 금액**을 더한다 (실수 합계를 나중에 반올림하지 않음)
+- [ ] PL-3: `factors` 0개(= `unitPrice + adjustment`)·1개·3개 전부 테스트. `isPercent` 분기 포함
+- [ ] PL-5: 최종 금액이 음수인 행을 **0으로 자르지 않고** 오류로 표시. 조정액만 음수인 행은 오류가 아님 (부록 B.7의 7행)
+- [ ] PL-11~PL-13: 수정인건비 E1(= `personnel` + `student_personnel`, 연구지원인력 제외), 연구수당 비율, 간접비 비율 = `indirect / 직접비 현금 기준액`. **기준액에서 `international`·`consignment`·`burden` 제외**. 부록 B.7의 `0.9622%`를 소수 4자리까지 통과
+- [ ] E1 = 0일 때 0으로 나누지 않고 비율 없음(`—`) 처리 (PL-12)
+- [ ] `lib/budget.ts`와 **합치지 않았다** — `lib/budget-plan.ts`가 별도 파일 (§6.10.4)
+
+**RPC·액션 — PL-10 불변식이 핵심**
+- [ ] `upsert_budget_detail`·`delete_budget_detail`·`reorder_budget_details` RPC가 **같은 트랜잭션 안에서** `budget_items`의 `planned_amount`/`cash_amount`/`in_kind_amount`를 재계산해 갱신 (PL-10)
+- [ ] **PL-10a — RPC에 금액 산식이 없다.** RPC는 `sum(amount)`를 축별로 더하기만 한다. PL/pgSQL에 `annual_salary * rate / 100 * months / 12` 류의 산식이 있으면 **FAIL**. `amount`는 서버 액션이 `lib/budget-plan.ts`로 계산해 넘긴 값이다 (PL-D7 — 클라이언트가 보낸 `amount`는 무시하고 다시 계산)
+- [ ] **PL-10b** — `updateMember`가 연봉을 바꾸면 그 인력의 인건비 행 `amount`와 관련 `budget_items`를 같은 트랜잭션에서 재계산. `previewSalaryChange`가 영향 건수·전후 금액을 저장 없이 돌려주고, 인력 화면이 확인을 받은 뒤 저장한다 (§7.10)
+- [ ] **H-9a** — 인건비 산출근거가 걸린 Member는 `deleteMember`가 거부. `count_member_references`가 산출근거를 **별도 항목**으로 센다. `setMemberActive(false)`는 그대로 성공
+- [ ] **PL-10 불변식 통합 테스트**: 행 추가·수정·삭제 각각 후에 `budget_items`를 재조회해 합계와 일치. 액션이 두 번 왕복하는 구현이면 FAIL. **연봉 변경 후에도 같은 불변식이 유지**되는지 포함 (PL-10b)
+- [ ] `actions/budget-plan.ts` 5종 + 조회 2종(`getBudgetPlanData`·`getBudgetDetails`), 반환은 `ActionResult<T>`, supabase 직접 호출 없음(`lib/db/` 경유)
+- [ ] **과제 경계 검증**(FK가 못 막는 부분): `yearId`·`memberId`가 남의 과제면 RULE 거부. PL-D2~PL-D5 전부 — `formula`/`category` 조합(PL-D3), 프리셋에 없는 `subcategory`(PL-D4), 음수 `unitPrice`/`factor.value`(PL-D5)
+- [ ] PL-9: `updateBudgetPlan`이 `detailCount > 0`인 셀을 거부
+- [ ] O-1: `updateBudgetDetail`이 `expectedVersion`을 받고 STALE을 반환 (§8.4)
+- [ ] `reorderBudgetDetails`가 **그 세목의 전체 id 배열**을 받는다 (T-D10과 같은 이유)
+
+**기존 코드와의 접점 — 빠뜨리면 조용히 깨진다**
+- [ ] §8.7 백업/복원 대상 테이블에 `budget_details` 포함 (누락 시 백업에 산출근거가 빠진다). 복원 왕복 테스트 통과
+- [ ] `tests/destructive/guard.ts` 대상 테이블 확장
+- [ ] **S-14**: `commit_import`가 `detailCount > 0`인 (연차, 비목)을 덮어쓰지 않는다. 미리보기가 `잠김` 상태로 표시하고 상단 요약에 `잠김 N건`을 **`건너뜀`과 별도로** 센다. 잠김은 반영 버튼을 막지 않는다
+- [ ] `create_project_with_defaults`는 변경 없음 (산출근거 자동 생성 안 함)
+- [ ] §6.4 집행률·§7.2 대시보드·§6.8 임포트 기존 테스트 **전부 통과** (`plannedAmount` 소유권 변경의 영향권)
+
+**화면**
+- [ ] `/projects/[id]/budget`에 `[제안 | 수행]` 토글, 기본 `수행`. 탭은 늘어나지 않음 (§7.9)
+- [ ] 제안 모드: 셀 클릭 → **산출근거 패널**(§7.9.2). 세목 섹션, `personnel`/`quantity` 컬럼 분기, 금액 열 **읽기 전용**, 세목 소계 → 셀 합계(현금/현물/계)
+- [ ] 인건비 행의 직위·연봉은 Member에서 읽어 회색 표시(여기서 편집 불가). 연봉 미입력 Member 선택 시 경고 + 인력 화면 링크. **같은 인력의 중복 행 허용**
+- [ ] 잠긴 셀에 자물쇠 표시 + 인라인 편집 차단. 마지막 행 삭제 시 잠금 해제되고 **직전 합계가 남는다**(0으로 되돌리지 않음, PL-9)
+- [ ] 하단 지침 검증 줄: 연구수당·간접비 비율, 한도 초과 시 경고 배지. 한도가 null이면 비율만 표시하고 배지 없음 (PL-15)
+- [ ] 인력 화면이 `hireType='new'`를 **채용예정** 배지로 구분, 연봉 입력 필드 존재. **참여율(%) 필드는 없다** (§5.11 — 참여율은 산출근거가 갖는다)
+- [ ] 연봉 변경 시 영향 건수·전후 금액 확인 대화상자(PL-10b). 영향 0건이면 확인 없이 저장
+- [ ] 인력 삭제 대화상자가 산출근거 건수를 **별도 줄**로 세고, 1건 이상이면 삭제 버튼을 막고 `[연구비로 이동]`을 준다 (H-9a)
+- [ ] 설정 또는 과제 개요에서 한도 2종 입력 가능 (`setBudgetRateLimits`)
+- [ ] 인쇄(§12 P-R1 연구비 가로)는 현재 모드를 따른다
+- [ ] O-3 충돌 다이얼로그가 산출근거 행 편집에서 **입력값을 보존**한 채 항목별 비교

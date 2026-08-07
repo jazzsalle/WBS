@@ -1,7 +1,7 @@
 // 백업 왕복 통합 테스트 — §8.7 K-1·K-5·K-7·K-8
 //
 // ⚠️ 파괴적 테스트다. `npm test`에 포함되지 않고 `npm run test:destructive`로만 돌린다.
-//    K-7 복원이 대상 25종 테이블의 전 행을 지우고 백업 시점 행으로 되돌리기 때문에,
+//    K-7 복원이 대상 26종 테이블의 전 행을 지우고 백업 시점 행으로 되돌리기 때문에,
 //    실데이터가 있는 dev DB에서 돌리면 export 이후 다른 PC에서 추가된 변경분이 사라진다.
 //    시작 전 assertNoForeignData가 테스트 소유가 아닌 데이터를 발견하면 실행을 거부한다.
 //
@@ -40,6 +40,12 @@ await assertNoForeignData(sql);
 let user: TestUser;
 const tempProjectIds: string[] = []; // afterAll 안전망 — 복원 실패로 남으면 직결 SQL로 지운다
 
+// 산출근거 1행(§5.17, Phase 9). 시드에는 없으므로 여기서 만든다 — budget_details가
+// 백업 대상에서 빠지면 K-7 전체 대체 복원이 근거만 지운다(§11 Phase 9 주석 ①).
+// 리포지토리가 아니라 직결 SQL로 넣는 이유: 이 파일은 백업 경로만 검증하고,
+// budget_details 리포지토리·서버 액션(PL-10 재계산)은 별도 테스트가 다룬다.
+const SEED_DETAIL_ID = 'aaaa0000-0000-4000-8000-0000000000d1';
+
 function exportedBy(u: TestUser): BackupFile['exportedBy'] {
   return { id: u.id, email: u.email };
 }
@@ -52,6 +58,20 @@ function jsonRoundtrip(file: BackupFile): BackupFile {
 beforeAll(async () => {
   await applySeed(sql);
   user = await createTestUser(sql);
+
+  // formula='quantity' 행이라 member_id는 null이어야 한다 (PL-D1)
+  await sql`
+    insert into public.budget_details
+      (id, project_id, year_id, category, subcategory, axis, formula,
+       name, spec, unit_price, factors, adjustment, amount, note, sort_order,
+       created_by, updated_by)
+    values
+      (${SEED_DETAIL_ID}::uuid, ${SEED.projectId}::uuid, ${SEED.year1Id}::uuid,
+       'activity', 'activity_meeting', 'cash', 'quantity',
+       '착수 회의', '20인 × 4회', 300000,
+       ${'[{"label":"회","value":4,"isPercent":false}]'}::jsonb,
+       -500, 1199500, '왕복 테스트용', 0,
+       ${user.id}::uuid, ${user.id}::uuid)`;
 });
 
 afterAll(async () => {
@@ -64,7 +84,7 @@ afterAll(async () => {
 });
 
 describe('K-1: exportAll — BackupFile 인터페이스 정확 일치', () => {
-  it('최상위 키 4개, tables는 25종 전부, JSON 직렬화 왕복 후에도 parseBackupFile을 통과한다', async () => {
+  it('최상위 키 4개, tables는 26종 전부, JSON 직렬화 왕복 후에도 parseBackupFile을 통과한다', async () => {
     const file = await backup.exportAll(user.client, exportedBy(user));
 
     expect(Object.keys(file).sort()).toEqual(
@@ -74,7 +94,7 @@ describe('K-1: exportAll — BackupFile 인터페이스 정확 일치', () => {
     expect(Number.isNaN(Date.parse(file.exportedAt))).toBe(false);
     expect(file.exportedBy).toEqual({ id: user.id, email: user.email });
     expect(Object.keys(file.tables).sort()).toEqual([...backup.BACKUP_TABLES].sort());
-    expect(backup.BACKUP_TABLES).toHaveLength(25);
+    expect(backup.BACKUP_TABLES).toHaveLength(26);
 
     // 행은 DB snake_case 원본 그대로 (매퍼 미경유) — 시드 과제 행으로 확인
     const seedProject = file.tables['projects']!.find(
@@ -101,6 +121,8 @@ describe('K-7: 복원 왕복 — 전체 대체', () => {
     });
     // 삭제: 시드 Task 하나 제거
     await tasks.deleteTask(user.client, SEED.taskIds.literature);
+    // 삭제: 산출근거 1행 제거 (§5.17) — 복원이 되살리지 못하면 백업에서 근거만 사라진다
+    await sql`delete from public.budget_details where id = ${SEED_DETAIL_ID}::uuid`;
     // 추가: 새 과제 + 단계 + 연차 (연차 생성이 budget_items 12종까지 만든다)
     const temp = await projects.createProject(user.client, {
       name: '왕복 테스트 임시 과제',
@@ -123,6 +145,30 @@ describe('K-7: 복원 왕복 — 전체 대체', () => {
       // id·audit(created_by/updated_by/version/타임스탬프)까지 원본 보존이므로 행 전체 비교
       expect(after.tables[table], table).toEqual(original.tables[table]);
     }
+
+    // 산출근거는 위 루프에도 포함되지만, 목록 누락이 곧 무음 데이터 손실이므로 명시 검증한다
+    const restoredDetail = (await sql`
+      select category, subcategory, axis, formula, member_id, name, spec, factors,
+             unit_price::text as unit_price,   -- bigint 표현 차이를 피해 문자열로 비교한다
+             adjustment::text as adjustment,
+             amount::text     as amount,
+             sort_order
+        from public.budget_details where id = ${SEED_DETAIL_ID}::uuid`)[0];
+    expect(restoredDetail).toBeDefined();
+    expect(restoredDetail).toMatchObject({
+      category: 'activity',
+      subcategory: 'activity_meeting',
+      axis: 'cash',
+      formula: 'quantity',
+      member_id: null,
+      name: '착수 회의',
+      spec: '20인 × 4회',
+      unit_price: '300000',
+      adjustment: '-500',
+      amount: '1199500',
+      sort_order: 0,
+    });
+    expect(restoredDetail!.factors).toEqual([{ label: '회', value: 4, isPercent: false }]);
   });
 });
 
@@ -193,7 +239,7 @@ describe('parseBackupFile — importAll 액션의 구조 검증 (Zod)', () => {
     ).toThrow(ValidationError);
   });
 
-  it('tables 값이 배열이 아니거나 25종 중 하나라도 빠지면 ValidationError', async () => {
+  it('tables 값이 배열이 아니거나 26종 중 하나라도 빠지면 ValidationError', async () => {
     const current = await backup.exportAll(user.client, exportedBy(user));
 
     const notArray = jsonRoundtrip(current) as unknown as {

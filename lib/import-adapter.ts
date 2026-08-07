@@ -256,6 +256,10 @@ export function toCommitRows(preview: ImportPreview): ImportCommitRow[] {
 
   const rows: ImportCommitRow[] = [];
   for (const row of preview.rows) {
+    // S-14: 산출근거가 있는 셀은 내보내지 않는다. 아래 상태 검사로도 걸러지지만, 그건
+    // "반영 대상 상태만 통과"라는 다른 규칙의 부수효과다 — 잠금은 명시적으로 한 번 더 막는다.
+    // commit_import RPC도 같은 검사를 한다 (이중 방어: 여기서 새면 근거와 총액이 어긋난다)
+    if (row.status === 'locked') continue;
     if (row.status !== 'new' && row.status !== 'overwrite') continue;
     if (row.yearId === null || row.category === null || row.plannedAmount === null) {
       // blocked가 아닌데 반영 대상 행이 비어 있으면 파이프라인이 깨진 것이다. 조용히 건너뛰지 않는다

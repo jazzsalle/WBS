@@ -539,6 +539,11 @@ export default function ImportWizard({
       `덮어씀 ${result.summary.overwrite}건`,
       `건너뜀 ${result.summary.skipped}건`,
     ];
+    // S-14: 서버가 실제로 잠근 수를 쓴다(미리보기 이후 산출근거가 생겼을 수 있다).
+    // 0건이면 아예 말하지 않는다 — 잠금은 대개 해당 없는 개념이라 매번 띄우면 소음이다
+    if (result.locked > 0) {
+      parts.push(`잠김 ${result.locked}건(산출근거 있음 — 덮어쓰지 않음)`);
+    }
     if (profileId !== null && !result.profileUsageRecorded) {
       parts.push('(프로파일 사용 이력 갱신은 실패했습니다)');
     }

@@ -35,6 +35,8 @@ export interface ImportCommitSource {
 export interface ImportCommitResult {
   snapshotId: string;
   updated: number;                   // 실제로 쓴 (연차, 비목) 셀 수
+  locked: number;                    // S-14: 산출근거가 있어 덮어쓰지 않은 셀 수.
+                                     // 오류가 아니라 정상 결과의 일부다 — 반영 후 안내에 쓴다
 }
 
 export interface ImportRestoreResult {
@@ -66,7 +68,11 @@ function parseRow<T>(schema: z.ZodType<T>, row: unknown): T {
 }
 
 // RPC 반환 jsonb도 검증한다 — 마이그레이션이 덜 적용된 DB는 다른 모양을 돌려준다
-const commitResultSchema = z.object({ snapshotId: z.uuid(), updated: z.number() });
+const commitResultSchema = z.object({
+  snapshotId: z.uuid(),
+  updated: z.number(),
+  locked: z.number(), // S-14. 선택으로 두면 마이그레이션이 덜 적용된 DB에서 잠김이 0으로 보인다
+});
 const restoreResultSchema = z.object({ snapshotId: z.uuid(), restored: z.number() });
 
 // §7.14 설정 화면 목록. 최신순 — 되돌릴 대상은 거의 항상 방금 한 반영이다.

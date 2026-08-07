@@ -1,24 +1,34 @@
 'use client';
 
-// 비목 매트릭스 테이블 (SOT §7.9, §6.4 B-1~B-4, 부록 A.1·A.3)
+// 비목 매트릭스 테이블 (SOT §7.9, §6.4 B-1~B-4, §6.10.2 PL-9, 부록 A.1·A.3)
 // 행 = 비목 12개(부록 A.1 순서, 직접비/간접비 구분 표시), 열 = 연차(order asc) + 합계.
-// 각 셀은 예산 / 집행 / 집행률 3값을 보여준다.
+// **두 모드가 같은 표를 공유한다** (§7.9 "왜 탭을 늘리지 않는가") — 바뀌는 것은 셀의 아랫줄뿐이다:
+//  - 수행: 예산 / 집행 / 집행률 · 클릭하면 집행 내역 패널
+//  - 제안: 예산 / 현금 / 현물 · 클릭하면 산출근거 패널
+// 인쇄도 현재 모드를 따른다 (§7.9.2) — 모드가 DOM을 정하고, 인쇄는 그 DOM을 그대로 뽑는다.
 //
-// 표시 규칙 — 숫자는 전부 서버(getBudgetMatrix → lib/budget.ts)가 계산한 값이다.
+// 표시 규칙 — 숫자는 전부 서버(getBudgetMatrix → lib/budget.ts §6.4,
+// getBudgetPlanData → lib/budget-plan.ts §6.10)가 계산한 값이다.
 // 이 파일에는 나눗셈·백분율이 없다:
 //  - B-1 planned=0 → 집행률 N/A(formatRate), 집행이 있으면 "예산 외 집행" 경고 아이콘
 //  - B-2 cell.over(집행률 100% 초과) → red-600 계열로 표시. 저장은 막지 않는다
 //  - B-3 yearBudgetChecks[yearId].mismatch → 연차 헤더에 경고 배지(title에 차액)
 //  - B-4 표시는 currencyUnit으로 환산(formatAmount), 입력은 언제나 원 단위 정수
+//  - PL-9 산출근거가 있는 셀은 계획액이 내역 합계라 인라인 편집이 잠긴다 (자물쇠 + 이유 title)
 //
-// 인쇄(§12 P-R1~P-R5): 12행 × 연차 N열이라 A4 가로로 뽑는다. 편집 컨트롤(계획액 입력·집행 패널
+// 인쇄(§12 P-R1~P-R5): 12행 × 연차 N열이라 A4 가로로 뽑는다. 편집 컨트롤(계획액 입력·패널
 // 트리거)은 감추고 같은 숫자를 정적 텍스트로 대신 남긴다 — 종이에 빈 입력상자를 남기지 않으면서
 // 값은 잃지 않는다.
 
 import { useEffect, useState, type ReactNode } from 'react';
 import type { BudgetCategory, BudgetItem, Settings } from '@/types';
+import type { BudgetPlanCellView } from '@/actions/budget-plan';
 import type { BudgetMatrix, BudgetMatrixCell, YearBudgetMismatch } from '@/lib/budget';
-import { BUDGET_CATEGORY_GROUPS, BUDGET_CATEGORY_LABELS } from '@/lib/constants';
+import {
+  BUDGET_CATEGORY_GROUPS,
+  BUDGET_CATEGORY_LABELS,
+  DETAIL_AXIS_LABELS,
+} from '@/lib/constants';
 import { formatAmount } from '@/lib/currency';
 import { formatRate } from '@/lib/goals';
 import Badge from '@/components/ui/Badge';
@@ -37,7 +47,10 @@ export function cellKey(yearId: string, category: BudgetCategory): string {
   return `${yearId}|${category}`;
 }
 
-export interface BudgetMatrixTableProps {
+/** §7.9 모드 토글. 화면 로컬 상태이며 URL·DB에 저장하지 않는다 (§7.9.2) */
+export type BudgetMode = 'execution' | 'plan';
+
+interface BudgetMatrixBaseProps {
   matrix: BudgetMatrix;
   currencyUnit: Settings['currencyUnit'];
   /** 인쇄 머리말 (§12 P-R3) */
@@ -54,14 +67,43 @@ export interface BudgetMatrixTableProps {
   onInlineSave: (cell: CellRef, plannedAmount: number) => void;
 }
 
-// 총액 인라인 편집을 열 수 없는 이유. 이유 없이 막지 않고 title로 항상 밝힌다.
-type LockReason = 'split' | 'missing' | 'duplicated' | null;
+/**
+ * 모드별 추가 입력. 제안 모드에서는 셀 요약(현금·현물·잠금·경고)이 **반드시** 필요하므로
+ * 타입으로 강제한다 — 없을 수 있는 값으로 두면 화면이 0을 지어내는 폴백을 만들게 된다.
+ */
+export type BudgetMatrixTableProps = BudgetMatrixBaseProps &
+  (
+    | { mode: 'execution' }
+    | {
+        mode: 'plan';
+        /** cellKey(yearId, category) → getBudgetPlanData의 셀 뷰 (연차 × 12비목 전 조합) */
+        planCells: Map<string, BudgetPlanCellView>;
+      }
+  );
 
-function lockMessage(reason: Exclude<LockReason, null>): string {
-  if (reason === 'split') {
-    return '현금·현물이 입력된 셀입니다. 총액은 현금 + 현물 합계로 자동 계산되므로 셀 상세 패널에서 현금·현물을 편집하세요.';
+// 총액 인라인 편집을 열 수 없는 이유. 이유 없이 막지 않고 title로 항상 밝힌다.
+type LockReason = 'split' | 'missing' | 'duplicated' | 'detail';
+
+interface CellLock {
+  reason: LockReason;
+  /** PL-9 잠금일 때 몇 건의 근거가 셀을 잠갔는지. 이유를 숫자까지 밝힌다 */
+  detailCount: number;
+}
+
+function lockMessage(lock: CellLock, mode: BudgetMode): string {
+  if (lock.reason === 'detail') {
+    // PL-9: 계획액의 소유권이 산출근거로 넘어간 셀이다. 서버도 같은 이유로 저장을 거부한다
+    return `산출근거 ${lock.detailCount}건이 있어 계획액이 내역 합계로 확정됩니다 (PL-9). 제안 모드에서 셀을 클릭해 산출근거 패널에서 고치세요. 마지막 행을 지우면 이 잠금이 풀리고 직전 합계가 그대로 남습니다.`;
   }
-  if (reason === 'missing') {
+  if (lock.reason === 'split') {
+    const base =
+      '현금·현물이 입력된 셀입니다. 총액은 현금 + 현물 합계로 자동 계산되므로 셀 상세 패널에서 현금·현물을 편집하세요.';
+    // 제안 모드에서 셀을 클릭하면 산출근거 패널이 열린다 — 현금·현물 입력칸은 수행 모드에 있다
+    return mode === 'plan'
+      ? `${base} 그 패널은 수행 모드에서 셀을 클릭하면 열립니다.`
+      : base;
+  }
+  if (lock.reason === 'missing') {
     return '이 연차·비목의 예산 행이 없습니다. 연차 생성 시 자동으로 만들어지는 행이므로 데이터가 어긋난 상태입니다.';
   }
   return '이 연차·비목에 예산 행이 2개 이상 있습니다. 어느 행을 고칠지 알 수 없어 편집을 막습니다. 관리자에게 알리세요.';
@@ -227,26 +269,140 @@ function ExecutionButton({
   );
 }
 
-export default function BudgetMatrixTable({
-  matrix,
+/** S-4: 현금·현물 분리는 null(미입력)과 0원이 다르다. 0으로 눙치지 않는다 */
+function formatSplit(amount: number | null, currencyUnit: Settings['currencyUnit']): string {
+  return amount === null ? '미입력' : formatAmount(amount, currencyUnit);
+}
+
+/**
+ * 제안 모드 셀 요약 — 현금 / 현물 (§7.9 표).
+ * 값은 budget_items에 저장된 값이다. 잠긴 셀에서는 산출근거 합계와 같아야 하며(PL-10),
+ * 다르면 감추지 않고 그 자리에서 드러낸다 (절대 규칙 5).
+ */
+function planSummary(
+  view: BudgetPlanCellView | undefined,
+  currencyUnit: Settings['currencyUnit']
+): ReactNode {
+  if (view === undefined) {
+    // 서버는 연차 × 12비목 전 조합을 내려준다. 빠졌다면 매트릭스와 제안 데이터가 어긋난 것이다
+    return (
+      <span
+        className="block text-xs font-semibold text-red-600 print:text-black"
+        title="이 셀의 산출근거 요약이 조회 결과에 없습니다. 매트릭스와 제안 데이터가 어긋난 상태입니다."
+      >
+        요약 없음
+      </span>
+    );
+  }
+  return (
+    <>
+      <span className="block text-xs tabular-nums text-slate-600 print:text-black">
+        {DETAIL_AXIS_LABELS.cash} {formatSplit(view.saved.cashAmount, currencyUnit)}
+      </span>
+      <span className="block text-xs tabular-nums text-slate-600 print:text-black">
+        {DETAIL_AXIS_LABELS.in_kind} {formatSplit(view.saved.inKindAmount, currencyUnit)}
+      </span>
+      {view.detailCount > 0 && (
+        <span className="block text-[11px] text-slate-400 print:text-black">
+          근거 {view.detailCount}행
+        </span>
+      )}
+      {view.mismatch && (
+        // PL-10 불변식 위반. 트랜잭션 안에서만 갱신되므로 정상 경로에서는 나올 수 없는 값이다
+        <span
+          className="block text-[11px] font-semibold text-red-600 print:text-black"
+          title={`저장된 계획액과 산출근거 합계가 다릅니다 (PL-10). 산출근거 합계 = 계 ${formatAmount(
+            view.total.plannedAmount,
+            currencyUnit
+          )} · ${DETAIL_AXIS_LABELS.cash} ${formatAmount(
+            view.total.cashAmount,
+            currencyUnit
+          )} · ${DETAIL_AXIS_LABELS.in_kind} ${formatAmount(view.total.inKindAmount, currencyUnit)}`}
+        >
+          ⚠ 합계 불일치
+        </span>
+      )}
+      {view.negativeCount > 0 && (
+        <span
+          className="block text-[11px] font-semibold text-red-600 print:text-black"
+          title="조정액을 확인하세요 (PL-5). 저장은 막지 않습니다"
+        >
+          음수 {view.negativeCount}행
+        </span>
+      )}
+      {view.missingSalaryCount > 0 && (
+        <span
+          className="block text-[11px] text-amber-700 print:text-black"
+          title="연봉이 비어 있는 인력의 인건비 행은 0원으로 계산됩니다 (§7.9.2)"
+        >
+          연봉 미입력 {view.missingSalaryCount}행
+        </span>
+      )}
+    </>
+  );
+}
+
+/** 현금 / 현물. 클릭하면 산출근거 패널이 열린다 (§7.9.2) */
+function PlanButton({
+  view,
+  label,
   currencyUnit,
-  projectName,
-  todayISO,
-  yearBudgetChecks,
-  itemsByCell,
-  selected,
-  busy,
   onSelect,
-  onInlineSave,
-}: BudgetMatrixTableProps) {
-  const lockReasonOf = (cell: BudgetMatrixCell): LockReason => {
+}: {
+  view: BudgetPlanCellView | undefined;
+  label: string;
+  currencyUnit: Settings['currencyUnit'];
+  onSelect: () => void;
+}) {
+  const summary = planSummary(view, currencyUnit);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-label={`${label} 산출근거 열기`}
+        // P-R4: 패널 트리거는 인쇄에서 빠진다. 숫자는 아래 정적 블록이 그대로 남긴다
+        className="mt-1 block w-full rounded-md px-1.5 py-1 text-right hover:bg-slate-100 print:hidden"
+      >
+        {summary}
+      </button>
+      <span className="mt-1 hidden px-1.5 py-1 text-right print:block">{summary}</span>
+    </>
+  );
+}
+
+export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
+  const {
+    matrix,
+    currencyUnit,
+    projectName,
+    todayISO,
+    yearBudgetChecks,
+    itemsByCell,
+    selected,
+    busy,
+    mode,
+    onSelect,
+    onInlineSave,
+  } = props;
+  const planCells = props.mode === 'plan' ? props.planCells : null;
+
+  const lockOf = (cell: BudgetMatrixCell): CellLock | null => {
     const bucket = itemsByCell.get(cellKey(cell.yearId, cell.category)) ?? [];
-    if (bucket.length === 0) return 'missing';
-    if (bucket.length > 1) return 'duplicated';
+    if (bucket.length === 0) return { reason: 'missing', detailCount: 0 };
+    if (bucket.length > 1) return { reason: 'duplicated', detailCount: 0 };
     const item = bucket[0]!;
+    // PL-9: 산출근거가 있는 셀은 두 모드 모두에서 잠긴다. 계획액의 소유권이 내역 합계에 있고,
+    // 서버(updateBudgetPlan)도 같은 이유로 거부하므로 여기서 열어 두면 저장이 반드시 실패한다
+    if (item.detailCount > 0) return { reason: 'detail', detailCount: item.detailCount };
+    // 마지막 근거 행을 지우면 여기로 내려온다: RPC가 직전 합계를 지우지 않으므로(PL-9)
+    // 현금·현물이 남아 있어 §5.12의 'split' 잠금으로 바뀐다. 잠금은 유지되지만 **이유가 달라지고**
+    // 직전 합계는 셀에 그대로 보인다 — 이어서 고치는 자리는 수행 모드의 셀 상세 패널이다.
     // 현금·현물이 모두 비어 있는 셀만 총액을 자유롭게 고칠 수 있다.
     // 분리값이 있으면 총액은 합계라서, 화면이 차액을 임의 배분하지 않기 위해 잠근다 (§5.12)
-    return item.cashAmount === null && item.inKindAmount === null ? null : 'split';
+    return item.cashAmount === null && item.inKindAmount === null
+      ? null
+      : { reason: 'split', detailCount: 0 };
   };
 
   return (
@@ -258,7 +414,12 @@ export default function BudgetMatrixTable({
         projectName={projectName}
         todayISO={todayISO}
         orientation="landscape"
-        subtitle={`금액 표시 단위 ${currencyUnit}`}
+        // 모드에 따라 셀의 숫자가 달라진다 — 종이만 보고 어느 관점인지 알 수 있어야 한다 (P-R3)
+        subtitle={
+          mode === 'plan'
+            ? `금액 표시 단위 ${currencyUnit} · 제안 모드 (예산 / 현금 / 현물)`
+            : `금액 표시 단위 ${currencyUnit}`
+        }
       />
 
       <div className="mb-2 flex justify-end print:hidden">
@@ -270,7 +431,10 @@ export default function BudgetMatrixTable({
       <div className={`overflow-x-auto rounded-xl border border-slate-200 bg-white ${PRINT_TABLE_WRAP}`}>
         <table className={`w-full text-left text-sm ${PRINT_TABLE}`}>
           <caption className="sr-only">
-            비목 × 연차 예산 매트릭스. 각 셀은 예산·집행·집행률입니다.
+            비목 × 연차 예산 매트릭스.{' '}
+            {mode === 'plan'
+              ? '각 셀은 예산·현금·현물입니다.'
+              : '각 셀은 예산·집행·집행률입니다.'}
           </caption>
           <thead className="text-xs text-slate-500 print:text-black">
             <tr className="border-b border-slate-100">
@@ -344,12 +508,16 @@ export default function BudgetMatrixTable({
                     } ${BUDGET_CATEGORY_LABELS[cell.category]}`;
                     const isSelected =
                       selected?.yearId === cell.yearId && selected?.category === cell.category;
-                    const lock = lockReasonOf(cell);
+                    const lock = lockOf(cell);
   
                     return (
                       <td
                         key={cell.yearId}
-                        className={`px-3 py-2 text-right ${PRINT_TD} ${cell.over ? 'bg-red-50' : ''} ${
+                        // B-2 초과 강조는 수행 모드에서만 건다 — 제안 모드 셀에는 집행 숫자가
+                        // 없어 빨간 칸의 이유를 셀 안에서 읽을 수 없다 (P-R5와 같은 취지)
+                        className={`px-3 py-2 text-right ${PRINT_TD} ${
+                          cell.over && mode === 'execution' ? 'bg-red-50' : ''
+                        } ${
                           // 선택 표시는 조작 흔적이라 인쇄에서 지운다 (P-R4)
                           isSelected ? 'ring-2 ring-inset ring-slate-900 print:ring-0' : ''
                         }`}
@@ -366,7 +534,7 @@ export default function BudgetMatrixTable({
                           />
                         ) : (
                           <span
-                            title={lockMessage(lock)}
+                            title={lockMessage(lock, mode)}
                             className="inline-flex items-center gap-1 text-xs tabular-nums text-slate-700 print:text-black"
                           >
                             {/* 자물쇠는 편집 가능 여부라는 화면 사정이다 — 종이에는 금액만 남긴다 */}
@@ -377,14 +545,26 @@ export default function BudgetMatrixTable({
                           </span>
                         )}
   
-                        <ExecutionButton
-                          cell={cell}
-                          label={label}
-                          currencyUnit={currencyUnit}
-                          onSelect={() =>
-                            onSelect({ yearId: cell.yearId, category: cell.category })
-                          }
-                        />
+                        {/* 모드가 바꾸는 것은 셀의 아랫줄과 클릭 대상뿐이다 (§7.9 표) */}
+                        {planCells === null ? (
+                          <ExecutionButton
+                            cell={cell}
+                            label={label}
+                            currencyUnit={currencyUnit}
+                            onSelect={() =>
+                              onSelect({ yearId: cell.yearId, category: cell.category })
+                            }
+                          />
+                        ) : (
+                          <PlanButton
+                            view={planCells.get(cellKey(cell.yearId, cell.category))}
+                            label={label}
+                            currencyUnit={currencyUnit}
+                            onSelect={() =>
+                              onSelect({ yearId: cell.yearId, category: cell.category })
+                            }
+                          />
+                        )}
                       </td>
                     );
                   })}
@@ -393,25 +573,32 @@ export default function BudgetMatrixTable({
                     <span className="block text-xs font-semibold tabular-nums text-slate-800">
                       {formatAmount(row.total.planned, currencyUnit)}
                     </span>
-                    <span className="block text-xs tabular-nums text-slate-600 print:text-black">
-                      집행 {formatAmount(row.total.executed, currencyUnit)}
-                    </span>
-                    <span
-                      className={`block text-xs font-semibold tabular-nums ${
-                        row.total.over ? 'text-red-600' : 'text-slate-500'
-                      }`}
-                    >
-                      {formatRate(row.total.rate)}
-                      {/* P-R5: 흑백에서 빨간 글씨가 사라져도 초과를 알 수 있게 글자로 남긴다 */}
-                      {row.total.over && <span className="hidden print:inline"> 초과</span>}
-                    </span>
+                    {/* 집행 숫자는 수행 모드의 것이다. 제안 모드에서는 계획액만 남긴다 (§7.9 표) */}
+                    {mode === 'execution' && (
+                      <>
+                        <span className="block text-xs tabular-nums text-slate-600 print:text-black">
+                          집행 {formatAmount(row.total.executed, currencyUnit)}
+                        </span>
+                        <span
+                          className={`block text-xs font-semibold tabular-nums ${
+                            row.total.over ? 'text-red-600' : 'text-slate-500'
+                          }`}
+                        >
+                          {formatRate(row.total.rate)}
+                          {/* P-R5: 흑백에서 빨간 글씨가 사라져도 초과를 알 수 있게 글자로 남긴다 */}
+                          {row.total.over && <span className="hidden print:inline"> 초과</span>}
+                        </span>
+                      </>
+                    )}
                   </td>
                 </tr>
               );
             })}
           </tbody>
   
-          {/* 하단 요약 행 (§7.9): 연차별 합계 / 집행률 / 잔액. 합계 열도 같은 3값 */}
+          {/* 하단 요약 행 (§7.9): 수행은 연차별 합계 / 집행률 / 잔액, 제안은 계획액 합계만.
+              제안 모드의 현금/현물 비중과 연차별 지침 검증(PL-12·PL-13)은 표 아래
+              BudgetPlanSummary가 맡는다 */}
           <tfoot className="border-t-2 border-slate-200 bg-slate-50 text-xs">
             <tr>
               <th
@@ -425,50 +612,58 @@ export default function BudgetMatrixTable({
                   <span className="block font-semibold tabular-nums text-slate-800">
                     {formatAmount(column.total.planned, currencyUnit)}
                   </span>
-                  <span className="block tabular-nums text-slate-600 print:text-black">
-                    집행 {formatAmount(column.total.executed, currencyUnit)}
-                  </span>
-                  <span
-                    className={`block font-semibold tabular-nums ${
-                      column.total.over ? 'text-red-600' : 'text-slate-500'
-                    }`}
-                  >
-                    {formatRate(column.total.rate)}
-                    {column.total.over && <span className="hidden print:inline"> 초과</span>}
-                  </span>
-                  <span
-                    className={`block tabular-nums ${
-                      column.total.remaining < 0 ? 'text-red-600' : 'text-slate-500'
-                    }`}
-                    title="잔액 = 예산 − 집행"
-                  >
-                    잔액 {formatAmount(column.total.remaining, currencyUnit)}
-                  </span>
+                  {mode === 'execution' && (
+                    <>
+                      <span className="block tabular-nums text-slate-600 print:text-black">
+                        집행 {formatAmount(column.total.executed, currencyUnit)}
+                      </span>
+                      <span
+                        className={`block font-semibold tabular-nums ${
+                          column.total.over ? 'text-red-600' : 'text-slate-500'
+                        }`}
+                      >
+                        {formatRate(column.total.rate)}
+                        {column.total.over && <span className="hidden print:inline"> 초과</span>}
+                      </span>
+                      <span
+                        className={`block tabular-nums ${
+                          column.total.remaining < 0 ? 'text-red-600' : 'text-slate-500'
+                        }`}
+                        title="잔액 = 예산 − 집행"
+                      >
+                        잔액 {formatAmount(column.total.remaining, currencyUnit)}
+                      </span>
+                    </>
+                  )}
                 </td>
               ))}
               <td className={`px-3 py-2 text-right ${PRINT_TD}`}>
                 <span className="block font-semibold tabular-nums text-slate-900">
                   {formatAmount(matrix.total.planned, currencyUnit)}
                 </span>
-                <span className="block tabular-nums text-slate-600 print:text-black">
-                  집행 {formatAmount(matrix.total.executed, currencyUnit)}
-                </span>
-                <span
-                  className={`block font-semibold tabular-nums ${
-                    matrix.total.over ? 'text-red-600' : 'text-slate-500'
-                  }`}
-                >
-                  {formatRate(matrix.total.rate)}
-                  {matrix.total.over && <span className="hidden print:inline"> 초과</span>}
-                </span>
-                <span
-                  className={`block tabular-nums ${
-                    matrix.total.remaining < 0 ? 'text-red-600' : 'text-slate-500'
-                  }`}
-                  title="잔액 = 예산 − 집행"
-                >
-                  잔액 {formatAmount(matrix.total.remaining, currencyUnit)}
-                </span>
+                {mode === 'execution' && (
+                  <>
+                    <span className="block tabular-nums text-slate-600 print:text-black">
+                      집행 {formatAmount(matrix.total.executed, currencyUnit)}
+                    </span>
+                    <span
+                      className={`block font-semibold tabular-nums ${
+                        matrix.total.over ? 'text-red-600' : 'text-slate-500'
+                      }`}
+                    >
+                      {formatRate(matrix.total.rate)}
+                      {matrix.total.over && <span className="hidden print:inline"> 초과</span>}
+                    </span>
+                    <span
+                      className={`block tabular-nums ${
+                        matrix.total.remaining < 0 ? 'text-red-600' : 'text-slate-500'
+                      }`}
+                      title="잔액 = 예산 − 집행"
+                    >
+                      잔액 {formatAmount(matrix.total.remaining, currencyUnit)}
+                    </span>
+                  </>
+                )}
               </td>
             </tr>
           </tfoot>

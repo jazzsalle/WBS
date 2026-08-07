@@ -58,6 +58,8 @@ beforeAll(async () => {
       email: 'lee@example.org',
       phone: '',
       active: true,
+      annualSalary: null,
+      hireType: 'existing',
       order: 0,
     },
     user.id
@@ -130,6 +132,8 @@ describe('members CRUD', () => {
         email: '',
         phone: '',
         active: true,
+        annualSalary: null,
+        hireType: 'existing',
         order: 1,
       },
       user.id

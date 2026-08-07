@@ -17,6 +17,7 @@ import * as organizationsRepo from '@/lib/db/organizations';
 import * as membersRepo from '@/lib/db/members';
 import * as yearsRepo from '@/lib/db/years';
 import * as tasksRepo from '@/lib/db/tasks';
+import * as budgetDetails from '@/lib/db/budget-details';
 
 const session = vi.hoisted(() => ({ accessToken: '' }));
 
@@ -437,6 +438,213 @@ describe('팀 조회 (§7.10)', () => {
     const idle = unwrap(await team.createMember(projectId, { name: '배정없음' }));
     const after = unwrap(await team.getTeamScreenData(projectId));
     expect(after.assignedTasksByMember[idle.id]).toEqual([]);
+  });
+});
+
+// PL-10b(연봉 변경 파급)와 H-9a(산출근거가 걸린 인력 삭제 차단)는 인사 화면의 조작이 예산을
+// 건드리는 유일한 경로다. 파급이 빠지면 비목 총액이 근거와 어긋나고, 차단이 빠지면 사람을 지운
+// 조작만으로 총액이 줄어든다 — 둘 다 저장된 값으로 확인한다.
+describe('연봉 변경 파급 (PL-10b) · 삭제 차단 (H-9a)', () => {
+  let salaryMemberId: string;
+  let personnelDetailId: string;
+  let studentDetailId: string;
+
+  // 저장된 원본만 "조용히 보정됐는지"에 답할 수 있다.
+  // bigint는 postgres.js가 문자열로 주므로 text로 캐스팅해 정수로 되돌린다(부동소수점 경유 금지)
+  async function readItem(category: string): Promise<{ planned: number; version: number }> {
+    const rows = await sql`
+      select planned_amount::text as planned, version::text as version
+        from public.budget_items
+       where year_id = ${yearId}::uuid and category = ${category}`;
+    const row = rows[0] as { planned: string; version: string } | undefined;
+    if (!row) throw new Error(`비목 행(${category})을 찾을 수 없습니다.`);
+    return { planned: Number(row.planned), version: Number(row.version) };
+  }
+
+  it('연봉·채용구분을 생성 시 그대로 저장한다 (§5.11)', async () => {
+    const member = unwrap(
+      await team.createMember(projectId, {
+        name: '한봄희',
+        annualSalary: 60_000_000,
+        hireType: 'new',
+      })
+    );
+    salaryMemberId = member.id;
+    expect(member.annualSalary).toBe(60_000_000);
+    expect(member.hireType).toBe('new');
+
+    // 미입력은 null이다 — 0원("연봉이 0")과 구분한다
+    const plain = unwrap(await team.createMember(projectId, { name: '연봉미입력' }));
+    expect(plain.annualSalary).toBeNull();
+    expect(plain.hireType).toBe('existing');
+    unwrap(await team.deleteMember(plain.id));
+  });
+
+  it('음수·소수점 연봉은 VALIDATION으로 거부한다 (절대 규칙 4)', async () => {
+    for (const annualSalary of [-1, 1_000.5]) {
+      const res = await team.createMember(projectId, { name: '잘못된연봉', annualSalary });
+      if (res.ok) throw new Error(`잘못된 연봉(${annualSalary})이 통과했습니다.`);
+      expect(res.code).toBe('VALIDATION');
+    }
+  });
+
+  it('영향 0건이면 확인 절차가 필요 없고 연봉만 저장된다 (§7.10)', async () => {
+    const preview = unwrap(await team.previewSalaryChange(salaryMemberId, 70_000_000));
+    expect(preview.detailCount).toBe(0);
+    expect(preview.cells).toEqual([]);
+    expect(preview.beforeTotal).toBe(0);
+    expect(preview.afterTotal).toBe(0);
+
+    // 빈 목록으로도 RPC 경로가 성립해야 한다 — 산출근거가 없는 인력이 더 흔하다
+    const saved = unwrap(await team.updateMember(salaryMemberId, { annualSalary: 60_000_000 }));
+    expect(saved.annualSalary).toBe(60_000_000);
+  });
+
+  it('previewSalaryChange는 저장하지 않고 (연차 × 비목)별 전후 금액을 돌려준다', async () => {
+    // 60,000,000 × 50% × 12/12 = 30,000,000 (PL-1·PL-2 — 중간 반올림 없음)
+    personnelDetailId = (
+      await budgetDetails.upsertDetail(user.client, {
+        projectId,
+        yearId,
+        category: 'personnel',
+        subcategory: 'personnel_internal',
+        axis: 'cash',
+        formula: 'personnel',
+        memberId: salaryMemberId,
+        name: '',
+        unitPrice: 0,
+        spec: '',
+        factors: [
+          { label: '참여율(%)', value: 50, isPercent: true },
+          { label: '참여기간(월)', value: 12, isPercent: false },
+        ],
+        adjustment: 0,
+        note: '',
+        order: 0,
+        amount: 30_000_000,
+      })
+    ).id;
+    // 60,000,000 × 20% × 12/12 = 12,000,000 — 한 인력이 두 비목에 걸친 경우다
+    studentDetailId = (
+      await budgetDetails.upsertDetail(user.client, {
+        projectId,
+        yearId,
+        category: 'student_personnel',
+        subcategory: 'student_general',
+        axis: 'cash',
+        formula: 'personnel',
+        memberId: salaryMemberId,
+        name: '',
+        unitPrice: 0,
+        spec: '',
+        factors: [
+          { label: '참여율(%)', value: 20, isPercent: true },
+          { label: '참여기간(월)', value: 12, isPercent: false },
+        ],
+        adjustment: 0,
+        note: '',
+        order: 0,
+        amount: 12_000_000,
+      })
+    ).id;
+
+    const preview = unwrap(await team.previewSalaryChange(salaryMemberId, 72_000_000));
+    expect(preview.detailCount).toBe(2);
+    expect(preview.currentAnnualSalary).toBe(60_000_000);
+    expect(preview.nextAnnualSalary).toBe(72_000_000);
+    expect(preview.beforeTotal).toBe(42_000_000);
+    expect(preview.afterTotal).toBe(50_400_000); // 36,000,000 + 14,400,000
+    expect(preview.delta).toBe(8_400_000);
+    expect(preview.missingSalaryCount).toBe(0);
+
+    const byCategory = new Map(preview.cells.map((cell) => [cell.category, cell]));
+    expect(byCategory.get('personnel')).toMatchObject({
+      yearId,
+      rowCount: 1,
+      beforeAmount: 30_000_000,
+      afterAmount: 36_000_000,
+    });
+    expect(byCategory.get('student_personnel')).toMatchObject({
+      rowCount: 1,
+      beforeAmount: 12_000_000,
+      afterAmount: 14_400_000,
+    });
+    // 연차 이름을 붙여 돌려준다 — 확인 대화상자가 연차를 다시 조회하지 않게.
+    // 이름이 비어 있는 연차는 순번으로 부른다(빈 라벨을 그대로 내보내지 않는다)
+    expect(byCategory.get('personnel')?.yearName).toBe('1차년도');
+
+    // 미리보기는 저장하지 않는다 (§7.10)
+    expect((await membersRepo.getMemberById(user.client, salaryMemberId)).annualSalary).toBe(
+      60_000_000
+    );
+    expect((await readItem('personnel')).planned).toBe(30_000_000);
+  });
+
+  it('연봉이 그대로면 파급 경로를 타지 않는다', async () => {
+    const before = await readItem('personnel');
+    unwrap(await team.updateMember(salaryMemberId, { annualSalary: 60_000_000, field: '제어 SW' }));
+    // 비목 행을 건드리지 않았어야 한다 — version이 그대로다
+    expect(await readItem('personnel')).toEqual(before);
+  });
+
+  it('연봉을 바꾸면 산출근거 금액과 비목 총액이 같은 트랜잭션에서 함께 바뀐다 (PL-10b)', async () => {
+    const before = await membersRepo.getMemberById(user.client, salaryMemberId);
+    const updated = unwrap(
+      await team.updateMember(
+        salaryMemberId,
+        { annualSalary: 72_000_000, position: '수석연구원' },
+        before.version
+      )
+    );
+    expect(updated.annualSalary).toBe(72_000_000);
+    expect(updated.position).toBe('수석연구원'); // 연봉 외 필드도 같이 저장된다
+
+    const details = await membersRepo.listSalaryImpactedDetails(user.client, salaryMemberId);
+    const amounts = new Map(details.map((d) => [d.id, d.amount]));
+    expect(amounts.get(personnelDetailId)).toBe(36_000_000);
+    expect(amounts.get(studentDetailId)).toBe(14_400_000);
+
+    expect((await readItem('personnel')).planned).toBe(36_000_000);
+    expect((await readItem('student_personnel')).planned).toBe(14_400_000);
+  });
+
+  it('연봉 변경도 낙관적 잠금을 건다 (O-1 → STALE)', async () => {
+    const before = await membersRepo.getMemberById(user.client, salaryMemberId);
+    unwrap(await team.updateMember(salaryMemberId, { phone: '010-1234-5678' }, before.version));
+
+    const stale = await team.updateMember(
+      salaryMemberId,
+      { annualSalary: 90_000_000 },
+      before.version
+    );
+    if (stale.ok) throw new Error('낡은 버전의 연봉 변경이 통과했습니다.');
+    // P0001을 전부 RULE로 보내면 여기서 STALE이 사라지고 충돌 다이얼로그가 뜨지 않는다
+    expect(stale.code).toBe('STALE');
+    expect((await membersRepo.getMemberById(user.client, salaryMemberId)).annualSalary).toBe(
+      72_000_000
+    );
+    expect((await readItem('personnel')).planned).toBe(36_000_000);
+  });
+
+  it('인건비 산출근거가 걸린 인력은 삭제할 수 없다. 비활성화는 그대로 가능하다 (H-9a)', async () => {
+    const counts = unwrap(await team.countMemberReferences(salaryMemberId));
+    expect(counts.budgetDetails).toBe(2); // 정리 대상 8곳과 별도 항목이다
+
+    const message = expectRuleViolation(await team.deleteMember(salaryMemberId));
+    expect(message).toContain('인건비 산출근거 2건');
+
+    // 차단이므로 인력도 산출근거도 그대로 남아 있어야 한다
+    expect((await membersRepo.getMemberById(user.client, salaryMemberId)).name).toBe('한봄희');
+    expect((await membersRepo.listSalaryImpactedDetails(user.client, salaryMemberId)).length).toBe(2);
+    expect((await readItem('personnel')).planned).toBe(36_000_000);
+
+    // 참여 종료는 이 경로가 아니다 — 비활성화는 막지 않는다 (§7.10)
+    expect(unwrap(await team.setMemberActive(salaryMemberId, false)).active).toBe(false);
+
+    // 근거를 먼저 정리하면 삭제된다 (두 단계)
+    await budgetDetails.deleteDetail(user.client, personnelDetailId);
+    await budgetDetails.deleteDetail(user.client, studentDetailId);
+    unwrap(await team.deleteMember(salaryMemberId));
   });
 });
 

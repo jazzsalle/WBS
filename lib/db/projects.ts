@@ -67,6 +67,11 @@ async function raiseStaleOrNotFound(
 }
 
 // 모든 필드가 DB 기본값을 가지므로 전부 선택 (§5.3). createdBy/updatedBy는 액션이 채운다 (SA-2)
+//
+// Phase 9(§5.3, PL-14)의 allowanceRateLimit·indirectRateLimit도 Project에서 파생되므로
+// 여기 그대로 실린다 — §9 setBudgetRateLimits가 updateProject를 통해 쓴다.
+// pmMemberId·leadOrgId처럼 전용 액션으로 막아 둔 필드가 아니다: 두 한도는 가드가 필요한
+// 무결성 축(H-8·PM 지정)이 아니라 경고 기준값일 뿐이고, null이면 검사를 건너뛴다 (PL-15).
 export type ProjectCreateInput = Partial<Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'version'>>;
 export type ProjectPatch = Partial<Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'createdBy'>>;
 

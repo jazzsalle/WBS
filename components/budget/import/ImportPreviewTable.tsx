@@ -2,8 +2,9 @@
 
 // Step 5 반영 예정 내역 테이블 (SOT §7.9.1 Step 5)
 //  열: 연차 / 비목 / 계획액 / 현금 / 현물 / 상태
-//  행 상태: 신규(초록) / 덮어씀(주황) / 건너뜀(회색) / 오류(빨강)
+//  행 상태: 신규(초록) / 덮어씀(주황) / 건너뜀(회색) / 잠김(회색·자물쇠, S-14) / 오류(빨강)
 //  덮어쓸 기존 값은 `기존 → 신규`로 나란히 보여준다.
+//  잠김 행은 파일 값이 반영되지 않으므로 **유지되는 기존 값**을 보여준다 (S-14).
 //
 // 금액은 원 단위 정수로 넘어온다. 표시 환산만 lib/currency.formatAmount가 한다 (B-4).
 
@@ -15,6 +16,7 @@ const STATUS_CLASS: Record<PreviewRowStatus, string> = {
   new: 'bg-emerald-50 text-emerald-800',
   overwrite: 'bg-amber-50 text-amber-800',
   skipped: 'bg-slate-50 text-slate-400',
+  locked: 'bg-slate-100 text-slate-500',  // S-14 잠김 — 회색
   error: 'bg-red-50 text-red-700',
 };
 
@@ -22,7 +24,8 @@ const STATUS_ORDER: Record<PreviewRowStatus, number> = {
   error: 0,
   overwrite: 1,
   new: 2,
-  skipped: 3,
+  locked: 3,
+  skipped: 4,
 };
 
 export interface ImportPreviewTableProps {
@@ -63,6 +66,7 @@ export default function ImportPreviewTable({
             <tr key={`${row.status}-${row.sourceRowIndexes.join('_')}-${index}`} className="border-t border-slate-100">
               <td className="px-2 py-1.5">
                 <span className={`rounded px-1.5 py-0.5 font-semibold ${STATUS_CLASS[row.status]}`}>
+                  {row.status === 'locked' && <span aria-hidden className="mr-0.5">🔒</span>}
                   {row.statusLabel}
                 </span>
               </td>
@@ -77,9 +81,12 @@ export default function ImportPreviewTable({
                   next={row.plannedAmount}
                   previous={row.existing?.plannedAmount ?? null}
                   overwrite={row.status === 'overwrite'}
+                  locked={row.status === 'locked'}
                   currencyUnit={currencyUnit}
                 />
-                {row.rounded && (
+                {/* 잠김 행이 보여주는 금액은 파일 값이 아니라 유지되는 산출근거 합계다 —
+                    파일 값의 반올림(I-11) 표시를 여기 붙이면 엉뚱한 숫자를 가리킨다 */}
+                {row.rounded && row.status !== 'locked' && (
                   <span className="ml-1 text-amber-600" title="소수점이 있어 반올림했습니다 (I-11)">
                     ≈
                   </span>
@@ -90,6 +97,7 @@ export default function ImportPreviewTable({
                   next={row.cashAmount}
                   previous={row.existing?.cashAmount ?? null}
                   overwrite={row.status === 'overwrite'}
+                  locked={row.status === 'locked'}
                   currencyUnit={currencyUnit}
                 />
               </td>
@@ -98,6 +106,7 @@ export default function ImportPreviewTable({
                   next={row.inKindAmount}
                   previous={row.existing?.inKindAmount ?? null}
                   overwrite={row.status === 'overwrite'}
+                  locked={row.status === 'locked'}
                   currencyUnit={currencyUnit}
                 />
               </td>
@@ -131,13 +140,25 @@ function AmountCell({
   next,
   previous,
   overwrite,
+  locked,
   currencyUnit,
 }: {
   next: number | null;
   previous: number | null;
   overwrite: boolean;
+  locked: boolean;
   currencyUnit: Settings['currencyUnit'];
 }) {
+  // S-14: 잠김 행은 파일 값이 버려지고 산출근거 합계가 그대로 남는다 — 남는 값을 보여준다
+  if (locked) {
+    return previous === null ? (
+      <span className="text-slate-300">—</span>
+    ) : (
+      <span className="text-slate-500" title="산출근거 합계 — 그대로 유지됩니다">
+        {formatAmount(previous, currencyUnit)}
+      </span>
+    );
+  }
   if (next === null && previous === null) return <span className="text-slate-300">—</span>;
   return (
     <span>

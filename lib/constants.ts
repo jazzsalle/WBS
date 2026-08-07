@@ -1,10 +1,13 @@
-// SOT 부록 A(A.1~A.4)·부록 C, §6.6 H-3, §8.8의 상수 정의.
+// SOT 부록 A(A.1~A.5)·부록 C, §6.6 H-3, §8.8의 상수 정의.
 // 라벨 맵은 Record<EnumType, string>으로 선언해 enum 값 누락이 컴파일 에러가 되게 한다 (A.4).
 
 import type {
   BudgetCategory,
   DeliverableType,
+  DetailAxis,
+  DetailFormula,
   Direction,
+  HireType,
   MeasureMethod,
   MemberRole,
   MilestoneStatus,
@@ -26,7 +29,9 @@ import type {
 export const MAX_TASK_DEPTH = 10;
 
 // 코드가 기대하는 app_settings.schema_version. 불일치 시 앱 진입을 막는다 (§8.8)
-export const EXPECTED_SCHEMA_VERSION = 1;
+// 2 = Phase 9(budget_details 신설). 백업 파일 형식이 바뀌므로 올렸다 —
+// 구 백업(v1)은 budget_details 키가 없어 복원할 수 없고, K-5가 그 사실을 정확히 알린다
+export const EXPECTED_SCHEMA_VERSION = 2;
 
 // ─── 부록 A.1 비목 라벨 ──────────────────────────────────────
 
@@ -162,7 +167,7 @@ export const ORG_ROLE_COLORS: Record<OrgRole, string> = {
   consign: 'slate-500',
 };
 
-// ─── 부록 A.4 기타 enum 한글 라벨 (14종) ─────────────────────
+// ─── 부록 A.4 기타 enum 한글 라벨 (17종) ─────────────────────
 
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   planning: '기획',
@@ -270,6 +275,111 @@ export const PRIORITY_LABELS: Record<Priority, string> = {
   normal: '보통',
   high: '높음',
 };
+
+export const HIRE_TYPE_LABELS: Record<HireType, string> = {
+  existing: '기존인력',
+  new: '채용예정',
+};
+
+export const DETAIL_AXIS_LABELS: Record<DetailAxis, string> = {
+  cash: '현금',
+  in_kind: '현물',
+};
+
+export const DETAIL_FORMULA_LABELS: Record<DetailFormula, string> = {
+  personnel: '인건비산식',
+  quantity: '단가×수량',
+};
+
+// ─── 부록 A.5 세목 프리셋 (예산 제안 §5.17) ──────────────────
+
+/**
+ * 세목 정의. `defaultFactors`는 행 추가 시 채워지는 **초기값**일 뿐이며 라벨은 행마다
+ * 바꿀 수 있다 (PL-3) — 실측에서도 ⑥ 소프트웨어 활용비의 수량 라벨이 `시트(수량)`였다.
+ * 단가(`unitPrice`)는 인자가 아니다. 인자는 단가에 **곱해지는** 값들이다 (부록 A.5 주의 1).
+ */
+export interface SubcategoryDef {
+  code: string;              // BudgetDetail.subcategory에 저장되는 값
+  label: string;             // 화면 표시. 서식의 번호(①②…)를 포함한다
+  formula: DetailFormula;
+  defaultFactors: { label: string; isPercent: boolean }[];
+}
+
+// 참여율은 % 인자, 참여기간(월)은 12로 나뉘는 개월 수다 (PL-1). 인건비 세목 5종이 같은 구성이다
+const PERSONNEL_FACTORS: SubcategoryDef['defaultFactors'] = [
+  { label: '참여율(%)', isPercent: true },
+  { label: '참여기간(월)', isPercent: false },
+];
+
+/**
+ * 비목 → 세목 목록. 비목 키 순서는 BUDGET_CATEGORY_ORDER(부록 A.1)를 따르고,
+ * 비목 안의 세목 순서는 부록 A.5 표 그대로다 — §7.9의 세목 섹션 나열 순서가 이 배열이다.
+ * `default`는 "세목 없음"의 코드다. null 대신 문자열 상수를 쓰는 이유는
+ * (year, category, subcategory) 집계에서 null 비교를 피하기 위해서다 (주의 3).
+ * 프리셋에 없는 세목이 실무에서 나타나면 **부록 A.5를 먼저 고친다** (PL-D4).
+ */
+export const SUBCATEGORY_PRESETS: Record<BudgetCategory, SubcategoryDef[]> = {
+  personnel: [
+    { code: 'personnel_internal', label: '내부인건비', formula: 'personnel', defaultFactors: PERSONNEL_FACTORS },
+    { code: 'personnel_external', label: '외부인건비', formula: 'personnel', defaultFactors: PERSONNEL_FACTORS },
+    { code: 'personnel_support', label: '연구지원인력인건비', formula: 'personnel', defaultFactors: PERSONNEL_FACTORS },
+  ],
+  student_personnel: [
+    { code: 'student_general', label: '일반', formula: 'personnel', defaultFactors: PERSONNEL_FACTORS },
+    { code: 'student_managed', label: '통합관리', formula: 'personnel', defaultFactors: PERSONNEL_FACTORS },
+  ],
+  facility_equipment: [
+    { code: 'facility_purchase', label: '① 연구시설·장비 구입·설치비', formula: 'quantity', defaultFactors: [{ label: '수량', isPercent: false }] },
+    { code: 'facility_lease', label: '② 연구시설·장비 임차비', formula: 'quantity', defaultFactors: [{ label: '수량', isPercent: false }] },
+    { code: 'facility_maintain', label: '③ 연구시설·장비 운영·유지비', formula: 'quantity', defaultFactors: [{ label: '수량', isPercent: false }] },
+    { code: 'facility_infra', label: '④ 연구인프라 조성비', formula: 'quantity', defaultFactors: [{ label: '수량', isPercent: false }] },
+  ],
+  material: [
+    { code: 'material_purchase', label: '① 연구재료 구입비', formula: 'quantity', defaultFactors: [{ label: '수량', isPercent: false }] },
+    { code: 'material_manage', label: '② 연구개발과제 관리비', formula: 'quantity', defaultFactors: [{ label: '수량', isPercent: false }] },
+    { code: 'material_make', label: '③ 연구재료 제작비', formula: 'quantity', defaultFactors: [{ label: '수량', isPercent: false }] },
+  ],
+  consignment: [
+    { code: 'default', label: '위탁연구개발비', formula: 'quantity', defaultFactors: [{ label: '수량', isPercent: false }] },
+  ],
+  international: [
+    { code: 'default', label: '국제공동연구개발비', formula: 'quantity', defaultFactors: [{ label: '수량', isPercent: false }] },
+  ],
+  burden: [
+    { code: 'default', label: '연구개발부담비', formula: 'quantity', defaultFactors: [] },
+  ],
+  activity: [
+    { code: 'activity_outsourcing', label: '① 외주용역비', formula: 'quantity', defaultFactors: [{ label: '수량', isPercent: false }] },
+    { code: 'activity_ip', label: '② 지식재산 창출 활동비', formula: 'quantity', defaultFactors: [{ label: '회', isPercent: false }, { label: '월', isPercent: false }] },
+    { code: 'activity_expert', label: '③ 외부 전문기술 활용비', formula: 'quantity', defaultFactors: [{ label: '회', isPercent: false }, { label: '월', isPercent: false }] },
+    { code: 'activity_meeting', label: '④ 회의비', formula: 'quantity', defaultFactors: [{ label: '회', isPercent: false }] },
+    { code: 'activity_travel_dom', label: '⑤ 국내출장비', formula: 'quantity', defaultFactors: [{ label: '인원', isPercent: false }, { label: '횟수', isPercent: false }] },
+    { code: 'activity_travel_intl', label: '⑤ 국외출장비', formula: 'quantity', defaultFactors: [{ label: '인원', isPercent: false }, { label: '횟수', isPercent: false }] },
+    { code: 'activity_software', label: '⑥ 소프트웨어 활용비', formula: 'quantity', defaultFactors: [{ label: '수량', isPercent: false }, { label: '월', isPercent: false }] },
+    { code: 'activity_lab_ops', label: '⑦ 연구실 운영비', formula: 'quantity', defaultFactors: [{ label: '횟수', isPercent: false }] },
+    { code: 'activity_hr_support', label: '⑧ 연구인력 지원비', formula: 'quantity', defaultFactors: [{ label: '인원', isPercent: false }, { label: '횟수', isPercent: false }] },
+    { code: 'activity_pmo', label: '⑨ 종합사업관리비', formula: 'quantity', defaultFactors: [{ label: '회', isPercent: false }, { label: '월', isPercent: false }] },
+    { code: 'activity_cloud', label: '⑩ 클라우드컴퓨팅서비스 이용료', formula: 'quantity', defaultFactors: [{ label: '회', isPercent: false }, { label: '월', isPercent: false }] },
+    { code: 'activity_etc', label: '⑪ 그 밖의 비용', formula: 'quantity', defaultFactors: [{ label: '회', isPercent: false }] },
+  ],
+  promotion: [
+    { code: 'default', label: '연구과제추진비', formula: 'quantity', defaultFactors: [{ label: '회', isPercent: false }] },
+  ],
+  allowance: [
+    { code: 'default', label: '연구수당', formula: 'quantity', defaultFactors: [] },
+  ],
+  indirect: [
+    { code: 'indirect_hr', label: '가. 인력지원비', formula: 'quantity', defaultFactors: [] },
+    { code: 'indirect_support', label: '나. 연구지원비', formula: 'quantity', defaultFactors: [] },
+    { code: 'indirect_outcome', label: '다. 성과활용지원비', formula: 'quantity', defaultFactors: [] },
+  ],
+  other: [
+    { code: 'default', label: '기타', formula: 'quantity', defaultFactors: [] },
+  ],
+};
+
+// 세목이 없는 비목의 세목 코드 (부록 A.5 주의 3)
+export const DEFAULT_SUBCATEGORY_CODE = 'default';
 
 // ─── 부록 C. 비목 별칭 사전 (초기값) — 공통 + 부처별 프리셋 ──
 // 모든 키는 정규화(I-1: 가운뎃점 변형·내부 공백·괄호 내용·각주·별표·하이픈 제거 + 소문자화)된 형태로 비교한다.

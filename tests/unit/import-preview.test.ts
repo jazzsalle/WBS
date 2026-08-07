@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { parseMatrix } from '@/lib/import/matrix';
-import { buildPreview, type ExistingBudgetItem } from '@/lib/import/preview';
+import { LOCKED_ROW_GUIDE, buildPreview, type ExistingBudgetItem } from '@/lib/import/preview';
 import type { MergeRange, RawCell, RawSheet } from '@/lib/import/types';
 import type { BudgetCategory, PreviewRow } from '@/types';
 
@@ -192,13 +192,21 @@ describe('부록 B.5 — summary (§9 previewImport)', () => {
 describe('신규 / 덮어씀 판정', () => {
   const existing: ExistingBudgetItem[] = [
     // 연차 생성 시 자동 생성되는 빈 레코드는 "덮어쓸 값"이 없으므로 신규로 본다 (§5.12)
-    { yearId: 'y1', category: 'personnel', plannedAmount: 0, cashAmount: null, inKindAmount: null },
+    {
+      yearId: 'y1',
+      category: 'personnel',
+      plannedAmount: 0,
+      cashAmount: null,
+      inKindAmount: null,
+      detailCount: 0,
+    },
     {
       yearId: 'y1',
       category: 'indirect',
       plannedAmount: 900_000,
       cashAmount: null,
       inKindAmount: null,
+      detailCount: 0,
     },
   ];
   const preview = buildPreview({ rows: parsed.rows, yearIdByOrder: YEAR_IDS, existingItems: existing });
@@ -228,6 +236,7 @@ describe('S-9 — 파일에 없는 비목은 유지한다', () => {
       plannedAmount: 3_000_000,
       cashAmount: null,
       inKindAmount: null,
+      detailCount: 0,
     },
     {
       yearId: 'y1',
@@ -235,6 +244,7 @@ describe('S-9 — 파일에 없는 비목은 유지한다', () => {
       plannedAmount: 1_500_000,
       cashAmount: null,
       inKindAmount: null,
+      detailCount: 0,
     },
     // 반영 대상 연차가 아닌 기존 값은 아예 논외다
     {
@@ -243,6 +253,7 @@ describe('S-9 — 파일에 없는 비목은 유지한다', () => {
       plannedAmount: 7_000_000,
       cashAmount: null,
       inKindAmount: null,
+      detailCount: 0,
     },
   ];
   const preview = buildPreview({ rows: parsed.rows, yearIdByOrder: YEAR_IDS, existingItems: existing });
@@ -355,5 +366,196 @@ describe('I-11 반올림 표시', () => {
     });
     expect(preview.rows[0]!.rounded).toBe(true);
     expect(preview.rows[0]!.plannedAmount).toBe(1235);
+  });
+});
+
+// S-14: 산출근거(`detailCount > 0`)가 있는 셀은 총괄표 총액이 덮지 못한다.
+// 덮으면 화면은 산출 행을 보여주는데 합계만 남의 숫자가 되어 **조용히 어긋난다**.
+describe('S-14 — 산출근거가 있는 셀은 잠긴다', () => {
+  // 부록 B.5의 7행(#REF!)만 건너뛴 상태 = 오류 0. 잠김이 blocked에 영향을 주는지 보려면
+  // 애초에 blocked가 아닌 미리보기가 필요하다
+  const parseWith = (skippedRowIndexes: number[]) =>
+    parseMatrix(B5_SHEET, {
+      labelColumns: ['B', 'C', 'D', 'E'],
+      yearColumns: [
+        { column: 'F', yearOrder: 0 },
+        { column: 'G', yearOrder: 1 },
+      ],
+      dataStartRow: 1,
+      dataEndRow: 10,
+      amountUnit: 1,
+      skippedRowIndexes,
+    });
+
+  const cleanRows = parseWith([7]).rows;
+
+  const indirect = (detailCount: number): ExistingBudgetItem => ({
+    yearId: 'y1',
+    category: 'indirect',
+    plannedAmount: 900_000,
+    cashAmount: null,
+    inKindAmount: null,
+    detailCount,
+  });
+
+  const baseline = buildPreview({
+    rows: cleanRows,
+    yearIdByOrder: YEAR_IDS,
+    existingItems: [indirect(0)],
+  });
+  const preview = buildPreview({
+    rows: cleanRows,
+    yearIdByOrder: YEAR_IDS,
+    existingItems: [indirect(2)],
+  });
+
+  const lockedRow = () => preview.rows.find((r) => r.status === 'locked');
+
+  it('detailCount > 0인 (연차, 비목)은 잠김이 된다', () => {
+    expect(baseline.rows.find((r) => r.yearId === 'y1' && r.category === 'indirect')?.status).toBe(
+      'overwrite'
+    );
+    const row = lockedRow()!;
+    expect(row.yearId).toBe('y1');
+    expect(row.category).toBe('indirect');
+    expect(row.statusLabel).toBe('잠김');
+  });
+
+  it('잠김은 별도로 세고 건너뜀에 섞이지 않는다', () => {
+    expect(preview.summary.locked).toBe(1);
+    expect(preview.summary.skipped).toBe(baseline.summary.skipped);
+    expect(preview.rows.filter((r) => r.status === 'skipped')).toHaveLength(
+      preview.summary.skipped
+    );
+  });
+
+  it('반영 대상에서 빠진다 — 덮어씀 건수와 합계 금액에서 제외', () => {
+    expect(preview.summary.overwrite).toBe(baseline.summary.overwrite - 1);
+    expect(preview.summary.new).toBe(baseline.summary.new);
+    // 원본 `간접비` 1차년도 1,000,000이 합계에서 빠진다
+    expect(preview.summary.totalAmount).toBe(baseline.summary.totalAmount - 1_000_000);
+  });
+
+  it('오류가 아니므로 반영을 막지 않는다 (blocked에 넣지 않는다)', () => {
+    expect(preview.summary.error).toBe(0);
+    expect(preview.blocked).toBe(false);
+    expect(baseline.blocked).toBe(false);
+  });
+
+  it('반영될 금액은 비우고, 무시되는 파일 값과 푸는 방법을 사유에 남긴다 (조용히 삼키지 않는다)', () => {
+    const row = lockedRow()!;
+    expect(row.plannedAmount).toBeNull();
+    expect(row.cashAmount).toBeNull();
+    expect(row.inKindAmount).toBeNull();
+    expect(row.reason).toContain(LOCKED_ROW_GUIDE);
+    expect(row.reason).toContain('산출근거 2건');
+    expect(row.reason).toContain('1,000,000원');
+  });
+
+  it('유지되는 기존 값(산출근거 합계)을 함께 싣는다', () => {
+    expect(lockedRow()!.existing).toEqual({
+      plannedAmount: 900_000,
+      cashAmount: null,
+      inKindAmount: null,
+    });
+  });
+
+  it('원본 라벨·판정 근거는 매핑 행과 똑같이 싣는다 (Step 4가 그대로 쓴다)', () => {
+    const row = lockedRow()!;
+    expect(row.label).toContain('간접비');
+    expect(row.categorySource).toBe('exact');
+    expect(row.sourceRowIndexes).toEqual([9]);
+  });
+
+  it('잠긴 셀은 "이 파일에 없는 비목"이 아니다 — S-9 유지 목록에 넣지 않는다', () => {
+    expect(preview.summary.untouchedCategories.some((c) => c.category === 'indirect')).toBe(false);
+  });
+
+  it('detailCount === 0이면 종전 규칙 그대로다 (신규/덮어씀 판정은 손대지 않는다)', () => {
+    expect(baseline.summary.locked).toBe(0);
+    expect(baseline.rows.some((r) => r.status === 'locked')).toBe(false);
+    // 빈 기존 레코드는 여전히 신규 (§5.12)
+    const empty = buildPreview({
+      rows: cleanRows,
+      yearIdByOrder: YEAR_IDS,
+      existingItems: [
+        {
+          yearId: 'y1',
+          category: 'indirect',
+          plannedAmount: 0,
+          cashAmount: null,
+          inKindAmount: null,
+          detailCount: 0,
+        },
+      ],
+    });
+    expect(empty.rows.find((r) => r.yearId === 'y1' && r.category === 'indirect')?.status).toBe(
+      'new'
+    );
+  });
+});
+
+// 우선순위: 사용자가 Step 4에서 명시적으로 고른 `건너뛰기`가 시스템 잠금보다 앞선다.
+// 건너뛴 행은 애초에 버킷을 만들지 않으므로 잠김 판정까지 가지 않는다.
+describe('S-14 — 잠김과 사용자 건너뛰기의 우선순위', () => {
+  const parseWith = (skippedRowIndexes: number[]) =>
+    parseMatrix(B5_SHEET, {
+      labelColumns: ['B', 'C', 'D', 'E'],
+      yearColumns: [
+        { column: 'F', yearOrder: 0 },
+        { column: 'G', yearOrder: 1 },
+      ],
+      dataStartRow: 1,
+      dataEndRow: 10,
+      amountUnit: 1,
+      skippedRowIndexes,
+    });
+
+  it('건너뛴 행이 잠긴 셀의 유일한 원본이면 `건너뜀`으로 보인다 (잠김으로 바꾸지 않는다)', () => {
+    // 9행 `간접비 (L)`가 y1 indirect의 유일한 원본이다
+    const preview = buildPreview({
+      rows: parseWith([7, 9]).rows,
+      yearIdByOrder: YEAR_IDS,
+      existingItems: [
+        {
+          yearId: 'y1',
+          category: 'indirect',
+          plannedAmount: 900_000,
+          cashAmount: null,
+          inKindAmount: null,
+          detailCount: 3,
+        },
+      ],
+    });
+    expect(preview.summary.locked).toBe(0);
+    expect(preview.rows.some((r) => r.status === 'skipped' && r.sourceRowIndexes[0] === 9)).toBe(
+      true
+    );
+    expect(preview.blocked).toBe(false);
+  });
+
+  it('S-8 합산 셀은 건너뛴 행만 `건너뜀`이고 남은 행이 만든 셀은 `잠김`이다', () => {
+    // 1·2·3행이 y1 personnel로 합쳐진다. 1행만 건너뛰어도 2·3행이 셀을 만든다
+    const preview = buildPreview({
+      rows: parseWith([1, 7]).rows,
+      yearIdByOrder: YEAR_IDS,
+      existingItems: [
+        {
+          yearId: 'y1',
+          category: 'personnel',
+          plannedAmount: 20_000_000,
+          cashAmount: null,
+          inKindAmount: 20_000_000,
+          detailCount: 1,
+        },
+      ],
+    });
+    const locked = preview.rows.find((r) => r.status === 'locked')!;
+    expect(locked.yearId).toBe('y1');
+    expect(locked.category).toBe('personnel');
+    expect(locked.sourceRowIndexes).toEqual([2, 3]);
+    expect(preview.rows.some((r) => r.status === 'skipped' && r.sourceRowIndexes[0] === 1)).toBe(
+      true
+    );
   });
 });

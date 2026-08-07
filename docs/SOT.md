@@ -2,10 +2,32 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v3.7** |
-| 최종 수정 | 2026-08-07 |
+| 문서 버전 | **v4.0** |
+| 최종 수정 | 2026-08-08 |
 | 상태 | 확정 (Phase 0 착수 가능) |
 | 목적 | 이 문서는 구현의 유일한 기준점이다. 코드와 문서가 다르면 **문서가 옳다**. |
+
+### v3.7 → v4.0 변경 요약 — Phase 9(예산 제안 모드) 착수 전 스펙 신설
+
+v1(Phase 0~8)은 예산을 **수행** 관점 한쪽으로만 다뤘다: 확정된 계획액을 기록하고, 집행을 누적하고, 집행률을 본다. 엑셀은 **들여오는** 방향뿐이었다(§6.8). Phase 9는 그 반대 방향 — **예산을 만들어내는(제안)** 쪽을 연다. 실측 워크북 2종(`samples/`)의 **연차별 산출근거 시트**를 재대조해 아래를 확정했다. 마이너 버전이 아니라 v4.0인 이유는 **`budget_items.plannedAmount`의 소유권이 바뀌기 때문**이다(사람 입력 → 산출근거 합계).
+
+- **§5.17 BudgetDetail 신설 — 산출근거(내역) 계층**: `budget_items`는 `unique(year_id, category)`라 연차×비목당 **총액 한 줄**만 담는다. 제안은 그 총액이 *어떻게 나왔는지*가 본체이므로 계층이 하나 더 필요하다. 비목 → **세목** → 산출 행. 산출 행의 금액은 `단가 × 인자들 + 조정액`이라는 **한 가지 산식**으로 실측 서식 전부를 표현한다(§6.10.1).
+- **§6.10 신설 — 산출근거 계산·집계·검증 (PL-1~PL-16)**: 인건비 산식(`연봉 × 참여율/100 × 개월/12`)의 **중간 반올림을 금지**한다. 실측 검증에서 월액(`연봉/12`)을 먼저 반올림하면 표시값과 어긋나는 행이 나온다(부록 B.7). 이미 §6.1 P-8·§6.2 D-5·§6.4 B-1에서 같은 함정을 겪었다.
+- **§5.12 개정 — 계획액의 소유권**: `(연차, 비목)`에 산출근거가 1건이라도 있으면 그 셀의 `plannedAmount`·`cashAmount`·`inKindAmount`는 **내역 합계로 확정되고 직접 편집이 잠긴다**(PL-9). 저장 값과 합계의 일치는 **같은 트랜잭션 안에서 보장**한다(PL-10) — CLAUDE.md의 "파생 값을 저장하지 않는다"에서 의도적으로 벗어난 유일한 지점이며, 그 이유와 대안 기각 근거를 PL-10에 적었다.
+- **§6.8 개정 — 임포트는 잠긴 셀을 덮어쓰지 않는다 (S-14)**: 총괄표 임포트가 산출근거가 있는 셀을 덮으면 **근거와 총액이 소리 없이 어긋난다.** 미리보기에 `잠김` 상태로 남기고 반영에서 제외한다.
+- **§5.11 Member 확장 — `annualSalary`·`hireType`**: 인건비 산출근거가 인력 명부를 참조한다. **§13 미결정 1번(참여연구원 참여율)이 여기서 해소된다** — 참여율은 Member의 속성이 아니라 **(연차 × 인력)의 속성**이므로 `BudgetDetail`이 갖는다. 한 사람이 같은 연차에서 참여율을 바꿔 두 구간으로 나뉘는 실측 사례(행안부 한봄희: 4개월 10% + 8개월 53%)가 Member 단일 필드로는 표현되지 않는다.
+- **§5.3 Project 확장 — `indirectRateLimit`·`allowanceRateLimit`**: 지침 한도는 **부처·기관 유형별 고시율**이라 이 문서가 지어낼 수 없다. 혁신법 공통인 연구수당 20%만 기본값으로 두고 간접비율은 **과제별 사용자 입력**으로 받는다(PL-14). 부처별 고시율 표를 코드에 박지 않는 이유는 PL-16에 적었다.
+- **§7.9 개정 — 연구비 화면에 [제안 | 수행] 모드 토글**: 같은 매트릭스를 두 관점으로 본다. 셀 클릭 시 제안 모드는 산출근거 패널, 수행 모드는 기존 집행 내역 패널이 열린다. 탭을 늘리지 않는 이유는 §7.9의 설계 원칙에 적었다.
+- **부록 A.5 신설 — 세목 프리셋**: 실측 2종에서 세목 구성이 **거의 동일**했다(①~⑪ 연구활동비 세목까지 일치). 혁신법 표준으로 고정하고 부처 차이는 §6.8 부록 C와 같은 방식으로 흡수한다.
+- **부록 B.7 신설 — 산출근거 계산 검증 예시**: 실측 산자부 1차년도 인건비 18행의 실제 값을 그대로 테스트 기준으로 옮긴다.
+
+**착수 직전 추가 확정 3건** (계획 분해 중 SOT 공백이 드러나 사람이 판단했다):
+
+- **PL-10a — 금액 산식은 `lib/budget-plan.ts` 한 곳에만 둔다**: `BudgetDetail.amount`를 저장하고 RPC는 **더하기만** 한다. PL/pgSQL에 산식을 다시 구현하면 JS `Math.round`와 SQL `round()`가 **음수 .5·부동소수점 경계에서 갈려** 1원씩 어긋난다. `amount` 저장(PL-D7)이 산식 이중화보다 훨씬 작은 위험이다.
+- **PL-10b — 연봉 변경은 파급되되 조용하지 않다**: `Member.annualSalary`가 바뀌면 그 인력의 인건비 행과 비목 총액을 같은 트랜잭션에서 재계산한다. 단 저장 전에 **영향 건수와 전후 금액을 보여주고 확인을 받는다**(§7.10). 이 규칙이 없으면 인사 정보 수정이 협의 끝난 예산을 말없이 흔든다.
+- **H-9a — 인건비 산출근거가 걸린 Member는 삭제 차단**: H-9의 기존 참조 8곳은 담당·배정 같은 메타데이터라 지워도 숫자가 변하지 않지만, 산출근거를 함께 지우면 **사람을 지운 조작만으로 비목 총액이 줄어든다.** `on delete restrict` + 참조 건수 안내로 두 단계를 요구한다(§6.6 H-8과 같은 판단). `active=false`는 그대로 허용한다.
+- **§8.8 — `schema_version` 1 → 2 + 올리는 기준 명문화**: `budget_details`는 Phase 0 이후 **처음 추가되는 테이블**이라 백업 파일 형식(`BACKUP_TABLES`)이 바뀐다. 버전을 올리지 않으면 K-5의 버전 게이트가 "호환"이라 판정한 구 백업을 테이블 목록 검사가 거부해 **사용자가 엉뚱한 메시지를 본다.** "백업 파일 형식이 바뀌는가"를 기준으로 삼는다고 §8.8에 적었다 — 컬럼 추가나 RPC 변경만으로는 올리지 않는다.
+- **§2.2·§13 갱신**: "참여연구원 참여율(%) 관리" 제외 항목을 **해소**로 옮긴다. 제출 서식 **엑셀 내보내기는 Phase 9 범위 밖**으로 명시(사용자 결정) — 서식 재현(병합·수식) 비용이 커서 별도 Phase로 남긴다.
 
 ### v3.6 → v3.7 변경 요약 — Phase 8(To-Do + 설정 + 마감) 착수 전 규칙 공백 메우기
 Phase 8 계획 중 **§7.13이 두 줄뿐이라 구현이 임의로 정해야 하는 지점 4곳**이 드러났다. 사람이 판단해 아래로 확정했다.
@@ -149,9 +171,11 @@ Phase 8 계획 중 **§7.13이 두 줄뿐이라 구현이 임의로 정해야 �
 | **오프라인 편집** | 로컬 캐시·동기화 큐는 복잡도 대비 효용 낮음 |
 | 웹 배포 | 기술적으로 가능하나 v1은 데스크톱 앱만 (§14.1) |
 | 변경 이력 / 감사 로그 | v2 후보 |
-| **참여연구원 참여율(%) 관리** | 사용자 선택으로 제외 (v2 후보) |
+| ~~참여연구원 참여율(%) 관리~~ | **Phase 9에서 해소.** `BudgetDetail`의 인건비 산출근거가 (연차 × 인력)별 참여율·참여기간을 갖는다 (§5.11 주석, §5.17) |
 | **증빙 파일 첨부 / 업로드** | 사용자 선택으로 제외. 증빙은 외부 링크(URL)로만 (v2 후보) |
-| 기관별 연구비 분배 | 비목별까지만 관리 |
+| 기관별 연구비 분배 | 비목별까지만 관리. Phase 9에서도 유지 — 실측 `검토_*` 시트가 이 구조지만 범위를 넓히지 않는다 |
+| **제출 서식 엑셀 내보내기** | Phase 9 범위 밖 (사용자 결정). 병합·수식 재현 비용이 커서 별도 Phase |
+| **산출근거 시트 엑셀 임포트** | Phase 9 범위 밖 (사용자 결정). 산출근거는 앱에서 직접 입력한다. 총괄표 임포트(§6.8)는 그대로 |
 | 작업 간 선후행 의존관계(FS/SS) | 간트 복잡도 급증 (v2) |
 | 전자결재 / 외부 시스템 연동 (IRIS 등) | |
 | 반복 작업, 타임 트래킹 | |
@@ -233,6 +257,7 @@ Phase 8 계획 중 **§7.13이 두 줄뿐이라 구현이 임의로 정해야 �
 | `members` | Member | |
 | `budget_items` | BudgetItem | |
 | `budget_executions` | BudgetExecution | **별도 테이블로 정규화** |
+| `budget_details` | BudgetDetail | 산출근거 = 예산 제안의 내역 (§5.17, Phase 9) |
 | `risks` | Risk | |
 | `notes` | Note | |
 | `todos` | Todo | |
@@ -305,10 +330,16 @@ interface Project extends BaseEntity {
   pmMemberId: string | null;         // 총괄책임자(PM)
   leadOrgId: string | null;          // 주관연구개발기관
 
+  // ─ Phase 9(예산 제안) 추가 — 지침 한도 (§6.10.3 PL-14) ─
+  allowanceRateLimit: number | null; // 연구수당 한도율 (%). 기본 20 (혁신법 공통)
+  indirectRateLimit: number | null;  // 간접비 한도율 (%). 부처·기관 유형별 고시율이라 기본값 없음
+
   archived: boolean;
   order: number;
 }
 ```
+
+> 한도 2종은 **경고를 띄우기 위한 값이지 저장을 막는 값이 아니다** (PL-15). null이면 그 검사를 수행하지 않는다 — 모르는 값을 0으로 취급해 전 과제에 빨간 경고를 띄우는 것이 더 나쁘다.
 
 ### 5.4 Stage (단계)
 
@@ -530,6 +561,8 @@ interface Organization extends BaseEntity {
 type MemberRole = 'pm' | 'pl' | 'researcher' | 'staff';
 // pm: 총괄책임자, pl: 세부/기관 책임자, researcher: 참여연구원, staff: 행정/지원
 
+type HireType = 'existing' | 'new';   // 기존인력 / 신규채용 (예정자 포함)
+
 interface Member extends BaseEntity {
   projectId: string;
   orgId: string | null;         // 소속 기관
@@ -541,10 +574,18 @@ interface Member extends BaseEntity {
   phone: string;
   active: boolean;              // 참여 종료자는 false
   order: number;
+
+  // ─ Phase 9(예산 제안) 추가 — 인건비 산출근거의 단가 원본 (§6.10.1) ─
+  annualSalary: number | null;  // 실지급액(연봉), 원 단위 정수. 미입력이면 null
+  hireType: HireType;           // 기본 'existing'
 }
 ```
 
-> 참여율(%) 필드는 v1 범위에서 제외한다. 필요해지면 `participationRate: number`를 추가하는 것만으로 확장 가능하도록 스키마를 열어둔다.
+> **참여율(%)은 Member의 필드가 아니다.** §13 미결정 1번은 Phase 9에서 **`BudgetDetail`에 두는 것으로 해소**했다. 참여율은 사람의 속성이 아니라 **(연차 × 인력)의 속성**이고, 한 사람이 한 연차 안에서 참여율을 바꿔 두 구간으로 나뉘는 서식이 실존한다(행안부 실측: 한봄희 4개월 10% + 8개월 53%). Member에 단일 필드로 두면 이 사례가 표현되지 않고, 연차가 늘어날 때마다 값이 덮어써진다.
+
+> **`hireType = 'new'`는 아직 사람이 정해지지 않은 자리를 담기 위한 것이다.** 실측 두 서식 모두 `신규채용1(청년의무)`·`박지원(청년의무)`처럼 채용 예정 자리를 인건비에 계상한다. 이런 자리도 **Member로 등록**한다 — 인건비 산출근거는 언제나 `memberId`를 통해 이름·연봉·직위를 얻으며, 내역 행이 이름 문자열을 따로 갖지 않는다(정의가 두 곳에 생기는 것을 막는다). 인력 화면은 `hireType = 'new'`를 **채용예정** 배지로 구분해 보여 준다.
+
+> `annualSalary`는 **보안 제한 대상이 아니다** — 이 도구를 쓰는 팀이 원래 인건비를 다루는 팀이고, 승인된 사용자는 전원 동일 권한이다(§2.2 RBAC 제외). 별도 마스킹·열람 제어를 두지 않는다.
 
 ### 5.12 BudgetItem (비목별 예산·집행)
 
@@ -583,12 +624,17 @@ interface BudgetItem extends BaseEntity {
   inKindAmount: number | null;       // 그중 현물
   executions: BudgetExecution[];     // 집행 내역 (수동 입력)
   note: string;
+
+  // ─ Phase 9 추가 — 이 셀에 산출근거가 있는가 (§5.17, PL-9) ─
+  detailCount: number;               // 조회 시 계산해 실어 보내는 값. 저장 컬럼이 아니다
 }
 ```
 
 > 비목별 보조 축은 **현금/현물**이다. 실제 예산 서식(연구개발계획서 사업비 총괄표)이 비목별 금액을 현금/현물로 분리하며, 정부출연금/민간부담금 구분은 비목 수준에 존재하지 않는다. 정부/기관부담 축은 과제 수준(`Project.govBudget/ownBudget`)에서만 관리한다.
 
 **제약**: `(projectId, yearId, category)` 조합은 유일해야 한다. 연차 생성 시 12개 비목 레코드를 `plannedAmount: 0`으로 자동 생성한다.
+
+**계획액의 소유권 (Phase 9 개정)**: `detailCount > 0`인 셀의 `plannedAmount`·`cashAmount`·`inKindAmount`는 **사람이 입력하는 값이 아니라 산출근거(§5.17)의 합계다.** 이 셀은 매트릭스에서 직접 편집이 잠기고, 총괄표 엑셀 임포트의 덮어쓰기 대상에서도 빠진다(S-14). `detailCount = 0`인 셀은 v1과 완전히 동일하게 동작한다 — 직접 입력하고, 임포트가 덮어쓴다. 저장 값과 합계의 일치를 보장하는 방법은 PL-10에 있다.
 
 #### 5.12.1 ImportProfile (엑셀 매핑 프로파일 = 부처 템플릿)
 
@@ -745,6 +791,77 @@ interface LocalConfig {
 ```
 
 > 표시 이름·이메일은 `app_users` 테이블(§14.2)에 있다. `Settings`는 팀 전체가 공유하는 업무 규칙만 담는다.
+
+### 5.17 BudgetDetail (산출근거 = 예산 제안의 내역)
+
+`BudgetItem`(§5.12)이 "연차 × 비목에 얼마"라면, `BudgetDetail`은 **그 금액이 어떻게 나왔는가**다. 실측 워크북의 연차별 산출근거 시트(`1차년도_250520`, `1단계_2차년도_250604`)가 원본이며, 두 부처 서식의 구조가 거의 동일해 아래 한 벌로 표현된다.
+
+```
+BudgetItem (연차 × 비목)          ← 총액. 잠김 (합계로 확정)
+  └ BudgetDetail[]                ← 산출 행. 사람이 편집하는 곳
+        subcategory: 세목          ← 부록 A.5 프리셋 (예: activity_meeting '④ 회의비')
+        axis: 현금 | 현물
+        금액 = 단가 × 인자들 + 조정액
+```
+
+```ts
+// 이름 충돌 주의: `lib/constants.ts`에 이미 `BudgetAxis = 'cash' | 'inKind' | 'unassigned'`가
+// 있다(임포트 파이프라인 전용, S-4). 그쪽은 총괄표의 축 라벨이 판정되지 않는 경우까지 담아야 해서
+// 'unassigned'가 있지만, 산출근거 행은 축 없이 존재할 수 없으므로 **별개 타입**으로 둔다.
+type DetailAxis = 'cash' | 'in_kind';
+
+// 금액 산식 (§6.10.1). 실측 서식 전부가 이 둘로 표현된다
+type DetailFormula =
+  | 'personnel'   // 인건비류: member.annualSalary × 참여율/100 × 개월/12
+  | 'quantity';   // 나머지 전부: unitPrice × (인자들의 곱)
+
+/** 수량 인자. 세목마다 의미가 다르므로 라벨을 값과 함께 저장한다 (PL-3) */
+interface DetailFactor {
+  label: string;      // '수량' | '회' | '월' | '인원' | '횟수' | '참여율(%)' | '참여기간(월)' …
+  value: number;      // 소수 허용 (참여율 10.0, 참여기간 8)
+  isPercent: boolean; // true면 계산 시 100으로 나눈다
+}
+
+interface BudgetDetail extends BaseEntity {
+  projectId: string;
+  yearId: string;
+  category: BudgetCategory;    // 어느 매트릭스 셀에 속하는가
+  subcategory: string;         // 세목 코드 (부록 A.5). 세목이 없는 비목은 'default'
+  axis: DetailAxis;            // 현금/현물. **null이 없다** — 축이 없으면 합계를 나눌 수 없다
+
+  formula: DetailFormula;
+
+  // formula = 'personnel' 전용
+  memberId: string | null;     // 필수. 단가(연봉)·이름·직위의 유일한 출처 (§5.11)
+
+  // formula = 'quantity' 전용
+  name: string;                // 품명/내역명. personnel이면 빈 문자열
+  unitPrice: number;           // 단가 (원 단위 정수, 0 이상)
+
+  spec: string;                // 규격 / 산출내역 메모 (자유 텍스트)
+  factors: DetailFactor[];     // 0~3개. 빈 배열이면 금액 = unitPrice + adjustment
+  adjustment: number;          // 조정액 (원). **음수 허용** — 서식의 절사·미세조정용
+  note: string;                // 비고
+  order: number;               // 세목 안에서의 표시 순서
+
+  amount: number;              // 계산된 금액 (원 단위 정수). **사람이 입력하지 않는다** (PL-10a)
+}
+```
+
+**제약**
+
+| # | 규칙 |
+|---|---|
+| PL-D1 | `formula = 'personnel'`이면 `memberId`가 필수이고 `name`·`unitPrice`는 무시한다. 반대면 `memberId`는 null이어야 한다. |
+| PL-D2 | `memberId`가 가리키는 Member는 **같은 과제 소속**이어야 한다 (§9 N-13과 같은 경계 검증. FK가 막지 못한다). `yearId` 역시 같은 과제여야 한다. |
+| PL-D3 | `category`가 `personnel`·`student_personnel`이면 `formula`는 `'personnel'`만 허용한다. 나머지 비목은 `'quantity'`만 허용한다. 이 제약이 없으면 인건비 셀에 단가 행이 섞여 §6.10.3 검증의 기준액이 흔들린다. |
+| PL-D4 | `subcategory`는 그 `category`의 프리셋(부록 A.5)에 있는 코드여야 한다. 프리셋에 없는 세목이 실무에서 나타나면 **부록 A.5를 먼저 고친다** — 자유 문자열을 허용하면 세목이 오타로 갈라져 소계가 어긋난다. |
+| PL-D5 | `unitPrice`·`factors[].value`는 0 이상. `adjustment`만 음수를 허용한다. |
+| PL-D6 | 삭제는 물리 삭제다. 산출근거는 이력이 아니라 현재 계획이며, 되돌리기는 §8.7 백업과 `import_snapshots`가 담당한다. |
+| PL-D7 | `amount`는 **서버 액션이 `lib/budget-plan.ts`로 계산해 넣는 값**이다. 클라이언트가 보낸 `amount`는 무시하고 다시 계산한다 — 화면이 금액을 지어낼 수 있으면 산출근거가 근거가 아니게 된다. 근거 필드(`unitPrice`·`factors`·`adjustment`·`memberId`)가 바뀌면 `amount`도 반드시 같은 쓰기에서 다시 계산된다. |
+| PL-D8 | **`member_id`는 `on delete restrict`다** (H-9a). 인건비 산출근거가 걸린 Member는 삭제할 수 없다. `year_id`·`project_id`는 `on delete cascade`다 — 연차·과제가 사라지면 그 계획도 사라지는 것이 맞다. |
+
+> **`version`을 갖는다** (BaseEntity). 산출 행 편집이 단가·인자·조정액을 한 번에 바꾸므로 §8.4 O-1 낙관적 잠금 대상이다 — §5.8·§5.9·§5.12 `BudgetExecution`과 같은 이유다.
 
 ---
 
@@ -911,6 +1028,7 @@ achievementRate(target):
 | H-7 | Project 삭제 시 소속 전 엔티티 삭제. To-Do는 `projectId=null`로 남긴다. RPC는 순환 FK 해소를 위해 `pm_member_id`·`lead_org_id`를 먼저 null로 만든 뒤 삭제한다. |
 | H-8 | Organization 삭제 시 참조하던 Member는 `orgId=null`. 주관기관은 다른 기관을 주관으로 지정하기 전까지 삭제 불가. **주관 재지정(`setLeadOrganization`)은 한 트랜잭션에서 ① 기존 `role='lead'` 기관을 `'joint'`로 강등 ② 대상 기관을 `'lead'`로 ③ `projects.lead_org_id` 갱신을 함께 수행한다** — 과제당 주관기관은 항상 정확히 1개여야 하고, 중간 상태(0개·2개)가 남으면 H-8의 삭제 차단 판정이 무너진다. |
 | H-9 | Member 삭제 대신 `active=false` 권장. 삭제 시 제거해야 할 참조는 **8곳**: `tasks.owner_member_id`, `task_members`, `milestones.owner_member_id`, `risks.owner_member_id`, `projects.pm_member_id`, `achievement_members`, `note_attendees`, `app_users.member_id`. 조인 테이블은 FK cascade, 나머지는 set null(N-8)로 스키마가 보장한다. |
+| H-9a | **인건비 산출근거(`budget_details.member_id`)가 참조하는 Member는 삭제를 차단한다** (Phase 9). H-9의 8곳과 **다르게 취급하는 이유**: 나머지 참조는 담당·배정 같은 메타데이터라 지워도 숫자가 변하지 않지만, 산출근거를 함께 지우면 **비목 총액이 사람을 지운 조작만으로 줄어든다**(PL-10 재계산). 금액이 조용히 바뀌는 것보다 두 단계를 요구하는 편이 낫다 — §6.6 H-8(주관기관 재지정 전 삭제 차단)과 같은 판단이다. FK는 `on delete restrict`로 두고, `count_member_references`가 산출근거 건수를 **별도 항목**으로 세어 화면이 "인건비 산출근거 N건이 이 인력을 참조합니다 → [연구비로 이동]"을 띄운다. `active=false`(참여 종료)는 그대로 허용한다 — 비활성 인력의 과거 연차 인건비는 남아 있어야 정상이다. |
 | H-10 | `order`(DB `sort_order`)는 같은 부모/컨테이너 내에서 0부터 연속 정수로 재정렬(normalize)한다. 컨테이너 단위: Task는 (yearId, parentId), Year는 **project 단위**(§5.5), Stage는 project, 나머지는 project. |
 | H-11 | `moveTaskToYear`: 자손 전체가 함께 이동한다(자손의 `yearId` 일괄 갱신, 부모-자식 관계는 보존). 이동 대상 노드는 새 연차의 **루트가 된다**(`parentId=null`, `order=말단+1`) — H-1을 만족하는 유일한 안전한 방법이다. **같은 과제 내 연차로만 이동 가능**하다(다른 과제로 옮기면 담당자·기관·목표 연계가 전부 남의 과제를 가리키게 된다). |
 | H-12 | `moveTask(id, newParentId, newIndex)`의 `newIndex`는 **대상 노드를 제거한 뒤의** 새 부모 자식 배열에서의 0-based 삽입 위치다 (dnd-kit `arrayMove`와 동일 시맨틱). RPC가 삽입 후 H-10 normalize를 수행한다. |
@@ -972,6 +1090,7 @@ WBS 코드는 항상 **연차 단위**로 다시 계산한다. 즉 각 연차의
 | S-11 | **병합 범위를 먼저 확장한다**: 파싱 전에 워크북의 병합 범위를 펼쳐 **범위 내 모든 셀에 좌상단 값을 채운 뒤** S-2 carry-forward를 적용한다. 실측(산자부) `C16:E16`처럼 라벨 열들을 가로지르는 메모 행이 있을 때, 확장하지 않으면 D·E열이 빈 셀로 남아 위 행의 축 라벨(`현물`)을 잘못 승계하고 메모 행이 금액 행으로 둔갑한다. 확장 후 S-2의 리셋 판정은 "값이 **직전 행과 달라지면**"으로 읽는다(병합으로 같은 값이 반복되는 것은 새 값이 아니다). |
 | S-12 | **라벨 판정 순서(알고리즘)**: 라벨 열을 **우→좌**로 훑으며 각 셀을 부록 C 주의 1의 4단계(① 완전일치 비목 → ② 별칭 → ③ 축 라벨 → ④ 스킵 패턴)로 판정하고, **비목/스킵 중 가장 오른쪽 판정 하나를 채택**한다(S-3의 "가장 구체적인 라벨"의 구현). 축 라벨은 채택 대상이 아니라 **별도로 수집**한다(가장 오른쪽 축 라벨이 그 행의 축). 어느 열도 판정되지 않으면 S-6(아래 행 결합) → I-3(퍼지) → 미매핑(I-4) 순으로 내려간다. 라벨이 하나도 없는데 금액만 있는 행은 `건너뜀(라벨 없음)`으로 미리보기에 **남긴다** — 조용히 버리지 않는다. |
 | S-13 | **시트 추천 점수**: 추천은 비목 매칭 **행 수**가 아니라 **행 비율**로 매긴다. `점수 = 비목으로 판정된 행 수 / 비어 있지 않은 행 수`, 단 **`N차년도` 헤더가 2개 이상 있는 시트만 후보**로 삼는다(총괄표는 비목 × 연차 매트릭스이므로 연차 열이 여러 개다). 행 수로 매기면 **틀린 시트를 고른다** — 실측 워크북에는 연차별 산출근거 시트(240~250행)가 함께 들어 있어 비목을 훨씬 많이 언급하기 때문이다(산자부 `2차년도_250520` 33행 vs 총괄표 19행, 행안부 `1단계_2차년도_*` 34행 vs 총괄표 11행). 비율로 매기면 두 워크북 모두 총괄표가 1위가 된다(산자부 0.655 vs 0.139, 행안부 0.379 vs 0.135). **추천은 하이라이트일 뿐이고 확정은 언제나 사용자가 한다.** |
+| S-14 | **산출근거가 있는 셀은 덮어쓰지 않는다** (Phase 9). `detailCount > 0`인 (연차, 비목)은 계획액이 내역 합계로 확정된 셀이다(PL-9). 총괄표의 총액으로 덮으면 **근거와 총액이 소리 없이 어긋난다** — 화면은 여전히 산출 행을 보여주는데 합계만 남의 숫자가 된다. 미리보기에서 이 행은 `잠김`(회색, 자물쇠) 상태로 남기고 반영 대상에서 제외하며, 상단 요약에 **`잠김 N건`**을 별도로 센다. `건너뜀`과 섞지 않는다 — 건너뜀은 사용자가 고를 수 있지만 잠김은 고를 수 없다. 오류가 아니므로 반영 버튼을 막지도 않는다. 풀려면 산출근거를 먼저 지워야 한다는 안내를 붙인다. |
 
 #### 6.8.3 비목 매핑 규칙
 
@@ -1055,6 +1174,61 @@ priorityScore = importance × urgency        # 1 ~ 25
 | PR-9 | 매트릭스 뷰와 "오늘 집중할 작업"에는 **리프 Task만** 포함한다. 부모는 묶음일 뿐 실행 단위가 아니다. |
 | PR-10 | To-Do는 기존 3단계 `priority`를 유지하며 우선순위 매트릭스에 포함하지 않는다. 가벼운 할 일에 매트릭스는 과하다. |
 
+
+---
+
+### 6.10 예산 제안 — 산출근거 계산·집계·검증
+
+> **§6.4가 "쓴 돈"이라면 §6.10은 "쓸 돈의 근거"다.** 방향이 반대다: §6.4는 집행을 더해 올라가고, §6.10은 산출 행을 더해 비목 총액을 **만들어낸다**.
+
+#### 6.10.1 산출 행 금액 (PL-1~PL-5)
+
+| # | 규칙 |
+|---|---|
+| PL-1 | **`formula = 'personnel'`**: `금액 = member.annualSalary × (참여율 / 100) × (참여개월 / 12) + adjustment`. 참여율·참여개월은 `factors`에서 `isPercent` 여부로 구분해 읽는다. |
+| PL-2 | **중간 반올림을 하지 않는다.** 특히 월액(`annualSalary / 12`)을 먼저 반올림해서는 안 된다. 실측 검증: 박선욱 `74,000,000 / 12 = 6,166,666.67`을 반올림해 `6,166,667 × 0.28 × 9`로 계산하면 `15,540,000.84`가 되지만, 연봉 기준 `74,000,000 × 0.28 × 0.75`는 정확히 `15,540,000`이다. 서식의 월액 열은 **표시용 반올림**이지 계산 입력이 아니다. (§6.1 P-8·§6.2 D-5·§6.4 B-1과 같은 함정) |
+| PL-3 | **`formula = 'quantity'`**: `금액 = unitPrice × Π(정규화된 인자) + adjustment`. 인자 정규화는 `isPercent ? value / 100 : value`. `factors`가 빈 배열이면 곱이 1이므로 `금액 = unitPrice + adjustment`가 된다 — 산식 없이 금액만 적는 간접비 세목이 이 경우다. |
+| PL-4 | **최종 결과만 정수로 반올림한다** (`Math.round`). 조정액을 더한 **뒤에** 반올림한다. 금액은 언제나 원 단위 정수다(CLAUDE.md 절대규칙 4). |
+| PL-5 | 계산 결과가 음수면 **0으로 자르지 않고 그대로 둔다.** 대신 그 행을 오류로 표시한다 — 조정액을 잘못 넣은 것이지 0원짜리 행이 아니다. 저장은 허용하고 화면에서 드러낸다(§6.8의 대원칙과 같은 태도: 조용히 고치지 않는다). |
+
+#### 6.10.2 집계 (PL-6~PL-10)
+
+| # | 규칙 |
+|---|---|
+| PL-6 | **세목 소계** = 그 세목에 속한 행 금액의 합. 축(현금/현물)별로도 따로 낸다. |
+| PL-7 | **비목 셀 합계** = 그 (연차, 비목)의 모든 행 금액의 합. `cashAmount` = `axis='cash'` 행의 합, `inKindAmount` = `axis='in_kind'` 행의 합, `plannedAmount` = 둘의 합. |
+| PL-8 | **합계는 행 금액을 더한다 — 반올림된 행 금액을 더한다.** PL-4에서 각 행이 이미 정수이므로 합계에 추가 반올림이 없다. 합계를 먼저 실수로 구한 뒤 반올림하면 화면의 행 금액을 손으로 더한 값과 어긋난다. (§6.4 B-1의 "합계 집행률은 개별 평균이 아니다"와 같은 계열의 실수다) |
+| PL-9 | **잠금**: `detailCount > 0`인 셀은 매트릭스에서 `plannedAmount`·`cashAmount`·`inKindAmount`를 직접 편집할 수 없다. 잠긴 셀을 클릭하면 편집 필드 대신 **산출근거 패널**이 열린다. 마지막 행을 지워 `detailCount`가 0이 되면 잠금이 풀리고 **직전 합계가 그대로 남는다** — 0으로 되돌리지 않는다. 근거를 지웠다고 예산이 사라져야 할 이유가 없고, 사용자가 이어서 손으로 고칠 수 있어야 한다. |
+| PL-10 | **저장 값과 합계의 일치는 트랜잭션 불변식이다.** `BudgetDetail`을 추가·수정·삭제하는 모든 RPC는 **같은 트랜잭션 안에서** 해당 `budget_items` 행의 세 금액을 다시 계산해 갱신한다. <br>이것은 CLAUDE.md의 "파생 값은 저장하지 않는다"에서 **의도적으로 벗어난 지점**이다(PL-10a와 함께 둘뿐이다). 근거: `plannedAmount`는 이미 §6.4 집행률·§7.2 대시보드·§6.8 임포트 스냅샷·§8.7 백업이 **읽고 있는 1급 필드**다. 조회 시점 계산으로 바꾸면 그 소비자를 전부 고쳐야 하고, 하나라도 빠뜨리면 화면마다 다른 예산이 보인다. 트랜잭션 안에서만 갱신되므로 드리프트가 구조적으로 불가능하며, **불변식을 통합 테스트로 고정한다**(행 추가·수정·삭제 후 `budget_items` 재조회 대조). |
+| PL-10a | **금액 산식은 `lib/budget-plan.ts` 한 곳에만 있다.** 서버 액션이 PL-1~PL-5로 `amount`를 계산해 RPC에 넘기고, **RPC는 더하기만 한다**(`sum(amount)`를 축별로). PL/pgSQL에 산식을 다시 구현하지 않는다. <br>근거: 같은 규칙이 두 곳에 생기면 반드시 어긋난다(§7.9.1 Step 4의 O-4와 같은 판단). 특히 반올림은 JS `Math.round`와 SQL `round()`가 **음수 .5와 부동소수점 경계에서 갈린다** — 금액에서 1원 차이는 합계 검증을 통과하지 못한다. 대가로 `amount`가 저장되지만(PL-D7), 이는 산식 이중화보다 훨씬 작은 위험이다. |
+| PL-10b | **`Member.annualSalary`가 바뀌면 그 인력을 참조하는 인건비 행의 `amount`와 관련 `budget_items`를 같은 트랜잭션에서 다시 계산한다.** 연봉은 산출의 **근거**이므로 근거가 바뀌면 결과도 바뀌는 것이 맞다. <br>단 **조용히 바꾸지 않는다**: `updateMember`가 연봉을 바꾸려 할 때 영향받는 산출근거 건수와 변경 전후 금액을 먼저 돌려주고, 사용자가 확인해야 저장한다(§7.10). 이 규칙이 없으면 인사 정보 수정이 협의 끝난 예산을 말없이 흔든다. <br>참여율·참여기간은 `BudgetDetail`에 있으므로 이 경로와 무관하다(§5.11). |
+
+#### 6.10.3 지침 검증 (PL-11~PL-16)
+
+계산이 아니라 **경고**다. 저장을 막지 않는다.
+
+| # | 규칙 |
+|---|---|
+| PL-11 | **수정인건비(E1)** = `personnel` 비목에서 **`personnel_support`(연구지원인력인건비) 세목을 뺀 금액** + `student_personnel` 비목 전체. 둘 다 현금 + 현물. 실측 서식의 `수정인건비2) (E1=A+B+D)`를 그대로 옮긴 것이다 — A(내부인건비)·B(외부인건비)·D(학생인건비)는 들어가고 **C(연구지원인력인건비)만 빠진다.** 이 값이 PL-12의 기준액이다. <br>**세목 단위로 빼야 한다는 점이 핵심이다.** 우리 12비목 체계에서 연구지원인력인건비는 `personnel` 비목의 세목(`personnel_support`)이므로, 비목 단위로 더하면 C가 섞여 들어가 E1이 커지고 **연구수당 비율이 실제보다 작게 나와 한도 초과를 놓친다.** 실측 서식은 C가 0이라 부록 B.7로는 이 오류가 드러나지 않는다 — **C > 0인 케이스를 단위 테스트로 따로 만든다.** <br>**PL-13의 간접비 기준액과 혼동하지 마라**: 서식의 `L/(N+O+P+D+R+S+T+U)`에서 P(연구지원인력인건비 현금)는 **포함된다.** E1은 C를 빼고 간접비 기준액은 C를 넣는다 — 규정이 그렇게 다르다. |
+| PL-12 | **연구수당 비율** = `allowance 비목 합계 / E1 × 100`. `Project.allowanceRateLimit`(기본 20)를 넘으면 경고. E1이 0이면 비율을 내지 않는다(0으로 나누지 않는다) — 배지를 띄우지 않고 `—`로 표시한다. |
+| PL-13 | **간접비 비율** = `indirect 비목 합계 / 직접비 현금 기준액 × 100`. 기준액 = 해당 연차의 `personnel`·`student_personnel`·`facility_equipment`·`material`·`activity`·`allowance` 비목의 **현금(cash)** 합계. 실측 산자부 총괄표의 `* 간접비 비율4) (L/(N+O+P+D+R+S+T+U))`을 그대로 옮긴 것이며 부록 B.7에서 `0.9622%`로 검증한다. **국제공동연구개발비·위탁연구개발비·연구개발부담비는 기준액에서 빠진다.** `Project.indirectRateLimit`가 null이면 비율은 표시하되 경고는 띄우지 않는다. |
+| PL-14 | 한도값(`allowanceRateLimit`·`indirectRateLimit`)은 **과제별 사용자 입력**이다. 연구수당 20%만 혁신법 공통이라 기본값으로 넣고, 간접비 고시율은 부처·기관 유형(영리/비영리/대학)마다 달라 기본값을 두지 않는다. 입력 범위는 **0 이상 100 이하**다 — 둘 다 백분율 한도이고, 기준액의 100%를 넘는 한도는 한도가 아니다. `null`(미입력)은 "이 검사를 하지 않는다"는 뜻이며 0과 다르다. |
+| PL-15 | 위반은 **경고 배지**로만 표시하고 저장·반영을 막지 않는다. 협의 중인 계획이 일시적으로 한도를 넘는 것은 정상이며, 막으면 사용자가 도구 밖(엑셀)으로 나간다. |
+| PL-16 | **부처별 고시율 표를 코드에 넣지 않는다.** 부록 C(비목 별칭)는 서식 *표기*의 사전이라 틀려도 사용자가 마법사에서 고칠 수 있지만, 고시율은 **금액을 직접 좌우하는 규제 값**이고 개정된다. 이 문서가 출처 없이 숫자를 지어내면 그것이 조용히 틀린 예산이 된다. 값은 사용자가 넣고, 도구는 계산과 비교만 한다. |
+
+#### 6.10.4 순수 함수 배치
+
+`lib/budget-plan.ts`에 둔다. 부수효과 없이 아래를 전부 다루고 **단위 테스트를 반드시 작성한다** (§11 필수 1에 편입).
+
+```
+computeDetailAmount(detail, member?)        → PL-1~PL-5
+aggregateDetails(details, members)          → PL-6~PL-8 (세목 소계 · 셀 합계 · 축별 분리)
+evaluateBudgetRules(yearTotals, project)    → PL-11~PL-14 (비율 · 위반 여부)
+```
+
+`yearTotals`는 비목별 금액에 더해 **`personnelSupportTotal`**(그 연차 `personnel_support` 세목의 현금+현물 소계)을 함께 싣는다. PL-11이 E1에서 그것만 빼야 하는데 비목 단위 합계만으로는 뺄 수 없기 때문이다. 간접비 기준액(PL-13)은 이 값을 빼지 **않는다**.
+
+`lib/budget.ts`(§6.4 집행률)와 **합치지 않는다** — 방향이 반대인 두 규칙이 한 파일에 있으면 기준액 정의가 섞인다.
 
 ---
 
@@ -1207,13 +1381,45 @@ priorityScore = importance × urgency        # 1 ~ 25
 
 ### 7.9 연구비 (`/projects/[id]/budget`)
 
-- **매트릭스 테이블**: 행 = 12개 비목, 열 = 연차 + 합계. 셀에 `예산 / 집행 / 집행률`
-- 셀 클릭 → 해당 연차·비목의 집행 내역 패널 (일자, 금액, 적요) + 추가/삭제
-- 예산액은 셀에서 직접 인라인 편집. 셀 상세에서 현금/현물 분리 입력 (`cashAmount`/`inKindAmount`, 합계가 `plannedAmount`)
-- 하단 요약 행: 연차별 합계, 집행률, 잔액
+**모드 토글 `[제안 | 수행]`** (Phase 9). 같은 매트릭스를 두 관점으로 본다. 기본은 `수행`.
+
+> **왜 탭을 늘리지 않는가**: 제안과 수행은 **같은 숫자**(연차 × 비목의 계획액)를 다룬다. 화면을 나누면 같은 값이 두 곳에 나타나 어느 쪽이 최신인지 사용자가 판단해야 하고, 비목 12행 × 연차 열이라는 표 구조도 그대로 중복된다. 모드는 **셀을 클릭했을 때 무엇이 열리는가**만 바꾼다.
+
+| | 수행 모드 (v1 동작) | 제안 모드 (Phase 9) |
+|---|---|---|
+| 셀 표시 | `예산 / 집행 / 집행률` | `예산 / 현금 / 현물` |
+| 셀 클릭 | 집행 내역 패널 | **산출근거 패널** (§7.9.2) |
+| 셀 편집 | 예산액 인라인 편집 | 잠긴 셀(`detailCount > 0`)은 편집 불가·자물쇠 |
+| 하단 요약 | 연차별 합계·집행률·잔액 | 연차별 합계·현금/현물 비중·**지침 검증 배지** |
+
+- **매트릭스 테이블**: 행 = 12개 비목, 열 = 연차 + 합계. 두 모드가 공유한다
+- 예산액은 셀에서 직접 인라인 편집. 셀 상세에서 현금/현물 분리 입력 (`cashAmount`/`inKindAmount`, 합계가 `plannedAmount`). **단 잠긴 셀은 제외**(PL-9)
 - 표시 단위는 `settings.currencyUnit` 적용 (기본 천원)
 - 집행률 100% 초과 셀은 빨강, 예산 외 집행은 경고 아이콘
-- 툴바에 **[엑셀 가져오기]** 버튼 → §7.9.1 마법사 (예산계획 전용)
+- 툴바에 **[엑셀 가져오기]** 버튼 → §7.9.1 마법사 (예산계획 전용). 잠긴 셀은 S-14로 반영에서 빠진다
+- 제안 모드 하단에 **지침 검증 줄**: 연구수당 비율(PL-12)·간접비 비율(PL-13)을 연차별로 표시하고 한도 초과 시 경고 배지. 한도가 null이면 비율만 표시하고 배지는 없다(PL-13·PL-15)
+
+#### 7.9.2 산출근거 패널 (제안 모드, 셀 클릭)
+
+선택한 (연차 × 비목)의 내역을 세목별로 편집한다. 실측 서식의 표 구조를 그대로 옮긴다.
+
+- **세목 섹션**: 부록 A.5 프리셋 순서대로 나열. 행이 하나도 없는 세목은 접어 두고 `+ 행 추가`만 노출한다 — 실측 서식은 세목 11개 중 절반이 비어 있다
+- **행 편집 표**: 세목의 `formula`에 따라 컬럼이 달라진다
+  - `personnel` (인건비·학생인건비): `인력(드롭다운) | 직위 | 연봉 | 참여율(%) | 참여기간(월) | 축 | 조정액 | 금액`
+    - 인력 드롭다운은 그 과제의 Member 목록. **직위·연봉은 Member에서 읽어 회색으로 표시**하며 여기서 고치지 않는다(정의는 인력 화면 한 곳). 연봉이 비어 있는 Member를 고르면 금액이 0이 되므로 **"연봉 미입력" 경고 + 인력 화면 링크**를 붙인다
+    - 같은 인력을 **여러 행**으로 넣을 수 있다(참여율이 기간별로 바뀌는 실측 사례). 중복을 막지 않는다
+  - `quantity` (나머지): `품명 | 규격·산출내역 | 단가 | 인자들 | 축 | 조정액 | 금액`
+    - 인자 컬럼의 라벨과 개수는 **세목 프리셋의 기본값으로 채우되 행마다 바꿀 수 있다**(PL-3). 서식 변형이 왔을 때 스키마를 고치지 않고 넘길 수 있어야 한다
+- **금액 열은 읽기 전용**이다 — 계산 결과(PL-1/PL-3)이지 입력이 아니다. 손으로 맞추고 싶으면 `조정액`을 쓴다
+- 하단: 세목 소계 → **셀 합계(현금 / 현물 / 계)**. 이 값이 매트릭스 셀에 그대로 올라간다
+- PL-5 음수 행은 빨강 + 사유. 저장은 되지만 눈에 띈다
+- 행 순서는 드래그로 바꾼다(`order`). 세목 사이를 넘는 이동은 없다 — 세목이 바뀌면 컬럼 구조가 바뀐다
+- **O-1 낙관적 잠금**: 행 편집은 `expectedVersion`을 보내고 STALE이면 §8.4 O-3 비교 다이얼로그(입력값 보존)
+
+**모드 상태와 인쇄**
+
+- 모드는 **화면 로컬 상태**다. URL을 바꾸지 않고 저장하지도 않는다 — §7.5 접힘 상태와 같은 결정이며, 새로고침하면 기본값 `수행`으로 돌아간다
+- **인쇄(§12 P-R1, 연구비 가로)는 현재 모드를 따른다.** 제안 모드에서 인쇄하면 산출근거가 아니라 **매트릭스 + 지침 검증 줄**이 나간다. 산출근거 자체의 인쇄는 Phase 9 범위 밖이다(제출 서식 내보내기와 함께 다룰 문제다)
 
 #### 7.9.1 엑셀 가져오기 마법사 (모달, 5단계)
 
@@ -1260,9 +1466,13 @@ priorityScore = importance × urgency        # 1 ~ 25
 ### 7.10 인력·기관 (`/projects/[id]/team`)
 
 - **기관 섹션**: 카드 목록. 역할 뱃지(주관/공동/위탁), 기관명, 유형, 책임자, 담당 연구개발 내용, 배분 연구개발비. 주관기관은 최상단 고정.
-- **인력 섹션**: 기관별로 그룹핑된 테이블. 이름 / 역할(PM/PL/연구원/지원) / 직급 / 분야 / 연락처 / 활성여부
+- **인력 섹션**: 기관별로 그룹핑된 테이블. 이름 / 역할(PM/PL/연구원/지원) / 직급 / 분야 / 연락처 / 활성여부 / **연봉 / 채용구분**(Phase 9)
 - PM은 과제당 1명. 지정 시 기존 PM은 자동으로 `pl`로 강등되지 않고 경고만 띄운다.
 - 인력 행 클릭 → 배정된 작업 목록 사이드 패널
+- **`hireType='new'`는 `채용예정` 배지**로 구분한다 (§5.11 — 아직 사람이 정해지지 않은 자리도 Member로 등록한다)
+- **참여율(%) 입력 필드를 여기에 두지 않는다.** 참여율은 (연차 × 인력)의 속성이라 연구비 화면의 산출근거가 갖는다 (§5.11, §5.17)
+- **연봉 변경은 확인을 거친다 (PL-10b)**: 저장을 누르면 먼저 `previewSalaryChange`로 영향받는 산출근거 건수와 **연차별 전후 금액**을 보여주고, 사용자가 확인해야 저장·재계산한다. 영향 건수가 0이면 확인 없이 바로 저장한다
+- **삭제 차단 (H-9a)**: 인건비 산출근거가 걸린 인력은 삭제할 수 없다. 삭제 대화상자가 참조 건수를 항목별로 보여줄 때 산출근거를 **별도 줄**로 세고 `[연구비로 이동]` 링크를 준다. `active=false`는 그대로 가능하다
 
 ### 7.11 리스크 (`/projects/[id]/risks`)
 
@@ -1439,7 +1649,7 @@ Supabase Realtime으로 테이블 변경을 구독한다.
 | WBS / 간트 / 보드 | `tasks`, `years` |
 | 목표 관리 | `deliverables`, `deliverable_achievements`, `tech_targets`, `tech_target_records` |
 | 마일스톤 | `milestones` |
-| 연구비 | `budget_items`, `budget_executions` |
+| 연구비 | `budget_items`, `budget_executions`, `budget_details` |
 | 인력·기관 | `organizations`, `members` |
 | 리스크 | `risks` |
 | 노트 | `notes` |
@@ -1497,6 +1707,8 @@ interface BackupFile {
 - Supabase CLI 마이그레이션(`supabase/migrations/*.sql`)으로 관리한다. 대시보드에서 직접 테이블을 고치지 않는다.
 - 마이그레이션 파일은 Git에 커밋한다. 이게 스키마의 진실 공급원이다.
 - 앱은 시작 시 `app_settings.schema_version`을 확인한다. 코드 기대값(`lib/constants.ts`의 `EXPECTED_SCHEMA_VERSION`)보다 **낮으면** 마이그레이션 안내를, **높으면** 앱 업데이트 안내를 띄우고 진입을 막는다.
+- **`schema_version`을 올리는 기준은 "백업 파일 형식이 바뀌는가"다.** 테이블 추가·삭제가 여기 해당한다(§8.7 `BACKUP_TABLES`가 바뀐다). 컬럼 추가나 RPC 변경만으로는 올리지 않는다 — 기존 백업 파일이 그대로 복원되기 때문이다. <br>이 기준이 없으면 K-5의 버전 게이트가 "호환"이라 판정한 파일을 `parseBackupFile`의 테이블 목록 검사가 거부해, 사용자가 **"테이블 데이터가 없습니다"라는 엉뚱한 메시지**를 본다. 올릴 때는 마이그레이션의 `update app_settings set schema_version`과 `EXPECTED_SCHEMA_VERSION`을 **같은 커밋에서** 함께 고친다.
+- 이력: `1` = Phase 0 최초 스키마. **`2` = Phase 9 (`budget_details` 신설 — Phase 0 이후 첫 테이블 추가).**
 
 ---
 
@@ -1595,8 +1807,9 @@ setLeadOrganization(projectId, orgId)
 reorderOrganizations(projectId, orderedIds)
 
 createMember(projectId, input)
-updateMember(id, patch)
-deleteMember(id)                     // RPC: delete_member (H-9)
+updateMember(id, patch)              // annualSalary 변경 시 PL-10b 파급 (confirm 필요)
+previewSalaryChange(id, annualSalary) // PL-10b: 영향받는 산출근거 건수·전후 금액. 저장하지 않는다
+deleteMember(id)                     // RPC: delete_member (H-9). 산출근거가 있으면 H-9a로 거부
 setMemberActive(id, active)
 setProjectPM(projectId, memberId)
 reorderMembers(projectId, orderedIds)
@@ -1605,10 +1818,30 @@ reorderMembers(projectId, orderedIds)
 **Budget**
 ```
 updateBudgetPlan(yearId, category, plannedAmount, cashAmount, inKindAmount, expectedVersion?)
+                                     // PL-9: 잠긴 셀(detailCount > 0)이면 RULE 거부
 addExecution(budgetItemId, input)
 updateExecution(budgetItemId, executionId, patch, expectedVersion?)   // §5.12 version 추가로 O-1 잠금 대상
 deleteExecution(budgetItemId, executionId)
 ```
+
+**Budget Plan** (Phase 9 — 산출근거. §5.17, §6.10)
+```
+createBudgetDetail(yearId, category, subcategory, input)   \
+updateBudgetDetail(id, patch, expectedVersion?)             > RPC: upsert_budget_detail / delete_budget_detail
+deleteBudgetDetail(id)                                     /   PL-10: 같은 트랜잭션에서 budget_items 재계산
+reorderBudgetDetails(yearId, category, subcategory, orderedIds)
+setBudgetRateLimits(projectId, { allowanceRateLimit, indirectRateLimit }, expectedVersion?)
+```
+- 세 쓰기 액션 모두 **PL-10 불변식**을 지킨다: 행을 건드린 뒤 같은 트랜잭션에서 해당 `budget_items`의 `planned/cash/in_kind`를 다시 계산해 쓴다. 액션이 두 번 호출하는 방식은 금지 — 사이에서 실패하면 총액이 근거와 어긋난 채 남는다.
+- **과제 경계 검증** (§9 N-13과 같은 계열, FK가 막지 못하는 부분): `yearId`·`memberId`가 모두 그 과제 소속이어야 한다. `subcategory`는 부록 A.5에서 그 `category`에 정의된 코드여야 하고(PL-D4), `formula`는 PL-D3을 만족해야 한다.
+- `reorderBudgetDetails`는 §7.13 T-D10과 같은 이유로 **그 세목의 전체 id 배열**을 받는다. 화면이 접혀 일부만 보이더라도 보이는 것만 보내지 않는다.
+
+**조회**
+```
+getBudgetPlanData(projectId)   // 매트릭스 + 연차별 세목 소계 + 지침 검증 결과(PL-11~PL-13)
+getBudgetDetails(yearId, category)   // 산출근거 패널. Member(이름·직위·연봉)를 함께 실어 보낸다
+```
+> 금액은 **서버에서 계산해 내린다**(`lib/budget-plan.ts`). 화면이 산식을 다시 구현하지 않는다 — §7.9.1 Step 4에서 겪은 O-4(같은 규칙이 두 곳에 생기면 반드시 어긋난다)와 같은 이유다.
 
 **Budget Import** (모두 서버 전용, 파일은 `FormData`로 전달. 예산계획 전용)
 ```
@@ -1729,7 +1962,7 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 ├── actions/
 │   ├── projects.ts   stages.ts   years.ts   tasks.ts
 │   ├── milestones.ts deliverables.ts        tech-targets.ts
-│   ├── organizations.ts  members.ts  budget.ts
+│   ├── organizations.ts  members.ts  budget.ts  budget-plan.ts
 │   ├── risks.ts      notes.ts    todos.ts   settings.ts
 │   ├── auth.ts       getCurrentUser, approveUser 등 (§9 Auth)
 │   ├── backup.ts     exportAll, importAll (§8.7)
@@ -1750,7 +1983,9 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 │   │                  ViewToggle, priority-colors.ts(§6.9 등급 토큰 → 클래스)
 │   ├── goals/         DeliverableTable, TechTargetTable, AchievementForm
 │   ├── milestones/    MilestoneTimeline, MilestoneTable
-│   ├── budget/        BudgetMatrix, ExecutionPanel
+│   ├── budget/        BudgetMatrix, ExecutionPanel, ModeToggle(§7.9 [제안|수행])
+│   │   ├── plan/      DetailPanel(§7.9.2), SubcategorySection, PersonnelRow,
+│   │   │              QuantityRow, FactorInputs, RateLimitBadges(PL-12·PL-13)
 │   │   └── import/    ImportWizard(모달+단계 상태기계), wizard-state.ts(공용 타입·헬퍼),
 │   │                  Step1File ~ Step5Preview, SheetGrid(원본 그리드·병합 렌더),
 │   │                  CategoryMapper, ImportPreviewTable
@@ -1766,6 +2001,7 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 │   ├── progress.ts                     §6.1 4단계 롤업
 │   ├── goals.ts                        §6.2 §6.3 달성률 계산
 │   ├── budget.ts                       §6.4 집행률 계산
+│   ├── budget-plan.ts                  §6.10 산출근거 금액·집계·지침 검증 (PL-1~PL-14)
 │   ├── import/                         ★ 전부 순수 함수 — SheetJS를 import하지 않는다.
 │   │   │                                 워크북 → RawSheet 변환은 어댑터(actions 쪽)의 몫이다.
 │   │   ├── types.ts                    어댑터 경계(RawCell·MergeRange·RawSheet), 판정·금액 타입
@@ -1817,10 +2053,17 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 | **6. 리스크 + 노트** | 리스크 매트릭스·대장, 마크다운 노트·회의록 템플릿 | 회의록이 과제에 붙음 |
 | **7. 간트 + 칸반** | 간트(연차 밴드·마일스톤 레인), 칸반 드래그 | 일정이 시각화됨 |
 | **8. To-Do + 설정 + 마감** | To-Do, 설정, 인쇄 레이아웃, 정리 | 전체 기능 동작 |
+| **9. 예산 제안 모드** | `budget_details` 스키마+RLS, `lib/budget-plan.ts`, 산출근거 패널, 연구비 화면 [제안\|수행] 토글, 지침 검증, Member 연봉·채용구분 | 실측 산자부 1차년도 인건비 18행을 앱에 넣으면 부록 B.7의 합계(현금 180,840,000 / 현물 88,650,000)와 간접비 비율 0.9622%가 그대로 나온다 |
+
+> Phase 9는 v1(Phase 0~8) 완료 후에 착수한다. **스키마 변경(`budget_details` 신설, `members`·`projects` 컬럼 추가)이 동반되므로 Phase 8에 끼워 넣지 않는다.** `budget_items.plannedAmount`의 소유권이 바뀌는 변경(PL-9·PL-10)이라 §6.4 집행률·§7.2 대시보드·§6.8 임포트가 전부 영향권이다 — 이 셋의 회귀 테스트를 먼저 확인하고 들어간다.
+
+> **Phase 9 범위 밖 (사용자 결정)**: ① 산출근거 시트의 **엑셀 임포트** — 앱에서 직접 입력한다. ② 제출 서식 **엑셀 내보내기** — 병합·수식 재현 비용이 커서 별도 Phase로 남긴다. ③ 기관별 예산 분배(§2.2 유지) — 실측 `검토_*` 시트가 이 구조지만 v1 제외 결정을 뒤집지 않는다.
+
+> **Phase 9에서 함께 손대야 하는 기존 코드** (빠뜨리면 조용히 깨진다): ① **§8.7 백업/복원의 대상 테이블 목록에 `budget_details`를 추가**한다 — 누락되면 백업에 산출근거가 빠지고 K-7 전체 대체 복원이 근거만 지운다. ② `tests/destructive/guard.ts`의 대상 테이블도 같이 늘린다. ③ **§6.8 `commit_import` RPC에 S-14 잠금 검사**를 넣는다. ④ `create_project_with_defaults`는 그대로 둔다 — 산출근거는 자동 생성 대상이 아니다.
 
 > Phase 5.5는 **실제 엑셀 파일 샘플이 확보된 뒤에** 착수한다. 서식을 모르는 상태로 파서를 만들면 헛수고가 된다. `lib/import/` 전체를 순수 함수로 만들고 샘플 파일 기반 단위 테스트를 작성한다.
 
-> **필수 1**: `lib/tree.ts`, `lib/progress.ts`, `lib/goals.ts`, `lib/budget.ts`, `lib/priority.ts`, `lib/risk.ts`, `lib/dates.ts`, `lib/todos.ts`는 순수 함수로 만들고 **단위 테스트를 반드시 작성**한다(Vitest). 특히 §6.3 기술목표 달성률은 방향성·baseline 조합에서 실수가 나기 쉽다.
+> **필수 1**: `lib/tree.ts`, `lib/progress.ts`, `lib/goals.ts`, `lib/budget.ts`, `lib/budget-plan.ts`, `lib/priority.ts`, `lib/risk.ts`, `lib/dates.ts`, `lib/todos.ts`는 순수 함수로 만들고 **단위 테스트를 반드시 작성**한다(Vitest). 특히 §6.3 기술목표 달성률은 방향성·baseline 조합에서 실수가 나기 쉽다.
 >
 > **필수 2**: Phase 0에서 RLS를 켜지 않고 시작하면 나중에 켤 때 전부 깨진다. **처음부터 켜고** 개발한다.
 >
@@ -1874,7 +2117,7 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 
 | # | 항목 | 메모 |
 |---|---|---|
-| 1 | 참여연구원 참여율(%) 관리 | 스키마만 열어둠. 인건비 산정 연동 시 필요 |
+| ~~1~~ | ~~참여연구원 참여율(%) 관리~~ | **해소 (v4.0 / Phase 9).** Member가 아니라 `BudgetDetail`(연차 × 인력)이 갖는다 — 한 사람이 한 연차 안에서 참여율을 바꾸는 실측 사례가 Member 단일 필드로는 표현되지 않는다 (§5.11) |
 | 1-a | 역할 기반 권한 (RBAC) | 현재는 승인된 사용자 전원 동일 권한 |
 | 1-b | 오프라인 편집 | 로컬 캐시 + 동기화 큐. 복잡도 큼 |
 | 1-c | 웹 병행 배포 | 백엔드가 있으므로 Vercel 배포는 언제든 가능 |
@@ -1891,7 +2134,9 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 | 12 | ~~SQLite 전환~~ | v3.0에서 PostgreSQL 채택으로 해소 |
 | 12-a | 집행내역 엑셀 임포트 | v3.2에서 설계 제외. 집행은 수동 입력. 필요해지면 `ImportKind`에 `'execution'`을 되살리고 중복 방지(sourceHash)·배치 되돌리기를 재설계 |
 | 13 | 성과목표·기술목표 엑셀 임포트 | 예산 파이프라인(`lib/import/`)을 재사용하면 확장 가능 |
-| 14 | 임포트 결과 → 엑셀 역방향 내보내기 | 제출용 서식으로 되돌리기 |
+| 14 | 임포트 결과 → 엑셀 역방향 내보내기 | 제출용 서식으로 되돌리기. **Phase 9에서 범위 밖으로 확정** — 산출근거가 앱에 쌓이면 실효성이 커지므로 Phase 10 후보 |
+| 16 | 산출근거 시트 엑셀 임포트 | Phase 9 범위 밖. `lib/import/` 파이프라인 위에 세목·행 구조 파서를 얹으면 된다 (새 파서 불필요) |
+| 17 | 부처별 지침 고시율 프리셋 | PL-16에 따라 코드에 넣지 않았다. 출처가 확실한 표를 확보하면 **사용자 입력의 기본값 제안**으로만 도입 |
 | 15 | 집행내역 자동 이상 탐지 | 예산 초과, 비목 편중, 이례적 금액 경고 |
 
 ---
@@ -2120,6 +2365,64 @@ create policy "approved users full access" on tasks
 | RiskStatus | identified 식별 · monitoring 관찰중 · occurred 발생 · resolved 해결 · closed 종결 |
 | NoteType | meeting 회의록 · tech 기술메모 · issue 이슈 · idea 아이디어 · report_draft 보고서 초안 · other 기타 |
 | Priority (Todo) | low 낮음 · normal 보통 · high 높음 |
+| HireType | existing 기존인력 · new 채용예정 |
+| DetailAxis | cash 현금 · in_kind 현물 |
+| DetailFormula | personnel 인건비산식 · quantity 단가×수량 |
+
+### A.5 세목 프리셋 (예산 제안 §5.17)
+
+`lib/constants.ts`에 `SUBCATEGORY_PRESETS: Record<BudgetCategory, SubcategoryDef[]>`로 정의한다. 실측 워크북 2종(산자부·행안부)의 산출근거 시트에서 **세목 구성이 거의 동일**했고, 국가연구개발혁신법 시행규칙 별표의 세목 체계로 수렴한다. 부처 차이는 부록 C(비목 별칭)와 같은 방식으로 흡수하며 **스키마는 바뀌지 않는다.**
+
+```ts
+interface SubcategoryDef {
+  code: string;              // BudgetDetail.subcategory에 저장되는 값
+  label: string;             // 화면 표시. 서식의 번호(①②…)를 포함한다
+  formula: DetailFormula;
+  defaultFactors: { label: string; isPercent: boolean }[];  // 행 추가 시 채워지는 인자 (PL-3)
+}
+```
+
+| 비목 | 세목 코드 | 표시 | formula | 기본 인자 |
+|---|---|---|---|---|
+| `personnel` | `personnel_internal` | 내부인건비 | personnel | 참여율(%) · 참여기간(월) |
+| `personnel` | `personnel_external` | 외부인건비 | personnel | 참여율(%) · 참여기간(월) |
+| `personnel` | `personnel_support` | 연구지원인력인건비 | personnel | 참여율(%) · 참여기간(월) |
+| `student_personnel` | `student_general` | 일반 | personnel | 참여율(%) · 참여기간(월) |
+| `student_personnel` | `student_managed` | 통합관리 | personnel | 참여율(%) · 참여기간(월) |
+| `facility_equipment` | `facility_purchase` | ① 연구시설·장비 구입·설치비 | quantity | 수량 |
+| `facility_equipment` | `facility_lease` | ② 연구시설·장비 임차비 | quantity | 수량 |
+| `facility_equipment` | `facility_maintain` | ③ 연구시설·장비 운영·유지비 | quantity | 수량 |
+| `facility_equipment` | `facility_infra` | ④ 연구인프라 조성비 | quantity | 수량 |
+| `material` | `material_purchase` | ① 연구재료 구입비 | quantity | 수량 |
+| `material` | `material_manage` | ② 연구개발과제 관리비 | quantity | 수량 |
+| `material` | `material_make` | ③ 연구재료 제작비 | quantity | 수량 |
+| `activity` | `activity_outsourcing` | ① 외주용역비 | quantity | 수량 |
+| `activity` | `activity_ip` | ② 지식재산 창출 활동비 | quantity | 회 · 월 |
+| `activity` | `activity_expert` | ③ 외부 전문기술 활용비 | quantity | 회 · 월 |
+| `activity` | `activity_meeting` | ④ 회의비 | quantity | 회 |
+| `activity` | `activity_travel_dom` | ⑤ 국내출장비 | quantity | 인원 · 횟수 |
+| `activity` | `activity_travel_intl` | ⑤ 국외출장비 | quantity | 인원 · 횟수 |
+| `activity` | `activity_software` | ⑥ 소프트웨어 활용비 | quantity | 수량 · 월 |
+| `activity` | `activity_lab_ops` | ⑦ 연구실 운영비 | quantity | 횟수 |
+| `activity` | `activity_hr_support` | ⑧ 연구인력 지원비 | quantity | 인원 · 횟수 |
+| `activity` | `activity_pmo` | ⑨ 종합사업관리비 | quantity | 회 · 월 |
+| `activity` | `activity_cloud` | ⑩ 클라우드컴퓨팅서비스 이용료 | quantity | 회 · 월 |
+| `activity` | `activity_etc` | ⑪ 그 밖의 비용 | quantity | 회 |
+| `allowance` | `default` | 연구수당 | quantity | — |
+| `international` | `default` | 국제공동연구개발비 | quantity | 수량 |
+| `consignment` | `default` | 위탁연구개발비 | quantity | 수량 |
+| `burden` | `default` | 연구개발부담비 | quantity | — |
+| `promotion` | `default` | 연구과제추진비 | quantity | 회 |
+| `indirect` | `indirect_hr` | 가. 인력지원비 | quantity | — |
+| `indirect` | `indirect_support` | 나. 연구지원비 | quantity | — |
+| `indirect` | `indirect_outcome` | 다. 성과활용지원비 | quantity | — |
+| `other` | `default` | 기타 | quantity | — |
+
+> **주의 1 — `단가`는 인자가 아니다.** 표의 "기본 인자"는 `unitPrice`에 **곱해지는** 값들이다. 실측 서식의 `단가 | 회 | 월` 3열은 여기서 `unitPrice` + 인자 `회`·`월`로 나뉜다.
+>
+> **주의 2 — 인자 라벨은 행마다 바꿀 수 있다** (PL-3). 프리셋은 행 추가 시의 **초기값**일 뿐이다. 실측에서도 ⑥ 소프트웨어 활용비의 수량 라벨이 `시트(수량)`였다. 라벨을 고정하면 이런 변형마다 스키마를 고쳐야 한다.
+>
+> **주의 3 — `default`는 "세목 없음"의 코드다.** 서식에 세목 구분이 없는 비목이 실제로 존재한다(연구수당·연구개발부담비). null 대신 문자열 상수를 쓰는 이유는 `(year, category, subcategory)` 기준 집계에서 null 비교를 피하기 위해서다.
 
 ---
 
@@ -2278,6 +2581,75 @@ create policy "approved users full access" on tasks
 | S-12 우→좌 채택 | 4행 B열 `직접비`(스킵)보다 D열 `내부인건비`가 우선 | 12~14행 세로쓰기 `직`/`접`/`비`가 무시됨 (S-7) |
 | I-1 정규화 | 12·13·23·28행(각주·수식·별표·중첩 괄호) | 17·18·29행 |
 | I-5 빈 문자열 메모 | 16·29행 | 30행 |
+
+### B.7 예산 제안 — 산출근거 계산 (§6.10)
+
+출처는 실측 워크북 `산자부_…_v1.2_kdh_250520.xlsx`의 `1차년도_250520` 시트다. **아래 숫자는 서식이 실제로 담고 있는 값이며, 구현이 다른 값을 내면 구현이 틀린 것이다.**
+
+#### B.7.1 인건비 행 (PL-1·PL-2·PL-4) — `1차년도_250520` 65~82행, 참여기간 9개월
+
+`금액 = 연봉 × 참여율/100 × 개월/12 + 조정액`
+
+| 성명 | 연봉 | 참여율 | 축 | 산식 결과 | 조정액 | **최종** |
+|---|---:|---:|---|---:|---:|---:|
+| 여욱현 | 180,000,000 | 10.0% | 현금 | 13,500,000 | 0 | **13,500,000** |
+| 김영 | 90,000,000 | 30.0% | 현금 | 20,250,000 | 0 | **20,250,000** |
+| 김지웅 | 90,000,000 | 30.0% | 현물 | 20,250,000 | 0 | **20,250,000** |
+| 박선욱 | 74,000,000 | 28.0% | 현금 | 15,540,000 | 0 | **15,540,000** |
+| 지동민 | 84,000,000 | 64.0% | 현물 | 40,320,000 | −270,000 | **40,050,000** |
+| 도상래 | 64,000,000 | 10.0% | 현금 | 4,800,000 | 0 | **4,800,000** |
+| 이경아 | 54,000,000 | 70.0% | 현물 | 28,350,000 | 0 | **28,350,000** |
+| 김다래 | 54,000,000 | 26.0% | 현금 | 10,530,000 | −30,000 | **10,500,000** |
+| 김도현 | 52,000,000 | 10.0% | 현금 | 3,900,000 | 0 | **3,900,000** |
+| 유태일 | 46,200,000 | 15.0% | 현금 | 5,197,500 | **−7,500** | **5,190,000** |
+| 정우진 | 51,000,000 | 40.0% | 현금 | 15,300,000 | 0 | **15,300,000** |
+| 김형식 | 43,500,000 | 41.0% | 현금 | 13,376,250 | **−6,250** | **13,370,000** |
+| 신나리 | 38,000,000 | 40.0% | 현금 | 11,400,000 | 0 | **11,400,000** |
+| 양소희 | 39,000,000 | 30.0% | 현금 | 8,775,000 | −5,000 | **8,770,000** |
+| 이다정 | 41,100,000 | 20.0% | 현금 | 6,165,000 | −5,000 | **6,160,000** |
+| 안승현 | 36,000,000 | 14.0% | 현금 | 3,780,000 | 0 | **3,780,000** |
+| 진호령 | 33,000,000 | 30.0% | 현금 | 7,425,000 | −5,000 | **7,420,000** |
+| 장선우 | 32,000,000 | 29.0% | 현금 | 6,960,000 | 0 | **6,960,000** |
+| | | | **기존인력 소계** | | | **현금 146,840,000 / 현물 88,650,000** |
+| 신규채용1(청년의무) | 51,000,000 | 100.0% | 현금 | 34,000,000 (8개월) | 0 | **34,000,000** |
+| | | | **인건비 셀 합계** | | | **현금 180,840,000 / 현물 88,650,000 / 계 269,490,000** |
+
+> **PL-2 회귀 테스트로 고정할 행 — 박선욱.** 월액을 먼저 반올림하면(`74,000,000 / 12 = 6,166,666.67 → 6,166,667`) `6,166,667 × 0.28 × 9 = 15,540,000.84`가 되어 **반올림 후 15,540,001**이 나온다. 연봉 기준으로 계산하면 정확히 `15,540,000`이다. 서식의 월액 열(`실지급액-월 (연봉/12)`)은 표시용이며 계산 입력이 아니다.
+>
+> **조정액이 음수인 행(지동민·김다래·유태일·김형식·양소희·이다정·진호령)은 PL-5의 "음수 금액"과 무관하다.** 조정액만 음수이고 최종 금액은 양수다. PL-5가 잡는 것은 **최종 금액**이 음수가 되는 경우다.
+>
+> **위 표의 `조정액`은 원본 워크북의 조정액 열을 그대로 옮긴 값이 아니다.** 서식의 그 열은 **참고 표시**라 두 행에서 천원 단위로 절사되어 있다 — 유태일 `−7,000`, 김형식 `−6,000`. 그대로 쓰면 최종 금액이 각각 500원·250원 어긋난다(`5,190,500`, `13,370,250`). 이 문서는 **`조정액 = 최종 금액 − 산식 결과`로 정의**하며(그래야 PL-1의 등식이 성립한다), 위 표에는 그렇게 역산한 값(`−7,500`, `−6,250`)을 실었다. **최종 금액 열이 원본의 실제 셀 값**이고 그것이 기준이다.
+>
+> 조정액은 **사람이 총액을 맞추려고 넣는 수동 값**이지 반올림 규칙이 아니다. 지동민 `−270,000`·김다래 `−30,000`은 어떤 절사 규칙으로도 설명되지 않는다. 구현이 조정액을 자동 계산하려 들면 안 된다.
+
+#### B.7.2 `quantity` 행 (PL-3) — 연구활동비 1차년도
+
+| 세목 | 품명 | 단가 | 인자 | **금액** |
+|---|---|---:|---|---:|
+| ④ 회의비 | 회의비 | 500,000 | 회 6 | **3,000,000** |
+| ⑥ 소프트웨어 활용비 | AEC Collection | 540,000 | 수량 4 · 월 9 | **19,440,000** |
+| ⑤ 국내출장비 | 국내출장비 | 150,000 | 인원 2 · 횟수 4 | **1,200,000** |
+| ⑪ 그 밖의 비용 | 인쇄/복사/인화/슬라이드 제작 | 450,000 | 회 2 | **900,000** |
+| ⑪ 그 밖의 비용 | 위탁정산 수수료 | 2,480,000 | 회 1 | **2,480,000** |
+| | | | **연구활동비 셀 합계** | **27,020,000** |
+
+#### B.7.3 집계와 지침 검증 (PL-7·PL-11~PL-13) — 1차년도
+
+| 항목 | 값 | 근거 |
+|---|---:|---|
+| 인건비 (현금/현물) | 180,840,000 / 88,650,000 | B.7.1 |
+| 연구활동비 (현금) | 27,020,000 | B.7.2 |
+| 간접비 (현금) | 2,000,000 | 연구실 안전관리비 `2,000,000 × 1` |
+| 직접비 소계 | 296,510,000 | |
+| **연구개발비 총액** | **298,510,000** | 직접비 + 간접비 |
+| **수정인건비 E1** (PL-11) | 269,490,000 | 인건비 + 학생인건비(0) |
+| **연구수당 비율** (PL-12) | 0.00% | `0 / 269,490,000` |
+| 간접비 기준액 (PL-13) | 207,860,000 | 인건비현금 180,840,000 + 활동비현금 27,020,000 |
+| **간접비 비율** (PL-13) | **0.9622%** | `2,000,000 / 207,860,000` |
+
+> 간접비 비율은 서식의 `* 간접비 비율4) (L/(N+O+P+D+R+S+T+U))` 셀 값과 소수 4자리까지 일치한다. **국제공동연구개발비는 기준액에 없다** — 서식의 문자 코드에 `J`(국제공동 현금)가 빠져 있는 것으로 확인했다.
+>
+> **총액 298,510,000은 부록 B.6(임포트 기대값)과 같은 숫자다.** 같은 연차를 총괄표 임포트로 넣든 산출근거로 쌓든 결과가 일치해야 한다 — 두 경로가 어긋나면 어느 한쪽이 틀린 것이다. 통합 테스트에서 이 등가를 확인한다.
 
 ---
 

@@ -59,6 +59,7 @@ function item(spec: {
     inKindAmount: spec.inKind ?? null,
     executions,
     note: '',
+    detailCount: 0,
   };
 }
 
