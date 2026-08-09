@@ -29,6 +29,7 @@ import BudgetDetailPanel, { type BudgetActionCallbacks } from './BudgetDetailPan
 import BudgetPlanPanel from './BudgetPlanPanel';
 import BudgetPlanSummary from './BudgetPlanSummary';
 import ImportWizard from './import/ImportWizard';
+import DetailImportWizard from './import/detail/DetailImportWizard';
 
 // §7.9 표의 순서대로 `[제안 | 수행]`. 기본 선택은 `수행`이다
 const MODES: readonly { value: BudgetMode; label: string; hint: string }[] = [
@@ -66,6 +67,7 @@ export default function BudgetScreen({
   const [failure, setFailure] = useState<{ message: string; code?: ActionErrorCode } | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [detailImportOpen, setDetailImportOpen] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
 
   // (연차, 비목) → 원본 행. 유일 제약(§5.12)상 1개지만 2개 이상이면 감추지 않고 드러낸다
@@ -183,15 +185,30 @@ export default function BudgetScreen({
             <span className="ml-2">· 입력은 언제나 원 단위 정수입니다 (B-4)</span>
           </p>
         </div>
-        <Button
-          size="sm"
-          variant="primary"
-          disabled={busy}
-          title="예산계획 엑셀을 5단계 마법사로 가져옵니다 (§7.9.1)"
-          onClick={() => setImportOpen(true)}
-        >
-          엑셀 가져오기
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* §7.9.3: [산출근거 가져오기]는 **제안 모드 툴바에만** 둔다 — 수행 모드에는 노출하지
+              않는다. 매트릭스·패널과 같은 `mode` 하나가 이 노출을 정하므로 조건이 갈릴 수 없다 */}
+          {mode === 'plan' && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              title="산출근거 시트(행 내역)를 4단계 마법사로 가져옵니다 (§7.9.3). 총괄표는 [엑셀 가져오기]입니다"
+              onClick={() => setDetailImportOpen(true)}
+            >
+              산출근거 가져오기
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={busy}
+            title="예산계획 엑셀을 5단계 마법사로 가져옵니다 (§7.9.1)"
+            onClick={() => setImportOpen(true)}
+          >
+            엑셀 가져오기
+          </Button>
+        </div>
       </div>
 
       {/* 반영 결과 토스트 (§7.9.1 Step 5) */}
@@ -362,6 +379,11 @@ export default function BudgetScreen({
             router.refresh();
           }}
         />
+      )}
+
+      {/* §7.9.3도 같다 — 모달을 닫으면 진행 상태는 언마운트로 폐기된다 */}
+      {detailImportOpen && (
+        <DetailImportWizard years={data.years} onClose={() => setDetailImportOpen(false)} />
       )}
 
       {conflict && (

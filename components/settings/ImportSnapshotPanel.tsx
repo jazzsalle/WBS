@@ -1,7 +1,9 @@
 'use client';
 
-// 설정 > 백업·복원 > 임포트 스냅샷 (SOT §7.14, §6.8.5 I-17)
-// 엑셀 예산계획 반영(commitImport)이 남긴 "반영 직전 계획액"을 과제별로 보여주고 되돌린다.
+// 설정 > 백업·복원 > 임포트 스냅샷 (SOT §7.14, §6.8.5 I-17, §6.11.5 D-17·D-17a·D-17b)
+// 임포트 반영이 남긴 "반영 직전 상태"를 과제별로 보여주고 되돌린다. 두 종류가 한 목록에 섞인다:
+//   ① 총괄표(commitImport) — 계획액만 담는다
+//   ② 산출근거(commitDetailImport) — 계획액 + 삭제되는 budget_details 행 (D-17)
 // 계획액을 통째로 되돌리는 조작이라 전체 복원(K-4)과 같은 무게의 2단계 확인을 거친다.
 // 데이터 접근은 actions/import 경유만 한다 — supabase를 직접 호출하지 않는다 (절대 규칙 3).
 
@@ -41,6 +43,14 @@ function restoredTotal(snapshot: ImportSnapshot): number {
 
 function yearCount(snapshot: ImportSnapshot): number {
   return new Set(snapshot.snapshot.items.map((item) => item.yearId)).size;
+}
+
+/**
+ * D-17: 산출근거 임포트가 남긴 스냅샷인가. commit_detail_import RPC가 jsonb에 `kind`를 넣는다 —
+ * 총괄표 스냅샷(schemaVersion 1)에는 없어 undefined다. 복원 결과의 모양도 여기서 갈린다(D-17a).
+ */
+function isDetailSnapshot(snapshot: ImportSnapshot): boolean {
+  return snapshot.snapshot.kind === 'budget_detail';
 }
 
 export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelProps) {
@@ -108,9 +118,20 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
         closeModal();
         return;
       }
-      setNotice(
-        `${res.data.restored}건의 계획액을 ${target.snapshot.source.fileName} 반영 직전 상태로 되돌렸습니다.`
-      );
+      // 총괄표 스냅샷의 안내는 종전 그대로다 — 산출근거 스냅샷일 때만 문장이 늘어난다 (D-17a)
+      const messages = [
+        `${res.data.restored}건의 계획액을 ${target.snapshot.source.fileName} 반영 직전 상태로 되돌렸습니다.`,
+      ];
+      if (res.data.detailsRestored !== undefined) {
+        messages.push(
+          `산출근거는 현재 ${res.data.detailsDeleted ?? 0}행을 지우고 ${res.data.detailsRestored}행을 되살렸습니다.`
+        );
+        // D-17b: 스냅샷은 인력을 담지 않는다. 밝히지 않으면 "되돌렸는데 왜 남아 있지"로 헤맨다
+        messages.push(
+          '임포트가 만든 인력은 명부에 남습니다 — 필요 없으면 인력 화면에서 지우세요.'
+        );
+      }
+      setNotice(messages.join(' '));
       closeModal();
       // 목록 자체는 변하지 않지만(복원은 스냅샷을 만들지 않는다) 예산 화면은 다시 읽어야 한다
       router.refresh();
@@ -125,7 +146,8 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
     <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
       <h2 className="text-lg font-bold">임포트 스냅샷</h2>
       <p className="mt-1 text-sm text-slate-500">
-        엑셀 예산계획 반영(§6.8) 직전의 계획액입니다. 잘못 반영했을 때 여기서 되돌립니다.
+        엑셀 반영 직전의 상태입니다. 잘못 반영했을 때 여기서 되돌립니다. 예산계획 반영(§6.8)은
+        계획액을, 산출근거 반영(§6.11)은 계획액과 <strong>삭제된 산출근거 행</strong>까지 담습니다.
       </p>
 
       {/* I-17의 사실을 그대로 적는다 — 안 적으면 사용자가 "복원의 복원"을 기대한다 */}
@@ -140,9 +162,15 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
           <strong>되돌리기를 다시 되돌릴 수는 없습니다.</strong>
         </li>
         <li>
-          <strong>되돌리기는 행을 삭제하지 않습니다.</strong> 임포트 시점에 없던 행은 계획액 0,
+          <strong>되돌리기는 비목 행을 삭제하지 않습니다.</strong> 임포트 시점에 없던 행은 계획액 0,
           현금·현물 미입력 상태로 되돌릴 뿐입니다. 행을 지우면 임포트 <strong>이후</strong>에 그
           비목에 등록한 집행 내역이 함께 사라집니다.
+        </li>
+        <li>
+          <strong>산출근거 스냅샷은 산출근거 행을 되돌립니다</strong> (D-17a) — 그 (연차, 비목)의
+          현재 산출근거를 지우고 스냅샷의 행을 되살립니다. 다만{' '}
+          <strong>임포트가 만든 인력은 명부에 남습니다</strong> (D-17b). 필요 없으면 인력 화면에서
+          지우세요.
         </li>
       </ul>
 
@@ -193,7 +221,7 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
           <p className="text-sm text-slate-500">불러오는 중…</p>
         ) : snapshots === null ? null : snapshots.length === 0 ? (
           <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
-            {selected?.name ?? '이 과제'}에 아직 엑셀 예산계획 반영 이력이 없습니다.
+            {selected?.name ?? '이 과제'}에 아직 엑셀 반영 이력이 없습니다.
           </p>
         ) : (
           <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
@@ -204,6 +232,10 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                     <span className="break-all text-sm font-semibold text-slate-800">
                       {snapshot.snapshot.source.fileName}
                     </span>
+                    {/* 두 종류가 한 목록에 섞이고 복원 범위가 다르다 (D-17a) */}
+                    <Badge tone="neutral">
+                      {isDetailSnapshot(snapshot) ? '산출근거' : '예산계획'}
+                    </Badge>
                     {index === 0 && <Badge tone="blue">최근 반영</Badge>}
                   </div>
                   <p className="mt-1 text-xs text-slate-500">
@@ -292,6 +324,17 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                   되돌리기는 <strong>새 스냅샷을 만들지 않으므로 이 조작을 다시 되돌릴 수
                   없습니다</strong> (I-17). 집행 내역과 행 자체는 지워지지 않습니다.
                 </p>
+                {/* 산출근거 스냅샷만 행을 지운다 — 총괄표 스냅샷의 안내는 종전 그대로다 (D-17a) */}
+                {isDetailSnapshot(target) && (
+                  <p>
+                    이 스냅샷은 <strong>산출근거</strong>도 담고 있어, 대상 비목의 현재 산출근거 행을
+                    지우고 스냅샷의 행을 되살립니다 (D-17a). 다만{' '}
+                    <strong className="text-slate-800">
+                      임포트가 만든 인력은 명부에 남습니다
+                    </strong>{' '}
+                    (D-17b) — 필요 없으면 인력 화면에서 지우세요.
+                  </p>
+                )}
               </div>
             ) : (
               <div className="mt-4">

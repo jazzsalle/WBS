@@ -52,6 +52,24 @@ function errorTextOf(cell: XLSX.CellObject): string {
 }
 
 /**
+ * D-22: 엑셀 백분율 서식 판정. 서식 문자열(`cell.z`)에 이스케이프되지 않은 `%`가 있으면 백분율이다.
+ *
+ * **왜 필요한가**: 화면에 `10.0%`로 보이는 셀의 저장값은 `0.1`이다. 그대로 `isPercent` 인자에 넣으면
+ * PL-1이 다시 100으로 나눠 **금액이 1/100**이 된다(지동민 40,320,000 → 403,200). 파서가 100을 곱해
+ * 되돌리려면 "이 셀이 백분율 서식이었다"는 사실이 경계를 넘어와야 한다.
+ *
+ * **값은 바꾸지 않고 플래그만 넘긴다** — 어댑터가 값을 바꾸면 `RawCell.value`가 원본과 달라져
+ * 다른 규칙(I-8 금액 파싱 등)이 전부 흔들린다.
+ *
+ * `\%`처럼 리터럴 이스케이프된 퍼센트는 백분율이 아니므로 제외한다.
+ */
+function isPercentFormat(cell: XLSX.CellObject): boolean {
+  const z = cell.z;
+  if (typeof z !== 'string') return false;
+  return /(^|[^\\])%/.test(z);
+}
+
+/**
  * 셀 하나를 RawCell로. **빈 셀도 `{ value: null, isError: false }`로 채운다** (구멍 없는 2차원 배열).
  *
  * - I-16: 수식은 계산값(`v`)을 읽는다. `cellFormula: false`로 읽었으므로 `f`는 애초에 없다
@@ -68,7 +86,11 @@ export function toRawCell(cell: XLSX.CellObject | undefined | null): RawCell {
   }
   const v: unknown = cell.v;
   if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
-    return { value: v, isError: false };
+    // percentFormat은 **참일 때만** 싣는다 — 선택 필드라 파서는 undefined를 false로 읽고(D-22),
+    // 셀마다 false 키를 붙이면 기존 RawCell 계약(값·에러 두 키)이 흔들린다
+    return isPercentFormat(cell)
+      ? { value: v, isError: false, percentFormat: true }
+      : { value: v, isError: false };
   }
   // cellDates: false라 여기 오지 않아야 하지만, 오면 조용히 버리지 않고 문자열로 남긴다
   if (v instanceof Date) return { value: v.toISOString(), isError: false };
@@ -118,6 +140,9 @@ export function worksheetToRawSheet(name: string, sheet: XLSX.WorkSheet): RawShe
 /**
  * I-16: 계산값을 읽는다(`cellFormula: false`). `cellDates: false`로 날짜도 직렬값(숫자)으로 받아
  * 금액 파싱(I-8)이 로케일 서식에 흔들리지 않게 한다.
+ *
+ * D-22: `cellNF: true`가 없으면 SheetJS가 `cell.z`(서식 문자열)를 아예 만들지 않는다.
+ * 그러면 백분율 셀을 알아볼 방법이 사라져 **인건비 참여율이 100배 어긋난다**.
  */
 export function readWorkbook(data: Uint8Array): RawSheet[] {
   let workbook: XLSX.WorkBook;
@@ -126,6 +151,7 @@ export function readWorkbook(data: Uint8Array): RawSheet[] {
       type: 'buffer',
       cellFormula: false,
       cellDates: false,
+      cellNF: true, // D-22 — 이게 없으면 cell.z가 비어 백분율 판정이 영영 false가 된다
       dense: false,
     });
   } catch (e) {

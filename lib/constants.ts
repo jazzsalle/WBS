@@ -1,6 +1,9 @@
 // SOT 부록 A(A.1~A.5)·부록 C, §6.6 H-3, §8.8의 상수 정의.
 // 라벨 맵은 Record<EnumType, string>으로 선언해 enum 값 누락이 컴파일 에러가 되게 한다 (A.4).
 
+// 부록 C.2 조회 키는 I-1 정규화형이라 normalize에 의존한다.
+// normalize.ts는 아무것도 import하지 않으므로 순환이 생기지 않는다
+import { normalizeLabel } from '@/lib/import/normalize';
 import type {
   BudgetCategory,
   DeliverableType,
@@ -380,6 +383,82 @@ export const SUBCATEGORY_PRESETS: Record<BudgetCategory, SubcategoryDef[]> = {
 
 // 세목이 없는 비목의 세목 코드 (부록 A.5 주의 3)
 export const DEFAULT_SUBCATEGORY_CODE = 'default';
+
+// ─── 부록 C.2 세목 별칭 사전 (산출근거 임포트 §6.11 D-3) ──────
+// 키는 I-1 정규화형 + 선행 번호 제거형(subcategoryLookupKey)이다.
+// 부록 A.5의 표시 라벨은 정규화하면 자동으로 키가 되므로 여기 다시 적지 않는다 —
+// 아래는 **실측에서 확인된 변형만** 담는다.
+
+/**
+ * 비목 → (정규화 라벨 → 세목 코드).
+ *
+ * `activity` 외 11종이 빈 객체인 것은 누락이 아니다 — "나머지 비목은 부록 A.5 라벨의
+ * 정규화형으로 충분하다"(C.2, 실측 2종 기준). 비목 12종을 모두 적어 두는 이유는
+ * `Record<BudgetCategory, ...>`가 비목이 늘 때 컴파일 에러로 알려 주기 때문이다.
+ *
+ * 여기서 학습한 매핑을 저장하지 않는다 (C.2 주의 3 / D-20) — 산출근거 임포트에는
+ * 프로파일이 없다. 새 변형이 나타나면 부록 A.5·C.2를 고치고 이 사전을 고친다.
+ */
+export const SUBCATEGORY_ALIASES: Record<BudgetCategory, Record<string, string>> = {
+  personnel: {},
+  student_personnel: {},
+  facility_equipment: {},
+  material: {},
+  consignment: {},
+  international: {},
+  burden: {},
+  activity: {
+    '기타': 'activity_etc',              // 행안부 ⑪ (산자부는 '그 밖의 비용')
+    '그밖의비용': 'activity_etc',
+    '국내출장비': 'activity_travel_dom',
+    '국외출장비': 'activity_travel_intl',
+    '출장비': 'activity_travel_dom',      // 번호 ⑤가 국내/국외 두 표를 덮는다 — D-3 참조
+    '소프트웨어활용비': 'activity_software',
+    '클라우드컴퓨팅서비스이용료': 'activity_cloud',
+  },
+  promotion: {},
+  allowance: {},
+  indirect: {},
+  other: {},
+};
+
+/**
+ * 세목 헤더의 선행 번호. 원문자(`①`~`⑳`, D-3)와 한글 순서 접두어(`가.`~`차.`)를 뗀다.
+ *
+ * **normalizeLabel(I-1)은 원문자도 마침표도 지우지 않는다** — 번호를 떼는 것은 이 함수의 몫이다.
+ * 한글 접두어까지 떼는 근거는 D-2다: 파서가 비목 헤더에서 `가.`~`차.`를 떼고 판정하는데,
+ * 간접비 섹션 아래의 `가. 인력지원비`는 같은 접두어를 단 **세목**이다. 접두어를 남기면
+ * 서식이 접두어를 빼거나 순서를 바꾼 순간(`나. 인력지원비`) 조회가 조용히 빗나간다.
+ * 번호는 버리지 않고 D-3이 라벨과 **함께** 검증한다 — 여기서는 조회 키만 만든다.
+ */
+const SUBCATEGORY_ORDINAL_PREFIX = /^\s*(?:[①-⑳]|[가나다라마바사아자차][.．])\s*/;
+
+export function stripSubcategoryOrdinal(label: string): string {
+  return label.replace(SUBCATEGORY_ORDINAL_PREFIX, '');
+}
+
+/** 세목 라벨 → 조회 키. 선행 번호를 뗀 뒤 I-1 정규화한다 */
+export function subcategoryLookupKey(label: string | null | undefined): string {
+  if (label === null || label === undefined) return '';
+  return normalizeLabel(stripSubcategoryOrdinal(String(label).normalize('NFC')));
+}
+
+/**
+ * 비목의 세목 조회표 = 부록 A.5 프리셋 라벨 파생 키 ∪ 부록 C.2 별칭.
+ * 별칭을 나중에 넣어 실측 변형이 이기게 한다 (현재 두 층의 값은 어긋나지 않으며,
+ * 어긋나면 tests/unit/import-detail-constants.test.ts가 잡는다).
+ */
+export function subcategoryLookupTable(category: BudgetCategory): Record<string, string> {
+  const table: Record<string, string> = {};
+  for (const def of SUBCATEGORY_PRESETS[category]) {
+    const key = subcategoryLookupKey(def.label);
+    if (key.length > 0) table[key] = def.code;
+  }
+  for (const [key, code] of Object.entries(SUBCATEGORY_ALIASES[category])) {
+    table[key] = code;
+  }
+  return table;
+}
 
 // ─── 부록 C. 비목 별칭 사전 (초기값) — 공통 + 부처별 프리셋 ──
 // 모든 키는 정규화(I-1: 가운뎃점 변형·내부 공백·괄호 내용·각주·별표·하이픈 제거 + 소문자화)된 형태로 비교한다.

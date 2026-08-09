@@ -11,3 +11,5 @@ export * from './grid';
 export * from './structure';
 export * from './matrix';
 export * from './preview';
+export * from './detail-sheet';
+export * from './detail-preview';

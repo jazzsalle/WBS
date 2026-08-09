@@ -6,6 +6,15 @@
 import type {
   AmountUnit,
   CategorySource,
+  CurrencyWarning,
+  DetailBlock,
+  DetailColumn,
+  DetailColumnRole,
+  DetailImportPreview,
+  DetailMemberDecision,
+  DetailPreviewSummary,
+  DetailRowDecision,
+  DetailSection,
   DetectedStructure,
   MergeRange,
   SheetScore,
@@ -312,7 +321,9 @@ export interface BudgetItem extends BaseEntity {
 
 // ─── §5.12.1 ImportProfile (엑셀 매핑 프로파일 = 부처 템플릿) ─
 
-export type ImportKind = 'budget_plan';   // v1은 예산계획만. 집행내역 임포트는 v2 후보 (§13)
+// 'budget_plan' = 총괄표(셀 총액, §6.8) / 'budget_detail' = 산출근거 시트(행 내역, §6.11)
+// 집행내역 임포트는 여전히 제외 (§13 12-a)
+export type ImportKind = 'budget_plan' | 'budget_detail';
 
 export interface ImportProfile extends BaseEntity {
   name: string;                   // 예: '산자부 사업비 총괄표'
@@ -381,6 +392,9 @@ export interface ImportSnapshotPayload {
   schemaVersion: number;             // 스냅샷 jsonb 자체의 형식 버전 (RPC가 채운다)
   projectId: string;
   capturedAt: string;
+  // D-17: 산출근거 임포트(commit_detail_import)가 남긴 스냅샷만 'budget_detail'이다.
+  // 총괄표 스냅샷(schemaVersion 1)에는 이 키가 없어 undefined다 — 설정 화면이 종류를 가르는 근거다
+  kind?: 'budget_detail';
   source: ImportSnapshotSource;
   items: ImportSnapshotItem[];       // 파일에 등장한 (연차, 비목)만 담긴다 (S-9)
 }
@@ -585,6 +599,141 @@ export interface CommitImportResult {
    * 대신 조용히 삼키지 않고 여기에 드러낸다 (절대 규칙 5).
    */
   profileUsageRecorded: boolean;
+}
+
+// ─── §9 Budget Detail Import 액션의 반환 형태 (마법사 §7.9.3이 쓴다) ─
+//
+// 감지·미리보기 결과는 lib/import의 순수 함수가 만든 형태를 **그대로** 내린다.
+// 여기서 다시 정의하면 D-3a·D-8a·D-15 판정이 두 곳에 생겨 반드시 어긋난다 (O-4).
+
+export type {
+  CurrencyWarning,
+  DetailBlock,
+  DetailColumn,
+  DetailColumnRole,
+  DetailImportPreview,
+  DetailMemberDecision,
+  DetailPreviewSummary,
+  DetailRowDecision,
+  DetailSection,
+};
+
+/**
+ * §7.9.3 마법사의 진행 상태. `previewDetailImport`/`commitDetailImport`에 그대로 전달된다.
+ *
+ * §5.12.2 ImportDraft와 같은 불변식을 진다: **파싱 결과를 바꾸는 모든 수동 결정이 이 값 하나에
+ * 담긴다.** 두 액션이 같은 draft + 같은 파일로 결정론적으로 같은 결과를 내야 하기 때문이다 (§9).
+ *
+ * ImportDraft와 달리 **프로파일이 없다** — 컬럼을 헤더 텍스트로 매핑하므로 저장할 재사용 가능한
+ * 결정이 사실상 없다 (D-20).
+ */
+export interface DetailImportDraft {
+  /**
+   * D-19: 시트 하나 = 연차 하나. **과제는 이 연차에서 파생된다** — §9의 시그니처에 projectId가
+   * 없고, 연차에서 끌어오면 "남의 과제 연차" 조합 자체가 만들어지지 않는다 (N-13).
+   */
+  yearId: string;
+  /** null이면 첫 시트 (§5.12.1과 같은 규약) */
+  sheetName: string | null;
+  /** D-3·D-3a 세목 선택. 키는 `detailBlockKey` */
+  subcategoryChoices?: Record<string, string>;
+  /**
+   * D-7: 컬럼 role 재지정. 바깥 키는 `detailBlockKey`, 안쪽 키는 **시트 열 인덱스(0-based)**다.
+   *
+   * 값이 `null`이면 그 열의 역할을 **없앤다**(잘못 잡힌 role을 떼는 용도), role이면 그것으로 덮는다.
+   * "매핑 결과는 미리보기에 드러내 사용자가 고칠 수 있어야 한다"(D-7)의 고치는 수단이며,
+   * 사전이 모르는 헤더 때문에 임포트가 통째로 막히는 것을 막는 우회로다 (I-4와 같은 형태).
+   */
+  columnRoleOverrides?: Record<string, Record<number, DetailColumnRole | null>>;
+  /**
+   * D-9: 축(현금/현물) 재지정. 키는 `detailRowKey`.
+   *
+   * 합계 열만 있는 세목은 파서가 현금으로 **제안**할 뿐이라(`axisSuggested`) 사용자가 바꿀 수 있어야
+   * 한다. 현금·현물 열에 값이 둘 다 있어 행이 갈린 경우는 파일이 축을 명시한 것이므로 대상이 아니다 —
+   * 그런 행 키를 담으면 서버가 거부한다.
+   */
+  axisOverrides?: Record<string, DetailAxis>;
+  /** D-11 성명 결정(기존 인력 / 새 인력 / 건너뛰기). 키는 `detailMemberKey` */
+  memberDecisions?: Record<string, DetailMemberDecision>;
+  /** D-15 [기존 삭제 후 교체]를 고른 비목 */
+  replaceCategories?: BudgetCategory[];
+  /** D-10 통화를 확인한 블록. 키는 `detailBlockKey` */
+  confirmedCurrencyBlocks?: string[];
+  /** D-21 ② 행 단위 포함·제외. 키는 `detailRowKey` */
+  rowDecisions?: Record<string, DetailRowDecision>;
+  /** §5.12.2와 같은 규약: 미리보기 첫 호출은 빈 문자열, 반영에는 반드시 채워져 있어야 한다 */
+  fileHash: string;
+}
+
+/** §7.9.3 Step 2 트리의 잎 — 블록 하나(표 하나)의 감지 결과 + 파싱 요약 */
+export interface DetailSheetBlockInfo {
+  /** `detailBlockKey` — 세목 선택·통화 확인이 이 키로 붙는다 */
+  key: string;
+  /** D-2·D-3·D-4·D-7 감지 결과 원본. 컬럼 매핑(`columns`·`roles`)이 여기 들어 있다 */
+  block: DetailBlock;
+  /** D-5·D-25 필터 후 데이터 행 수 (D-21 ② 건너뜀 제안 포함) */
+  rowCount: number;
+  /** D-21 ②: 금액이 0이라 기본 건너뜀인 행 수 */
+  skipSuggestedCount: number;
+  /** 파일 합계 열의 합 — 트리에서 블록 규모를 가늠하는 값이다 */
+  fileAmount: number;
+  /** D-18 대조 대상으로 읽은 파일 소계 수 */
+  subtotalCount: number;
+  /** D-10: 원화가 아닌 통화 기호를 본 자리. null이 아니면 사용자 확인 전에는 반영하지 않는다 */
+  currency: CurrencyWarning | null;
+}
+
+/** §7.9.3 Step 2 시트 탭 */
+export interface DetailSheetInfo {
+  name: string;
+  rowCount: number;
+  columnCount: number;
+  /** D-1: `1. 직접비 소요명세` 섹션이 있는가 = 산출근거 시트인가 */
+  eligible: boolean;
+  sections: DetailSection[];
+  /** D-19: 시트명의 `N차년도` → `order = N-1`. **제안일 뿐이고 확정은 사용자가 한다** */
+  suggestedYearOrder: number | null;
+  /** eligible한 시트만 채워진다 */
+  blocks: DetailSheetBlockInfo[];
+}
+
+/** §9 inspectDetailSheet. **저장하는 것은 없다** */
+export interface InspectDetailSheetResult {
+  fileName: string;
+  fileSize: number;
+  fileHash: string;
+  sheets: DetailSheetInfo[];
+  /** D-1 추천. **하이라이트일 뿐이고 확정은 사용자가 한다** */
+  recommendedSheet: string | null;
+  grids: SheetGridPreview[];
+}
+
+/** §9 previewDetailImport — 미리보기 + 어떤 파일·시트를 봤는지 */
+export interface PreviewDetailImportResult extends DetailImportPreview {
+  fileHash: string;
+  fileName: string;
+  sheetName: string;
+  /** 연차에서 파생된 과제. 마법사가 인력 화면(D-8a 안내)으로 링크할 때 쓴다 */
+  projectId: string;
+}
+
+/** §9 commitDetailImport */
+export interface CommitDetailImportResult {
+  /** D-17 반영 직전 스냅샷 (계획액 + 삭제되는 산출근거 행 전문) */
+  snapshotId: string;
+  inserted: number;
+  /** D-15 교체로 지운 기존 행 수 */
+  deleted: number;
+  /** D-12: 같은 트랜잭션에서 만든 인력 수 */
+  membersCreated: number;
+  /** 총액을 다시 계산한 (연차, 비목) 셀 수 (PL-10) */
+  cells: number;
+  /**
+   * D-15a: **반영 시점에** 기존 행이 생겨 건너뛴 셀 수. 미리보기 시점의 `summary`와 다를 수 있고,
+   * 그때 맞는 쪽은 DB다. 오류가 아니므로 반영은 성공한 것이다 — 화면이 반드시 드러낸다.
+   */
+  skippedLocked: number;
+  summary: DetailPreviewSummary;
 }
 
 // ─── §5.13 Risk (리스크 관리대장) ────────────────────────────

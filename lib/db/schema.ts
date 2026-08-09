@@ -391,7 +391,9 @@ export const appSettingsRowSchema = z.object({
 
 // ─── §5.12.1 import_profiles ─────────────────────────────────
 
-export const importKindSchema = z.enum(['budget_plan']);
+// §5.12.1 — 'budget_detail'은 산출근거 시트 임포트(§6.11). DB check 제약과 값이 같아야 한다
+// (supabase/migrations/20260815000000_import_kind_budget_detail.sql)
+export const importKindSchema = z.enum(['budget_plan', 'budget_detail']);
 
 export const importProfileRowSchema = z.object({
   ...baseRow,
@@ -432,6 +434,9 @@ export const importSnapshotPayloadSchema = z.object({
   schemaVersion: z.number(),
   projectId: z.uuid(),
   capturedAt: isoTimestamp,
+  // D-17: 산출근거 스냅샷(commit_detail_import)에만 있다. Zod가 모르는 키를 지우므로
+  // 여기 적지 않으면 설정 화면이 스냅샷 종류를 영영 알 수 없다 (총괄표 스냅샷은 undefined)
+  kind: z.literal('budget_detail').optional(),
   source: z.object({
     fileName: z.string(),
     sheetName: z.string(),
