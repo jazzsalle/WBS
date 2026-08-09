@@ -69,7 +69,11 @@ beforeAll(async () => {
       (${SEED_DETAIL_ID}::uuid, ${SEED.projectId}::uuid, ${SEED.year1Id}::uuid,
        'activity', 'activity_meeting', 'cash', 'quantity',
        '착수 회의', '20인 × 4회', 300000,
-       ${'[{"label":"회","value":4,"isPercent":false}]'}::jsonb,
+       -- sql.json()으로 넘긴다. **문자열을 넘기고 ::jsonb로 캐스트하면 안 된다** —
+       -- postgres 드라이버가 jsonb 파라미터로 가는 JS 문자열을 한 번 더 JSON 인코딩해
+       -- 배열이 아니라 jsonb **문자열 스칼라**가 저장된다(실측 확인). 그러면
+       -- budgetDetailRowSchema가 거부하고 PL-1/PL-3 계산도 인자를 읽지 못한다.
+       ${sql.json([{ label: '회', value: 4, isPercent: false }])}::jsonb,
        -500, 1199500, '왕복 테스트용', 0,
        ${user.id}::uuid, ${user.id}::uuid)`;
 });
