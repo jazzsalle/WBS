@@ -35,6 +35,19 @@ if (!existsSync(join(standaloneDir, 'server.js'))) {
   process.exit(1);
 }
 
+// 안전장치: `next dev` 잔여물이 섞인 .next를 그대로 번들에 싣지 않는다.
+// clean-next.mjs(prebuild)가 막아 주지만, `next build`를 직접 부르면 그 단계를 건너뛴다.
+// 조용히 걸러내지 않고 멈추는 이유: 잔여물이 있는 .next는 standalone 복사·프리렌더가
+// 산발적으로 깨져 산출물 자체를 믿을 수 없다 (절대 규칙 5).
+const devLeftovers = ['development', 'webpack'].filter((d) => existsSync(join(staticDir, d)));
+if (devLeftovers.length > 0) {
+  console.error(
+    `[prepare-sidecar] .next/static에 dev 잔여물이 있습니다 (${devLeftovers.join(', ')}) — 빌드 중단.\n` +
+      '  `npm run build`로 다시 빌드하세요 (prebuild가 .next를 정리합니다).',
+  );
+  process.exit(1);
+}
+
 rmSync(resourcesDir, { recursive: true, force: true });
 mkdirSync(nodeDir, { recursive: true });
 

@@ -8,10 +8,6 @@ import { getCurrentUser } from '@/actions/auth';
 import { getBudgetMatrix } from '@/actions/budget';
 import { getBudgetPlanData } from '@/actions/budget-plan';
 import { listImportProfiles } from '@/actions/import';
-import type { ActionResult, BudgetItem } from '@/types';
-import { requireApprovedUser } from '@/lib/auth/guard';
-import * as budgetItemsRepo from '@/lib/db/budget-items';
-import { toActionFailure } from '@/lib/db/errors';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import RealtimeRefresher from '@/components/RealtimeRefresher';
 import BudgetScreen from '@/components/budget/BudgetScreen';
@@ -30,22 +26,6 @@ interface BudgetPageProps {
   params: Promise<{ id: string }>;
 }
 
-// 집행 내역 패널(§7.9 "셀 클릭 → 집행 내역 패널")과 현금/현물 분리 편집에는 집계가 아니라
-// 원본 행이 필요하다: budget_items.id(집행 CRUD의 부모 키), version(O-1 낙관적 잠금),
-// cashAmount/inKindAmount의 null 여부(총액 인라인 편집 허용 판정), executions 목록.
-// getBudgetMatrix의 BudgetMatrixData는 집계만 담고 있어 이 네 가지를 얻을 수 없으므로
-// 여기서 리포지토리를 한 번 더 읽는다 (supabase 직접 호출 금지 — 리포지토리 경유, 절대 규칙 3).
-// ※ 원래 자리는 getBudgetMatrix다. 그쪽이 원본 행을 함께 내려주면 이 함수는 지우고
-//    matrix.data에서 꺼내 쓰면 된다 (조회 왕복 1회 절약).
-async function loadBudgetItems(projectId: string): Promise<ActionResult<BudgetItem[]>> {
-  try {
-    const { client } = await requireApprovedUser();
-    return { ok: true, data: await budgetItemsRepo.listBudgetItemsByProject(client, projectId) };
-  } catch (e) {
-    return toActionFailure(e);
-  }
-}
-
 export default async function BudgetPage({ params }: BudgetPageProps) {
   const { id: projectId } = await params;
 
@@ -53,9 +33,11 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
   // 미들웨어가 이미 거르지만, 세션 만료 직후 직접 접근을 방어한다 (A-4)
   if (!me.ok) redirect('/login');
 
-  const [matrix, items, plan, profiles] = await Promise.all([
+  // 집행 패널·현금/현물 편집이 쓰는 budget_items 원본 행은 getBudgetMatrix가 집계와 **함께**
+  // 내린다 (BudgetMatrixData.items). 여기서 따로 읽으면 두 조회 사이의 저장이 매트릭스와
+  // 원본 행을 다른 시점으로 갈라놓는다
+  const [matrix, plan, profiles] = await Promise.all([
     getBudgetMatrix(projectId),
-    loadBudgetItems(projectId),
     // §7.9 제안 모드 한 벌 (§6.10). 모드는 화면 로컬 상태라 서버가 어느 쪽인지 알 수 없으므로
     // 두 벌을 함께 내린다 — 토글이 왕복 없이 즉시 바뀌어야 "같은 표의 두 관점"이 성립한다
     getBudgetPlanData(projectId),
@@ -73,13 +55,6 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
       </main>
     );
   }
-  if (!items.ok) {
-    return (
-      <main className={CONTENT_CLASS}>
-        <ErrorBanner message={items.error} code={items.code} />
-      </main>
-    );
-  }
 
   return (
     <main className={CONTENT_CLASS}>
@@ -90,7 +65,6 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
 
       <BudgetScreen
         data={matrix.data}
-        items={items.data}
         importProfiles={profiles.ok ? profiles.data : []}
         importProfilesError={profiles.ok ? null : profiles.error}
         // 제안 조회가 실패해도 수행 모드(예산·집행)는 보여야 하므로 화면을 막지 않는다.

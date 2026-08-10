@@ -442,4 +442,39 @@ describe('getBudgetMatrix (§7.9, §6.4, 부록 A.1)', () => {
     // 불일치로 잡히면 경고가 의미를 잃는다)
     expect(matched.yearBudgetChecks[year2Id]).toBeNull();
   });
+
+  // 화면(§7.9)이 원본 행을 두 번째 조회로 읽으면 매트릭스와 다른 시점을 볼 수 있다.
+  // 집계를 만든 그 배열을 그대로 내리는지 — 셀 단위로 대조해 확인한다
+  it('집계를 만든 원본 행(items)을 같은 응답에 함께 내린다', async () => {
+    const personnelItemId = await itemId(year1Id, 'personnel');
+    const created = unwrap(
+      await budget.addExecution(personnelItemId, {
+        date: '2026-07-01',
+        amount: 1_000_000,
+        description: '원본 행 동봉 확인',
+      })
+    );
+
+    const result = await budget.getBudgetMatrix(projectId);
+    const data = unwrap(result);
+
+    // 연차 2 × 비목 12. 매트릭스에 실리지 못한 행이 없으므로 셀 수와 같다
+    expect(data.items).toHaveLength(24);
+    expect(data.matrix.unmatchedItemCount).toBe(0);
+
+    for (const item of data.items) {
+      const cell = await cellOf(result, item.yearId, item.category);
+      // 같은 스냅샷이면 집계와 원본이 어긋날 수 없다
+      expect(cell.planned).toBe(item.plannedAmount);
+      expect(cell.executed).toBe(item.executions.reduce((sum, e) => sum + e.amount, 0));
+    }
+
+    // 집행 패널이 필요로 하는 것들: 부모 키·version(O-1)·집행 목록·현금/현물 null 여부
+    const personnel = data.items.find((i) => i.id === personnelItemId);
+    expect(personnel).toBeDefined();
+    expect(personnel!.version).toBeGreaterThan(0);
+    expect(personnel!.executions.map((e) => e.id)).toContain(created.id);
+
+    unwrap(await budget.deleteExecution(personnelItemId, created.id));
+  });
 });

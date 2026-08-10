@@ -29,16 +29,10 @@ export async function getCurrentUser(): Promise<ActionResult<AppUser>> {
   }
 }
 
-// 설정 화면 사용자 관리(§7.14)의 승인 대기자 목록
-export async function listPendingUsers(): Promise<ActionResult<AppUser[]>> {
-  try {
-    const { client } = await requireApprovedUser();
-    const users = await appUsers.listAppUsers(client);
-    return { ok: true, data: users.filter((u) => !u.active) };
-  } catch (e) {
-    return toActionFailure(e);
-  }
-}
+// 승인 대기자만 따로 읽는 액션은 두지 않는다 (2026-08-10 제거).
+// §7.14 사용자 관리 화면은 `listAppUsers`로 **전 사용자**를 읽고 대기자를 상단에 올린다 —
+// 승인 직후 그 사람이 목록에서 사라지지 않아야 조작 결과가 눈에 남기 때문이다.
+// 대기자만 걸러 주는 액션을 함께 두면 같은 화면이 두 목록을 갖게 되어 어느 쪽이 최신인지 흐려진다.
 
 // A-5: 승인된 사용자는 누구나 대기자를 승인할 수 있다.
 // 자기 자신 승인 거부는 approve_user RPC(security definer)가 최종 판정한다.

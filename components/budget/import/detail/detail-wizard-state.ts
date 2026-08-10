@@ -14,6 +14,8 @@ import type {
   BudgetCategory,
   DetailAxis,
   DetailImportDraft,
+  DetailMemberDecision,
+  DetailRowDecision,
   DetailSheetBlockInfo,
   DetailSheetInfo,
   InspectDetailSheetResult,
@@ -152,20 +154,64 @@ export function withSubcategoryChoice(
  * `undefined`면 재지정을 지워 **파서의 자동 감지로 되돌린다**(세목 선택의 null과 같은 자리).
  * 자동 감지와 같은 값을 고른 것은 재지정이 아니므로 화면이 `undefined`로 넘긴다 — 그래야
  * "사용자가 바꾼 것"만 파랑으로 남는다 (§7.9.1 Step 3 관례).
+ *
+ * **그 표의 축 재지정(D-9)을 함께 버린다.** 열 역할이 금액을 어디서 읽을지 정하므로, 역할이
+ * 바뀌면 그 표에서 나온 행이 갈리거나 합쳐지고 `axisSuggested`도 뒤집힌다. 남겨 두면 Step 4에서
+ * 고른 축이 이제 축을 바꿀 수 없는 행(`axisSuggested = false`)을 가리키게 되어 서버가 매
+ * 미리보기마다 거부하는데, 그 행에는 셀렉트가 없어 화면에서 지울 통로가 없다 — 사용자가 갇힌다.
+ *
+ * `blocks`는 Step 2가 보고 있는 시트의 블록들이다. 축 재지정의 키(`detailRowKey`)에는 블록
+ * 정보가 없어 **행 번호를 블록의 데이터 행 범위와 맞춰** 가려낸다.
  */
 export function withColumnRoleOverride(
   draft: DetailImportDraft,
   blockKey: string,
   columnIndex: number,
-  role: DetailColumnRole | null | undefined
+  role: DetailColumnRole | null | undefined,
+  blocks: readonly DetailSheetBlockInfo[]
 ): DetailImportDraft {
   const all = { ...(draft.columnRoleOverrides ?? {}) };
   const forBlock = { ...(all[blockKey] ?? {}) };
+  const had = Object.prototype.hasOwnProperty.call(forBlock, columnIndex);
+  // 같은 값을 다시 고른 것은 바꾼 것이 아니다 — 멀쩡한 축 재지정을 공짜로 버리지 않는다
+  if (role === undefined ? !had : had && forBlock[columnIndex] === role) return draft;
+
   if (role === undefined) delete forBlock[columnIndex];
   else forBlock[columnIndex] = role;
   if (Object.keys(forBlock).length === 0) delete all[blockKey];
   else all[blockKey] = forBlock;
-  return { ...draft, columnRoleOverrides: all };
+
+  return {
+    ...draft,
+    columnRoleOverrides: all,
+    axisOverrides: axisOverridesOutsideBlock(draft.axisOverrides ?? {}, blockKey, blocks),
+  };
+}
+
+/**
+ * 그 블록의 데이터 행에서 나온 축 재지정만 걷어낸다.
+ *
+ * 블록을 찾지 못했거나 행 번호를 읽지 못한 키는 **버린다.** 어느 블록에 속하는지 모르는 재지정은
+ * 앞으로도 어떤 열 역할 변경으로도 지워지지 않아 그대로 갇히기 때문이다 — 과하게 비우는 쪽이
+ * 조용히 갇히는 것보다 낫다 (사용자는 Step 4에서 다시 고를 수 있다).
+ */
+function axisOverridesOutsideBlock(
+  overrides: Readonly<Record<string, DetailAxis>>,
+  blockKey: string,
+  blocks: readonly DetailSheetBlockInfo[]
+): Record<string, DetailAxis> {
+  const block = blocks.find((info) => info.key === blockKey)?.block;
+  if (block === undefined) return {};
+
+  const kept: Record<string, DetailAxis> = {};
+  for (const [key, axis] of Object.entries(overrides)) {
+    // `detailRowKey` = `${row}:${axisIndex}` — 앞쪽이 0-based 시트 행이다
+    const row = Number.parseInt(key.split(':')[0] ?? '', 10);
+    if (!Number.isInteger(row)) continue;
+    if (row >= block.dataStartRow && row <= block.dataEndRow) continue;
+    kept[key] = axis;
+  }
+  return kept;
 }
 
 export function columnRoleOverridesOf(
@@ -224,6 +270,45 @@ export function withCurrencyConfirmed(
       : { ...draft, confirmedCurrencyBlocks: [...current, blockKey] };
   }
   return { ...draft, confirmedCurrencyBlocks: current.filter((key) => key !== blockKey) };
+}
+
+/** D-11 성명 결정. null이면 자동 제안(matchDetailMembers의 판정)으로 되돌린다 */
+export function withMemberDecision(
+  draft: DetailImportDraft,
+  key: string,
+  decision: DetailMemberDecision | null
+): DetailImportDraft {
+  const decisions = { ...(draft.memberDecisions ?? {}) };
+  if (decision === null) delete decisions[key];
+  else decisions[key] = decision;
+  return { ...draft, memberDecisions: decisions };
+}
+
+/** D-15 [기존 삭제 후 교체]. 담기지 않은 비목은 기존 행이 있으면 건너뛴다 */
+export function withReplaceCategory(
+  draft: DetailImportDraft,
+  category: BudgetCategory,
+  replace: boolean
+): DetailImportDraft {
+  const current = draft.replaceCategories ?? [];
+  if (replace) {
+    return current.includes(category) ? draft : { ...draft, replaceCategories: [...current, category] };
+  }
+  return { ...draft, replaceCategories: current.filter((item) => item !== category) };
+}
+
+/**
+ * D-21 ② 행 단위 포함·제외. 0원 행의 기본 건너뜀을 사용자가 뒤집을 수 있다.
+ *
+ * 다른 결정과 달리 "지워서 되돌리기"가 없다 — 화면의 조작이 체크박스라 항상 `include`·`skip` 중
+ * 하나를 명시하며, 파서의 제안은 그 체크박스의 초기값으로 이미 표시돼 있다.
+ */
+export function withRowDecision(
+  draft: DetailImportDraft,
+  rowKey: string,
+  decision: DetailRowDecision
+): DetailImportDraft {
+  return { ...draft, rowDecisions: { ...(draft.rowDecisions ?? {}), [rowKey]: decision } };
 }
 
 // ─── D-19 연차 제안 ──────────────────────────────────────────

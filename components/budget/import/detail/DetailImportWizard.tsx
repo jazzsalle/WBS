@@ -18,11 +18,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type {
   ActionResult,
-  BudgetCategory,
   CommitDetailImportResult,
   DetailImportDraft,
-  DetailMemberDecision,
-  DetailRowDecision,
   InspectDetailSheetResult,
   Member,
   Organization,
@@ -51,6 +48,9 @@ import {
   withAxisOverride,
   withColumnRoleOverride,
   withCurrencyConfirmed,
+  withMemberDecision,
+  withReplaceCategory,
+  withRowDecision,
   withSheet,
   withSubcategoryChoice,
   withYear,
@@ -407,9 +407,13 @@ export default function DetailImportWizard({ years, onClose }: DetailImportWizar
             onCurrencyConfirm={(blockKey, confirmed) =>
               decide(withCurrencyConfirmed(draftRef.current, blockKey, confirmed))
             }
-            // D-7: 헤더 텍스트로 정한 매핑은 제안이다. 사용자가 고칠 수 있어야 한다
+            // D-7: 헤더 텍스트로 정한 매핑은 제안이다. 사용자가 고칠 수 있어야 한다.
+            // 블록 목록을 함께 넘겨 그 표의 축 재지정(D-9)을 같이 무효화한다 — 열 역할이 바뀌면
+            // 그 표에서 나온 행의 축 전제가 무너진다
             onColumnRoleOverride={(blockKey, columnIndex, role) =>
-              decide(withColumnRoleOverride(draftRef.current, blockKey, columnIndex, role))
+              decide(
+                withColumnRoleOverride(draftRef.current, blockKey, columnIndex, role, sheet?.blocks ?? [])
+              )
             }
           />
         )}
@@ -458,45 +462,6 @@ export default function DetailImportWizard({ years, onClose }: DetailImportWizar
       </div>
     </Modal>
   );
-}
-
-// ─── draft 갱신 (Step 3·4 전용) ──────────────────────────────
-//
-// `detail-wizard-state.ts`의 `withSubcategoryChoice`·`withCurrencyConfirmed`와 같은 규약이다.
-// 그 파일에 대응 헬퍼가 없어 여기 둔다 — 순수 함수이며 draft를 갈아엎지 않고 얕은 복사만 한다.
-
-/** D-11: 성명 결정. null이면 자동 제안(matchDetailMembers의 판정)으로 되돌린다 */
-function withMemberDecision(
-  draft: DetailImportDraft,
-  key: string,
-  decision: DetailMemberDecision | null
-): DetailImportDraft {
-  const decisions = { ...(draft.memberDecisions ?? {}) };
-  if (decision === null) delete decisions[key];
-  else decisions[key] = decision;
-  return { ...draft, memberDecisions: decisions };
-}
-
-/** D-15: [기존 삭제 후 교체]. 담기지 않은 비목은 기존 행이 있으면 건너뛴다 */
-function withReplaceCategory(
-  draft: DetailImportDraft,
-  category: BudgetCategory,
-  replace: boolean
-): DetailImportDraft {
-  const current = draft.replaceCategories ?? [];
-  if (replace) {
-    return current.includes(category) ? draft : { ...draft, replaceCategories: [...current, category] };
-  }
-  return { ...draft, replaceCategories: current.filter((item) => item !== category) };
-}
-
-/** D-21 ②: 행 단위 포함·제외. 0원 행의 기본 건너뜀을 사용자가 뒤집을 수 있다 */
-function withRowDecision(
-  draft: DetailImportDraft,
-  rowKey: string,
-  decision: DetailRowDecision
-): DetailImportDraft {
-  return { ...draft, rowDecisions: { ...(draft.rowDecisions ?? {}), [rowKey]: decision } };
 }
 
 function StepIndicator({ step, skipStep3 }: { step: DetailWizardStep; skipStep3: boolean }) {

@@ -14,6 +14,7 @@
 
 import type { Sql } from 'postgres';
 import { SEED } from '../integration/helpers';
+import { TEST_ROW_MARK_PATTERN } from '../test-marker';
 
 /** 테스트 사용자 이메일 패턴 — helpers.createTestUser가 만드는 형식 */
 const TEST_USER_EMAIL_PATTERN = 'wbs-test+%';
@@ -26,8 +27,13 @@ interface ForeignRow {
 
 const MAX_LISTED = 20;
 
-// 테스트가 만들지 않은 행을 찾는다. created_by가 null인 행도 "남의 것"으로 본다 —
-// 중단된 테스트의 잔여물과 실데이터를 구분할 방법이 없으므로 사람이 확인하게 만든다.
+// 테스트가 만들지 않은 행을 찾는다. created_by가 null인 행도 기본적으로 "남의 것"으로 본다 —
+// 소유자가 끊긴 행은 실데이터와 구분할 방법이 없으므로 사람이 확인하게 만든다.
+//
+// 유일한 예외: 라벨 컬럼에 TEST_ROW_MARK가 찍힌 행. 그 표식은 destroyTestUser가
+// "created_by가 wbs-test+… 사용자임을 SQL로 확인한 뒤"에만 찍으므로, 표식이 있다는 것
+// 자체가 테스트 소유의 증거다 (근거는 tests/test-marker.ts). 소유자가 살아 있는 행에는
+// 이 예외를 적용하지 않는다 — 그때는 소유자로 판단하면 된다.
 export async function findForeignData(sql: Sql): Promise<ForeignRow[]> {
   return sql<ForeignRow[]>`
     with test_users as (
@@ -40,18 +46,22 @@ export async function findForeignData(sql: Sql): Promise<ForeignRow[]> {
       from public.projects p
      where p.id <> ${SEED.projectId}::uuid
        and (p.created_by is null or p.created_by not in (select id from owned))
+       and not (p.created_by is null and p.project_no like ${TEST_ROW_MARK_PATTERN})
     union all
     select 'todos', t.id::text, t.title
       from public.todos t
-     where t.created_by is null or t.created_by not in (select id from owned)
+     where (t.created_by is null or t.created_by not in (select id from owned))
+       and not (t.created_by is null and t.title like ${TEST_ROW_MARK_PATTERN})
     union all
     select 'notes', n.id::text, n.title
       from public.notes n
-     where n.created_by is null or n.created_by not in (select id from owned)
+     where (n.created_by is null or n.created_by not in (select id from owned))
+       and not (n.created_by is null and n.title like ${TEST_ROW_MARK_PATTERN})
     union all
     select 'import_profiles', i.id::text, i.name
       from public.import_profiles i
-     where i.created_by is null or i.created_by not in (select id from owned)`;
+     where (i.created_by is null or i.created_by not in (select id from owned))
+       and not (i.created_by is null and i.name like ${TEST_ROW_MARK_PATTERN})`;
 }
 
 /**

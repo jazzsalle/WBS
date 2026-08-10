@@ -2006,7 +2006,7 @@ commitDetailImport(formData, draft)           // RPC: commit_detail_import — �
 - `previewDetailImport`와 `commitDetailImport`는 **결정론적으로 같은 결과**를 내야 한다 — 같은 파이프라인 하나만 쓴다. `fileHash` 대조도 §5.12.2와 같다
 - `commit_detail_import` RPC가 D-12(새 Member)·D-15(셀 교체)·D-16(단일 트랜잭션)·D-17(스냅샷)을 **같은 트랜잭션**에서 수행한다. `budget_details.amount`는 **서버 액션이 `lib/budget-plan.ts`로 계산**해 넘긴다(PL-10a — RPC에 산식을 넣지 않는다)
 
-**조회**
+**조회 — 예산 제안** (Phase 9. 아래 조회 표에도 함께 실려 있다)
 ```
 getBudgetPlanData(projectId)   // 매트릭스 + 연차별 세목 소계 + 지침 검증 결과(PL-11~PL-13)
 getBudgetDetails(yearId, category)   // 산출근거 패널. Member(이름·직위·연봉)를 함께 실어 보낸다
@@ -2069,40 +2069,69 @@ updateSettings(patch)
 **Auth / Backup**
 ```
 getCurrentUser()                     // 세션 + app_users 조회
-listPendingUsers()                   // active=false 대기자
 approveUser(userId)                  // A-3
 deactivateUser(userId)
 updateMyProfile(patch)               // 표시 이름, memberId 연결
 
 exportAll()                          // §8.7 전체 JSON 덤프
 importAll(json)                      // 전체 복원 (2단계 확인)
-listBackups()
 runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 ```
 
-**조회 (서버 컴포넌트에서 직접 호출, 집계 완료 형태로 반환)**
+> **`listPendingUsers()`는 두지 않는다** (2026-08-10 제거 — 선언만 있고 호출자가 없었다). §7.14 사용자 관리는 `listAppUsers`로 **전 사용자**를 읽고 대기자를 상단에 올린다. 승인 직후 그 사람이 목록에서 사라지지 않아야 조작 결과가 눈에 남기 때문이고, 대기자 전용 목록을 함께 두면 한 화면이 두 목록을 갖게 되어 어느 쪽이 최신인지 흐려진다.
+>
+> **`listBackups()`는 서버 액션이 아니다.** 백업은 DB 행이 아니라 **사용자 폴더의 파일**이라 서버가 볼 수 없다 — `lib/tauri/fs.ts`의 `listBackupFiles(folder)`가 Tauri `readDir`로 클라이언트에서 읽는다(§8.7 K-3). 절대 규칙 3(리포지토리 경유)은 **DB 접근**에 대한 것이므로 이 경로는 예외가 아니라 애초에 대상이 아니다.
 
-> ⚠️ **이 블록은 설계 시점의 목록이고 구현과 이름이 어긋난 곳이 있다** (Phase 1~6에 걸쳐 누적).
-> 실제로는 화면마다 필요한 조회를 병렬로 던지는 형태로 갈렸다 — 예: `getProjectOverview`는
-> 구현되지 않았고 과제 개요가 `getProjectFullTree`+`getTeam`+`getGoalsData`+`getMilestonesData`
-> +`getRiskMatrix`+`getNotesData` 6개를 `Promise.all`로 부른다. `getNotes(projectId, filter)`는
-> `getNotesData(projectId)`이고 필터는 화면이 `lib/notes.ts`의 `filterNotes`로 건다.
-> `getMilestonesData`·`getTeamScreenData`·`getProjectsSummary`는 이 목록에 아예 없다.
-> **다음 정리 때 이 블록을 실제 이름으로 맞춘다.** 그때까지는 코드가 사실이다.
+**조회 (집계 완료 형태로 반환. 대부분 서버 컴포넌트가 직접 호출한다)**
 
-```
-getDashboardData()
-getProjectOverview(projectId)        // 미구현 — 위 주의 참조
-getYearTree(yearId)                  // 진척률·WBS코드·날짜롤업 계산 완료 트리
-getProjectFullTree(projectId)        // 전체 연차 통합 뷰
-getGanttData(projectId, scale)       // 마일스톤 포함
-getBoardData(projectId, yearId?)
-getPriorityMatrix(projectId, yearId?) // 5×5 집계 + 점수 정렬 목록
-getGoalsData(projectId)              // 성과목표 + 기술목표 + 달성률
-getBudgetMatrix(projectId)
-getRiskMatrix(projectId)
-getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터는 화면 몫
-```
+> **2026-08-10 정리 완료.** 이 목록은 `actions/*.ts`의 실제 이름·시그니처와 일치한다.
+> Phase 1~10에 걸쳐 설계 시점 이름과 갈렸던 것을 **코드 기준으로** 맞췄다 — 어긋난 것은
+> 이름뿐이고 하는 일은 설계 의도 그대로였다. 이후 조회 함수의 이름·인자를 바꾸면
+> **같은 커밋에서 이 표도 고친다.**
+>
+> 화면 하나에 조회 하나가 아니다. 화면은 필요한 조회를 `Promise.all`로 병렬로 던진다.
+
+| 함수 | 파일 | 쓰는 화면 / 비고 |
+|---|---|---|
+| `getDashboardData()` | `dashboard.ts` | 대시보드 `/` |
+| `getProjectsSummary(includeArchived = false)` | `projects.ts` | 과제 목록 `/projects` — `true`로 부른다(보관 과제 포함) |
+| `getProjectFullTree(projectId)` | `tasks.ts` | 과제 개요·WBS. 전체 연차 통합 트리 + 단계·과제 진척률 |
+| `getYearTree(yearId)` | `tasks.ts` | WBS(단일 연차 선택 시). 진척률·WBS코드·날짜롤업 계산 완료 트리 |
+| `getGanttData(projectId, scale = 'week')` | `gantt.ts` | 간트. 마일스톤 레인 포함 |
+| `getBoardData(projectId, yearId?)` | `board.ts` | 칸반 |
+| `getPriorityMatrix(projectId, yearId?)` | `board.ts` | 우선순위 매트릭스. 5×5 집계 + 점수 정렬 목록 |
+| `getGoalsData(projectId)` | `goals.ts` | 목표 관리·과제 개요·WBS(작업↔목표 연결 후보). 성과목표 + 기술목표 + 달성률 |
+| `getMilestonesData(projectId)` | `milestones.ts` | 마일스톤·과제 개요 |
+| `getTeam(projectId)` | `team.ts` | WBS·칸반·과제 개요. 기관·인력 목록만 |
+| `getTeamScreenData(projectId)` | `team.ts` | 인력·기관. `getTeam` + 인력별 배정 작업(§7.10 사이드 패널) |
+| `getBudgetMatrix(projectId)` | `budget.ts` | 연구비(수행 모드) |
+| `getBudgetPlanData(projectId)` | `budget-plan.ts` | 연구비(제안 모드) — 위 **Budget Plan 조회** 참조 |
+| `getBudgetDetails(yearId, category)` | `budget-plan.ts` | 연구비 산출근거 패널. **셀을 열 때 클라이언트 컴포넌트가 호출한다** |
+| `getRiskMatrix(projectId)` | `risks.ts` | 리스크·과제 개요 |
+| `getNotesData(projectId)` | `notes.ts` | 노트·과제 개요. 필터·정렬·검색은 화면이 `lib/notes.ts`로 건다 |
+| `getLinkedNotes(projectId)` | `notes.ts` | WBS·마일스톤의 역참조 목록(§7.12). 본문은 싣지 않는다 |
+| `getSettingsData()` | `settings.ts` | 설정 |
+| `getTodosData()` | `todos.ts` | To-Do. 기준일(`todayISO`)도 서버가 만들어 내린다 |
+| `listImportProfiles(kind, projectId)` | `import.ts` | 연구비 임포트 마법사 — 위 **Budget Import** 참조 |
+| `listImportSnapshots(projectId)` | `import.ts` | 설정 스냅샷 패널(I-17) — 클라이언트가 과제를 고를 때 호출한다 |
+
+**설계에는 있으나 구현되지 않은 것** (지우지 않는다 — 왜 그렇게 됐는지가 다음 판단의 근거다)
+
+- `getProjectOverview(projectId)` — **구현되지 않음.** 과제 개요(`app/projects/[id]/page.tsx`)가
+  `getProjectFullTree` + `getTeam` + `getGoalsData` + `getMilestonesData` + `getRiskMatrix` + `getNotesData`
+  **6개를 `Promise.all`로** 부른다. 각 탭 화면이 이미 같은 조회를 쓰고 있어서 개요 전용 집계를 따로 두면
+  같은 집계가 두 곳에 생긴다(O-4).
+- `getNotes(projectId, filter)` — `getNotesData(projectId)`로 구현됐고 **`filter` 인자는 없다.**
+  필터·정렬·검색은 화면이 `lib/notes.ts`의 순수 함수로 건다(같은 목록에 여러 필터를 왕복 없이 걸기 위해).
+
+> **`getBudgetMatrix`는 집계와 함께 `budget_items` 원본 행(`items`)도 내린다** (2026-08-10 정리 완료).
+> 집행 CRUD의 부모 키·`version`(O-1)·현금/현물 null 여부·집행 목록이 집계에는 없기 때문인데,
+> 이전에는 `page.tsx`가 리포지토리로 한 번 더 읽었다. 합친 이유는 왕복 절약이 아니라 **시점의 일치**다 —
+> 두 조회 사이의 저장이 매트릭스와 원본 행을 다른 스냅샷으로 갈라놓으면 화면이 옛 `version`으로
+> 잠금을 걸거나 집계와 다른 집행 목록을 보여준다. `BudgetScreen`도 원본 행을 별도 prop으로 받지 않는다.
+>
+> 제안 모드의 `getBudgetPlanData`는 그대로 둔다. 산출근거·인력까지 읽는 별개의 조회라 수행 모드와
+> 합치면 한쪽이 늘 안 쓰는 데이터를 지고 다닌다(§7.9의 두 모드는 화면 로컬 상태로만 갈린다).
 
 ---
 
@@ -2129,14 +2158,19 @@ getNotes(projectId, filter)          // 실제: getNotesData(projectId), 필터�
 │   │       └── notes/page.tsx
 │   ├── todos/page.tsx
 │   └── settings/page.tsx
-├── actions/
+├── actions/          ※ 파일은 §9의 블록이 아니라 **화면 단위**로 묶는다.
+│   │                    조회 함수가 어느 파일에 있는지는 §9 조회 표에 함께 적혀 있다
 │   ├── projects.ts   stages.ts   years.ts   tasks.ts
-│   ├── milestones.ts deliverables.ts        tech-targets.ts
-│   ├── organizations.ts  members.ts  budget.ts  budget-plan.ts
+│   ├── goals.ts      Deliverable + TechTarget CRUD + getGoalsData (§9 Deliverable/TechTarget)
+│   ├── team.ts       Organization + Member CRUD + getTeam, getTeamScreenData (§9 Organization/Member)
+│   ├── milestones.ts budget.ts   budget-plan.ts
 │   ├── risks.ts      notes.ts    todos.ts   settings.ts
+│   ├── dashboard.ts  getDashboardData    gantt.ts  getGanttData
+│   ├── board.ts      getBoardData, getPriorityMatrix (칸반·우선순위 매트릭스가 같은 범위를 공유)
 │   ├── auth.ts       getCurrentUser, approveUser 등 (§9 Auth)
 │   ├── backup.ts     exportAll, importAll (§8.7)
-│   └── import.ts     inspectWorkbook ~ commitImport (§9 Budget Import)
+│   ├── import.ts     inspectWorkbook ~ commitImport (§9 Budget Import)
+│   └── detail-import.ts  inspectDetailSheet ~ commitDetailImport (§9 Budget Detail Import)
 ├── components/
 │   ├── ui/            Button, Badge, Modal, ProgressBar, ConflictDialog(O-3), ErrorBanner,
 │   │                  Matrix5x5(§7.6 우선순위 · §7.11 리스크가 공유하는 5×5 히트맵),

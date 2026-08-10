@@ -19,6 +19,7 @@ import path from 'node:path';
 import postgres, { type Sql } from 'postgres';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/db/client';
+import { TEST_ROW_MARK } from '../test-marker';
 
 // supabase/seed.sql의 고정 UUID (부록 B.1 구조)
 export const SEED = {
@@ -113,6 +114,17 @@ export async function createTestUser(sql: Sql): Promise<TestUser> {
 }
 
 // auth.users 삭제 → app_users는 FK cascade, 각 행의 created_by/updated_by는 set null.
+//
+// 지우기 전에 이 사용자가 남긴 루트 행에 표식을 찍는다: set null이 걸리는 순간 소유자가
+// 끊겨 자동 청소가 못 찾는 고아가 되기 때문이다 (근거·오판 위험은 tests/test-marker.ts 참조).
+// 표식을 지우기가 아니라 붙이기로 하는 이유 — 여기서 판정이 틀려도 데이터가 사라지지 않는다.
 export async function destroyTestUser(sql: Sql, user: TestUser): Promise<void> {
-  await sql`delete from auth.users where id = ${user.id}::uuid`;
+  const mark = TEST_ROW_MARK;
+  const id = user.id;
+  await sql`update public.projects        set project_no = ${mark} || project_no where created_by = ${id}::uuid`;
+  await sql`update public.todos           set title      = ${mark} || title      where created_by = ${id}::uuid`;
+  await sql`update public.notes           set title      = ${mark} || title      where created_by = ${id}::uuid`;
+  await sql`update public.import_profiles set name       = ${mark} || name       where created_by = ${id}::uuid`;
+
+  await sql`delete from auth.users where id = ${id}::uuid`;
 }

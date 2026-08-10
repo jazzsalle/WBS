@@ -337,6 +337,43 @@ describe.skipIf(sanjaFile === null)('previewDetailImport — 결정론과 무부
     expect(expectCode(wrongKey, 'VALIDATION')).toContain('감지한 표와 맞지 않습니다');
   });
 
+  // 축 재지정 검증(validateBlockChoices)은 `'use server'` 파일 안이라 단위 테스트로 부를 수 없다.
+  // 순수 함수(buildDetailPreview)는 못 바꾸는 행의 재지정을 **무시**할 뿐이고, 사용자에게 이유를
+  // 알리는 **거부**는 이 경로에만 있다 — 여기서 잡지 않으면 어디서도 잡히지 않는다.
+  it('축 재지정은 합계 열만 있는 행에만 듣고, 갈린 행·모르는 행은 거부한다 (D-9)', async () => {
+    const suggested = preview.rows.find((row) => row.axisSuggested);
+    const split = preview.rows.find((row) => !row.axisSuggested);
+    expect(suggested).toBeDefined();
+    expect(split).toBeDefined();
+
+    // 파서가 현금으로 제안한 행은 사용자가 현물로 바꿀 수 있다
+    const moved = unwrap(
+      await previewDetailImport(formOf(sanjaFile!), {
+        ...draft,
+        axisOverrides: { [suggested!.key]: 'in_kind' },
+      })
+    );
+    expect(moved.rows.find((row) => row.key === suggested!.key)).toMatchObject({
+      axis: 'in_kind',
+      axisAuto: suggested!.axisAuto,
+    });
+
+    // 파일이 현금·현물을 명시해 갈린 행은 거부한다 — 조용히 무시하면 사용자는 바꿨다고 믿는데
+    // 파일 축 그대로 반영되고, 화면에는 그 재지정을 지울 셀렉트가 없어 갇힌다
+    const splitRejected = await previewDetailImport(formOf(sanjaFile!), {
+      ...draft,
+      axisOverrides: { [split!.key]: split!.axis === 'cash' ? 'in_kind' : 'cash' },
+    });
+    expect(expectCode(splitRejected, 'VALIDATION')).toContain('축을 바꿀 수 없습니다');
+
+    // 이 시트에 없는 행 키도 거부한다 (세목·통화 확인과 같은 규약)
+    const unknownRejected = await previewDetailImport(formOf(sanjaFile!), {
+      ...draft,
+      axisOverrides: { '9999:0': 'in_kind' },
+    });
+    expect(expectCode(unknownRejected, 'VALIDATION')).toContain('감지한 행과 맞지 않습니다');
+  });
+
   it('③ 미리보기는 DB를 한 행도 바꾸지 않는다 (D-12: 새 인력도 만들지 않는다)', async () => {
     const before = await readCounts(projectId);
     unwrap(await previewDetailImport(formOf(sanjaFile!), draft));

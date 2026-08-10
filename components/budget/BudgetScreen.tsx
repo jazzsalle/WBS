@@ -37,10 +37,11 @@ const MODES: readonly { value: BudgetMode; label: string; hint: string }[] = [
   { value: 'execution', label: '수행', hint: '셀에 예산 / 집행 / 집행률을 보여주고, 클릭하면 집행 내역 패널이 열립니다' },
 ];
 
+// 원본 행(집행 CRUD의 부모 id·version(O-1)·현금/현물 null 여부)은 props로 따로 받지 않는다.
+// data.items가 매트릭스 집계와 **같은 조회**에서 나온 배열이라, 따로 받으면 호출부가 다른 시점의
+// 두 스냅샷을 짝지어 넘길 수 있다 — 타입으로 그 가능성을 없앤다.
 export interface BudgetScreenProps {
   data: BudgetMatrixData;
-  /** 매트릭스 집계에는 없는 원본 행 — 집행 CRUD의 부모 id, version(O-1), 현금/현물 null 여부 */
-  items: BudgetItem[];
   /** §7.9.1 Step 1 — 이 과제에서 쓸 수 있는 엑셀 매핑 프로파일 (전역 + 과제 소속) */
   importProfiles: ImportProfile[];
   /** 프로파일 조회 실패 문구. 빈 목록으로 눙치지 않는다 (절대 규칙 5) */
@@ -53,7 +54,6 @@ export interface BudgetScreenProps {
 
 export default function BudgetScreen({
   data,
-  items,
   importProfiles,
   importProfilesError,
   plan,
@@ -73,14 +73,14 @@ export default function BudgetScreen({
   // (연차, 비목) → 원본 행. 유일 제약(§5.12)상 1개지만 2개 이상이면 감추지 않고 드러낸다
   const itemsByCell = useMemo(() => {
     const map = new Map<string, BudgetItem[]>();
-    for (const item of items) {
+    for (const item of data.items) {
       const key = cellKey(item.yearId, item.category);
       const bucket = map.get(key);
       if (bucket) bucket.push(item);
       else map.set(key, [item]);
     }
     return map;
-  }, [items]);
+  }, [data.items]);
 
   // (연차, 비목) → 제안 모드 셀 뷰. 서버가 연차 × 12비목 전 조합을 내려주므로 폴백 분기가 없다
   const planCells = useMemo(() => {

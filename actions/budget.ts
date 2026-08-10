@@ -40,6 +40,20 @@ export interface BudgetMatrixData {
   todayISO: string;
   years: Year[];
   matrix: BudgetMatrix;
+  /**
+   * 매트릭스를 만든 **바로 그** 원본 행. 집계에는 없지만 화면이 필요로 하는 네 가지가 여기 있다:
+   * budget_items.id(집행 CRUD의 부모 키), version(O-1 낙관적 잠금), cashAmount/inKindAmount의
+   * null 여부(총액 인라인 편집 허용 판정, S-4), executions 목록(§7.9 집행 내역 패널).
+   *
+   * 화면이 이 배열을 따로 읽지 않는 이유는 왕복 절약이 아니라 **시점의 일치**다. 두 번 읽으면
+   * 그 사이의 저장이 매트릭스와 원본 행을 서로 다른 스냅샷으로 갈라놓고, 화면은 옛 version으로
+   * 잠금을 걸거나(O-1) 집계와 다른 집행 목록을 보여준다.
+   *
+   * §12: executions가 딸려 오므로 데이터가 커진다. 절단 방어는 리포지토리에 남아 있다 —
+   * listBudgetItemsByProject는 집행을 임베드하지 않고 페이징으로 따로 읽는다
+   * (PostgREST는 임베드 자식이 max-rows에 걸려도 에러 없이 잘라낸다, lib/db/budget-items.ts).
+   */
+  items: BudgetItem[];
   /** B-3: 키는 yearId. year.budget이 null이면 비교 대상이 없어 null (배지를 띄우지 않는다) */
   yearBudgetChecks: Record<string, YearBudgetMismatch | null>;
   currencyUnit: Settings['currencyUnit'];
@@ -312,6 +326,7 @@ export async function getBudgetMatrix(projectId: string): Promise<ActionResult<B
         todayISO: todayISO(new Date()), // §6.5 기준일 — Asia/Seoul 달력
         years: orderedYears,
         matrix,
+        items, // 위 buildBudgetMatrix에 넘긴 것과 같은 배열 — 집계와 원본이 같은 시점을 본다
         yearBudgetChecks,
         currencyUnit: settings.currencyUnit,
       },
