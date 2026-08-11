@@ -12,6 +12,12 @@
 // 돌아간다(§7.9.2, §7.5 접힘 상태와 같은 결정). 탭(TabNav)을 늘리지 않는 이유는 두 모드가
 // **같은 숫자**를 다루기 때문이다: 화면을 나누면 같은 값이 두 곳에 나타난다.
 // 인쇄(§12 P-R1)도 현재 모드를 따른다 — 모드가 DOM을 정하고 인쇄는 그 DOM을 그대로 뽑는다.
+//
+// **한 화면은 한 스냅샷만 본다** (C5). page.tsx는 getBudgetMatrix(수행)와 getBudgetPlanData(제안)를
+// Promise.all로 함께 내리지만 **두 조회는 트랜잭션이 아니다.** 그 사이에 누가 저장하면 두 결과는
+// 서로 다른 시점을 본다 — 섞어 쓰면 한 표가 옛 금액에 새 잠금을 거는 식이 된다.
+// 그래서 소스는 아래 `source` 한 곳에서만 고른다: **수행 = `data`, 제안 = `plan`.**
+// 표·셀·합계·잠금·인쇄 머리말이 전부 그 한 벌에서 나온다.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -37,16 +43,21 @@ const MODES: readonly { value: BudgetMode; label: string; hint: string }[] = [
   { value: 'execution', label: '수행', hint: '셀에 예산 / 집행 / 집행률을 보여주고, 클릭하면 집행 내역 패널이 열립니다' },
 ];
 
-// 원본 행(집행 CRUD의 부모 id·version(O-1)·현금/현물 null 여부)은 props로 따로 받지 않는다.
-// data.items가 매트릭스 집계와 **같은 조회**에서 나온 배열이라, 따로 받으면 호출부가 다른 시점의
-// 두 스냅샷을 짝지어 넘길 수 있다 — 타입으로 그 가능성을 없앤다.
+// 원본 행(집행 CRUD의 부모 id·version(O-1)·현금/현물 null 여부·PL-9 detailCount)은 props로 따로
+// 받지 않는다. `data.items`·`plan.items`가 각자의 집계와 **같은 조회**에서 나온 배열이라,
+// 따로 받으면 호출부가 다른 시점의 두 스냅샷을 짝지어 넘길 수 있다 — 타입으로 그 가능성을 없앤다.
 export interface BudgetScreenProps {
+  /** 수행 모드 한 벌 (getBudgetMatrix). 수행 모드가 보는 유일한 스냅샷이다 */
   data: BudgetMatrixData;
   /** §7.9.1 Step 1 — 이 과제에서 쓸 수 있는 엑셀 매핑 프로파일 (전역 + 과제 소속) */
   importProfiles: ImportProfile[];
   /** 프로파일 조회 실패 문구. 빈 목록으로 눙치지 않는다 (절대 규칙 5) */
   importProfilesError: string | null;
-  /** 제안 모드 한 벌 (§6.10). 조회에 실패하면 null이고 planError가 이유를 말한다 */
+  /**
+   * 제안 모드 한 벌 (§6.10, getBudgetPlanData). 제안 모드가 보는 유일한 스냅샷이다 —
+   * 표·셀·잠금·합계·인쇄 머리말이 전부 여기서 나온다 (파일 머리말 C5).
+   * 조회에 실패하면 null이고 planError가 이유를 말한다
+   */
   plan: BudgetPlanData | null;
   /** 절대 규칙 5: 실패를 빈 제안 데이터로 대체하지 않는다 — 0원짜리 계획으로 보이면 안 된다 */
   planError: { message: string; code?: ActionErrorCode } | null;
@@ -70,17 +81,24 @@ export default function BudgetScreen({
   const [detailImportOpen, setDetailImportOpen] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
 
-  // (연차, 비목) → 원본 행. 유일 제약(§5.12)상 1개지만 2개 이상이면 감추지 않고 드러낸다
+  // 이 화면이 보는 유일한 스냅샷. 여기서 한 번 고르고 아래에서는 섞지 않는다 (파일 머리말 C5).
+  // 제안 조회가 실패하면(plan === null) 매트릭스를 아예 그리지 않으므로(아래 분기) 섞일 표가
+  // 없다 — 그때 남는 툴바·마법사만 수행 스냅샷을 쓴다.
+  const source: BudgetMatrixData | BudgetPlanData = mode === 'plan' && plan !== null ? plan : data;
+
+  // (연차, 비목) → 원본 행. 유일 제약(§5.12)상 1개지만 2개 이상이면 감추지 않고 드러낸다.
+  // 매트릭스의 셀 잠금(PL-9 산출근거 · S-4 현금/현물 분리)이 이 map으로 갈리므로, 표를 그린
+  // 스냅샷의 items여야 한다 — 다른 조회의 items를 쓰면 옛 금액에 새 잠금이 걸린다
   const itemsByCell = useMemo(() => {
     const map = new Map<string, BudgetItem[]>();
-    for (const item of data.items) {
+    for (const item of source.items) {
       const key = cellKey(item.yearId, item.category);
       const bucket = map.get(key);
       if (bucket) bucket.push(item);
       else map.set(key, [item]);
     }
     return map;
-  }, [data.items]);
+  }, [source.items]);
 
   // (연차, 비목) → 제안 모드 셀 뷰. 서버가 연차 × 12비목 전 조합을 내려주므로 폴백 분기가 없다
   const planCells = useMemo(() => {
@@ -133,12 +151,15 @@ export default function BudgetScreen({
     void run(() => updateBudgetPlan(cell.yearId, cell.category, plannedAmount, null, null));
   };
 
+  // 선택된 셀도 표를 그린 스냅샷에서 찾는다 — 표와 패널이 다른 시점의 같은 셀을 가리키지 않게
   const selectedColumn =
-    selected === null ? null : data.matrix.columns.find((c) => c.yearId === selected.yearId) ?? null;
+    selected === null
+      ? null
+      : source.matrix.columns.find((c) => c.yearId === selected.yearId) ?? null;
   const selectedCell =
     selected === null
       ? null
-      : data.matrix.rows
+      : source.matrix.rows
           .find((row) => row.category === selected.category)
           ?.cells.find((c) => c.yearId === selected.yearId) ?? null;
   const selectedItems = selected === null ? [] : itemsByCell.get(cellKey(selected.yearId, selected.category)) ?? [];
@@ -181,7 +202,7 @@ export default function BudgetScreen({
             })}
           </div>
           <p className="text-xs text-slate-500">
-            표시 단위 <span className="font-semibold text-slate-700">{data.currencyUnit}</span>
+            표시 단위 <span className="font-semibold text-slate-700">{source.currencyUnit}</span>
             <span className="ml-2">· 입력은 언제나 원 단위 정수입니다 (B-4)</span>
           </p>
         </div>
@@ -238,10 +259,11 @@ export default function BudgetScreen({
         />
       )}
 
-      {/* 매트릭스에 실리지 못한 예산이 있으면 조용히 넘기지 않는다 (절대 규칙 5) */}
-      {data.matrix.unmatchedItemCount > 0 && (
+      {/* 매트릭스에 실리지 못한 예산이 있으면 조용히 넘기지 않는다 (절대 규칙 5).
+          지금 그리는 표의 스냅샷을 세야 한다 — 다른 조회의 수를 적으면 표에 없는 건수가 나온다 */}
+      {source.matrix.unmatchedItemCount > 0 && (
         <ErrorBanner
-          message={`이 과제의 연차 목록에 없는 비목 ${data.matrix.unmatchedItemCount}건이 있어 매트릭스에 표시되지 않았습니다. 연차가 삭제되었거나 데이터가 어긋난 상태입니다.`}
+          message={`이 과제의 연차 목록에 없는 비목 ${source.matrix.unmatchedItemCount}건이 있어 매트릭스에 표시되지 않았습니다. 연차가 삭제되었거나 데이터가 어긋난 상태입니다.`}
           code="RULE"
         />
       )}
@@ -255,11 +277,12 @@ export default function BudgetScreen({
         />
       )}
 
-      {data.matrix.columns.length === 0 ? (
+      {source.matrix.columns.length === 0 ? (
         <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-400">
           연차가 없습니다. 과제 개요에서 단계·연차를 먼저 만드세요.
         </p>
       ) : mode === 'execution' ? (
+        // 수행 모드는 data(getBudgetMatrix) 한 벌만 본다 — 이 분기의 source가 곧 data다.
         // 인쇄에서는 집행 패널이 빠지므로 2열 격자를 풀어 매트릭스가 A4 폭을 다 쓰게 한다
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem] print:block">
           <BudgetMatrixTable
@@ -295,7 +318,9 @@ export default function BudgetScreen({
           )}
         </div>
       ) : plan === null ? (
-        // planError 배너가 이미 이유를 말했다. 여기서 표를 그리면 "계획이 비었다"는 거짓말이 된다
+        // planError 배너가 이미 이유를 말했다. 제안 모드에는 그릴 스냅샷이 없으므로 표를 감춘다.
+        // 빈 매트릭스로 대체하면 "계획이 비었다"는 거짓말이 되고(절대 규칙 5), 수행 스냅샷으로
+        // 대신 그리면 금액과 잠금이 서로 다른 시점을 보게 된다 — C5가 고친 결함 그 자체다
         <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-400 print:hidden">
           제안 모드 데이터를 불러오지 못해 매트릭스를 표시하지 않습니다. 수행 모드로 돌아가면 예산·집행은
           그대로 볼 수 있습니다.
@@ -305,15 +330,19 @@ export default function BudgetScreen({
         // 가로 스크롤이 상시 생기고, 매트릭스도 연차 수만큼 넓어져 둘 다 좁아진다.
         // 산출근거 편집은 셀 하나에 집중하는 작업이라 매트릭스와 나란히 볼 필요가 낮아
         // 매트릭스 → 지침 검증 줄 → 패널(전폭) 순으로 세로로 쌓는다.
+        //
+        // 이 분기의 값은 **전부 plan(getBudgetPlanData) 한 벌**에서 온다 — 표·셀 요약·잠금·합계·
+        // 인쇄 머리말까지. data(수행 스냅샷)를 여기서 읽지 않는다 (파일 머리말 C5).
+        // itemsByCell도 위에서 source(= plan)의 items로 만든 것이다
         <div className="space-y-6">
           <BudgetMatrixTable
             mode="plan"
             planCells={planCells}
-            matrix={data.matrix}
-            currencyUnit={data.currencyUnit}
-            projectName={data.projectName}
-            todayISO={data.todayISO}
-            yearBudgetChecks={data.yearBudgetChecks}
+            matrix={plan.matrix}
+            currencyUnit={plan.currencyUnit}
+            projectName={plan.projectName}
+            todayISO={plan.todayISO}
+            yearBudgetChecks={plan.yearBudgetChecks}
             itemsByCell={itemsByCell}
             selected={selected}
             busy={busy}
@@ -324,11 +353,11 @@ export default function BudgetScreen({
           {/* 하단 요약 (§7.9): 연차별 합계 · 현금/현물 비중 · 지침 검증 배지. 매트릭스 바로
               아래에 고정해 패널이 열려도 표와 떨어지지 않게 한다. 인쇄에도 함께 나간다 (§7.9.2) */}
           <BudgetPlanSummary
-            columns={data.matrix.columns}
+            columns={plan.matrix.columns}
             yearRules={plan.yearRules}
             yearAxisSplits={plan.yearAxisSplits}
-            currencyUnit={data.currencyUnit}
-            projectId={data.projectId}
+            currencyUnit={plan.currencyUnit}
+            projectId={plan.projectId}
             negativeCount={plan.negativeCount}
             missingSalaryCount={plan.missingSalaryCount}
             mismatchCount={plan.mismatchCount}
@@ -339,12 +368,12 @@ export default function BudgetScreen({
               <BudgetPlanPanel
                 // 셀이 바뀌면 패널을 새로 시작한다 (다른 셀의 입력이 섞이지 않게)
                 key={cellKey(selected.yearId, selected.category)}
-                projectId={data.projectId}
+                projectId={plan.projectId}
                 yearId={selected.yearId}
                 category={selected.category}
                 yearName={selectedColumn.name}
                 categoryLabel={BUDGET_CATEGORY_LABELS[selected.category]}
-                currencyUnit={data.currencyUnit}
+                currencyUnit={plan.currencyUnit}
                 // 패널은 실패 배너·ConflictDialog·R-4 보류를 스스로 다룬다 (plan-panel-contract.ts).
                 // 부모가 알아야 하는 것은 "합계가 바뀌었다"와 "닫아 달라" 둘뿐이다
                 onSaved={() => {
@@ -364,12 +393,14 @@ export default function BudgetScreen({
         </div>
       )}
 
-      {/* 모달을 닫으면 진행 상태는 폐기한다 — 언마운트로 상태를 버린다 (§7.9.1 설계 원칙) */}
+      {/* 모달을 닫으면 진행 상태는 폐기한다 — 언마운트로 상태를 버린다 (§7.9.1 설계 원칙).
+          연차·표시 단위도 지금 보고 있는 스냅샷의 것을 쓴다 — 마법사의 연차 열 대응이 화면의
+          매트릭스 열과 같아야 반영 결과를 그 자리에서 확인할 수 있다 */}
       {importOpen && (
         <ImportWizard
-          projectId={data.projectId}
-          years={data.years}
-          currencyUnit={data.currencyUnit}
+          projectId={source.projectId}
+          years={source.years}
+          currencyUnit={source.currencyUnit}
           profiles={importProfiles}
           profilesError={importProfilesError}
           onClose={() => setImportOpen(false)}
@@ -383,7 +414,7 @@ export default function BudgetScreen({
 
       {/* §7.9.3도 같다 — 모달을 닫으면 진행 상태는 언마운트로 폐기된다 */}
       {detailImportOpen && (
-        <DetailImportWizard years={data.years} onClose={() => setDetailImportOpen(false)} />
+        <DetailImportWizard years={source.years} onClose={() => setDetailImportOpen(false)} />
       )}
 
       {conflict && (

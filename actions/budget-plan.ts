@@ -45,7 +45,7 @@ import {
 } from '@/lib/db/errors';
 import { budgetCategorySchema, detailFormulaSchema, detailAxisSchema } from '@/lib/db/schema';
 import { BUDGET_CATEGORY_ORDER, SUBCATEGORY_PRESETS } from '@/lib/constants';
-import { buildBudgetMatrix, type BudgetMatrix } from '@/lib/budget';
+import { buildBudgetMatrix, type BudgetMatrix, type YearBudgetMismatch } from '@/lib/budget';
 import {
   aggregateDetails,
   buildYearTotals,
@@ -117,10 +117,27 @@ export interface BudgetPlanData {
   todayISO: string;
   /** matrix.columns와 같은 순서 */
   years: Year[];
-  /** 수행 모드와 공유하는 매트릭스 (§7.9). 계획액·집행액은 여기서 읽는다 */
+  /**
+   * 제안 모드가 그리는 매트릭스 (§7.9). 계획액·집행액은 여기서 읽는다.
+   * 수행 조회(getBudgetMatrix)의 매트릭스와 **같은 표지만 같은 시점은 아니다** — 두 조회는
+   * 트랜잭션이 아니므로 제안 모드는 이 한 벌만 본다 (아래 items·yearBudgetChecks도 같은 이유다)
+   */
   matrix: BudgetMatrix;
   /** columns × BUDGET_CATEGORY_ORDER 전 조합. 비어 있는 셀도 담는다 (화면이 폴백 분기를 만들지 않게) */
   cells: BudgetPlanCellView[];
+  /**
+   * 위 matrix·cells를 만든 **바로 그** 원본 행. 제안 모드 매트릭스의 셀 잠금이 이걸로 갈린다:
+   * PL-9(detailCount > 0), S-4(현금·현물 분리 입력), 그리고 행이 없거나 2개 이상인 어긋난 상태.
+   *
+   * `cells`로는 그 판정을 낼 수 없다 — cells는 (연차 × 12비목) 전 조합을 채우므로 "행이 없는 셀"을
+   * 0원 셀과 구분하지 못하고, (연차, 비목) Map으로 접히므로 중복 행도 보이지 않는다.
+   *
+   * 수행 조회의 items를 빌려 쓰지 않는 이유는 왕복 절약이 아니라 **시점의 일치**다. 두 스냅샷을
+   * 한 표에 섞으면 옛 금액에 새 잠금이 걸린다 (BudgetMatrixData.items의 같은 주석 참고).
+   */
+  items: BudgetItem[];
+  /** B-3: matrix.columns의 mismatch를 yearId로 색인한 것. year.budget이 null이면 값도 null이다 */
+  yearBudgetChecks: Record<string, YearBudgetMismatch | null>;
   yearRules: BudgetPlanYearView[];
   /** yearRules와 **같은 소스**로 만든 연차별 축 합계. 순서도 matrix.columns와 같다 */
   yearAxisSplits: BudgetPlanYearAxisView[];
@@ -634,6 +651,13 @@ export async function getBudgetPlanData(projectId: string): Promise<ActionResult
       items.map((item) => [cellKey(item.yearId, item.category), item])
     );
 
+    // B-3 판정은 buildBudgetMatrix가 이미 열에 실어 놨다 — 여기서는 yearId로 색인만 바꾼다
+    // (getBudgetMatrix와 같은 모양이어야 매트릭스 컴포넌트가 두 모드에서 같은 prop을 받는다)
+    const yearBudgetChecks: Record<string, YearBudgetMismatch | null> = {};
+    for (const column of matrix.columns) {
+      yearBudgetChecks[column.yearId] = column.mismatch;
+    }
+
     const cells: BudgetPlanCellView[] = [];
     let mismatchCount = 0;
     for (const column of matrix.columns) {
@@ -712,6 +736,8 @@ export async function getBudgetPlanData(projectId: string): Promise<ActionResult
         years: orderedYears,
         matrix,
         cells,
+        items, // 위 buildBudgetMatrix·집계에 넘긴 것과 같은 배열 — 표와 잠금이 같은 시점을 본다
+        yearBudgetChecks,
         yearRules,
         yearAxisSplits,
         detailTotal: aggregate.total,

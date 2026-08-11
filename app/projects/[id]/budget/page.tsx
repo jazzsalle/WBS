@@ -39,7 +39,11 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
   const [matrix, plan, profiles] = await Promise.all([
     getBudgetMatrix(projectId),
     // §7.9 제안 모드 한 벌 (§6.10). 모드는 화면 로컬 상태라 서버가 어느 쪽인지 알 수 없으므로
-    // 두 벌을 함께 내린다 — 토글이 왕복 없이 즉시 바뀌어야 "같은 표의 두 관점"이 성립한다
+    // 두 벌을 함께 내린다 — 토글이 왕복 없이 즉시 바뀌어야 "같은 표의 두 관점"이 성립한다.
+    // 이 Promise.all은 **트랜잭션이 아니다.** 두 조회 사이의 저장이 둘을 다른 시점으로 갈라놓을
+    // 수 있으므로, 화면은 모드별로 **한 벌만** 본다 (BudgetScreen 머리말 C5). 여기서 두 결과를
+    // 합치지 않는 이유는 §9가 둘을 독립 항목으로 두었기 때문이다 — 제안 조회는
+    // budget_details·members까지 읽어 성격이 다르고, 합치면 수행 모드가 그 비용을 늘 지고 다닌다
     getBudgetPlanData(projectId),
     // §7.9.1 Step 1: 저장된 프로파일 목록. 실패해도 매트릭스는 보여야 하므로 화면을 막지 않고
     // 마법사 안에서 이유를 드러낸다 (절대 규칙 5 — 조용히 빈 목록으로 대체하지 않는다)
