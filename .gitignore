@@ -10,6 +10,9 @@ samples/
 *.xlsx
 *.xls
 !tests/fixtures/*.xlsx
+# 제출 서식 내보내기용 빈 템플릿 (§7.9.4). 값을 전부 비우고 서식·병합·수식만 남긴 파일이며,
+# 금액·성명이 하나도 없음을 기계로 검증한 뒤에만 넣는다. samples/ 원본과 혼동하지 말 것
+!templates/*.xlsx
 
 # 비밀번호·시크릿 메모 — 절대 커밋 금지
 *(gitignore)*
