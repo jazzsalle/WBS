@@ -1,0 +1,2301 @@
+{
+  "templateId": "standard-detail",
+  "templateFile": "산출근거_표준.xlsx",
+  "detail": {
+    "sheet": "산출근거",
+    "blocks": [
+      {
+        "key": "personnel/null#existing",
+        "category": "personnel",
+        "subcategory": null,
+        "segment": "existing",
+        "label": "- 인건비",
+        "headerRows": [
+          62,
+          63,
+          64
+        ],
+        "dataStartRow": 65,
+        "dataEndRow": 87,
+        "slotRows": [
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87
+        ],
+        "slotCount": 23,
+        "columns": [
+          {
+            "column": "D",
+            "role": "memberName",
+            "label": "성명",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "position",
+            "label": "직위",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "F",
+            "role": "salary",
+            "label": "실지급액\n(연봉)",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "H",
+            "role": "rate",
+            "label": "참여율\n(%)",
+            "percentFormat": true,
+            "overwritesFormula": false
+          },
+          {
+            "column": "I",
+            "role": "period",
+            "label": "참여기간\n(월)",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "J",
+            "role": "cashTotal",
+            "label": "현금",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "K",
+            "role": "inKindTotal",
+            "label": "현물",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "total",
+            "label": "계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "합계",
+            "row": 88,
+            "cash": "J88",
+            "inKind": "K88",
+            "total": "L88"
+          }
+        ]
+      },
+      {
+        "key": "personnel/null#newHire",
+        "category": "personnel",
+        "subcategory": null,
+        "segment": "newHire",
+        "label": "- 인건비",
+        "headerRows": [
+          62,
+          63,
+          64
+        ],
+        "dataStartRow": 89,
+        "dataEndRow": 90,
+        "slotRows": [
+          89,
+          90
+        ],
+        "slotCount": 2,
+        "columns": [
+          {
+            "column": "D",
+            "role": "memberName",
+            "label": "성명",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "position",
+            "label": "직위",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "F",
+            "role": "salary",
+            "label": "실지급액\n(연봉)",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "H",
+            "role": "rate",
+            "label": "참여율\n(%)",
+            "percentFormat": true,
+            "overwritesFormula": false
+          },
+          {
+            "column": "I",
+            "role": "period",
+            "label": "참여기간\n(월)",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "J",
+            "role": "cashTotal",
+            "label": "현금",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "K",
+            "role": "inKindTotal",
+            "label": "현물",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "total",
+            "label": "계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "합계",
+            "row": 91,
+            "cash": "J91",
+            "inKind": "K91",
+            "total": "L91"
+          },
+          {
+            "label": "소 계",
+            "row": 92,
+            "cash": "J92",
+            "inKind": "K92",
+            "total": "L92"
+          }
+        ]
+      },
+      {
+        "key": "facility_equipment/facility_purchase",
+        "category": "facility_equipment",
+        "subcategory": "facility_purchase",
+        "segment": null,
+        "label": "① 연구시설·장비 구입·설치비",
+        "headerRows": [
+          98
+        ],
+        "dataStartRow": 99,
+        "dataEndRow": 101,
+        "slotRows": [
+          99,
+          100,
+          101
+        ],
+        "slotCount": 3,
+        "columns": [
+          {
+            "column": "D",
+            "role": "name",
+            "label": "품명",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "spec",
+            "label": "규격",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "수량",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "H",
+            "role": "unitPrice",
+            "label": "단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "I",
+            "role": "cashTotal",
+            "label": "총액(원)_현금",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "J",
+            "role": "inKindTotal",
+            "label": "총액(원)_현물",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "총액(원)_합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 102,
+            "cash": "I102",
+            "inKind": "J102",
+            "total": "K102"
+          }
+        ]
+      },
+      {
+        "key": "facility_equipment/facility_lease",
+        "category": "facility_equipment",
+        "subcategory": "facility_lease",
+        "segment": null,
+        "label": "② 연구시설 장비 임차비",
+        "headerRows": [
+          105
+        ],
+        "dataStartRow": 106,
+        "dataEndRow": 108,
+        "slotRows": [
+          106,
+          107,
+          108
+        ],
+        "slotCount": 3,
+        "columns": [
+          {
+            "column": "D",
+            "role": "name",
+            "label": "품명",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "spec",
+            "label": "규격",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "수량",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "H",
+            "role": "unitPrice",
+            "label": "단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "I",
+            "role": "cashTotal",
+            "label": "총액(원)_현금",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "J",
+            "role": "inKindTotal",
+            "label": "총액(원)_현물",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "총액(원)_합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 109,
+            "cash": "I109",
+            "inKind": "J109",
+            "total": "K109"
+          }
+        ]
+      },
+      {
+        "key": "facility_equipment/facility_maintain",
+        "category": "facility_equipment",
+        "subcategory": "facility_maintain",
+        "segment": null,
+        "label": "③ 연구시설 장비 운영 유지비",
+        "headerRows": [
+          112
+        ],
+        "dataStartRow": 113,
+        "dataEndRow": 115,
+        "slotRows": [
+          113,
+          114,
+          115
+        ],
+        "slotCount": 3,
+        "columns": [
+          {
+            "column": "D",
+            "role": "name",
+            "label": "품명",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "spec",
+            "label": "규격",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "수량",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "H",
+            "role": "unitPrice",
+            "label": "단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "I",
+            "role": "cashTotal",
+            "label": "총액(원)_현금",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "J",
+            "role": "inKindTotal",
+            "label": "총액(원)_현물",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "총액(원)_합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 116,
+            "cash": "I116",
+            "inKind": "J116",
+            "total": "K116"
+          }
+        ]
+      },
+      {
+        "key": "facility_equipment/facility_infra",
+        "category": "facility_equipment",
+        "subcategory": "facility_infra",
+        "segment": null,
+        "label": "④ 연구인프라 조성비",
+        "headerRows": [
+          119
+        ],
+        "dataStartRow": 120,
+        "dataEndRow": 122,
+        "slotRows": [
+          120,
+          121,
+          122
+        ],
+        "slotCount": 3,
+        "columns": [
+          {
+            "column": "D",
+            "role": "name",
+            "label": "품명",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "spec",
+            "label": "규격",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "수량",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "H",
+            "role": "unitPrice",
+            "label": "단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "I",
+            "role": "cashTotal",
+            "label": "총액(원)_현금",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "J",
+            "role": "inKindTotal",
+            "label": "총액(원)_현물",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "총액(원)_합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 123,
+            "cash": "I123",
+            "inKind": "J123",
+            "total": "K123"
+          }
+        ]
+      },
+      {
+        "key": "material/material_purchase",
+        "category": "material",
+        "subcategory": "material_purchase",
+        "segment": null,
+        "label": "① 연구재료 구입비",
+        "headerRows": [
+          128
+        ],
+        "dataStartRow": 129,
+        "dataEndRow": 131,
+        "slotRows": [
+          129,
+          130,
+          131
+        ],
+        "slotCount": 3,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "품명",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "D",
+            "role": "spec",
+            "label": "산출내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "수량",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "H",
+            "role": "unitPrice",
+            "label": "단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "I",
+            "role": "cashTotal",
+            "label": "총액(원)_현금",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "J",
+            "role": "inKindTotal",
+            "label": "총액(원)_현물",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "총액(원)_합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 132,
+            "cash": "I132",
+            "inKind": "J132",
+            "total": "K132"
+          }
+        ]
+      },
+      {
+        "key": "material/material_manage",
+        "category": "material",
+        "subcategory": "material_manage",
+        "segment": null,
+        "label": "② 연구개발과제 관리비",
+        "headerRows": [
+          135
+        ],
+        "dataStartRow": 136,
+        "dataEndRow": 138,
+        "slotRows": [
+          136,
+          137,
+          138
+        ],
+        "slotCount": 3,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "품명",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "D",
+            "role": "spec",
+            "label": "산출내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "수량",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "H",
+            "role": "unitPrice",
+            "label": "단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "I",
+            "role": "cashTotal",
+            "label": "총액(원)_현금",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "J",
+            "role": "inKindTotal",
+            "label": "총액(원)_현물",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "총액(원)_합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 139,
+            "cash": "I139",
+            "inKind": "J139",
+            "total": "K139"
+          }
+        ]
+      },
+      {
+        "key": "material/material_make",
+        "category": "material",
+        "subcategory": "material_make",
+        "segment": null,
+        "label": "③ 연구재료 제작비",
+        "headerRows": [
+          142
+        ],
+        "dataStartRow": 143,
+        "dataEndRow": 145,
+        "slotRows": [
+          143,
+          144,
+          145
+        ],
+        "slotCount": 3,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "품명",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "D",
+            "role": "spec",
+            "label": "산출내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "수량",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "H",
+            "role": "unitPrice",
+            "label": "단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "I",
+            "role": "cashTotal",
+            "label": "총액(원)_현금",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "J",
+            "role": "inKindTotal",
+            "label": "총액(원)_현물",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "총액(원)_합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 146,
+            "cash": "I146",
+            "inKind": "J146",
+            "total": "K146"
+          }
+        ]
+      },
+      {
+        "key": "activity/activity_outsourcing",
+        "category": "activity",
+        "subcategory": "activity_outsourcing",
+        "segment": null,
+        "label": "① 외주용역비",
+        "headerRows": [
+          152
+        ],
+        "dataStartRow": 153,
+        "dataEndRow": 155,
+        "slotRows": [
+          153,
+          154,
+          155
+        ],
+        "slotCount": 3,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "품명",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "D",
+            "role": "spec",
+            "label": "산출내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "수량",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "H",
+            "role": "unitPrice",
+            "label": "단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "I",
+            "role": "cashTotal",
+            "label": "총액(원)_현금",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "J",
+            "role": "inKindTotal",
+            "label": "총액(원)_현물",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "총액(원)_합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 156,
+            "cash": "I156",
+            "inKind": "J156",
+            "total": "K156"
+          }
+        ]
+      },
+      {
+        "key": "activity/activity_ip",
+        "category": "activity",
+        "subcategory": "activity_ip",
+        "segment": null,
+        "label": "② 지식재산 창출 활동비",
+        "headerRows": [
+          159,
+          160
+        ],
+        "dataStartRow": 161,
+        "dataEndRow": 162,
+        "slotRows": [
+          161,
+          162
+        ],
+        "slotCount": 2,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "unitPrice",
+            "label": "산출내역 단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "F",
+            "role": "factor",
+            "label": "회",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "월",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 163,
+            "cash": "K163",
+            "inKind": null,
+            "total": "K163"
+          }
+        ]
+      },
+      {
+        "key": "activity/activity_expert",
+        "category": "activity",
+        "subcategory": "activity_expert",
+        "segment": null,
+        "label": "③ 외부 전문기술 활용비",
+        "headerRows": [
+          166,
+          167
+        ],
+        "dataStartRow": 168,
+        "dataEndRow": 171,
+        "slotRows": [
+          168,
+          169,
+          170,
+          171
+        ],
+        "slotCount": 4,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "unitPrice",
+            "label": "산출내역 단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "F",
+            "role": "factor",
+            "label": "회",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "월",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 172,
+            "cash": "K172",
+            "inKind": null,
+            "total": "K172"
+          }
+        ]
+      },
+      {
+        "key": "activity/activity_meeting",
+        "category": "activity",
+        "subcategory": "activity_meeting",
+        "segment": null,
+        "label": "④ 회의비",
+        "headerRows": [
+          175,
+          176
+        ],
+        "dataStartRow": 177,
+        "dataEndRow": 180,
+        "slotRows": [
+          177,
+          178,
+          179,
+          180
+        ],
+        "slotCount": 4,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "unitPrice",
+            "label": "산출내역 단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "F",
+            "role": "factor",
+            "label": "회",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 181,
+            "cash": "K181",
+            "inKind": null,
+            "total": "K181"
+          }
+        ]
+      },
+      {
+        "key": "activity/activity_travel_dom",
+        "category": "activity",
+        "subcategory": "activity_travel_dom",
+        "segment": null,
+        "label": "국내출장비",
+        "headerRows": [
+          184,
+          185
+        ],
+        "dataStartRow": 186,
+        "dataEndRow": 187,
+        "slotRows": [
+          186
+        ],
+        "slotCount": 1,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "factor",
+            "label": "산출내역 인원",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "F",
+            "role": "factor",
+            "label": "횟수",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "unitPrice",
+            "label": "산출비용",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 188,
+            "cash": "K188",
+            "inKind": null,
+            "total": "K188"
+          }
+        ]
+      },
+      {
+        "key": "activity/activity_travel_intl",
+        "category": "activity",
+        "subcategory": "activity_travel_intl",
+        "segment": null,
+        "label": "국외출장비",
+        "headerRows": [
+          190,
+          191
+        ],
+        "dataStartRow": 192,
+        "dataEndRow": 192,
+        "slotRows": [
+          192
+        ],
+        "slotCount": 1,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "factor",
+            "label": "산출내역 인원",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "F",
+            "role": "factor",
+            "label": "횟수",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "unitPrice",
+            "label": "산출비용",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 193,
+            "cash": "K193",
+            "inKind": null,
+            "total": "K193"
+          }
+        ]
+      },
+      {
+        "key": "activity/activity_software",
+        "category": "activity",
+        "subcategory": "activity_software",
+        "segment": null,
+        "label": "⑥ 소프트웨어 활용비",
+        "headerRows": [
+          196,
+          197
+        ],
+        "dataStartRow": 198,
+        "dataEndRow": 200,
+        "slotRows": [
+          198,
+          199,
+          200
+        ],
+        "slotCount": 3,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "unitPrice",
+            "label": "산출내역 단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "F",
+            "role": "factor",
+            "label": "시트(수량)",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "월",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 201,
+            "cash": "K201",
+            "inKind": null,
+            "total": "K201"
+          }
+        ]
+      },
+      {
+        "key": "activity/activity_lab_ops",
+        "category": "activity",
+        "subcategory": "activity_lab_ops",
+        "segment": null,
+        "label": "⑦ 연구실 운영비",
+        "headerRows": [
+          204
+        ],
+        "dataStartRow": 205,
+        "dataEndRow": 206,
+        "slotRows": [
+          205,
+          206
+        ],
+        "slotCount": 2,
+        "columns": [
+          {
+            "column": "E",
+            "role": "unitPrice",
+            "label": "단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "F",
+            "role": "factor",
+            "label": "횟수",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "spec",
+            "label": "산출내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 207,
+            "cash": "K207",
+            "inKind": null,
+            "total": "K207"
+          }
+        ]
+      },
+      {
+        "key": "activity/activity_hr_support",
+        "category": "activity",
+        "subcategory": "activity_hr_support",
+        "segment": null,
+        "label": "⑧ 연구인력 지원비",
+        "headerRows": [
+          210
+        ],
+        "dataStartRow": 211,
+        "dataEndRow": 213,
+        "slotRows": [
+          211,
+          212,
+          213
+        ],
+        "slotCount": 3,
+        "columns": [
+          {
+            "column": "E",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "F",
+            "role": "factor",
+            "label": "인원",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "횟수",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "H",
+            "role": "unitPrice",
+            "label": "산출비용",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 214,
+            "cash": "K214",
+            "inKind": null,
+            "total": "K214"
+          }
+        ]
+      },
+      {
+        "key": "activity/activity_pmo",
+        "category": "activity",
+        "subcategory": "activity_pmo",
+        "segment": null,
+        "label": "⑨ 종합사업관리비",
+        "headerRows": [
+          217,
+          218
+        ],
+        "dataStartRow": 219,
+        "dataEndRow": 222,
+        "slotRows": [
+          219,
+          220,
+          221,
+          222
+        ],
+        "slotCount": 4,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "unitPrice",
+            "label": "산출내역 단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "F",
+            "role": "factor",
+            "label": "회",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "월",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 223,
+            "cash": "K223",
+            "inKind": null,
+            "total": "K223"
+          }
+        ]
+      },
+      {
+        "key": "activity/activity_cloud",
+        "category": "activity",
+        "subcategory": "activity_cloud",
+        "segment": null,
+        "label": "⑩ 클라우드컴퓨팅서비스 이용료",
+        "headerRows": [
+          226,
+          227
+        ],
+        "dataStartRow": 228,
+        "dataEndRow": 231,
+        "slotRows": [
+          228,
+          229,
+          230,
+          231
+        ],
+        "slotCount": 4,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "unitPrice",
+            "label": "산출내역 단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "F",
+            "role": "factor",
+            "label": "회",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "월",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 232,
+            "cash": "K232",
+            "inKind": null,
+            "total": "K232"
+          }
+        ]
+      },
+      {
+        "key": "activity/activity_etc",
+        "category": "activity",
+        "subcategory": "activity_etc",
+        "segment": null,
+        "label": "⑪ 그 밖의 비용",
+        "headerRows": [
+          235,
+          236
+        ],
+        "dataStartRow": 237,
+        "dataEndRow": 242,
+        "slotRows": [
+          237,
+          238,
+          239,
+          240,
+          241,
+          242
+        ],
+        "slotCount": 6,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "unitPrice",
+            "label": "산출내역 단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "F",
+            "role": "factor",
+            "label": "회",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 243,
+            "cash": "K243",
+            "inKind": null,
+            "total": "K243"
+          }
+        ]
+      },
+      {
+        "key": "allowance/null",
+        "category": "allowance",
+        "subcategory": null,
+        "segment": null,
+        "label": "자. 연구수당",
+        "headerRows": [
+          248
+        ],
+        "dataStartRow": 249,
+        "dataEndRow": 250,
+        "slotRows": [
+          249,
+          250
+        ],
+        "slotCount": 2,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "spec",
+            "label": "산출내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 251,
+            "cash": "K251",
+            "inKind": null,
+            "total": "K251"
+          }
+        ]
+      },
+      {
+        "key": "international/null",
+        "category": "international",
+        "subcategory": null,
+        "segment": null,
+        "label": "바. 국제공동연구개발비",
+        "headerRows": [
+          255
+        ],
+        "dataStartRow": 256,
+        "dataEndRow": 258,
+        "slotRows": [
+          256,
+          257,
+          258
+        ],
+        "slotCount": 3,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "품명",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "D",
+            "role": "spec",
+            "label": "산출내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "G",
+            "role": "factor",
+            "label": "수량",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "H",
+            "role": "unitPrice",
+            "label": "단가",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "I",
+            "role": "cashTotal",
+            "label": "총액(원)_현금",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "J",
+            "role": "inKindTotal",
+            "label": "총액(원)_현물",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "총액(원)_합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 259,
+            "cash": "I259",
+            "inKind": "J259",
+            "total": "K259"
+          }
+        ]
+      },
+      {
+        "key": "indirect/indirect_hr",
+        "category": "indirect",
+        "subcategory": "indirect_hr",
+        "segment": null,
+        "label": "가. 인력지원비",
+        "headerRows": [
+          265
+        ],
+        "dataStartRow": 266,
+        "dataEndRow": 267,
+        "slotRows": [
+          266,
+          267
+        ],
+        "slotCount": 2,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "spec",
+            "label": "산출내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 268,
+            "cash": "K268",
+            "inKind": null,
+            "total": "K268"
+          }
+        ]
+      },
+      {
+        "key": "indirect/indirect_support",
+        "category": "indirect",
+        "subcategory": "indirect_support",
+        "segment": null,
+        "label": "나. 연구지원비",
+        "headerRows": [
+          272
+        ],
+        "dataStartRow": 273,
+        "dataEndRow": 278,
+        "slotRows": [
+          273,
+          274,
+          275,
+          276,
+          277,
+          278
+        ],
+        "slotCount": 6,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "spec",
+            "label": "산출내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": true,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 279,
+            "cash": "K279",
+            "inKind": null,
+            "total": "K279"
+          }
+        ]
+      },
+      {
+        "key": "indirect/indirect_outcome",
+        "category": "indirect",
+        "subcategory": "indirect_outcome",
+        "segment": null,
+        "label": "다. 성과활용지원비",
+        "headerRows": [
+          283
+        ],
+        "dataStartRow": 284,
+        "dataEndRow": 286,
+        "slotRows": [
+          284,
+          285,
+          286
+        ],
+        "slotCount": 3,
+        "columns": [
+          {
+            "column": "C",
+            "role": "name",
+            "label": "내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "E",
+            "role": "spec",
+            "label": "산출내역",
+            "percentFormat": false,
+            "overwritesFormula": false
+          },
+          {
+            "column": "K",
+            "role": "total",
+            "label": "합계",
+            "percentFormat": false,
+            "overwritesFormula": true
+          },
+          {
+            "column": "L",
+            "role": "note",
+            "label": "비고",
+            "percentFormat": false,
+            "overwritesFormula": false
+          }
+        ],
+        "subtotals": [
+          {
+            "label": "소계",
+            "row": 287,
+            "cash": "K287",
+            "inKind": null,
+            "total": "K287"
+          }
+        ]
+      }
+    ],
+    "categoryTotals": [
+      {
+        "category": "facility_equipment",
+        "row": 96,
+        "labelAddr": "K96",
+        "valueAddr": "L96"
+      },
+      {
+        "category": "material",
+        "row": 126,
+        "labelAddr": "K126",
+        "valueAddr": "L126"
+      },
+      {
+        "category": "activity",
+        "row": 150,
+        "labelAddr": "K150",
+        "valueAddr": "L150"
+      },
+      {
+        "category": "allowance",
+        "row": 246,
+        "labelAddr": "K246",
+        "valueAddr": "L246"
+      },
+      {
+        "category": "international",
+        "row": 254,
+        "labelAddr": "K254",
+        "valueAddr": "L254"
+      },
+      {
+        "category": "indirect",
+        "row": 263,
+        "labelAddr": "K263",
+        "valueAddr": "L263"
+      }
+    ]
+  },
+  "summary": {
+    "sheet": "총괄표",
+    "headerRow": 2,
+    "yearColumns": [
+      {
+        "yearIndex": 1,
+        "column": "F",
+        "labelCell": "F2",
+        "label": "1차년도",
+        "linked": true
+      },
+      {
+        "yearIndex": 2,
+        "column": "G",
+        "labelCell": "G2",
+        "label": "2차년도",
+        "linked": false
+      },
+      {
+        "yearIndex": 3,
+        "column": "H",
+        "labelCell": "H2",
+        "label": "3차년도",
+        "linked": false
+      },
+      {
+        "yearIndex": 4,
+        "column": "I",
+        "labelCell": "I2",
+        "label": "4차년도",
+        "linked": false
+      }
+    ],
+    "totalColumn": "J",
+    "rows": [
+      {
+        "row": 4,
+        "label": "인건비 / 내부인건비 (A) / 현금 (N)",
+        "category": "personnel",
+        "subcategory": "personnel_internal",
+        "axis": "cash",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 5,
+        "label": "현물",
+        "category": "personnel",
+        "subcategory": "personnel_internal",
+        "axis": "inKind",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 6,
+        "label": "외부인건비 (B) / 현금 (O)",
+        "category": "personnel",
+        "subcategory": "personnel_external",
+        "axis": "cash",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 7,
+        "label": "현물",
+        "category": "personnel",
+        "subcategory": "personnel_external",
+        "axis": "inKind",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 8,
+        "label": "연구지원인력인건비 (C) / 현금 (P)",
+        "category": "personnel",
+        "subcategory": "personnel_support",
+        "axis": "cash",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 9,
+        "label": "현물",
+        "category": "personnel",
+        "subcategory": "personnel_support",
+        "axis": "inKind",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 10,
+        "label": "학생 인건비 (D)",
+        "category": "student_personnel",
+        "subcategory": null,
+        "axis": null,
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 11,
+        "label": "",
+        "category": "student_personnel",
+        "subcategory": null,
+        "axis": null,
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 12,
+        "label": "총 인건비1) (E=A+B+C+D)",
+        "category": null,
+        "subcategory": null,
+        "axis": null,
+        "kind": "aggregate",
+        "percentFormat": false,
+        "aggregate": "totalPersonnel"
+      },
+      {
+        "row": 13,
+        "label": "수정인건비2) (E1=A+B+D)",
+        "category": null,
+        "subcategory": null,
+        "axis": null,
+        "kind": "aggregate",
+        "percentFormat": false,
+        "aggregate": "modifiedPersonnel"
+      },
+      {
+        "row": 14,
+        "label": "연구시설‧장비비 (F) / 현금 (R)",
+        "category": "facility_equipment",
+        "subcategory": null,
+        "axis": "cash",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 15,
+        "label": "현물",
+        "category": "facility_equipment",
+        "subcategory": null,
+        "axis": "inKind",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 16,
+        "label": "(연구시설‧장비비 중 통합관리비(현금))",
+        "category": null,
+        "subcategory": null,
+        "axis": null,
+        "kind": "aggregate",
+        "percentFormat": false,
+        "memo": "not-a-subcategory"
+      },
+      {
+        "row": 17,
+        "label": "연구재료비 (G) / 현금 (S)",
+        "category": "material",
+        "subcategory": null,
+        "axis": "cash",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 18,
+        "label": "현물",
+        "category": "material",
+        "subcategory": null,
+        "axis": "inKind",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 19,
+        "label": "연구활동비 (H) / 현금 (T)",
+        "category": "activity",
+        "subcategory": null,
+        "axis": "cash",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 20,
+        "label": "현물",
+        "category": "activity",
+        "subcategory": null,
+        "axis": "inKind",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 21,
+        "label": "연구수당 (I) / 현금 (U)",
+        "category": "allowance",
+        "subcategory": null,
+        "axis": "cash",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 22,
+        "label": "현물",
+        "category": "allowance",
+        "subcategory": null,
+        "axis": "inKind",
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 23,
+        "label": "* 연구수당 비율3) (I/E1)",
+        "category": null,
+        "subcategory": null,
+        "axis": null,
+        "kind": "ratio",
+        "percentFormat": true,
+        "aggregate": "allowanceRate"
+      },
+      {
+        "row": 24,
+        "label": "위탁연구개발비 / 현금 (J)",
+        "category": null,
+        "subcategory": null,
+        "axis": "cash",
+        "kind": "amount",
+        "percentFormat": false,
+        "conflict": "label-formula-mismatch"
+      },
+      {
+        "row": 25,
+        "label": "현물",
+        "category": null,
+        "subcategory": null,
+        "axis": "inKind",
+        "kind": "amount",
+        "percentFormat": false,
+        "conflict": "label-formula-mismatch"
+      },
+      {
+        "row": 26,
+        "label": "",
+        "category": null,
+        "subcategory": null,
+        "axis": null,
+        "kind": "aggregate",
+        "percentFormat": false,
+        "aggregate": "directTotal"
+      },
+      {
+        "row": 27,
+        "label": "간접비 (L)",
+        "category": "indirect",
+        "subcategory": null,
+        "axis": null,
+        "kind": "amount",
+        "percentFormat": false
+      },
+      {
+        "row": 28,
+        "label": "* 간접비 비율4) (L/(N+O+P+D+R+S+T+U))",
+        "category": null,
+        "subcategory": null,
+        "axis": null,
+        "kind": "ratio",
+        "percentFormat": true,
+        "aggregate": "indirectRate"
+      },
+      {
+        "row": 29,
+        "label": "(간접비 중 연구실 안전관리비)",
+        "category": null,
+        "subcategory": null,
+        "axis": null,
+        "kind": "aggregate",
+        "percentFormat": false,
+        "memo": "not-a-subcategory"
+      },
+      {
+        "row": 30,
+        "label": "연구개발비 총액 (M=K+L)",
+        "category": null,
+        "subcategory": null,
+        "axis": null,
+        "kind": "aggregate",
+        "percentFormat": false,
+        "aggregate": "grandTotal"
+      }
+    ]
+  }
+}

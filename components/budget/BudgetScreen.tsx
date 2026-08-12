@@ -36,6 +36,7 @@ import BudgetPlanPanel from './BudgetPlanPanel';
 import BudgetPlanSummary from './BudgetPlanSummary';
 import ImportWizard from './import/ImportWizard';
 import DetailImportWizard from './import/detail/DetailImportWizard';
+import ExportModal from './ExportModal';
 
 // §7.9 표의 순서대로 `[제안 | 수행]`. 기본 선택은 `수행`이다
 const MODES: readonly { value: BudgetMode; label: string; hint: string }[] = [
@@ -79,6 +80,7 @@ export default function BudgetScreen({
   const [conflict, setConflict] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [detailImportOpen, setDetailImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
 
   // 이 화면이 보는 유일한 스냅샷. 여기서 한 번 고르고 아래에서는 섞지 않는다 (파일 머리말 C5).
@@ -218,6 +220,19 @@ export default function BudgetScreen({
               onClick={() => setDetailImportOpen(true)}
             >
               산출근거 가져오기
+            </Button>
+          )}
+          {/* §7.9.4: [제출 서식 내보내기]도 **제안 모드에만** 둔다 — 제안의 산출물이다.
+              §7.9.3과 같은 `mode` 하나가 두 버튼의 노출을 함께 정한다 */}
+          {mode === 'plan' && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              title="고른 연차의 산출근거 + 총괄표를 제출 서식(xlsx)으로 내려받습니다 (§7.9.4). 앱 데이터는 바뀌지 않습니다"
+              onClick={() => setExportOpen(true)}
+            >
+              제출 서식 내보내기
             </Button>
           )}
           <Button
@@ -415,6 +430,17 @@ export default function BudgetScreen({
       {/* §7.9.3도 같다 — 모달을 닫으면 진행 상태는 언마운트로 폐기된다 */}
       {detailImportOpen && (
         <DetailImportWizard years={source.years} onClose={() => setDetailImportOpen(false)} />
+      )}
+
+      {/* §7.9.4도 같다 — 모달을 닫으면 선택·미리보기는 언마운트로 폐기된다.
+          연차·표시 단위는 지금 보고 있는 스냅샷의 것을 쓴다 (마법사와 같은 이유) */}
+      {exportOpen && (
+        <ExportModal
+          projectId={source.projectId}
+          years={source.years}
+          currencyUnit={source.currencyUnit}
+          onClose={() => setExportOpen(false)}
+        />
       )}
 
       {conflict && (
