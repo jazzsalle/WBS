@@ -261,3 +261,46 @@ evaluator는 이 체크리스트로 PASS/FAIL을 판정한다. 모든 항목은 
 - [ ] `npm test` 전체 통과, `npx tsc --noEmit` 통과, `npm run build` 통과
 - [ ] 스키마 변경 없음 (`supabase/migrations/`에 새 파일 없음 — HR-6·HR-9·HR-17이 필드 추가를 금지한다)
 - [ ] 절대 규칙 3: UI·액션이 supabase를 직접 호출하지 않는다 (리포지토리 경유)
+
+## Phase 13 — 연구비 사용 규칙 (SOT v4.4)
+
+> 규칙은 **데이터**이고 판정은 **경고**다. 저장·반영·내보내기를 막는 코드가 하나라도 있으면 **FAIL**(RL-1). 출처(조문) 없는 한도값이 코드에 있으면 **FAIL**(PL-16·RL-D5).
+
+**스키마·이관**
+- [ ] `budget_rules` 테이블 + RLS 정책이 같은 마이그레이션에 있다. `(project_id, code)` 유일 제약, `project_id on delete cascade`, `version` 컬럼
+- [ ] `projects.allowance_rate_limit`·`indirect_rate_limit`가 **행으로 이관된 뒤 삭제**된다. 값이 있던 과제는 `allowance_max`·`indirect_max` 행이 생기고(`base='direct_cash_excl_intl_consign_burden'`, source 명시), null이던 과제는 행이 없다. 이관을 **통합 테스트로 고정**했는가(마이그레이션 전 값 → 후 행)
+- [ ] `schema_version` 2 → 3, `EXPECTED_SCHEMA_VERSION` 갱신, `BACKUP_TABLES`에 `budget_rules` 포함. 구 백업(버전 2) 복원 시 K-5 게이트 메시지가 맞는가
+- [ ] RL-D2·D3·D5가 **DB check 제약 + Zod** 양쪽에 있다: 값 필요 코드의 null, 값 불필요 코드의 non-null, `base`의 코드 제한, 빈 `source`
+
+**순수 함수 `lib/rules.ts`**
+- [ ] fetch·supabase·next 무의존. `lib/budget-plan.ts`의 집계를 **입력으로 받고** 금액 산식·E1을 다시 구현하지 않는다(grep: `annualSalary`·`unitPrice` 곱셈이 rules.ts에 없다)
+- [ ] **RL-3 수정직접비**: 직접비 **전 비목**(promotion·other 포함) 현금 합에서 `base`별 제외. `promotion`이나 `other`에 현금이 있는 케이스에서 Phase 9 분모와 달라지는 것을 테스트로 고정. 두 `base`가 위탁이 있는 연차에서 다른 비율을 내는 테스트
+- [ ] **부록 B.9.1 수치 그대로**: 0.9622% / 0.00% / 69.2308% / 11.35%, `allowance_min` info 1건. value 67·`ownBudget` 90,000,000 변형에서 error
+- [ ] **B.9.2**: A 행 1건(RL-14), C 행 1건(RL-16), RL-15 통과 → B 참여율 30%에서 위반. E1 = 44,500,000 불변
+- [ ] **B.9.3**: 35,000,000 장비 warn / 같은 품명 12,000,000+9,000,000 **합산** warn / 29,990,000 외주 통과(경계 미만). `≥` 경계값 정확히(30,000,000은 대상)
+- [ ] **B.9.4 `skipped`**: 분모 0·필드 null이 `findings`가 아니라 `skipped`에 사유와 함께 남는다. 조용히 빠지면 **FAIL**
+- [ ] 비율 비교에 **중간 반올림이 없다**(69.2308을 69.23으로 자른 뒤 비교하는 코드 없음). 표시는 소수 4자리
+- [ ] `enabled=false` 행은 판정하지 않고 `ratios`에는 남는다(비율은 보여 준다)
+- [ ] RL-16 같은 Member의 행 여럿을 **합산**해 판정한다. `student_personnel`은 제외
+- [ ] `approximate`가 RL-7·RL-9에서 true
+
+**프리셋 `lib/rules-presets.ts`**
+- [ ] 부록 D.1·D.2와 **값·출처가 1:1**. 프리셋 값마다 `source`가 타입으로 강제된다(빈 문자열 불가). 부록 D 표 → 상수 대조 테스트
+- [ ] `gov_share_max`가 두 후보(75/67)를 제안하고 기본은 75
+- [ ] `applyRulePreset`의 `fill`은 기존 행을 건드리지 않고, `overwrite`는 전부 프리셋 값으로. 단일 트랜잭션(RPC). 결과 건수(추가/갱신/유지) 반환. 과제 경계 검증
+
+**액션·조회**
+- [ ] `listBudgetRules`·`upsertBudgetRule`·`deleteBudgetRule`·`applyRulePreset` — 리포지토리 경유, O-1 `expectedVersion`
+- [ ] `setBudgetRateLimits`가 **삭제**됐고 참조가 없다
+- [ ] `getBudgetPlanData`가 `RuleEvaluation`을 싣는다. 판정을 저장하지 않는다(DB에 findings 컬럼 없음)
+
+**화면**
+- [ ] §7.9 규칙 검증 패널: 비율 표(규칙 꺼져도 표시) · findings(severity 순, 클릭 시 셀/행 이동) · skipped 접힌 목록 · "근사" 표식. 규칙 0건이면 안내 + [연구비 규칙]
+- [ ] §7.9.5 편집 패널: 프리셋 [채우기]/[덮어쓰기](2단계 확인 + 결과 건수), 규칙 표 인라인 편집(O-3), `gov_share_max` 셀렉트+자유 입력, 안내 목록(D.3) 읽기 전용, 행 삭제 확인 문구
+- [ ] 수행 모드에 두 패널이 없다. Phase 9 `RateLimitBadges`의 한도 입력이 제거됐다
+- [ ] Phase 11 내보내기 전 확인의 경고에 규칙 findings가 포함되고 **막지 않는다**
+
+**회귀·위생**
+- [ ] `npm test`·`tsc`·`build` 통과. Phase 9~11 기존 테스트(B.7 0.9622%·B.8·왕복) 전부 통과
+- [ ] 절대 규칙 2·3. 파생 값(findings) 미저장
+
