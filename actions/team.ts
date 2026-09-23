@@ -17,6 +17,7 @@ import type {
   ActionResult,
   BudgetCategory,
   BudgetDetail,
+  HrImportResult,
   Member,
   Organization,
   Project,
@@ -24,6 +25,13 @@ import type {
 } from '@/types';
 import { requireApprovedUser } from '@/lib/auth/guard';
 import { computeDetailAmount, type DetailAmountResult } from '@/lib/budget-plan';
+import {
+  assembleDirectory,
+  formatHrError,
+  normalizeHrEmail,
+  parseHrUsers,
+  type HrDirectory,
+} from '@/lib/hr';
 import * as appUsers from '@/lib/db/app-users';
 import * as organizationsRepo from '@/lib/db/organizations';
 import * as membersRepo from '@/lib/db/members';
@@ -744,5 +752,180 @@ export async function getTeamScreenData(
     };
   } catch (e) {
     return toFailure(e);
+  }
+}
+
+// ─── §6.13 사내 명부 연동 (Phase 12) ──────────────────────────────────────────
+//
+// HR 호출은 여기서만 한다(HR-13). 키는 인자로 받아 요청 헤더에 한 번 싣고 어디에도 남기지
+// 않는다 — 저장·캐시·로그·에러 문구 모두 금지. 응답도 저장하지 않는다(HR-17): 모달이 열릴 때
+// 부르고 닫히면 버린다. 응답을 우리 모양으로 옮기는 일은 lib/hr.ts의 순수 함수가 한다.
+//
+// `이미 등록됨` 판정(HR-8)을 화면이 아니라 이 액션이 하는 이유(§9): 화면이 HR 응답과 기존
+// 인력을 각자 읽어 맞추면 그 사이에 누가 인력을 추가했을 때 중복이 만들어진다.
+
+const HR_USERS_URL = 'https://hr.unes.kr/api/external/users';
+// 인증 헤더는 이것 하나뿐이다 (HR 가이드 §4, 2026-09-24 실호출로 확인). Bearer가 아니다
+const HR_API_KEY_HEADER = 'X-API-Key';
+// 없으면 HR이 응답을 안 줄 때 버튼이 영원히 "불러오는 중"이 된다 (§9)
+const HR_TIMEOUT_MS = 15_000;
+
+// 검증 실패 문구에 키 값을 보간하지 않는다 — 여기서 만든 문장은 화면과 로그로 간다
+const hrApiKeySchema = z.string().trim().min(1, 'HR API 키가 비어 있습니다. 설정에서 키를 등록하세요.');
+const hrProjectIdSchema = uuidSchema.nullable();
+
+// HR-4·HR-6·HR-9: 받는 키는 정확히 name·position·email이다. strict()가 division·team 같은
+// 여분 키를 거부하므로 화면이 실수로 본부·팀을 실어 보내도 저장 경로에 들어오지 못한다.
+// 이메일은 매칭 키라 빈 값을 허용하지 않는다 — createMember의 emailSchema('' 허용)와 다르다.
+const hrMemberDraftSchema = z
+  .object(
+    {
+      name: nameSchema,
+      position: z.string().trim().max(100, '직위는 100자 이내여야 합니다.'),
+      email: z.string().trim().pipe(z.email('이메일 형식이 올바르지 않습니다.')),
+    },
+    // 여분 키(user_division 등) 거부 문구. 필드 자체의 문구는 각 필드 스키마가 낸다
+    { error: '이름·직위·이메일 외의 값은 받지 않습니다.' }
+  )
+  .strict();
+const hrMemberDraftListSchema = z
+  .array(hrMemberDraftSchema)
+  .min(1, '추가할 인력을 한 명 이상 고르세요.');
+
+// 본문은 JSON이 아닐 수도 있다(프록시의 HTML 오류 페이지 등). 그때는 null로 두고 상태 코드
+// 문장만 낸다 — formatHrError가 그 경우를 다룬다
+async function readHrBody(res: Response): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * HR 명부를 한 번 불러와 이 과제 기준으로 선택 가능 여부까지 판정한다 (HR-8·HR-9·HR-16).
+ * projectId가 null이면 판정을 생략한다 — §7.14 [연결 확인]은 과제 맥락이 없다.
+ *
+ * 실패는 전부 ActionResult 실패로 돌려주고 빈 목록으로 폴백하지 않는다(HR-14, 절대 규칙 5).
+ * 429를 포함해 어떤 상태에서도 다시 부르지 않는다(HR-15) — 사용자 조작 하나에 호출 하나다.
+ * 실패 code는 두지 않는다: 원인이 HR 쪽이라 STALE·AUTH·VALIDATION 어느 것도 아니다.
+ */
+export async function fetchHrDirectory(
+  apiKey: string,
+  projectId: string | null
+): Promise<ActionResult<HrDirectory>> {
+  try {
+    const key = parseOrThrow(hrApiKeySchema, apiKey, 'HR API 키가 올바르지 않습니다.');
+    const pid = parseOrThrow(hrProjectIdSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
+    const { client } = await requireApprovedUser();
+
+    const existing = pid === null ? [] : await membersRepo.listMembers(client, pid);
+
+    let res: Response;
+    try {
+      res = await fetch(HR_USERS_URL, {
+        method: 'GET',
+        headers: { [HR_API_KEY_HEADER]: key, Accept: 'application/json' },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(HR_TIMEOUT_MS),
+      });
+    } catch (networkError) {
+      // 예외 객체에는 요청 헤더가 실리지 않는다 — 이름만 남겨 타임아웃과 DNS 실패를 구분한다
+      console.error(
+        '[actions/team] HR 호출 실패:',
+        networkError instanceof Error ? networkError.name : typeof networkError
+      );
+      return { ok: false, error: formatHrError(null, null) };
+    }
+
+    if (!res.ok) {
+      return { ok: false, error: formatHrError(res.status, await readHrBody(res)) };
+    }
+
+    const parsed = parseHrUsers(await readHrBody(res));
+    if (!parsed.ok) {
+      return { ok: false, error: `HR 응답을 읽을 수 없습니다. ${parsed.reason}` };
+    }
+    return { ok: true, data: assembleDirectory(parsed, existing) };
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
+/**
+ * 명부에서 고른 사람들을 name·position·email만 채운 Member로 생성한다 (HR-4).
+ * 기존 Member를 덮어쓰지 않는다(HR-8): 같은 이메일이 이미 있으면 그 항목만 rejected로 돌리고
+ * 나머지는 만든다 — 모달을 연 뒤 다른 사용자가 먼저 등록한 경우다.
+ * `annualSalary`는 HR에 없으므로 null로 남는다(HR-2). `active`는 HR의 재직 여부와 무관하게
+ * 신규 등록 기본값 true다(HR-5, N-11).
+ */
+export async function createMembersFromHr(
+  projectId: string,
+  drafts: unknown
+): Promise<ActionResult<HrImportResult>> {
+  let createdCount = 0;
+  try {
+    const pid = parseOrThrow(uuidSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
+    const list = parseOrThrow(hrMemberDraftListSchema, drafts, '인력 정보가 올바르지 않습니다.');
+
+    // 요청 안의 중복은 화면 버그다 — 한 명만 만들고 넘어가면 어느 쪽이 남았는지 알 수 없다
+    const seen = new Set<string>();
+    for (const draft of list) {
+      const email = normalizeHrEmail(draft.email);
+      if (seen.has(email)) {
+        throw new ValidationError(`같은 이메일이 두 번 들어 있습니다: ${email}`);
+      }
+      seen.add(email);
+    }
+
+    const { user, client } = await requireApprovedUser();
+    const existing = await membersRepo.listMembers(client, pid);
+    const registered = new Set(
+      existing.map((m) => normalizeHrEmail(m.email)).filter((e) => e.length > 0)
+    );
+
+    const created: Member[] = [];
+    const rejected: HrImportResult['rejected'] = [];
+    const baseOrder = nextOrder(existing);
+
+    for (const draft of list) {
+      if (registered.has(normalizeHrEmail(draft.email))) {
+        rejected.push({ name: draft.name, email: draft.email, reason: '이미 등록됨' });
+        continue;
+      }
+      const member = await membersRepo.createMember(
+        client,
+        {
+          projectId: pid,
+          orgId: null,
+          name: draft.name,
+          role: 'researcher',
+          position: draft.position,
+          field: '',
+          email: draft.email,
+          phone: '',
+          active: true,
+          order: baseOrder + created.length,
+          annualSalary: null,
+          hireType: 'existing',
+        },
+        user.id
+      );
+      created.push(member);
+      createdCount = created.length;
+    }
+
+    if (created.length > 0) revalidateTeam(pid);
+    return { ok: true, data: { created, rejected } };
+  } catch (e) {
+    const failure = await toFailure(e);
+    if (failure.ok || createdCount === 0) return failure;
+    // 순차 생성이라 중간 실패는 일부만 남긴다. 사용자가 다시 누르면 그 사람들은 '이미 등록됨'으로
+    // 걸러지지만, 몇 명이 들어갔는지는 지금 알려야 한다 — 조용히 넘기지 않는다
+    revalidateTeam(projectId);
+    return {
+      ...failure,
+      error: `${failure.error} (${createdCount}명은 이미 생성됐습니다. 다시 열면 그 인력은 '이미 등록됨'으로 표시됩니다.)`,
+    };
   }
 }

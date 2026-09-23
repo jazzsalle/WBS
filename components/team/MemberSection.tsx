@@ -8,23 +8,29 @@
 //  - H-9a: 인건비 산출근거는 정리 대상이 아니라 **삭제 차단 사유**다. 별도 줄로 세고 1건 이상이면
 //    삭제 버튼을 막는다 — 사람을 지운 조작만으로 비목 총액이 줄어드는 것을 막는다.
 //  - hireType='new'는 '채용예정' 배지로 구분한다 (§5.11 — 사람이 정해지지 않은 자리도 Member다).
+//  - §7.10.1 [사내 명부에서 추가]: HR 호출은 그 버튼의 클릭 핸들러에서만 시작한다(HR-7). 모달을
+//    닫으면 hrState를 null로 돌려 받아온 명부를 버린다(HR-17). 수동 [인력 추가]는 그대로 남긴다 —
+//    외부 기관 인력은 사내 명부에 없다.
 // 쓰기는 전부 actions/team.ts를 거친다. supabase를 직접 부르지 않는다(§8.2 C-2).
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { ActionResult, Member, OrgRole, Organization } from '@/types';
+import type { ActionResult, HrImportResult, Member, OrgRole, Organization } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import type { AssignedTask, MemberReferenceCounts } from '@/actions/team';
 import { HIRE_TYPE_LABELS, MEMBER_ROLE_LABELS, ORG_ROLE_LABELS } from '@/lib/constants';
+import { loadHrApiKey } from '@/lib/hr-key';
 import {
   countMemberReferences,
   deleteMember,
+  fetchHrDirectory,
   setMemberActive,
   setProjectPM,
 } from '@/actions/team';
 import Badge, { type BadgeTone } from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import HrDirectoryModal, { type HrDirectoryState } from './HrDirectoryModal';
 import MemberFormModal from './MemberFormModal';
 import MemberTasksPanel from './MemberTasksPanel';
 
@@ -141,6 +147,8 @@ export default function MemberSection({
   const [counts, setCounts] = useState<MemberReferenceCounts | null>(null);
   const [countsLoading, setCountsLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // null = 모달 닫힘. 명부는 이 상태 안에만 있다 — 닫히면 함께 버려진다(HR-17)
+  const [hrState, setHrState] = useState<HrDirectoryState | null>(null);
 
   const groups = useMemo(() => buildGroups(members, organizations), [members, organizations]);
 
@@ -230,6 +238,44 @@ export default function MemberSection({
     );
   };
 
+  // HR-7: 사용자가 버튼을 눌렀을 때만 HR을 부른다. 키 원문은 이 핸들러의 지역 변수로만 쓴다 —
+  // 상태에 두면 React DevTools·오류 리포트에 실릴 수 있다.
+  const openHrDirectory = async (): Promise<void> => {
+    setHrState({ phase: 'loading' });
+    let key: string | null;
+    try {
+      key = (await loadHrApiKey()).key;
+    } catch (e) {
+      setHrState({ phase: 'error', message: e instanceof Error ? e.message : String(e) });
+      return;
+    }
+    if (key === null) {
+      setHrState({ phase: 'no-key' });
+      return;
+    }
+    const res = await fetchHrDirectory(key, projectId);
+    if (!res.ok) {
+      setHrState({ phase: 'error', message: res.error, code: res.code });
+      return;
+    }
+    setHrState({ phase: 'ready', directory: res.data });
+  };
+
+  // HR-2: 연봉이 비어 있다는 사실을 화면에 남긴다. 이 문장이 없으면 사용자는 예산 화면에서야 안다
+  const handleHrAdded = (result: HrImportResult): void => {
+    const skipped =
+      result.rejected.length === 0
+        ? ''
+        : ` (${result.rejected.length}명은 이미 등록되어 건너뜀: ${result.rejected
+            .map((r) => r.name)
+            .join(', ')})`;
+    setNotice(
+      `${result.created.length}명을 추가했습니다. 연봉은 사내 명부에 없어 비어 있습니다 — 인건비 산출근거를 쓰려면 채워야 합니다${skipped}`
+    );
+    setHrState(null);
+    onDone();
+  };
+
   const requestPM = (member: Member): void => {
     // 기존 PM이 있으면 "자동으로 바뀌지 않는다"를 먼저 알린다 (§7.10)
     if (pmMemberId !== null && pmMemberId !== member.id) {
@@ -246,17 +292,23 @@ export default function MemberSection({
           참여인력
           <span className="ml-2 text-xs font-normal text-slate-500">{members.length}명</span>
         </h2>
-        <Button
-          size="sm"
-          variant="primary"
-          disabled={busy}
-          onClick={() => {
-            setEditingId(null);
-            setFormMode('create');
-          }}
-        >
-          인력 추가
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={busy}
+            onClick={() => {
+              setEditingId(null);
+              setFormMode('create');
+            }}
+          >
+            인력 추가
+          </Button>
+          {/* HR-12: 키가 없어도 버튼은 보인다 — 감추면 기능이 있는 줄도 모른다 */}
+          <Button size="sm" disabled={busy} onClick={() => void openHrDirectory()}>
+            사내 명부에서 추가
+          </Button>
+        </div>
       </div>
 
       {notice && (
@@ -440,6 +492,15 @@ export default function MemberSection({
             setEditingId(null);
             onDone();
           }}
+        />
+      )}
+
+      {hrState && (
+        <HrDirectoryModal
+          state={hrState}
+          projectId={projectId}
+          onClose={() => setHrState(null)}
+          onAdded={handleHrAdded}
         />
       )}
 

@@ -1442,7 +1442,7 @@ exportFileName(project, year, todayISO)    → X-12
 
 | # | 규칙 |
 |---|---|
-| HR-1 | **연동 대상은 `GET /api/external/users` 하나다** (사용자 지정). `https://hr.unes.kr` 기준. 응답은 `{ success, count, users[] }`이고 `users[]`의 필드는 **8개뿐**이다 — `user_id`(number) · `user_email`(string) · `user_name`(string) · `user_division`(string) · `user_team`(string\|null) · `user_position`(string) · `user_role`(string) · `user_is_active`(boolean). |
+| HR-1 | **연동 대상은 `GET /api/external/users` 하나다** (사용자 지정). `https://hr.unes.kr` 기준. 응답은 `{ success, count, users[] }`이고 `users[]`의 필드는 **8개뿐**이다 — `user_id`(number) · `user_email`(string) · `user_name`(string) · `user_division`(string\|null — 문서는 string이지만 **실측 명부에 null 1건이 있다**. 본부·팀은 표시 전용이라 null이어도 `읽을 수 없음`으로 막지 않는다) · `user_team`(string\|null) · `user_position`(string) · `user_role`(string) · `user_is_active`(boolean). |
 | HR-2 | **연봉이 없다.** API 문서가 "비밀번호·연차·전화번호 등 민감 필드는 제외"라고 명시하며 급여 필드를 내주지 않는다. **`Member.annualSalary`는 앞으로도 수동 입력이다.** <br>이 사실을 명시해 두는 이유: §11의 Phase 후보 목록과 초기 구상은 연동 지점을 `annualSalary`로 적고 있었다. 인건비 산출근거(PL-1)가 쓰는 값이 바로 그것이라 **이 연동으로 예산 쪽 손품은 줄지 않는다.** 화면이 그렇게 보이게 만들면 안 된다 — 가져오기 후에도 연봉 칸은 비어 있고, 그 사실이 눈에 보여야 한다. |
 | HR-3 | **입·퇴사일도 없다.** `user_is_active`(boolean)뿐이다. 재직 기간으로 무언가를 계산하려는 시도를 하지 않는다. |
 | HR-4 | **채우는 필드는 `name`·`position`·`email` 3개다.** `annualSalary`·`hireType`·`field`·`phone`·`orgId`·`role`은 건드리지 않는다 — HR에 대응 값이 없거나(전자), 우리 쪽 의미가 다르다(후자). |
@@ -2128,13 +2128,15 @@ setProjectPM(projectId, memberId)
 reorderMembers(projectId, orderedIds)
 
 // §6.13 사내 명부 연동 (Phase 12). 키는 인자로 받고 **저장하지 않는다** (HR-13)
-fetchHrDirectory(apiKey, projectId)  // HR 호출 + 이 과제의 기존 Member로 선택 가능 여부 판정 (HR-8)
+fetchHrDirectory(apiKey, projectId | null) // HR 호출 + 이 과제의 기존 Member로 선택 가능 여부 판정 (HR-8). null이면 판정을 생략한다 — §7.14 [연결 확인]은 과제 맥락이 없다
 createMembersFromHr(projectId, drafts) // name·position·email만 채운 Member 다중 생성 (HR-4)
 ```
 
 > **`fetchHrDirectory`가 `projectId`를 받는 이유**: `이미 등록됨` 판정(HR-8)을 화면이 아니라 서버가 한다. 화면이 두 목록(HR 응답 + 기존 인력)을 각자 읽어 맞추면 그 사이에 누가 인력을 추가했을 때 중복이 만들어진다.
 >
 > **키를 인자로 받는 이유**: 키는 OS 키체인에 있고(HR-12) 서버는 그것을 읽을 수 없다. 서버 액션은 키를 받아 HR 호출에만 쓰고 **어디에도 남기지 않는다** — 로그에도 찍지 않는다.
+>
+> **인증 헤더는 `X-API-Key: <키>` 하나다** (HR 가이드 §4, 2026-09-24 실호출로 확인). 가이드 본문은 발급 키가 있어야 열린다(`/api/external/guide?t=<키>`). 실패 코드는 `401 INVALID_API_KEY` / `403 IP_NOT_ALLOWED` / `503 NOT_CONFIGURED`(서버에 키 미설정) / `429`(15분당 300회, `/api/external/*`+`/api/auth` 합산). **HR 호출 타임아웃은 15초** — 없으면 HR이 응답을 안 줄 때 버튼이 영원히 "불러오는 중"이 된다.
 
 **Budget**
 ```

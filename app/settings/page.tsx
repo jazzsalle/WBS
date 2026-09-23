@@ -1,8 +1,9 @@
 // 설정 페이지 (SOT §7.14)
-// §7.14의 3개 섹션을 그 순서대로 둔다: 팀 설정 → 사용자 관리(내 프로필 포함) → 백업·복원.
-// 데이터 로딩은 서버에서: 가드(lib/auth) → 액션·리포지토리(lib/db) 경유 —
+// §7.14의 4개 섹션을 그 순서대로 둔다: 팀 설정 → 사용자 관리(내 프로필 포함) → 백업·복원
+// → 사내 명부 연동. 데이터 로딩은 서버에서: 가드(lib/auth) → 액션·리포지토리(lib/db) 경유 —
 // supabase를 직접 호출하지 않는다. 백업·복원은 로컬 파일을 다뤄야 하므로
-// 클라이언트 컴포넌트(BackupPanel)가 actions/backup 경유로 처리한다.
+// 클라이언트 컴포넌트(BackupPanel)가 actions/backup 경유로 처리한다. 사내 명부 연동의
+// HR API 키는 OS 키체인에 있어 서버가 읽을 수 없다 — HrApiKeyPanel이 클라이언트에서 다룬다(HR-12).
 
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -17,6 +18,7 @@ import MyProfileForm from '@/components/settings/MyProfileForm';
 import UserManagement from '@/components/settings/UserManagement';
 import BackupPanel from '@/components/settings/BackupPanel';
 import ImportSnapshotPanel from '@/components/settings/ImportSnapshotPanel';
+import HrApiKeyPanel from '@/components/settings/HrApiKeyPanel';
 
 // R-1 §8.5 구독표의 "설정" 행 그대로. 전체 구독 금지.
 const REALTIME_TABLES = ['app_users', 'app_settings'];
@@ -68,6 +70,9 @@ export default async function SettingsPage() {
       <ImportSnapshotPanel
         projects={projects.map((p) => ({ id: p.id, name: p.name, archived: p.archived }))}
       />
+
+      {/* §7.14 사내 명부 연동 (Phase 12): HR API 키 등록·연결 확인·삭제 */}
+      <HrApiKeyPanel />
     </main>
   );
 }

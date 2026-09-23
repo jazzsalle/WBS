@@ -896,3 +896,12 @@ export interface BackupFile {
 export type ActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string; code?: 'STALE' | 'AUTH' | 'OFFLINE' | 'VALIDATION' | 'CONFLICT' | 'RULE' };
+
+// ─── §6.13 사내 명부 연동 (Phase 12) ─────────────────────────
+
+// createMembersFromHr의 반환. 명부(HrDirectory 등)는 lib/hr.ts가 갖고, 여기는 저장 결과만 둔다.
+// rejected는 모달을 연 뒤 다른 사용자가 같은 이메일을 먼저 등록한 경우다(HR-8) — 조용히 빼지 않는다.
+export interface HrImportResult {
+  created: Member[];
+  rejected: { name: string; email: string; reason: string }[];
+}
