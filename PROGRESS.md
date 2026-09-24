@@ -233,7 +233,7 @@
 없음
 
 ## Next steps
-0. **`/phase-run 13`** — 설계·승인 끝. 첫 태스크는 스키마(`budget_rules` + RLS + 한도 컬럼 이관 + schema_version 3)이고, 마이그레이션을 dev DB에 `db push`해야 액션·통합 테스트가 돈다. 규칙 추출 원본 표(스크래치 `rules-msit.md`·`rules-moe.md`)는 세션 임시 폴더라 사라졌을 수 있다 — SOT §6.14·부록 D가 정리본이므로 없어도 된다
+0. **`/phase-run 13`** — 설계·승인 끝. **planner 분해 결과가 `docs/plans/phase-13-plan.md`에 있다 — planner를 다시 돌리지 말고 그 파일의 T1부터 generator에 넘긴다.** 파일 끝 "사용자 확인 필요" 4건(기본 분모·overwrite 범위·§6.10.4 시그니처·Realtime 제외)은 재개 시 먼저 정한다(전부 제안값대로 가도 무방). 첫 태스크는 스키마(`budget_rules` + RLS + 한도 컬럼 이관 + schema_version 3)이고, 마이그레이션을 dev DB에 `db push`해야 액션·통합 테스트가 돈다. 규칙 추출 원본 표(스크래치 `rules-msit.md`·`rules-moe.md`)는 세션 임시 폴더라 사라졌을 수 있다 — SOT §6.14·부록 D가 정리본이므로 없어도 된다
 1. **Phase 10 후속 (남은 것, 블로킹 아님)**:
    - **Step 2 트리 숫자가 컬럼 role 재지정 후 갱신되지 않는다** — `inspectDetailSheet`가 draft를 받지 않기 때문이다(§9 시그니처). 실제 반영값은 Step 4가 정확히 낸다
    - Step 3이 명부를 `getTeam`으로 따로 읽는다 — 미리보기 페이로드에 실으면 왕복이 준다(§9 변경 필요)
