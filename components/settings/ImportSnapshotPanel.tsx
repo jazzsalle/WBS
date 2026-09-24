@@ -143,7 +143,7 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
   const selected = projects.find((p) => p.id === projectId) ?? null;
 
   return (
-    <section className="mt-4 rounded-2xl border border-grey-200 bg-white p-6">
+    <section className="mt-4 rounded-2xl border border-grey-200 bg-surface p-6">
       <h2 className="text-lg font-bold">임포트 스냅샷</h2>
       <p className="mt-1 text-sm text-grey-500">
         엑셀 반영 직전의 상태입니다. 잘못 반영했을 때 여기서 되돌립니다. 예산계획 반영(§6.8)은
@@ -182,7 +182,7 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
             setProjectId(e.target.value);
             setNotice(null);
           }}
-          className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
+          className="mt-1 w-full rounded-lg border border-grey-300 bg-surface px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
         >
           <option value="">과제를 고르세요</option>
           {projects.map((project) => (

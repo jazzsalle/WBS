@@ -244,7 +244,7 @@ export default function DeliverableFormModal({
                     {differences.map(({ field, latest }) => (
                       <li
                         key={field.key}
-                        className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
+                        className="flex flex-wrap items-center gap-2 rounded-lg bg-surface/70 px-2.5 py-1.5 text-xs"
                       >
                         <span className="font-semibold text-grey-700">{field.label}</span>
                         <span className="text-grey-500">
@@ -290,7 +290,7 @@ export default function DeliverableFormModal({
               <select
                 value={values.type}
                 onChange={(e) => handleTypeChange(e.target.value as DeliverableType)}
-                className={`${inputClass} bg-white`}
+                className={`${inputClass} bg-surface`}
               >
                 {(Object.keys(DELIVERABLE_TYPE_LABELS) as DeliverableType[]).map((type) => (
                   <option key={type} value={type}>
@@ -332,7 +332,7 @@ export default function DeliverableFormModal({
               <select
                 value={values.orgId}
                 onChange={(e) => setField('orgId', e.target.value)}
-                className={`${inputClass} bg-white`}
+                className={`${inputClass} bg-surface`}
               >
                 <option value="">미지정</option>
                 {organizations.map((org) => (

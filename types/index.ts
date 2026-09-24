@@ -826,6 +826,7 @@ export interface LocalConfig {
   lastBackupAt: string | null;
   lastOpenedProjectId: string | null;
   ganttScale: 'day' | 'week' | 'month';   // 개인 화면 취향
+  theme: ThemeMode;                       // Phase 18 §7.19. 기본 'system'
   // ─ Phase 14 따라하기 (§7.17) — PC별 진행 상태. 팀 공유 아님 (TU-6) ─
   tutorial: {
     sampleProjectId: string | null;   // [예제 과제 만들기]로 만든 과제. 삭제되면 getTutorialStatus가 null로 되돌린다
@@ -833,6 +834,9 @@ export interface LocalConfig {
     dismissed: boolean;               // 드로어 "다시 보지 않기"
   };
 }
+
+// §7.19 화면 모드. system = OS의 prefers-color-scheme을 따른다(<html data-theme> 없음)
+export type ThemeMode = 'system' | 'light' | 'dark';
 
 export type TutorialStepId =
   | 'project'

@@ -126,7 +126,7 @@ export default function PriorityMatrix({
           <span className="text-xs text-grey-500">표시 {visible.length}건</span>
         </div>
 
-        <div className="mt-2 overflow-x-auto rounded-xl border border-grey-200 bg-white">
+        <div className="mt-2 overflow-x-auto rounded-xl border border-grey-200 bg-surface">
           <table className="w-full text-sm">
             <thead className="bg-grey-50 text-xs text-grey-500">
               <tr>

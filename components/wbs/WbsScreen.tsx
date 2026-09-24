@@ -692,7 +692,7 @@ export default function WbsScreen({
       </div>
 
       {/* 툴바 (§7.4). 태그 필터는 아직 없다 */}
-      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-grey-200 bg-white p-3 text-sm">
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-grey-200 bg-surface p-3 text-sm">
         <Button size="sm" onClick={() => setCollapsedIds(new Set())}>
           전체 펼치기
         </Button>
@@ -715,7 +715,7 @@ export default function WbsScreen({
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as TaskStatus | 'all')}
-            className="rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
+            className="rounded-lg border border-grey-300 bg-surface px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
           >
             <option value="all">전체</option>
             {(Object.keys(TASK_STATUS_LABELS) as TaskStatus[]).map((status) => (
@@ -731,7 +731,7 @@ export default function WbsScreen({
           <select
             value={memberFilter}
             onChange={(e) => setMemberFilter(e.target.value)}
-            className="max-w-40 rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
+            className="max-w-40 rounded-lg border border-grey-300 bg-surface px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
           >
             <option value="all">전체</option>
             {members.map((member) => (
@@ -747,7 +747,7 @@ export default function WbsScreen({
           <select
             value={orgFilter}
             onChange={(e) => setOrgFilter(e.target.value)}
-            className="max-w-40 rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
+            className="max-w-40 rounded-lg border border-grey-300 bg-surface px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
           >
             <option value="all">전체</option>
             {organizations.map((org) => (
@@ -763,7 +763,7 @@ export default function WbsScreen({
           <select
             value={gradeFilter}
             onChange={(e) => setGradeFilter(e.target.value as PriorityGrade | 'all')}
-            className="rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
+            className="rounded-lg border border-grey-300 bg-surface px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
           >
             <option value="all">전체</option>
             {GRADES.map((grade) => (
@@ -805,7 +805,7 @@ export default function WbsScreen({
         >
           <p className="font-semibold">이름 변경이 저장되지 않았습니다.</p>
           <p className="mt-1 text-xs">{renameConflict.message}</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs">
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-surface/70 px-2.5 py-1.5 text-xs">
             <span className="font-semibold text-grey-700">작업명</span>
             <span className="text-grey-500">내 입력: {renameConflict.mine}</span>
             <span className="text-grey-500">

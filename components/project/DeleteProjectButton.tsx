@@ -147,7 +147,7 @@ export default function DeleteProjectButton({ projectId, projectName }: DeletePr
             spellCheck={false}
             placeholder={projectName}
             aria-invalid={typedName !== '' && !nameMatches}
-            className="mt-1 w-full rounded-md border border-grey-300 bg-white px-3 py-2 text-t6 text-grey-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-grey-100 disabled:text-grey-400"
+            className="mt-1 w-full rounded-md border border-grey-300 bg-surface px-3 py-2 text-t6 text-grey-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-grey-100 disabled:text-grey-400"
           />
         </label>
         {typedName !== '' && !nameMatches && (

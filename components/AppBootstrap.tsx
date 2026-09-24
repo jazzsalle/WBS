@@ -7,6 +7,8 @@
 //     높으면 앱 업데이트 안내를 띄우고 진입을 차단한다
 //  ③ K-2 자동 백업: 마지막 백업이 7일 이상 지났으면 자동 내보내기 + 알림
 //  ④ K-3 보존: 백업 12개 초과분 삭제 (runBackupToFolder 안에서 수행)
+//  ⑤ §7.19 화면 모드: Tauri는 LocalConfig가 파일이라 layout.tsx의 인라인 스크립트가
+//     못 읽는다 — 여기서 config를 읽은 뒤 data-theme을 적용한다
 // 자동 백업은 백업 폴더가 있는 Tauri에서만 돈다 — 브라우저 개발 모드는 수동
 // 내보내기(다운로드)만 지원한다 (§7.14 BackupPanel).
 
@@ -18,6 +20,7 @@ import { isAutoBackupDue, judgeSchemaVersion, type SchemaVerdict } from '@/lib/b
 import { loadLocalConfig, updateLocalConfig } from '@/lib/local-config';
 import { isTauri } from '@/lib/tauri/env';
 import { runBackupToFolder } from '@/lib/tauri/fs';
+import { applyTheme } from '@/lib/theme';
 
 interface Notice {
   id: number;
@@ -30,6 +33,7 @@ interface Notice {
 // 로그인 후 첫 라우팅에서 재시도해야 §8.8 게이트가 세션 시작 시점에 걸린다.
 let bootDone = false;
 let bootRunning = false;
+let themeApplied = false;
 let noticeSeq = 0;
 
 export default function AppBootstrap() {
@@ -44,6 +48,26 @@ export default function AppBootstrap() {
   const dismissNotice = useCallback((id: number) => {
     setNotices((prev) => prev.filter((n) => n.id !== id));
   }, []);
+
+  // ⑤ §7.19 — 헬스핑·로그인과 무관하게 한 번만. Tauri는 config 파일을 비동기로 읽어야
+  // 해서 첫 페인트 뒤에 적용된다 — 어둡게 사용자에게 밝은 화면이 잠깐 보이는 짧은 깜빡임은
+  // 허용 범위(§7.19 "시작 시 주입"의 현실적 최선). 브라우저는 인라인 스크립트가 이미
+  // 같은 값을 세팅했으므로 여기서의 재적용은 무해하다(같은 값). system은 속성을 지우기만 하고
+  // OS 모드 변화는 CSS의 prefers-color-scheme이 따라가므로 matchMedia 리스너는 두지 않는다.
+  useEffect(() => {
+    if (themeApplied) return;
+    themeApplied = true;
+    loadLocalConfig()
+      .then((config) => applyTheme(config.theme))
+      .catch((e) => {
+        // 손상된 설정은 lib/local-config가 기본값으로 복구해 여기까지 오지 않는다 —
+        // 여기 도달하면 파일 접근 자체가 실패한 것이라 사용자에게 알린다
+        addNotice(
+          'error',
+          `화면 모드 설정을 읽지 못했습니다: ${e instanceof Error ? e.message : String(e)}`
+        );
+      });
+  }, [addNotice]);
 
   useEffect(() => {
     if (bootDone || bootRunning) return;
@@ -139,12 +163,12 @@ function SchemaGate({ verdict, dbVersion }: { verdict: SchemaVerdict; dbVersion:
   const behind = verdict === 'db-behind';
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-grey-900/60 p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-dimmed p-4"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="schema-gate-title"
     >
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+      <div className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl">
         <h2 id="schema-gate-title" className="text-lg font-bold">
           {behind ? '데이터베이스 마이그레이션이 필요합니다' : '앱 업데이트가 필요합니다'}
         </h2>

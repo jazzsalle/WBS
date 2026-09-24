@@ -113,7 +113,7 @@ export default function SheetGrid({
 
       <div className="max-h-[22rem] overflow-auto">
         <table className="w-max min-w-full border-collapse text-xs">
-          <thead className="sticky top-0 z-10 bg-white">
+          <thead className="sticky top-0 z-10 bg-surface">
             <tr>
               <th className="sticky left-0 z-20 w-14 border border-grey-200 bg-grey-100 px-1 py-1 text-grey-500">
                 행

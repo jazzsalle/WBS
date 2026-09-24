@@ -254,12 +254,12 @@ export default function TodoRow({
         dragCallbacks.onDropRow(todo.id, positionFromPointer(e));
       }}
       className={[
-        'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-grey-200 bg-white px-2 py-1.5',
+        'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-grey-200 bg-surface px-2 py-1.5',
         dragging ? 'opacity-40' : 'hover:border-grey-300',
         // T-D8: 완료 항목은 `전체` 필터에서 흐린 스타일로 남는다
         done ? 'opacity-60' : '',
-        dropPosition === 'before' ? 'shadow-[inset_0_2px_0_0_#2563eb]' : '',
-        dropPosition === 'after' ? 'shadow-[inset_0_-2px_0_0_#2563eb]' : '',
+        dropPosition === 'before' ? 'shadow-[inset_0_2px_0_0_var(--color-blue-600)]' : '',
+        dropPosition === 'after' ? 'shadow-[inset_0_-2px_0_0_var(--color-blue-600)]' : '',
       ].join(' ')}
     >
       {/* T-D9: 수동 정렬에서만 잡을 수 있다. 편집 중에는 잡히면 입력이 끊긴다 */}
@@ -343,7 +343,7 @@ export default function TodoRow({
             onKeyDown={(e) => {
               if (e.key === 'Escape') cancel();
             }}
-            className={`w-full bg-white text-xs ${EDIT_INPUT}`}
+            className={`w-full bg-surface text-xs ${EDIT_INPUT}`}
           >
             <option value="">{NO_PROJECT_LABEL}</option>
             {projects.map((project) => (
@@ -438,7 +438,7 @@ export default function TodoRow({
             onKeyDown={(e) => {
               if (e.key === 'Escape') cancel();
             }}
-            className={`w-full bg-white text-xs ${EDIT_INPUT}`}
+            className={`w-full bg-surface text-xs ${EDIT_INPUT}`}
           >
             {PRIORITIES.map((priority) => (
               <option key={priority} value={priority}>

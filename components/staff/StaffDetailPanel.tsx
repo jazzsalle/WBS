@@ -166,7 +166,7 @@ export default function StaffDetailPanel({ staffId, onClose, onChanged }: StaffD
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="fixed inset-y-0 right-0 flex w-[32rem] max-w-full flex-col rounded-l-3xl bg-white shadow-xl"
+        className="fixed inset-y-0 right-0 flex w-[32rem] max-w-full flex-col rounded-l-3xl bg-surface shadow-xl"
       >
         {/* 헤더 */}
         <div className="border-b border-hairline px-6 pb-4 pt-6">
@@ -654,7 +654,7 @@ function StaffEditModal({ staff, onClose, onSaved, onReload }: StaffEditModalPro
                     {differences.map(({ field, latest }) => (
                       <li
                         key={field.key}
-                        className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-t7"
+                        className="flex flex-wrap items-center gap-2 rounded-lg bg-surface/70 px-2.5 py-1.5 text-t7"
                       >
                         <span className="font-semibold text-grey-700">{field.label}</span>
                         <span className="text-grey-500">내 입력: {displayValue(field.key, values)}</span>

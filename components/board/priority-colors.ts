@@ -35,7 +35,7 @@ const COLOR_CLASSES: Record<string, PriorityColorClasses> = {
     badge: 'neutral',
   },
   'grey-400': {
-    cell: 'border-grey-200 bg-white text-grey-500 hover:bg-grey-50',
+    cell: 'border-grey-200 bg-surface text-grey-500 hover:bg-grey-50',
     cellSelected: 'border-grey-500 bg-grey-100 text-grey-800 ring-2 ring-grey-400',
     band: 'bg-grey-400',
     badge: 'neutral',

@@ -252,7 +252,7 @@ export default function SalaryFormModal({
                     {differences.map(({ field, latest }) => (
                       <li
                         key={field.key}
-                        className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-t7"
+                        className="flex flex-wrap items-center gap-2 rounded-lg bg-surface/70 px-2.5 py-1.5 text-t7"
                       >
                         <span className="font-semibold text-grey-700">{field.label}</span>
                         <span className="text-grey-500">내 입력: {displayValue(field.key, values)}</span>

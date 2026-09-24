@@ -41,7 +41,7 @@ export default function TutorialResetPanel() {
   const sampleProjectId = config?.tutorial.sampleProjectId ?? null;
 
   return (
-    <section className="mt-8 rounded-2xl border border-grey-200 bg-white p-6">
+    <section className="mt-8 rounded-2xl border border-grey-200 bg-surface p-6">
       <h2 className="text-t5 font-bold text-grey-900">따라하기</h2>
       <p className="mt-1 text-t7 text-grey-500">
         대시보드·과제 화면 오른쪽 아래의 [따라하기] 버튼. 이 PC에만 저장되는 설정입니다 (SOT §7.17).

@@ -475,7 +475,7 @@ function StepIndicator({ step, skipStep3 }: { step: DetailWizardStep; skipStep3:
             key={n}
             className={`rounded-full px-2.5 py-1 ${
               n === step
-                ? 'bg-grey-900 font-semibold text-white'
+                ? 'bg-grey-900 font-semibold text-surface'
                 : skipped
                   ? 'bg-grey-50 text-grey-300 line-through'
                   : n < step

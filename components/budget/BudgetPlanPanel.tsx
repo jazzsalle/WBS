@@ -256,7 +256,7 @@ export default function BudgetPlanPanel({
     <aside
       aria-label={`${yearName} ${categoryLabel} 산출근거`}
       // §7.9.2 마지막 줄: 산출근거 자체의 인쇄는 Phase 9 범위 밖이다 (인쇄는 매트릭스만 나간다)
-      className="h-fit space-y-4 rounded-xl border border-grey-200 bg-white p-4 print:hidden"
+      className="h-fit space-y-4 rounded-xl border border-grey-200 bg-surface p-4 print:hidden"
     >
       <div className="flex items-start justify-between gap-3">
         <div>

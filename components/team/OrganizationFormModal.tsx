@@ -260,7 +260,7 @@ export default function OrganizationFormModal({
                     {differences.map(({ field, latest }) => (
                       <li
                         key={field.key}
-                        className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
+                        className="flex flex-wrap items-center gap-2 rounded-lg bg-surface/70 px-2.5 py-1.5 text-xs"
                       >
                         <span className="font-semibold text-grey-700">{field.label}</span>
                         <span className="text-grey-500">내 입력: {displayValue(field, values)}</span>
@@ -303,7 +303,7 @@ export default function OrganizationFormModal({
                 value={values.role}
                 disabled={roleLocked}
                 onChange={(e) => setField('role', e.target.value as OrgRole)}
-                className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none disabled:bg-grey-100 disabled:text-grey-500"
+                className="mt-1 w-full rounded-lg border border-grey-300 bg-surface px-3 py-2 text-sm focus:border-grey-500 focus:outline-none disabled:bg-grey-100 disabled:text-grey-500"
               >
                 {(Object.keys(ORG_ROLE_LABELS) as OrgRole[]).map((role) => (
                   <option key={role} value={role}>

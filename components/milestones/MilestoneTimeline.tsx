@@ -123,7 +123,7 @@ export default function MilestoneTimeline({
     return (
       <section
         aria-labelledby="milestone-timeline-title"
-        className="rounded-xl border border-grey-200 bg-white p-4 print:hidden"
+        className="rounded-xl border border-grey-200 bg-surface p-4 print:hidden"
       >
         <h2 id="milestone-timeline-title" className="text-base font-bold text-grey-900">
           타임라인
@@ -197,7 +197,7 @@ export default function MilestoneTimeline({
   return (
     <section
       aria-labelledby="milestone-timeline-title"
-      className="rounded-xl border border-grey-200 bg-white p-4 print:hidden"
+      className="rounded-xl border border-grey-200 bg-surface p-4 print:hidden"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="milestone-timeline-title" className="text-base font-bold text-grey-900">
@@ -231,7 +231,7 @@ export default function MilestoneTimeline({
                 className="pointer-events-none absolute inset-y-0 z-10 w-px bg-grey-900/70"
                 style={{ left: `${todayPct}%` }}
               >
-                <span className="absolute left-1 top-0 rounded bg-grey-900 px-1 text-[10px] font-semibold leading-4 text-white">
+                <span className="absolute left-1 top-0 rounded bg-grey-900 px-1 text-[10px] font-semibold leading-4 text-surface">
                   오늘
                 </span>
               </div>

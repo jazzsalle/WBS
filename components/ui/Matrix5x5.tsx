@@ -83,7 +83,7 @@ export default function Matrix5x5({
   const droppable = onCellDrop !== undefined;
 
   return (
-    <section aria-label={ariaLabel} className="rounded-xl border border-grey-200 bg-white p-4">
+    <section aria-label={ariaLabel} className="rounded-xl border border-grey-200 bg-surface p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-bold text-grey-900">{title}</h2>
         <p className="text-xs text-grey-500">{description}</p>

@@ -178,7 +178,7 @@ interface RatioTableProps {
 
 function RatioTable({ columns, rulesByCode, evaluation, findingsByKey, highlightedYearId }: RatioTableProps) {
   return (
-    <div className={`overflow-x-auto rounded-xl border border-hairline bg-white ${PRINT_TABLE_WRAP}`}>
+    <div className={`overflow-x-auto rounded-xl border border-hairline bg-surface ${PRINT_TABLE_WRAP}`}>
       <table className={`w-full text-left text-t7 ${PRINT_TABLE}`}>
         <caption className="px-4 pt-3 text-left text-t5 font-semibold text-grey-900 print:text-black">
           비율 규칙 (RL-3~RL-9)
@@ -402,7 +402,7 @@ export default function RuleFindingsPanel({
       {noRules && (
         <div
           role="status"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-hairline bg-white px-5 py-4 print:hidden"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-hairline bg-surface px-5 py-4 print:hidden"
         >
           <div>
             <p className="text-t5 font-semibold text-grey-900">이 과제에 연구비 규칙이 없습니다</p>
@@ -433,7 +433,7 @@ export default function RuleFindingsPanel({
       />
 
       {/* ② findings — 서버가 severity 순(error → warn → info)으로 정렬해 준다. 여기서 다시 정렬하지 않는다 */}
-      <div className="rounded-xl border border-hairline bg-white px-4 py-3">
+      <div className="rounded-xl border border-hairline bg-surface px-4 py-3">
         <p className="text-t5 font-semibold text-grey-900">
           판정 결과
           <span className="ml-2 text-t7 font-normal text-grey-500">
@@ -468,7 +468,7 @@ export default function RuleFindingsPanel({
 
       {/* ③ skipped — 접힌 목록. 조용히 빼지 않는다 */}
       {skipped.length > 0 && (
-        <details className="rounded-xl border border-hairline bg-white px-4 py-3">
+        <details className="rounded-xl border border-hairline bg-surface px-4 py-3">
           <summary className="cursor-pointer text-t7 font-semibold text-grey-700">
             판정 못 함 {skipped.length}건
             <span className="ml-2 font-normal text-grey-500">분모 0·필드 미입력 등으로 판정하지 못한 규칙입니다</span>

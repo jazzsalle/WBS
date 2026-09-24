@@ -246,8 +246,8 @@ export default function BudgetScreen({
                   }}
                   className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 ${
                     active
-                      ? 'bg-grey-900 text-white'
-                      : 'border border-grey-300 bg-white text-grey-700 hover:bg-grey-50'
+                      ? 'bg-grey-900 text-surface'
+                      : 'border border-grey-300 bg-surface text-grey-700 hover:bg-grey-50'
                   }`}
                 >
                   {item.label}
@@ -281,7 +281,7 @@ export default function BudgetScreen({
                     className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 ${
                       active
                         ? 'bg-blue-500 text-white'
-                        : 'border border-grey-300 bg-white text-grey-700 hover:bg-grey-50'
+                        : 'border border-grey-300 bg-surface text-grey-700 hover:bg-grey-50'
                     }`}
                   >
                     {item.label}
@@ -421,7 +421,7 @@ export default function BudgetScreen({
       )}
 
       {source.matrix.columns.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-grey-300 bg-white p-6 text-center text-sm text-grey-400">
+        <p className="rounded-xl border border-dashed border-grey-300 bg-surface p-6 text-center text-sm text-grey-400">
           연차가 없습니다. 과제 개요에서 단계·연차를 먼저 만드세요.
         </p>
       ) : mode === 'execution' ? (
@@ -455,7 +455,7 @@ export default function BudgetScreen({
               {...callbacks}
             />
           ) : (
-            <aside className="h-fit rounded-xl border border-dashed border-grey-300 bg-white p-6 text-sm text-grey-400 print:hidden">
+            <aside className="h-fit rounded-xl border border-dashed border-grey-300 bg-surface p-6 text-sm text-grey-400 print:hidden">
               셀을 클릭하면 집행 내역과 현금·현물 편집 패널이 열립니다.
             </aside>
           )}
@@ -464,7 +464,7 @@ export default function BudgetScreen({
         // planError 배너가 이미 이유를 말했다. 제안 모드에는 그릴 스냅샷이 없으므로 표를 감춘다.
         // 빈 매트릭스로 대체하면 "계획이 비었다"는 거짓말이 되고(절대 규칙 5), 수행 스냅샷으로
         // 대신 그리면 금액과 잠금이 서로 다른 시점을 보게 된다 — C5가 고친 결함 그 자체다
-        <p className="rounded-xl border border-dashed border-grey-300 bg-white p-6 text-center text-sm text-grey-400 print:hidden">
+        <p className="rounded-xl border border-dashed border-grey-300 bg-surface p-6 text-center text-sm text-grey-400 print:hidden">
           제안 모드 데이터를 불러오지 못해 매트릭스를 표시하지 않습니다. 수행 모드로 돌아가면 예산·집행은
           그대로 볼 수 있습니다.
         </p>
@@ -555,7 +555,7 @@ export default function BudgetScreen({
                 onClose={() => selectCell(null)}
               />
             ) : (
-              <p className="rounded-xl border border-dashed border-grey-300 bg-white p-6 text-center text-sm text-grey-400 print:hidden">
+              <p className="rounded-xl border border-dashed border-grey-300 bg-surface p-6 text-center text-sm text-grey-400 print:hidden">
                 셀을 클릭하면 이 자리에 산출근거 패널이 열립니다. 산출근거가 있는 셀은 계획액이 내역
                 합계로 확정되어 표에서 직접 고칠 수 없습니다 (PL-9).
               </p>

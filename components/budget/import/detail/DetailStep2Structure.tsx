@@ -98,11 +98,11 @@ export default function DetailStep2Structure({
               }
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
                 selected
-                  ? 'border-grey-900 bg-grey-900 text-white'
+                  ? 'border-grey-900 bg-grey-900 text-surface'
                   : recommended
                     ? 'border-green-400 bg-green-50 text-green-800'
                     : item.eligible
-                      ? 'border-grey-200 bg-white text-grey-600 hover:bg-grey-50'
+                      ? 'border-grey-200 bg-surface text-grey-600 hover:bg-grey-50'
                       : 'border-grey-200 bg-grey-50 text-grey-400 hover:bg-grey-100'
               }`}
             >
@@ -265,7 +265,7 @@ function BlockCard({
   return (
     <div
       className={`rounded-lg border p-3 ${
-        unresolved.length > 0 ? 'border-orange-300 bg-orange-50/60' : 'border-grey-200 bg-white'
+        unresolved.length > 0 ? 'border-orange-300 bg-orange-50/60' : 'border-grey-200 bg-surface'
       }`}
     >
       <div className="flex flex-wrap items-baseline gap-2 text-xs">

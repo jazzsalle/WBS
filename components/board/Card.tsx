@@ -83,15 +83,15 @@ export default function Card({
         callbacks.onDropCard(card.id, positionFromPointer(e));
       }}
       className={[
-        'relative flex gap-2 rounded-lg border border-grey-200 bg-white p-2 pl-3 text-xs shadow-sm',
+        'relative flex gap-2 rounded-lg border border-grey-200 bg-surface p-2 pl-3 text-xs shadow-sm',
         busy ? '' : 'cursor-grab',
         dragging ? 'opacity-40' : 'hover:border-grey-300',
         // PR-6: 완료 작업은 우선순위 표시를 흐리게 한다
         done ? 'opacity-60' : '',
         // PR-5: 막힌 작업은 점수와 무관하게 주의 대상이다
         card.status === 'blocked' ? 'border-red-300' : '',
-        dropPosition === 'before' ? 'shadow-[inset_0_2px_0_0_#2563eb]' : '',
-        dropPosition === 'after' ? 'shadow-[inset_0_-2px_0_0_#2563eb]' : '',
+        dropPosition === 'before' ? 'shadow-[inset_0_2px_0_0_var(--color-blue-600)]' : '',
+        dropPosition === 'after' ? 'shadow-[inset_0_-2px_0_0_var(--color-blue-600)]' : '',
       ].join(' ')}
     >
       {/* §7.6 카드 좌측 우선순위 등급 색 띠 */}

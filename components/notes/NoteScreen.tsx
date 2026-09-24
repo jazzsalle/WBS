@@ -227,7 +227,7 @@ export default function NoteScreen({ data, todayISO, initialNoteId = null }: Not
               <select
                 value={draft.type}
                 onChange={(e) => setDraft({ ...draft, type: e.target.value as NoteType })}
-                className={`${inputClass} bg-white`}
+                className={`${inputClass} bg-surface`}
               >
                 {(Object.keys(NOTE_TYPE_LABELS) as NoteType[]).map((type) => (
                   <option key={type} value={type}>

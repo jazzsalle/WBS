@@ -220,7 +220,7 @@ function MemberCard({
   return (
     <section
       className={`rounded-xl border p-3 ${
-        undecided ? 'border-orange-300 bg-orange-50/60' : 'border-grey-200 bg-white'
+        undecided ? 'border-orange-300 bg-orange-50/60' : 'border-grey-200 bg-surface'
       }`}
     >
       <header className="flex flex-wrap items-baseline gap-2 text-sm">

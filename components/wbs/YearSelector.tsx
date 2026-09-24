@@ -63,7 +63,7 @@ export default function YearSelector({
             value={stageId}
             disabled={disabled}
             onChange={(e) => setStageId(e.target.value)}
-            className="rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
+            className="rounded-lg border border-grey-300 bg-surface px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
           >
             {stages.map((stage) => (
               <option key={stage.id} value={stage.id}>
@@ -87,8 +87,8 @@ export default function YearSelector({
               onClick={() => go(year.id)}
               className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
                 active
-                  ? 'bg-grey-900 text-white'
-                  : 'border border-grey-300 bg-white text-grey-700 hover:bg-grey-50'
+                  ? 'bg-grey-900 text-surface'
+                  : 'border border-grey-300 bg-surface text-grey-700 hover:bg-grey-50'
               }`}
             >
               {yearLabel(year)}
@@ -105,8 +105,8 @@ export default function YearSelector({
           title="모든 연차를 한 화면에서 봅니다. WBS 코드에 연차 접두가 붙습니다"
           className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
             selectedYearId === ALL_YEARS
-              ? 'bg-grey-900 text-white'
-              : 'border border-dashed border-grey-300 bg-white text-grey-600 hover:bg-grey-50'
+              ? 'bg-grey-900 text-surface'
+              : 'border border-dashed border-grey-300 bg-surface text-grey-600 hover:bg-grey-50'
           }`}
         >
           전체 연차 보기

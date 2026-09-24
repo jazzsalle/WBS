@@ -18,7 +18,7 @@ export default function TodayTodos({ items }: TodayTodosProps) {
   return (
     <section
       aria-labelledby="dashboard-todos-title"
-      className="rounded-2xl border border-grey-200 bg-white p-5"
+      className="rounded-2xl border border-grey-200 bg-surface p-5"
     >
       <h2 id="dashboard-todos-title" className="text-base font-bold text-grey-900">
         오늘의 To-Do

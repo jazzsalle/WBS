@@ -97,7 +97,7 @@ export default function TutorialLauncher({ projectId, docs }: TutorialLauncherPr
         onClick={() => setOpen(true)}
         aria-label="따라하기 열기"
         title="따라하기 — 설정에서 버튼을 다시 크게 열 수 있습니다"
-        className="fixed bottom-6 right-6 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-grey-200 bg-white text-grey-500 shadow transition hover:bg-grey-100 hover:text-grey-700 print:hidden"
+        className="fixed bottom-6 right-6 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-grey-200 bg-surface text-grey-500 shadow transition hover:bg-grey-100 hover:text-grey-700 print:hidden"
       >
         <BookIcon />
       </button>

@@ -54,10 +54,10 @@ export default function NoteList({
   busy,
 }: NoteListProps) {
   const controlClass =
-    'w-full rounded-lg border border-grey-300 bg-white px-2 py-1.5 text-xs focus:border-grey-500 focus:outline-none';
+    'w-full rounded-lg border border-grey-300 bg-surface px-2 py-1.5 text-xs focus:border-grey-500 focus:outline-none';
 
   return (
-    <div className="flex min-h-0 flex-col rounded-xl border border-grey-200 bg-white">
+    <div className="flex min-h-0 flex-col rounded-xl border border-grey-200 bg-surface">
       <div className="space-y-2 border-b border-grey-200 p-3">
         <label className="block">
           <span className="sr-only">노트 검색</span>

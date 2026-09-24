@@ -27,7 +27,7 @@ const STATUS_TONES: Record<TaskStatus, BadgeTone> = {
 };
 
 const STATUS_SELECT_CLASSES: Record<TaskStatus, string> = {
-  todo: 'border-grey-200 bg-white text-grey-600',
+  todo: 'border-grey-200 bg-surface text-grey-600',
   in_progress: 'border-blue-200 bg-blue-50 text-blue-700',
   done: 'border-green-200 bg-green-50 text-green-700',
   blocked: 'border-red-200 bg-red-50 text-red-700',
@@ -199,8 +199,8 @@ export default function TreeRow({
         selected ? 'bg-blue-50/70' : 'hover:bg-grey-50',
         dragging ? 'opacity-40' : '',
         task.status === 'done' ? 'text-grey-400' : 'text-grey-700', // PR-6: 완료는 흐리게
-        dropZone === 'before' ? 'shadow-[inset_0_2px_0_0_#2563eb]' : '',
-        dropZone === 'after' ? 'shadow-[inset_0_-2px_0_0_#2563eb]' : '',
+        dropZone === 'before' ? 'shadow-[inset_0_2px_0_0_var(--color-blue-600)]' : '',
+        dropZone === 'after' ? 'shadow-[inset_0_-2px_0_0_var(--color-blue-600)]' : '',
         dropZone === 'inside' ? 'ring-2 ring-inset ring-blue-400' : '',
       ].join(' ')}
     >

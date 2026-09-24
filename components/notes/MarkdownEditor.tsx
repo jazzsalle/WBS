@@ -262,7 +262,7 @@ export default function MarkdownEditor({
         : '저장된 상태';
 
   return (
-    <section aria-label="노트 편집" className="flex min-h-0 flex-col rounded-xl border border-grey-200 bg-white">
+    <section aria-label="노트 편집" className="flex min-h-0 flex-col rounded-xl border border-grey-200 bg-surface">
       <header className="border-b border-grey-200 p-4">
         <div className="flex flex-wrap items-start gap-3">
           <label className="min-w-0 flex-1">
@@ -281,7 +281,7 @@ export default function MarkdownEditor({
             <select
               value={values.type}
               onChange={(e) => patchValue('type', e.target.value as NoteType)}
-              className={`${inputClass} bg-white`}
+              className={`${inputClass} bg-surface`}
             >
               {(Object.keys(NOTE_TYPE_LABELS) as NoteType[]).map((type) => (
                 <option key={type} value={type}>
@@ -307,7 +307,7 @@ export default function MarkdownEditor({
             <select
               value={values.yearId}
               onChange={(e) => patchValue('yearId', e.target.value)}
-              className={`${inputClass} bg-white`}
+              className={`${inputClass} bg-surface`}
             >
               <option value="">연차 없음</option>
               {withSelected(yearOptions, values.yearId).map((option) => (
@@ -322,7 +322,7 @@ export default function MarkdownEditor({
             <select
               value={values.taskId}
               onChange={(e) => patchValue('taskId', e.target.value)}
-              className={`${inputClass} bg-white`}
+              className={`${inputClass} bg-surface`}
             >
               <option value="">연결 없음</option>
               {withSelected(taskOptions, values.taskId).map((option) => (
@@ -337,7 +337,7 @@ export default function MarkdownEditor({
             <select
               value={values.milestoneId}
               onChange={(e) => patchValue('milestoneId', e.target.value)}
-              className={`${inputClass} bg-white`}
+              className={`${inputClass} bg-surface`}
             >
               <option value="">연결 없음</option>
               {withSelected(milestoneOptions, values.milestoneId).map((option) => (
@@ -395,8 +395,8 @@ export default function MarkdownEditor({
               aria-pressed={viewMode === mode}
               className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
                 viewMode === mode
-                  ? 'bg-grey-900 text-white'
-                  : 'border border-grey-300 bg-white text-grey-600 hover:bg-grey-50'
+                  ? 'bg-grey-900 text-surface'
+                  : 'border border-grey-300 bg-surface text-grey-600 hover:bg-grey-50'
               }`}
             >
               {VIEW_LABELS[mode]}

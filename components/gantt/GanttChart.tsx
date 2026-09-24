@@ -70,7 +70,7 @@ const LEGEND_DOT_CLASSES: Record<string, string> = {
   'grey-600': 'bg-grey-600',
 };
 
-const BAND_TINTS = ['bg-grey-100', 'bg-white'];
+const BAND_TINTS = ['bg-grey-100', 'bg-surface'];
 
 type Row =
   | { kind: 'year'; key: string; year: Year; progress: number }
@@ -509,7 +509,7 @@ export default function GanttChart({ data }: GanttChartProps) {
   return (
     <section>
       {/* 툴바 — 스케일 전환(§7.5) */}
-      <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-grey-200 bg-white p-3 text-sm">
+      <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-grey-200 bg-surface p-3 text-sm">
         <div role="group" aria-label="시간축 스케일" className="flex items-center gap-1">
           {GANTT_SCALES.map((s) => (
             <Button
@@ -569,7 +569,7 @@ export default function GanttChart({ data }: GanttChartProps) {
           className="mb-3 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800"
         >
           <p className="font-semibold">기간 변경이 저장되지 않았습니다.</p>
-          <div className="mt-2 flex flex-wrap items-center gap-3 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs">
+          <div className="mt-2 flex flex-wrap items-center gap-3 rounded-lg bg-surface/70 px-2.5 py-1.5 text-xs">
             <span className="font-semibold text-grey-700">
               {overrideNode?.task.title ?? '(삭제된 작업)'}
             </span>
@@ -617,7 +617,7 @@ export default function GanttChart({ data }: GanttChartProps) {
         </p>
       ) : (
         <div
-          className="grid overflow-hidden rounded-xl border border-grey-200 bg-white"
+          className="grid overflow-hidden rounded-xl border border-grey-200 bg-surface"
           style={{ gridTemplateColumns: `${LEFT_WIDTH}px minmax(0, 1fr)` }}
         >
           {/* 좌측 고정 패널: 연차 > 작업 트리 (§7.5) */}

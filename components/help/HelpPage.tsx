@@ -80,7 +80,7 @@ export default function HelpPage({ documents }: HelpPageProps) {
               key={doc.slug}
               id={doc.slug}
               // scroll-mt: 스크롤 도착 지점이 화면 위 모서리에 딱 붙지 않게
-              className={`scroll-mt-6 rounded-xl border border-grey-200 bg-white p-6 transition-shadow duration-500 ${
+              className={`scroll-mt-6 rounded-xl border border-grey-200 bg-surface p-6 transition-shadow duration-500 ${
                 active === doc.slug ? 'ring-2 ring-blue-200' : ''
               }`}
             >

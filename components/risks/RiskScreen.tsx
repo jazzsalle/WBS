@@ -262,7 +262,7 @@ export default function RiskScreen({ data }: RiskScreenProps) {
           <select
             value={sortMode}
             onChange={(e) => setSortMode(e.target.value as SortMode)}
-            className="rounded-md border border-grey-300 bg-white px-2 py-1 text-xs font-medium focus:border-grey-500 focus:outline-none"
+            className="rounded-md border border-grey-300 bg-surface px-2 py-1 text-xs font-medium focus:border-grey-500 focus:outline-none"
           >
             <option value="score">점수 내림차순 (기본)</option>
             <option value="manual">수동 순서</option>

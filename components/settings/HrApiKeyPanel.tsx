@@ -149,7 +149,7 @@ export default function HrApiKeyPanel() {
         : null;
 
   return (
-    <section className="mt-8 rounded-2xl border border-grey-200 bg-white p-6">
+    <section className="mt-8 rounded-2xl border border-grey-200 bg-surface p-6">
       <h2 className="text-lg font-bold">사내 명부 연동</h2>
       <p className="mt-1 text-sm text-grey-500">
         인력 화면의 [사내 명부에서 추가]가 쓰는 HR API 키입니다 (SOT §6.13).
@@ -159,7 +159,7 @@ export default function HrApiKeyPanel() {
       <ul className="mt-4 space-y-1 rounded-lg bg-grey-50 p-3 text-sm text-grey-600">
         <li>
           <span className="font-medium text-grey-700">발급 방법:</span>{' '}
-          <code className="rounded bg-white px-1 py-0.5 text-xs">
+          <code className="rounded bg-surface px-1 py-0.5 text-xs">
             hr.unes.kr 로그인 → 🔑 API 키 → 용도 입력 → 이메일 인증
           </code>{' '}
           — 키는 발급 화면에서 한 번만 보입니다.

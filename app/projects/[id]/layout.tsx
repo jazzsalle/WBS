@@ -43,7 +43,7 @@ export default async function ProjectLayout({
   return (
     <div className="min-h-screen">
       {/* §12 P-R4: 브레드크럼·탭은 화면 이동 수단이다. 인쇄물에 남기지 않는다 */}
-      <header className="border-b border-grey-200 bg-white print:hidden">
+      <header className="border-b border-grey-200 bg-surface print:hidden">
         <div className="mx-auto max-w-7xl px-8 pt-6">
           <div className="flex items-center justify-between gap-4">
             <nav aria-label="위치" className="flex items-center gap-2 text-xs text-grey-500">

@@ -64,7 +64,7 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`w-full ${SIZE_CLASSES[size]} rounded-3xl bg-white p-6 shadow-xl`}
+        className={`w-full ${SIZE_CLASSES[size]} rounded-3xl bg-surface p-6 shadow-xl`}
       >
         <div className="flex items-start justify-between gap-4">
           <div>

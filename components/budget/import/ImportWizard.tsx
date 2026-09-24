@@ -871,7 +871,7 @@ function StepIndicator({ step }: { step: WizardStep }) {
           key={n}
           className={`rounded-full px-2.5 py-1 ${
             n === step
-              ? 'bg-grey-900 font-semibold text-white'
+              ? 'bg-grey-900 font-semibold text-surface'
               : n < step
                 ? 'bg-grey-200 text-grey-600'
                 : 'bg-grey-50 text-grey-400'

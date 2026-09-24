@@ -222,7 +222,7 @@ export default function BackupPanel() {
       : { label: '꺼짐 — 백업 폴더가 지정되지 않았습니다.', warn: true };
 
   return (
-    <section className="mt-8 rounded-2xl border border-grey-200 bg-white p-6">
+    <section className="mt-8 rounded-2xl border border-grey-200 bg-surface p-6">
       <h2 className="text-lg font-bold">백업·복원</h2>
       <p className="mt-1 text-sm text-grey-500">
         무료 플랜에는 DB 백업이 없어 자체 백업이 유일한 안전망입니다 (SOT §8.7).
@@ -264,7 +264,7 @@ export default function BackupPanel() {
           type="button"
           onClick={handleExport}
           disabled={busy !== null}
-          className="rounded-lg bg-grey-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-grey-700 disabled:opacity-50"
+          className="rounded-lg bg-grey-900 px-4 py-2 text-sm font-semibold text-surface transition hover:bg-grey-700 disabled:opacity-50"
         >
           {busy === 'export' ? '내보내는 중…' : '지금 내보내기'}
         </button>
@@ -300,12 +300,12 @@ export default function BackupPanel() {
       {/* K-4 2단계 확인 모달 */}
       {candidate && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-grey-900/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-dimmed p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="restore-title"
         >
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl">
             <h3 id="restore-title" className="text-lg font-bold">
               전체 복원 — {restoreStep === 1 ? '확인 1/2' : '확인 2/2'}
             </h3>

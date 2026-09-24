@@ -165,7 +165,7 @@ export default function PersonnelTab({ projectId, years, onSaved, onBusyChange }
 
   if (years.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-grey-300 bg-white p-6 text-center text-sm text-grey-400">
+      <p className="rounded-xl border border-dashed border-grey-300 bg-surface p-6 text-center text-sm text-grey-400">
         연차가 없습니다. 과제 개요에서 단계·연차를 먼저 만드세요.
       </p>
     );
@@ -234,7 +234,7 @@ export default function PersonnelTab({ projectId, years, onSaved, onBusyChange }
       )}
 
       {state.phase === 'loading' && (
-        <div role="status" aria-label="불러오는 중" className="rounded-xl border border-hairline bg-white p-4">
+        <div role="status" aria-label="불러오는 중" className="rounded-xl border border-hairline bg-surface p-4">
           <SkeletonBlock className="h-4 w-full" />
           {Array.from({ length: 5 }, (_, i) => (
             <SkeletonBlock key={i} className="mt-3 h-4" />
@@ -256,7 +256,7 @@ export default function PersonnelTab({ projectId, years, onSaved, onBusyChange }
             </p>
           )}
 
-          <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-white ${PRINT_TABLE_WRAP}`}>
+          <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-surface ${PRINT_TABLE_WRAP}`}>
             <table className={`w-full min-w-[72rem] text-left text-t7 ${PRINT_TABLE}`}>
               <caption className="sr-only">
                 {data.year.name} 인건비·학생인건비 산출근거. 조직원 × 월급 × 참여율 × 참여개월.
@@ -338,7 +338,7 @@ export default function PersonnelTab({ projectId, years, onSaved, onBusyChange }
           )}
 
           {/* PS-6 참고 — 이 과제의 조직원별 전 과제 합계. 판정은 서버(PS-4)가 했고 여기서는 색만 고른다 */}
-          <div className="rounded-xl border border-grey-200 bg-white p-4">
+          <div className="rounded-xl border border-grey-200 bg-surface p-4">
             <h3 className="text-t6 font-semibold text-grey-900">
               다른 과제 포함 {data.rateYear === null ? '연도' : `${data.rateYear}년`} 계상률
               <span className="ml-2 text-t7 font-normal text-grey-500">

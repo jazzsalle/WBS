@@ -5,11 +5,16 @@
 // 클라이언트 전용 — 서버 액션은 각 PC의 로컬 파일에 접근할 수 없다 (I-17과 같은 이유).
 
 import { z } from 'zod';
-import type { LocalConfig, TutorialStepId } from '@/types';
+import type { LocalConfig, ThemeMode, TutorialStepId } from '@/types';
 import { isTauri } from './tauri/env';
 
 const FILE_NAME = 'local-config.json';
-const STORAGE_KEY = 'wbs.local-config';
+// 브라우저 모드의 localStorage 키. app/layout.tsx의 깜빡임 방지 스크립트(§7.19)가
+// 같은 키를 마운트 전에 읽으므로 여기서만 정의하고 내보낸다.
+export const LOCAL_CONFIG_STORAGE_KEY = 'wbs.local-config';
+const STORAGE_KEY = LOCAL_CONFIG_STORAGE_KEY;
+
+export const THEME_MODES = ['system', 'light', 'dark'] as const satisfies readonly ThemeMode[];
 
 // §5.16 TutorialStepId 순서 그대로 (TU-2의 9단계 순서와 같다)
 export const TUTORIAL_STEP_IDS = [
@@ -35,6 +40,7 @@ export const DEFAULT_LOCAL_CONFIG: LocalConfig = {
   lastBackupAt: null,
   lastOpenedProjectId: null,
   ganttScale: 'week', // §5.16 defaultGanttScale 기본값과 맞춘다
+  theme: 'system', // §7.19 기본 — OS 설정을 따른다
   tutorial: DEFAULT_TUTORIAL_CONFIG,
 };
 
@@ -71,6 +77,7 @@ const storedSchema = z.object({
   lastBackupAt: z.string().nullable().catch(null),
   lastOpenedProjectId: z.string().nullable().catch(null),
   ganttScale: z.enum(['day', 'week', 'month']).catch('week'),
+  theme: z.enum(THEME_MODES).catch('system'), // 구 설정 파일에 키가 없거나 모르는 값이면 system (§7.19)
   tutorial: tutorialSchema,
   onboardingCompleted: z.boolean().catch(false),
 });

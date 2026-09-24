@@ -76,7 +76,7 @@ export default function UserManagement({ users, currentUserId }: UserManagementP
                   type="button"
                   onClick={() => run(user.id, approveUser)}
                   disabled={pendingId !== null}
-                  className="shrink-0 rounded-lg bg-grey-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-grey-700 disabled:opacity-50"
+                  className="shrink-0 rounded-lg bg-grey-900 px-3 py-1.5 text-xs font-semibold text-surface transition hover:bg-grey-700 disabled:opacity-50"
                 >
                   {pendingId === user.id ? '처리 중…' : '승인'}
                 </button>
@@ -86,7 +86,7 @@ export default function UserManagement({ users, currentUserId }: UserManagementP
         </div>
       )}
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-grey-200 bg-white">
+      <div className="mt-4 overflow-hidden rounded-xl border border-grey-200 bg-surface">
         <table className="w-full text-left text-sm">
           <thead className="bg-grey-50 text-xs text-grey-500">
             <tr>

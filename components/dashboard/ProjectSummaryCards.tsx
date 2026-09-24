@@ -81,7 +81,7 @@ export default function ProjectSummaryCards({ cards, currencyUnit }: ProjectSumm
       </div>
 
       {cards.length === 0 ? (
-        <p className="mt-3 rounded-2xl border border-dashed border-grey-300 bg-white/60 p-6 text-center text-xs text-grey-500">
+        <p className="mt-3 rounded-2xl border border-dashed border-grey-300 bg-surface/60 p-6 text-center text-xs text-grey-500">
           표시할 과제가 없습니다. 과제를 등록하면 여기에 요약이 나타납니다(아카이브 과제는 제외됩니다).
         </p>
       ) : (
@@ -90,7 +90,7 @@ export default function ProjectSummaryCards({ cards, currencyUnit }: ProjectSumm
             <li key={card.projectId}>
               <Link
                 href={`/projects/${card.projectId}`}
-                className="block rounded-2xl border border-grey-200 bg-white p-5 hover:border-blue-300 hover:shadow-sm"
+                className="block rounded-2xl border border-grey-200 bg-surface p-5 hover:border-blue-300 hover:shadow-sm"
               >
                 <div className="flex items-start gap-3">
                   {/* 과제 색은 사용자가 지정한 임의 값이라 클래스가 아닌 인라인 스타일로만 쓸 수 있다 */}

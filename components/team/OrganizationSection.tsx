@@ -161,7 +161,7 @@ export default function OrganizationSection({
             return (
               <li
                 key={org.id}
-                className={`flex flex-col rounded-xl border bg-white p-4 ${
+                className={`flex flex-col rounded-xl border bg-surface p-4 ${
                   lead ? 'border-purple-200 ring-1 ring-purple-100' : 'border-grey-200'
                 }`}
               >

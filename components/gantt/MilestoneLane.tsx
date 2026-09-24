@@ -96,7 +96,7 @@ export default function MilestoneLane({ layout, range }: MilestoneLaneProps) {
   return (
     <div
       aria-label="마일스톤"
-      className="relative border-b border-grey-200 bg-white"
+      className="relative border-b border-grey-200 bg-surface"
       style={{ width: range.widthPx, height: layout.height }}
     >
       {layout.markers.map((marker) => {

@@ -233,7 +233,7 @@ function EntityFormModal({
                   {differences.map(({ field, latest }) => (
                     <li
                       key={field.key}
-                      className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
+                      className="flex flex-wrap items-center gap-2 rounded-lg bg-surface/70 px-2.5 py-1.5 text-xs"
                     >
                       <span className="font-semibold text-grey-700">{field.label}</span>
                       <span className="text-grey-500">내 입력: {displayValue(field.key, values)}</span>
@@ -511,7 +511,7 @@ export default function StageYearPanel({
   const canDeleteStage = stages.length > 1; // H-6: 마지막 단계는 삭제 불가
 
   return (
-    <section className="rounded-2xl border border-grey-200 bg-white p-5">
+    <section className="rounded-2xl border border-grey-200 bg-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-grey-900">단계 · 연차</h2>
@@ -719,7 +719,7 @@ export default function StageYearPanel({
                               onChange={(e) =>
                                 void handleYearStatus(year.id, e.target.value as YearStatus)
                               }
-                              className="rounded-lg border border-grey-300 bg-white px-2 py-1 text-xs focus:border-grey-500 focus:outline-none"
+                              className="rounded-lg border border-grey-300 bg-surface px-2 py-1 text-xs focus:border-grey-500 focus:outline-none"
                             >
                               {(Object.keys(YEAR_STATUS_LABELS) as YearStatus[]).map((status) => (
                                 <option key={status} value={status}>

@@ -201,7 +201,7 @@ export default function StaffFormModal({ mode, staff, onClose, onSaved }: StaffF
                     {differences.map(({ field, latest }) => (
                       <li
                         key={field.key}
-                        className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
+                        className="flex flex-wrap items-center gap-2 rounded-lg bg-surface/70 px-2.5 py-1.5 text-xs"
                       >
                         <span className="font-semibold text-grey-700">{field.label}</span>
                         <span className="text-grey-500">내 입력: {displayValue(field, values)}</span>

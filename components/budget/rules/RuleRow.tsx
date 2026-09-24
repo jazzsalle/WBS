@@ -64,7 +64,7 @@ const SEVERITY_TONES: Record<RuleSeverity, BadgeTone> = {
 };
 
 const INPUT_CLASS =
-  'w-full rounded-md border border-grey-300 bg-white px-2 py-1 text-t7 text-grey-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-grey-100 disabled:text-grey-400';
+  'w-full rounded-md border border-grey-300 bg-surface px-2 py-1 text-t7 text-grey-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-grey-100 disabled:text-grey-400';
 
 const CUSTOM_OPTION = '__custom__';
 
@@ -318,7 +318,7 @@ export default function RuleRow({
                       {RULE_DRAFT_FIELDS.filter((f) => diffKeys.includes(f.key)).map((field) => {
                         const kept = row.reloaded?.keptKeys.has(field.key) ?? false;
                         return (
-                          <li key={field.key} className="rounded-lg bg-white/70 px-2.5 py-1.5">
+                          <li key={field.key} className="rounded-lg bg-surface/70 px-2.5 py-1.5">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-semibold text-grey-700">{field.label}</span>
                               <span className="text-grey-500">

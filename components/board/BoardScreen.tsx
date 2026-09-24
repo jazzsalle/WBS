@@ -337,8 +337,8 @@ export default function BoardScreen({ board, matrix, members, organizations }: B
                 title={twoLevel && stage ? stageLabel(stage) : undefined}
                 className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
                   active
-                    ? 'bg-grey-900 text-white'
-                    : 'border border-grey-300 bg-white text-grey-700 hover:bg-grey-50'
+                    ? 'bg-grey-900 text-surface'
+                    : 'border border-grey-300 bg-surface text-grey-700 hover:bg-grey-50'
                 }`}
               >
                 {yearLabel(year)}
@@ -354,8 +354,8 @@ export default function BoardScreen({ board, matrix, members, organizations }: B
             title="모든 연차를 한 화면에서 봅니다. WBS 코드에 연차 접두가 붙습니다"
             className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
               selectedYearId === BOARD_ALL_YEARS
-                ? 'bg-grey-900 text-white'
-                : 'border border-dashed border-grey-300 bg-white text-grey-600 hover:bg-grey-50'
+                ? 'bg-grey-900 text-surface'
+                : 'border border-dashed border-grey-300 bg-surface text-grey-600 hover:bg-grey-50'
             }`}
           >
             전체 연차 보기
@@ -366,7 +366,7 @@ export default function BoardScreen({ board, matrix, members, organizations }: B
       </div>
 
       {view === 'board' && (
-        <div className="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-grey-200 bg-white p-3 text-sm">
+        <div className="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-grey-200 bg-surface p-3 text-sm">
           <label className="flex items-center gap-2 text-grey-700">
             <input
               type="checkbox"

@@ -59,7 +59,7 @@ export default function PendingScreen({ email }: PendingScreenProps) {
 
   return (
     <main className="flex min-h-screen items-center justify-center p-8">
-      <div className="w-full max-w-sm rounded-2xl border border-grey-200 bg-white p-8 text-center shadow-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-grey-200 bg-surface p-8 text-center shadow-sm">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-orange-100">
           <svg
             className="h-6 w-6 text-orange-600"

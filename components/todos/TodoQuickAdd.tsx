@@ -64,7 +64,7 @@ export default function TodoQuickAdd({ busy, onFailure, onCreated }: TodoQuickAd
         e.preventDefault(); // Enter는 폼 submit으로 들어온다
         if (!disabled) void submit();
       }}
-      className="flex items-center gap-2 rounded-xl border border-grey-200 bg-white p-3"
+      className="flex items-center gap-2 rounded-xl border border-grey-200 bg-surface p-3"
     >
       <span aria-hidden className="pl-1 text-lg leading-none text-grey-300">
         +

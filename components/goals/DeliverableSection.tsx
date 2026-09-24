@@ -51,19 +51,20 @@ type YearCell = DeliverableView['byYear'][string];
 // 유형별 도넛 색. 부록 A.3에는 성과목표 유형 색이 없어 새 색 규약을 만들지 않는다 —
 // 대신 진행바(blue-500)와 같은 색조의 명도 단계만 순환시키고, 식별은 범례가 맡는다.
 // 부록 A에 없는 값이므로 lib/constants.ts가 아니라 이 컴포넌트 안에만 둔다.
+// 헥스가 아니라 var(--color-*)로 두어야 다크 팔레트(부록 E.5)에서 같이 뒤집힌다.
 const TYPE_SHADES: readonly string[] = [
-  '#1e3a8a', // blue-900
-  '#1d4ed8', // blue-700
-  '#2563eb', // blue-600
-  '#3b82f6', // blue-500
-  '#60a5fa', // blue-400
-  '#93c5fd', // blue-300
-  '#bfdbfe', // blue-200
+  'var(--color-blue-900)',
+  'var(--color-blue-700)',
+  'var(--color-blue-600)',
+  'var(--color-blue-500)',
+  'var(--color-blue-300)',
+  'var(--color-blue-200)',
+  'var(--color-blue-100)',
 ] as const;
 
 function typeShade(index: number): string {
   // 유형이 색 수보다 많으면 명도가 반복된다 — 범례가 옆에 붙어 있어 식별은 유지된다
-  return TYPE_SHADES[index % TYPE_SHADES.length] ?? '#3b82f6';
+  return TYPE_SHADES[index % TYPE_SHADES.length] ?? 'var(--color-blue-500)';
 }
 
 /**
@@ -96,7 +97,7 @@ function TypeDonut({
       aria-label={`유형별 목표 구성. 전체 목표 ${targetTotal}건`}
       className="h-24 w-24 shrink-0"
     >
-      <circle cx="44" cy="44" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="10" />
+      <circle cx="44" cy="44" r={radius} fill="none" stroke="var(--color-grey-200)" strokeWidth="10" />
       {arcs
         .filter((arc) => arc.length > 0)
         .map((arc) => (
@@ -358,7 +359,7 @@ export default function DeliverableSection({
       )}
 
       {/* 상단 요약 (§7.7 "전체 목표 건수 vs 달성 건수, 유형별") */}
-      <div className="mt-3 grid gap-4 rounded-xl border border-grey-200 bg-white p-4 lg:grid-cols-2">
+      <div className="mt-3 grid gap-4 rounded-xl border border-grey-200 bg-surface p-4 lg:grid-cols-2">
         <div>
           <p className="text-xs text-grey-500">전체 목표 대비 달성</p>
           <p className="mt-1 text-2xl font-bold tabular-nums text-grey-900">
@@ -428,11 +429,11 @@ export default function DeliverableSection({
       </div>
 
       {views.length === 0 ? (
-        <p className="mt-3 rounded-xl border border-dashed border-grey-300 bg-white p-6 text-center text-sm text-grey-400">
+        <p className="mt-3 rounded-xl border border-dashed border-grey-300 bg-surface p-6 text-center text-sm text-grey-400">
           등록된 성과목표가 없습니다. [성과목표 추가]로 시작하세요.
         </p>
       ) : (
-        <div className="mt-3 overflow-x-auto rounded-xl border border-grey-200 bg-white">
+        <div className="mt-3 overflow-x-auto rounded-xl border border-grey-200 bg-surface">
           <table className="w-full text-left text-sm">
             <thead className="text-xs text-grey-500">
               <tr className="border-b border-grey-100">

@@ -299,7 +299,7 @@ export default function MemberFormModal({
                     {differences.map(({ field, latest }) => (
                       <li
                         key={field.key}
-                        className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
+                        className="flex flex-wrap items-center gap-2 rounded-lg bg-surface/70 px-2.5 py-1.5 text-xs"
                       >
                         <span className="font-semibold text-grey-700">{field.label}</span>
                         <span className="text-grey-500">내 입력: {displayValue(field, values)}</span>
@@ -340,7 +340,7 @@ export default function MemberFormModal({
               <select
                 value={values.role}
                 onChange={(e) => setField('role', e.target.value as MemberRole)}
-                className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 bg-surface px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               >
                 {(Object.keys(MEMBER_ROLE_LABELS) as MemberRole[]).map((role) => (
                   <option key={role} value={role}>
@@ -359,7 +359,7 @@ export default function MemberFormModal({
               <select
                 value={values.orgId}
                 onChange={(e) => setField('orgId', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 bg-surface px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               >
                 <option value="">소속 없음</option>
                 {organizations.map((org) => (
@@ -443,7 +443,7 @@ export default function MemberFormModal({
               <select
                 value={values.hireType}
                 onChange={(e) => setField('hireType', e.target.value as HireType)}
-                className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 bg-surface px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               >
                 {(Object.keys(HIRE_TYPE_LABELS) as HireType[]).map((hireType) => (
                   <option key={hireType} value={hireType}>

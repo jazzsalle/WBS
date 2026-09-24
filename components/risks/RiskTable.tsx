@@ -33,7 +33,7 @@ const TH_CLASS = `px-3 py-2 font-medium ${PRINT_TH}`;
 const TD_CLASS = `px-3 py-2 align-top ${PRINT_TD}`;
 
 const SELECT_CLASS =
-  'w-full rounded-md border border-grey-300 bg-white px-1.5 py-1 text-xs font-medium focus:border-grey-500 focus:outline-none disabled:opacity-50';
+  'w-full rounded-md border border-grey-300 bg-surface px-1.5 py-1 text-xs font-medium focus:border-grey-500 focus:outline-none disabled:opacity-50';
 
 export interface RiskTableProps {
   /** 정렬이 끝난 상태로 받는다 (§7.11 기본은 점수 내림차순) */
@@ -101,7 +101,7 @@ export default function RiskTable({
         </Button>
       </div>
 
-      <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-white ${PRINT_TABLE_WRAP}`}>
+      <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-surface ${PRINT_TABLE_WRAP}`}>
         <table className={`w-full min-w-[1100px] text-left text-sm ${PRINT_TABLE}`}>
           <caption className="hidden px-3 py-2 text-left text-sm font-bold text-grey-900 print:table-caption">
             리스크 관리대장

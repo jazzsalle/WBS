@@ -65,7 +65,7 @@ export default function Step1File({
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
         className={`rounded-xl border-2 border-dashed p-8 text-center transition ${
-          dragging ? 'border-grey-900 bg-grey-50' : 'border-grey-300 bg-white'
+          dragging ? 'border-grey-900 bg-grey-50' : 'border-grey-300 bg-surface'
         }`}
       >
         <p className="text-sm font-semibold text-grey-700">
@@ -78,7 +78,7 @@ export default function Step1File({
           type="button"
           disabled={busy}
           onClick={() => inputRef.current?.click()}
-          className="mt-4 rounded-lg bg-grey-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-grey-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-4 rounded-lg bg-grey-900 px-4 py-2 text-sm font-semibold text-surface transition hover:bg-grey-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           파일 선택
         </button>

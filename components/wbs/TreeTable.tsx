@@ -65,7 +65,7 @@ export default function TreeTable({
   callbacks,
 }: TreeTableProps) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-grey-200 bg-white">
+    <div className="overflow-x-auto rounded-xl border border-grey-200 bg-surface">
       <table className="w-full min-w-[1100px] border-collapse">
         <colgroup>
           <col className="w-20" />

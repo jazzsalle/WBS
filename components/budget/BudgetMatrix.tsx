@@ -434,7 +434,7 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
         </Button>
       </div>
 
-      <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-white ${PRINT_TABLE_WRAP}`}>
+      <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-surface ${PRINT_TABLE_WRAP}`}>
         <table className={`w-full text-left text-sm ${PRINT_TABLE}`}>
           <caption className="sr-only">
             비목 × 연차 예산 매트릭스.{' '}

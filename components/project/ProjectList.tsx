@@ -137,7 +137,7 @@ export default function ProjectList({ summaries }: ProjectListProps) {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as ProjectStatus | 'all')}
-            className="rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
+            className="rounded-lg border border-grey-300 bg-surface px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
           >
             <option value="all">전체</option>
             {(Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map((status) => (
@@ -199,7 +199,7 @@ export default function ProjectList({ summaries }: ProjectListProps) {
                 e.preventDefault();
                 void handleDrop(project.id);
               }}
-              className={`flex overflow-hidden rounded-xl border bg-white shadow-sm transition ${
+              className={`flex overflow-hidden rounded-xl border bg-surface shadow-sm transition ${
                 dropTargetId === project.id ? 'border-blue-400 ring-2 ring-blue-200' : 'border-grey-200'
               } ${dragId === project.id ? 'opacity-40' : ''} ${
                 project.archived ? 'opacity-60 grayscale' : ''

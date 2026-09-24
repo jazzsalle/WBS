@@ -32,7 +32,7 @@ export default function MemberTasksPanel({ member, tasks, onClose }: MemberTasks
   return (
     <aside
       aria-label={`${member.name} 배정 작업`}
-      className="w-full shrink-0 rounded-xl border border-grey-200 bg-white lg:w-80"
+      className="w-full shrink-0 rounded-xl border border-grey-200 bg-surface lg:w-80"
     >
       <div className="flex items-start justify-between gap-3 border-b border-grey-100 px-4 py-3">
         <div className="min-w-0">

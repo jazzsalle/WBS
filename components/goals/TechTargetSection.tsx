@@ -111,11 +111,11 @@ function WeightedGauge({ rate }: { rate: number }) {
       role="img"
       aria-label={`전체 가중 달성률 ${formatRate(rate)}`}
     >
-      <path d={arcPath} fill="none" stroke="#e2e8f0" strokeWidth={12} />
+      <path d={arcPath} fill="none" stroke="var(--color-grey-200)" strokeWidth={12} />
       <path
         d={arcPath}
         fill="none"
-        stroke="#3b82f6"
+        stroke="var(--color-blue-500)"
         strokeWidth={12}
         // 0%일 때 점이 남지 않도록 butt 캡을 쓴다
         strokeLinecap="butt"
@@ -164,12 +164,12 @@ function Sparkline({ records, unit }: { records: readonly TechTargetRecord[]; un
       >
         <polyline
           fill="none"
-          stroke="#3b82f6"
+          stroke="var(--color-blue-500)"
           strokeWidth={1.5}
           points={points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}
         />
         {points.map((point) => (
-          <circle key={point.id} cx={point.x} cy={point.y} r={2} fill="#3b82f6" />
+          <circle key={point.id} cx={point.x} cy={point.y} r={2} fill="var(--color-blue-500)" />
         ))}
       </svg>
       <p className="text-xs text-grey-500">
@@ -340,7 +340,7 @@ export default function TechTargetSection({
       )}
 
       {/* 상단 요약: 가중 달성률 게이지 + 비중 합계 (§7.7). 값은 전부 techSummary 그대로다 */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-4 rounded-xl border border-grey-200 bg-white p-4 print:rounded-none print:border-grey-400">
+      <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-4 rounded-xl border border-grey-200 bg-surface p-4 print:rounded-none print:border-grey-400">
         <div className="flex items-center gap-3">
           {summary.weightSum === 0 || summary.weightedRate === null ? (
             // T-3: 비중 합계가 0이면 나눌 분모가 없다 — 게이지 대신 N/A
@@ -380,7 +380,7 @@ export default function TechTargetSection({
         </div>
       </div>
 
-      <div className={`mt-4 overflow-x-auto rounded-xl border border-grey-200 bg-white ${PRINT_TABLE_WRAP}`}>
+      <div className={`mt-4 overflow-x-auto rounded-xl border border-grey-200 bg-surface ${PRINT_TABLE_WRAP}`}>
         <table className={`w-full min-w-[1040px] text-left text-sm ${PRINT_TABLE}`}>
           <caption className="hidden px-3 py-2 text-left text-sm font-bold text-grey-900 print:table-caption">
             정량적 기술목표
@@ -545,7 +545,7 @@ export default function TechTargetSection({
                                     return (
                                       <span
                                         key={year.id}
-                                        className="rounded-lg border border-grey-200 bg-white px-2 py-1 text-xs"
+                                        className="rounded-lg border border-grey-200 bg-surface px-2 py-1 text-xs"
                                       >
                                         <span className="text-grey-500">{yearLabel(year)}</span>{' '}
                                         <span className="font-semibold tabular-nums text-grey-800">
@@ -591,7 +591,7 @@ export default function TechTargetSection({
                               측정 이력이 없습니다. 측정값을 추가하면 최신 값이 현재 실적치가 됩니다.
                             </p>
                           ) : (
-                            <ul className="mt-2 divide-y divide-grey-200 rounded-xl border border-grey-200 bg-white">
+                            <ul className="mt-2 divide-y divide-grey-200 rounded-xl border border-grey-200 bg-surface">
                               {recordsDesc.map((record) => (
                                 <li
                                   key={record.id}

@@ -297,7 +297,7 @@ export default function InputFormUpload({ projectId, currencyUnit, onClose, onDo
 
         {/* ① 파일 선택 */}
         {step === 'pick' && (
-          <div className="rounded-xl border-2 border-dashed border-grey-300 bg-white p-8 text-center">
+          <div className="rounded-xl border-2 border-dashed border-grey-300 bg-surface p-8 text-center">
             <p className="text-t6 font-semibold text-grey-700">
               [입력 양식 내려받기]로 받아 값을 적은 파일을 선택하세요
             </p>

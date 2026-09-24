@@ -145,7 +145,7 @@ export default function MyProfileForm({ me, memberOptions }: MyProfileFormProps)
                 setMemberId(e.target.value);
                 setSaved(false);
               }}
-              className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-grey-300 bg-surface px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
             >
               <option value="">연결 안 함</option>
               {missingLink && (

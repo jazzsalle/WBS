@@ -193,7 +193,7 @@ export default function BudgetPlanSummary({
         </div>
       )}
 
-      <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-white ${PRINT_TABLE_WRAP}`}>
+      <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-surface ${PRINT_TABLE_WRAP}`}>
         <table className={`w-full text-left text-xs ${PRINT_TABLE}`}>
           <caption className="px-3 pt-2 text-left text-xs font-semibold text-grey-700 print:text-black">
             연차별 합계 · 현금/현물 비중 · 지침 검증 값

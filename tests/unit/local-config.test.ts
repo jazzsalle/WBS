@@ -1,9 +1,10 @@
-// LocalConfig 저장 형식 파싱 테스트 (SOT §5.16, §7.17 TU-6)
+// LocalConfig 저장 형식 파싱 테스트 (SOT §5.16, §7.17 TU-6, §7.19 theme)
 // 구 설정 파일·손상된 tutorial 필드를 만나도 앱이 죽지 않고, 살릴 수 있는 값은 살리는지 증명한다.
 
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_TUTORIAL_CONFIG,
+  THEME_MODES,
   TUTORIAL_STEP_IDS,
   parseStoredLocalConfig,
 } from '@/lib/local-config';
@@ -76,6 +77,7 @@ describe('parseStoredLocalConfig — tutorial (§5.16)', () => {
   it('정상 값은 JSON 왕복 후에도 그대로다', () => {
     const stored = {
       ...LEGACY_STORED,
+      theme: 'dark',
       tutorial: { sampleProjectId: SAMPLE_ID, manualDone: ['export', 'backup'], dismissed: true },
     };
     const parsed = parseStoredLocalConfig(JSON.parse(JSON.stringify(stored)));
@@ -96,6 +98,31 @@ describe('parseStoredLocalConfig — tutorial (§5.16)', () => {
     const parsed = parseStoredLocalConfig(42);
     expect(parsed.tutorial).toEqual(DEFAULT_TUTORIAL_CONFIG);
     expect(parsed.ganttScale).toBe('week');
+    expect(parsed.theme).toBe('system');
     expect(parsed.onboardingCompleted).toBe(false);
+  });
+});
+
+describe('parseStoredLocalConfig — theme (§7.19)', () => {
+  it("구 설정 파일(theme 키 없음) → 'system', 나머지 필드 보존", () => {
+    const parsed = parseStoredLocalConfig(LEGACY_STORED);
+    expect(parsed.theme).toBe('system');
+    expect(parsed.ganttScale).toBe('month');
+    expect(parsed.onboardingCompleted).toBe(true);
+  });
+
+  it("모르는 값·타입 오류 → 'system', 나머지 필드는 유지", () => {
+    for (const bad of ['blue', 'DARK', 1, null, { mode: 'dark' }]) {
+      const parsed = parseStoredLocalConfig({ ...LEGACY_STORED, theme: bad });
+      expect(parsed.theme, `theme=${JSON.stringify(bad)}`).toBe('system');
+      expect(parsed.backupFolder).toBe('D:/backup');
+    }
+  });
+
+  it('세 값 전부 그대로 통과한다', () => {
+    expect(THEME_MODES).toEqual(['system', 'light', 'dark']);
+    for (const theme of THEME_MODES) {
+      expect(parseStoredLocalConfig({ ...LEGACY_STORED, theme }).theme).toBe(theme);
+    }
   });
 });

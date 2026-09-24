@@ -21,7 +21,7 @@ import ConflictDialog from '@/components/ui/ConflictDialog';
 import { setRealtimePaused } from '@/components/RealtimeRefresher';
 
 /** projects.color는 hex 문자열이고 DB 기본값은 ''다. 미지정 과제의 색상 띠 기본값 (grey-500) */
-export const DEFAULT_PROJECT_COLOR = '#64748b';
+export const DEFAULT_PROJECT_COLOR = '#8b95a1';
 
 interface FormValues {
   name: string;
@@ -286,7 +286,7 @@ export default function ProjectFormModal({
                     {differences.map(({ field, latest }) => (
                       <li
                         key={field.key}
-                        className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
+                        className="flex flex-wrap items-center gap-2 rounded-lg bg-surface/70 px-2.5 py-1.5 text-xs"
                       >
                         <span className="font-semibold text-grey-700">{field.label}</span>
                         <span className="text-grey-500">내 입력: {displayValue(field, values)}</span>
@@ -345,7 +345,7 @@ export default function ProjectFormModal({
               <select
                 value={values.status}
                 onChange={(e) => setField('status', e.target.value as ProjectStatus)}
-                className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 bg-surface px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               >
                 {(Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map((status) => (
                   <option key={status} value={status}>

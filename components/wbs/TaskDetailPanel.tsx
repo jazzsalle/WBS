@@ -252,7 +252,7 @@ export default function TaskDetailPanel({
   return (
     <aside
       aria-label="작업 상세"
-      className="fixed top-0 right-0 z-30 flex h-full w-[380px] flex-col border-l border-grey-200 bg-white shadow-xl"
+      className="fixed top-0 right-0 z-30 flex h-full w-[380px] flex-col border-l border-grey-200 bg-surface shadow-xl"
     >
       <header className="flex items-start justify-between gap-2 border-b border-grey-200 p-4">
         <div className="min-w-0">
@@ -297,7 +297,7 @@ export default function TaskDetailPanel({
                   {DETAIL_FIELDS.filter((field) => diffKeys.includes(field.key)).map((field) => {
                     const kept = keptKeys.has(field.key);
                     return (
-                      <li key={field.key} className="rounded-lg bg-white/70 px-2.5 py-1.5 text-xs">
+                      <li key={field.key} className="rounded-lg bg-surface/70 px-2.5 py-1.5 text-xs">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold text-grey-700">{field.label}</span>
                           <span className="text-grey-500">
@@ -411,7 +411,7 @@ export default function TaskDetailPanel({
           <select
             value={form.status}
             onChange={(e) => patch('status', e.target.value as TaskStatus)}
-            className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 focus:border-grey-500 focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-grey-300 bg-surface px-2.5 py-1.5 focus:border-grey-500 focus:outline-none"
           >
             {(Object.keys(TASK_STATUS_LABELS) as TaskStatus[]).map((status) => (
               <option key={status} value={status}>
@@ -491,7 +491,7 @@ export default function TaskDetailPanel({
                 <select
                   value={form.ownerMemberId}
                   onChange={(e) => patch('ownerMemberId', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 focus:border-grey-500 focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-grey-300 bg-surface px-2.5 py-1.5 focus:border-grey-500 focus:outline-none"
                 >
                   <option value="">미지정</option>
                   {memberOptions.map((option) => (
@@ -530,7 +530,7 @@ export default function TaskDetailPanel({
               value={form.orgId}
               onChange={(e) => patch('orgId', e.target.value)}
               disabled={orgOptions.length === 0}
-              className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 focus:border-grey-500 focus:outline-none disabled:bg-grey-50"
+              className="mt-1 w-full rounded-lg border border-grey-300 bg-surface px-2.5 py-1.5 focus:border-grey-500 focus:outline-none disabled:bg-grey-50"
             >
               <option value="">미지정</option>
               {orgOptions.map((option) => (

@@ -31,8 +31,8 @@ export default function ViewToggle({ value, onChange, disabled = false }: ViewTo
             onClick={() => onChange(view.value)}
             className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
               active
-                ? 'bg-grey-900 text-white'
-                : 'border border-grey-300 bg-white text-grey-700 hover:bg-grey-50'
+                ? 'bg-grey-900 text-surface'
+                : 'border border-grey-300 bg-surface text-grey-700 hover:bg-grey-50'
             }`}
           >
             {view.label}

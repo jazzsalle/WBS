@@ -197,7 +197,7 @@ export default function TechRecordForm({
     <>
       <form
         onSubmit={handleSubmit}
-        className="mt-3 rounded-xl border border-grey-200 bg-white p-3"
+        className="mt-3 rounded-xl border border-grey-200 bg-surface p-3"
         aria-label={mode === 'edit' ? '측정 이력 편집' : '측정값 추가'}
       >
         {failure && (
@@ -224,7 +224,7 @@ export default function TechRecordForm({
                   {differences.map(({ field, latest }) => (
                     <li
                       key={field.key}
-                      className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
+                      className="flex flex-wrap items-center gap-2 rounded-lg bg-surface/70 px-2.5 py-1.5 text-xs"
                     >
                       <span className="font-semibold text-grey-700">{field.label}</span>
                       <span className="text-grey-500">내 입력: {displayValue(field.key, values)}</span>
@@ -279,7 +279,7 @@ export default function TechRecordForm({
             <select
               value={values.method}
               onChange={(e) => setField('method', e.target.value as MeasureMethod)}
-              className={`${inputClass} bg-white`}
+              className={`${inputClass} bg-surface`}
             >
               {(Object.keys(MEASURE_METHOD_LABELS) as MeasureMethod[]).map((method) => (
                 <option key={method} value={method}>

@@ -119,7 +119,7 @@ function toDigits(raw: string): string {
 }
 
 const SELECT_CLASS =
-  'mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none';
+  'mt-1 w-full rounded-lg border border-grey-300 bg-surface px-3 py-2 text-sm focus:border-grey-500 focus:outline-none';
 const INPUT_CLASS =
   'mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none';
 
@@ -231,7 +231,7 @@ export default function SettingsForm({ settings }: SettingsFormProps) {
 
   return (
     <>
-      <section className="rounded-2xl border border-grey-200 bg-white p-6">
+      <section className="rounded-2xl border border-grey-200 bg-surface p-6">
         <h2 className="text-lg font-bold">팀 설정</h2>
         <p className="mt-1 text-sm text-grey-500">
           팀 전체가 공유하는 업무 규칙입니다. 저장하면 모든 사용자의 계산·표시에 반영됩니다 (SOT
@@ -272,7 +272,7 @@ export default function SettingsForm({ settings }: SettingsFormProps) {
                     {differences.map((field) => (
                       <li
                         key={field.key}
-                        className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
+                        className="flex flex-wrap items-center gap-2 rounded-lg bg-surface/70 px-2.5 py-1.5 text-xs"
                       >
                         <span className="font-semibold text-grey-700">{field.label}</span>
                         <span className="text-grey-500">

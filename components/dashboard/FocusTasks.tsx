@@ -28,7 +28,7 @@ export default function FocusTasks({ items }: FocusTasksProps) {
   return (
     <section
       aria-labelledby="dashboard-focus-title"
-      className="rounded-2xl border border-grey-200 bg-white p-5"
+      className="rounded-2xl border border-grey-200 bg-surface p-5"
     >
       <h2 id="dashboard-focus-title" className="text-base font-bold text-grey-900">
         오늘 집중할 작업

@@ -1,6 +1,7 @@
-// 설정 페이지 (SOT §7.14)
-// §7.14의 5개 섹션을 그 순서대로 둔다: 팀 설정 → 사용자 관리(내 프로필 포함) → 백업·복원
-// → 사내 명부 연동 → 따라하기 되돌리기(§7.17 TU-1, PC 로컬 설정). 데이터 로딩은 서버에서: 가드(lib/auth) → 액션·리포지토리(lib/db) 경유 —
+// 설정 페이지 (SOT §7.14, §7.19)
+// §7.14의 5개 섹션 + 개인 설정(§7.19)을 이 순서로 둔다: 팀 설정 → 개인 설정(화면 모드, PC 로컬)
+// → 사용자 관리(내 프로필 포함) → 백업·복원 → 사내 명부 연동 → 따라하기 되돌리기(§7.17 TU-1,
+// PC 로컬 설정). 데이터 로딩은 서버에서: 가드(lib/auth) → 액션·리포지토리(lib/db) 경유 —
 // supabase를 직접 호출하지 않는다. 백업·복원은 로컬 파일을 다뤄야 하므로
 // 클라이언트 컴포넌트(BackupPanel)가 actions/backup 경유로 처리한다. 사내 명부 연동의
 // HR API 키는 OS 키체인에 있어 서버가 읽을 수 없다 — HrApiKeyPanel이 클라이언트에서 다룬다(HR-12).
@@ -20,6 +21,7 @@ import BackupPanel from '@/components/settings/BackupPanel';
 import ImportSnapshotPanel from '@/components/settings/ImportSnapshotPanel';
 import HrApiKeyPanel from '@/components/settings/HrApiKeyPanel';
 import TutorialResetPanel from '@/components/settings/TutorialResetPanel';
+import ThemePanel from '@/components/settings/ThemePanel';
 import HelpLink from '@/components/help/HelpLink';
 
 // R-1 §8.5 구독표의 "설정" 행 그대로. 전체 구독 금지.
@@ -62,6 +64,9 @@ export default async function SettingsPage() {
       ) : (
         <ErrorBanner message={settings.error} code={settings.code} />
       )}
+
+      {/* §7.19 개인 설정 — 화면 모드. 팀 설정 바로 아래. LocalConfig(PC별)만 쓴다 */}
+      <ThemePanel />
 
       <div className="mt-8">
         <UserManagement users={users} currentUserId={ctx.user.id} />

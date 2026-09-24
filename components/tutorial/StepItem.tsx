@@ -43,7 +43,7 @@ export default function StepItem({
   const bodyId = `tutorial-step-${step.id}`;
 
   return (
-    <li className={`rounded-xl border ${done ? 'border-green-100 bg-green-50/40' : 'border-hairline bg-white'}`}>
+    <li className={`rounded-xl border ${done ? 'border-green-100 bg-green-50/40' : 'border-hairline bg-surface'}`}>
       <div className="flex items-center gap-3 px-4 py-3">
         {step.detection === 'auto' ? (
           <span

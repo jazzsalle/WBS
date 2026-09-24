@@ -75,14 +75,14 @@ function AchievementDonut({ rate }: { rate: number | null }) {
       aria-label={`성과목표 달성률 ${formatRate(rate)}`}
       className="h-24 w-24 shrink-0"
     >
-      <circle cx="44" cy="44" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="10" />
+      <circle cx="44" cy="44" r={radius} fill="none" stroke="var(--color-grey-200)" strokeWidth="10" />
       {rate !== null && (
         <circle
           cx="44"
           cy="44"
           r={radius}
           fill="none"
-          stroke="#3b82f6"
+          stroke="var(--color-blue-500)"
           strokeWidth="10"
           strokeLinecap="round"
           strokeDasharray={`${filled} ${circumference - filled}`}
@@ -108,7 +108,7 @@ function GoalSummaryCard({
   result: ActionResult<GoalsData>;
 }) {
   return (
-    <section className="rounded-2xl border border-grey-200 bg-white p-5">
+    <section className="rounded-2xl border border-grey-200 bg-surface p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-bold text-grey-900">목표 달성 현황</h2>
         <Link
@@ -224,7 +224,7 @@ function UpcomingMilestoneCard({
   };
 
   return (
-    <section className="rounded-2xl border border-grey-200 bg-white p-5">
+    <section className="rounded-2xl border border-grey-200 bg-surface p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-bold text-grey-900">임박 마일스톤</h2>
         <Link
@@ -283,7 +283,7 @@ function HighRiskCard({ projectId, result }: { projectId: string; result: Action
   const top = result.ok ? result.data.risks.filter((v) => v.active).slice(0, OVERVIEW_LIST_LIMIT) : [];
 
   return (
-    <section className="rounded-2xl border border-grey-200 bg-white p-5">
+    <section className="rounded-2xl border border-grey-200 bg-surface p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-bold text-grey-900">고위험 리스크</h2>
         <Link
@@ -335,7 +335,7 @@ function RecentNoteCard({ projectId, result }: { projectId: string; result: Acti
   const recent = result.ok ? sortNotes(result.data.notes).slice(0, OVERVIEW_LIST_LIMIT) : [];
 
   return (
-    <section className="rounded-2xl border border-grey-200 bg-white p-5">
+    <section className="rounded-2xl border border-grey-200 bg-surface p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-bold text-grey-900">최근 노트</h2>
         <Link
@@ -455,7 +455,7 @@ export default async function ProjectOverviewPage({
         />
       )}
 
-      <section className="mt-6 rounded-2xl border border-grey-200 bg-white p-5">
+      <section className="mt-6 rounded-2xl border border-grey-200 bg-surface p-5">
         <h2 className="text-base font-bold text-grey-900">협약 정보</h2>
         <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <InfoRow label="과제번호" value={project.projectNo} />

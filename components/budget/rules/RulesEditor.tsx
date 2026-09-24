@@ -70,7 +70,7 @@ const EMPTY_ADD_FORM: AddForm = {
 const NO_CODES: ReadonlySet<RuleCode> = new Set();
 
 const INPUT_CLASS =
-  'w-full rounded-md border border-grey-300 bg-white px-2 py-1.5 text-t7 text-grey-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-grey-100 disabled:text-grey-400';
+  'w-full rounded-md border border-grey-300 bg-surface px-2 py-1.5 text-t7 text-grey-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-grey-100 disabled:text-grey-400';
 
 const GOV_SHARE_OPTIONS = govShareOptions();
 
@@ -414,7 +414,7 @@ export default function RulesEditor({ projectId, rules, open, onClose, onChanged
                 aria-selected={active}
                 onClick={() => setTab(item.value)}
                 className={`rounded-lg px-3 py-1.5 text-t7 font-semibold transition ${
-                  active ? 'bg-grey-900 text-white' : 'text-grey-700 hover:bg-grey-100'
+                  active ? 'bg-grey-900 text-surface' : 'text-grey-700 hover:bg-grey-100'
                 }`}
               >
                 {item.label}

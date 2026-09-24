@@ -51,7 +51,7 @@ export default function AttentionList({ items }: AttentionListProps) {
   return (
     <section
       aria-labelledby="dashboard-attention-title"
-      className="rounded-2xl border border-grey-200 bg-white p-5"
+      className="rounded-2xl border border-grey-200 bg-surface p-5"
     >
       <h2 id="dashboard-attention-title" className="text-base font-bold text-grey-900">
         주의 필요

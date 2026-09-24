@@ -64,7 +64,7 @@ export default function UpcomingMilestones({ items, milestoneAlertDays }: Upcomi
   return (
     <section
       aria-labelledby="dashboard-milestones-title"
-      className="rounded-2xl border border-grey-200 bg-white p-5"
+      className="rounded-2xl border border-grey-200 bg-surface p-5"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="dashboard-milestones-title" className="text-base font-bold text-grey-900">

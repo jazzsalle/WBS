@@ -39,7 +39,7 @@ const TD_CLASS = 'px-3 py-2 align-top print:border print:border-grey-400';
 const CLOSED_STATUSES: ReadonlySet<MilestoneStatus> = new Set(['done', 'cancelled']);
 
 const SELECT_CLASS =
-  'w-full rounded-md border border-grey-300 bg-white px-1.5 py-1 text-xs font-medium focus:border-grey-500 focus:outline-none disabled:opacity-50';
+  'w-full rounded-md border border-grey-300 bg-surface px-1.5 py-1 text-xs font-medium focus:border-grey-500 focus:outline-none disabled:opacity-50';
 
 // ─── 결과 메모 편집기 (§7.8 "결과 메모 입력") ─────────────────────────────────
 // 마운트되어 있는 동안이 곧 "편집 중인 폼이 열려 있는" 상태다 — R-4로 자동 새로고침을 보류해
@@ -140,7 +140,7 @@ export default function MilestoneTable({
   };
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-grey-200 bg-white print:overflow-visible print:rounded-none print:border-0">
+    <div className="overflow-x-auto rounded-xl border border-grey-200 bg-surface print:overflow-visible print:rounded-none print:border-0">
       <table className="w-full min-w-[900px] text-left text-sm print:min-w-0 print:border-collapse print:text-xs">
         <caption className="hidden px-3 py-2 text-left text-sm font-bold text-grey-900 print:table-caption">
           마일스톤 목록

@@ -35,7 +35,7 @@ export default function StaffList({
   onDelete,
 }: StaffListProps) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-hairline bg-white">
+    <div className="overflow-x-auto rounded-xl border border-hairline bg-surface">
       <table className="w-full text-left text-sm">
         <thead className="bg-grey-50 text-xs text-grey-500">
           <tr className="border-b border-grey-100">

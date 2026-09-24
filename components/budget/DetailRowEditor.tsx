@@ -349,7 +349,7 @@ export default function DetailRowEditor({
     : dragging
       ? 'opacity-40'
       : highlighted
-        ? 'bg-blue-50 shadow-[inset_3px_0_0_0_#3182f6]'
+        ? 'bg-blue-50 shadow-[inset_3px_0_0_0_var(--color-blue-500)]'
         : dirty
           ? 'bg-orange-50/60'
           : '';
@@ -388,8 +388,8 @@ export default function DetailRowEditor({
         className={[
           'align-top',
           rowTone,
-          dropPosition === 'before' ? 'shadow-[inset_0_2px_0_0_#2563eb]' : '',
-          dropPosition === 'after' ? 'shadow-[inset_0_-2px_0_0_#2563eb]' : '',
+          dropPosition === 'before' ? 'shadow-[inset_0_2px_0_0_var(--color-blue-600)]' : '',
+          dropPosition === 'after' ? 'shadow-[inset_0_-2px_0_0_var(--color-blue-600)]' : '',
         ].join(' ')}
       >
         <td className="py-1.5 pr-1">

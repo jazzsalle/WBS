@@ -431,7 +431,7 @@ export default function MemberSection({
       <div className="mt-3 flex flex-col gap-4 lg:flex-row">
         <div className="min-w-0 flex-1 space-y-5">
           {groups.length === 0 && (
-            <p className="rounded-xl border border-dashed border-grey-300 bg-white p-6 text-center text-sm text-grey-400">
+            <p className="rounded-xl border border-dashed border-grey-300 bg-surface p-6 text-center text-sm text-grey-400">
               등록된 인력이 없습니다. [인력 추가]로 시작하세요.
             </p>
           )}
@@ -439,7 +439,7 @@ export default function MemberSection({
           {groups.map((group) => (
             <div
               key={group.key}
-              className="overflow-hidden rounded-xl border border-grey-200 bg-white"
+              className="overflow-hidden rounded-xl border border-grey-200 bg-surface"
             >
               <div className="flex items-center gap-2 border-b border-grey-100 bg-grey-50 px-4 py-2.5">
                 <span className="text-sm font-semibold text-grey-800">{group.label}</span>

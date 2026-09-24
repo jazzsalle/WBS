@@ -11,7 +11,7 @@ export default function PageSkeleton({ cards = 3, title = true }: { cards?: numb
       {title && <SkeletonBlock className="mb-6 h-8 w-48" />}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: cards }, (_, i) => (
-          <div key={i} className="rounded-xl border border-hairline bg-white p-5">
+          <div key={i} className="rounded-xl border border-hairline bg-surface p-5">
             <SkeletonBlock className="h-5 w-2/3" />
             <SkeletonBlock className="mt-3 h-4 w-full" />
             <SkeletonBlock className="mt-2 h-4 w-5/6" />
@@ -33,7 +33,7 @@ export function TableSkeleton({ rows = 8 }: { rows?: number }) {
         <SkeletonBlock className="h-8 w-24" />
         <SkeletonBlock className="ml-auto h-8 w-32" />
       </div>
-      <div className="rounded-xl border border-hairline bg-white p-4">
+      <div className="rounded-xl border border-hairline bg-surface p-4">
         <SkeletonBlock className="h-4 w-full" />
         {Array.from({ length: rows }, (_, i) => (
           <SkeletonBlock key={i} className="mt-3 h-4" />

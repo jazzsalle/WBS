@@ -50,7 +50,7 @@ const TONE_LABELS = {
 const TH_CLASS = `px-3 py-2 font-medium ${PRINT_TH}`;
 const TD_CLASS = `px-3 py-2 ${PRINT_TD}`;
 // 합계 열 고정. 스크롤 상자 안에서 오른쪽에 붙고, 인쇄에서는 고정이 의미 없다
-const STICKY_TOTAL = 'sticky right-0 bg-white print:static';
+const STICKY_TOTAL = 'sticky right-0 bg-surface print:static';
 
 /** 소수 1자리 표시(PS-4). 판정은 서버가 원값으로 이미 끝냈다 */
 function formatRate(value: number): string {
@@ -104,7 +104,7 @@ export default function ParticipationMatrix({ initialYear, onSelectStaff }: Part
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="rounded-md border border-grey-300 bg-white px-2 py-1 text-t7 font-medium text-grey-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            className="rounded-md border border-grey-300 bg-surface px-2 py-1 text-t7 font-medium text-grey-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
           >
             {yearOptions.map((y) => (
               <option key={y} value={y}>
@@ -142,7 +142,7 @@ export default function ParticipationMatrix({ initialYear, onSelectStaff }: Part
 
 function MatrixSkeleton() {
   return (
-    <div role="status" aria-label="불러오는 중" className="rounded-xl border border-hairline bg-white p-4">
+    <div role="status" aria-label="불러오는 중" className="rounded-xl border border-hairline bg-surface p-4">
       <SkeletonBlock className="h-4 w-2/3" />
       <SkeletonBlock className="mt-2 h-4 w-1/3" />
       <SkeletonBlock className="mt-2 h-4 w-1/4" />
@@ -190,7 +190,7 @@ function MatrixBody({ data, hideRetired, onSelectStaff }: MatrixBodyProps) {
         </li>
       </ul>
 
-      <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-white ${PRINT_TABLE_WRAP}`}>
+      <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-surface ${PRINT_TABLE_WRAP}`}>
         <table className={`w-full text-left text-t7 ${PRINT_TABLE}`}>
           <caption className="hidden px-3 py-2 text-left text-t6 font-bold text-grey-900 print:table-caption">
             조직원 참여율 {data.year} (단위 %)

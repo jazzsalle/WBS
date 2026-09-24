@@ -95,10 +95,10 @@ export default function LoginScreen({ errorCode, errorDetail }: LoginScreenProps
 
   return (
     <main className="flex min-h-screen items-center justify-center p-8">
-      <div className="w-full max-w-sm rounded-2xl border border-grey-200 bg-white p-8 shadow-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-grey-200 bg-surface p-8 shadow-sm">
         {/* 로고 */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-grey-900 text-xl font-bold text-white">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-grey-900 text-xl font-bold text-surface">
             R&D
           </div>
           <h1 className="text-xl font-bold">R&D 과제 관리</h1>
@@ -133,7 +133,7 @@ export default function LoginScreen({ errorCode, errorDetail }: LoginScreenProps
             type="button"
             onClick={handleLogin}
             disabled={busy}
-            className="w-full rounded-lg bg-grey-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-grey-700 disabled:opacity-50"
+            className="w-full rounded-lg bg-grey-900 px-4 py-3 text-sm font-semibold text-surface transition hover:bg-grey-700 disabled:opacity-50"
           >
             {busy ? '로그인 준비 중…' : '회사 구글 계정으로 로그인'}
           </button>

@@ -68,8 +68,8 @@ export interface TodoFiltersProps {
 }
 
 const TAB_BASE = 'rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50';
-const TAB_ON = 'bg-grey-900 text-white';
-const TAB_OFF = 'border border-grey-300 bg-white text-grey-700 hover:bg-grey-50';
+const TAB_ON = 'bg-grey-900 text-surface';
+const TAB_OFF = 'border border-grey-300 bg-surface text-grey-700 hover:bg-grey-50';
 
 export default function TodoFilters({
   mode,
@@ -85,7 +85,7 @@ export default function TodoFilters({
   onOrderChange,
 }: TodoFiltersProps) {
   return (
-    <div className="mt-4 rounded-xl border border-grey-200 bg-white p-3">
+    <div className="mt-4 rounded-xl border border-grey-200 bg-surface p-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="필터">
           {FILTER_MODES.map((value) => (
@@ -109,7 +109,7 @@ export default function TodoFilters({
               disabled={disabled}
               aria-label="과제 선택"
               onChange={(e) => onProjectChange(decodeProject(e.target.value))}
-              className="rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none disabled:opacity-50"
+              className="rounded-lg border border-grey-300 bg-surface px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none disabled:opacity-50"
             >
               <option value={UNSET}>과제를 고르세요…</option>
               {/* T-D5: 과제에 걸리지 않은 할 일도 하나의 선택지다 */}

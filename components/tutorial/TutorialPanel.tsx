@@ -244,7 +244,7 @@ export default function TutorialPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="fixed inset-y-0 right-0 flex w-[26rem] max-w-full flex-col rounded-l-3xl bg-white shadow-xl"
+        className="fixed inset-y-0 right-0 flex w-[26rem] max-w-full flex-col rounded-l-3xl bg-surface shadow-xl"
       >
         {/* 헤더 */}
         <div className="border-b border-hairline px-6 pb-4 pt-6">

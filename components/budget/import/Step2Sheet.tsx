@@ -85,10 +85,10 @@ export default function Step2Sheet({
               }`}
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
                 selected
-                  ? 'border-grey-900 bg-grey-900 text-white'
+                  ? 'border-grey-900 bg-grey-900 text-surface'
                   : recommended
                     ? 'border-green-400 bg-green-50 text-green-800'
-                    : 'border-grey-200 bg-white text-grey-600 hover:bg-grey-50'
+                    : 'border-grey-200 bg-surface text-grey-600 hover:bg-grey-50'
               }`}
             >
               {sheet.name}
@@ -248,7 +248,7 @@ export default function Step2Sheet({
                 value={amountUnit}
                 disabled={busy}
                 onChange={(e) => onAmountUnitChange(Number(e.target.value) as AmountUnit)}
-                className="rounded-lg border border-orange-300 bg-white px-2 py-1 font-normal"
+                className="rounded-lg border border-orange-300 bg-surface px-2 py-1 font-normal"
               >
                 {AMOUNT_UNIT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
