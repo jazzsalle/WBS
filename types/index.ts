@@ -818,7 +818,24 @@ export interface LocalConfig {
   lastBackupAt: string | null;
   lastOpenedProjectId: string | null;
   ganttScale: 'day' | 'week' | 'month';   // 개인 화면 취향
+  // ─ Phase 14 따라하기 (§7.17) — PC별 진행 상태. 팀 공유 아님 (TU-6) ─
+  tutorial: {
+    sampleProjectId: string | null;   // [예제 과제 만들기]로 만든 과제. 삭제되면 getTutorialStatus가 null로 되돌린다
+    manualDone: TutorialStepId[];     // 자동 감지가 안 되는 단계(export·backup)의 수동 체크
+    dismissed: boolean;               // 드로어 "다시 보지 않기"
+  };
 }
+
+export type TutorialStepId =
+  | 'project'
+  | 'years'
+  | 'team'
+  | 'wbs'
+  | 'goals'
+  | 'milestones'
+  | 'budget'
+  | 'export'
+  | 'backup';
 
 // ─── §5.17 BudgetDetail (산출근거 = 예산 제안의 내역) ────────
 

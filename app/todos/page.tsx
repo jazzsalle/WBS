@@ -12,6 +12,7 @@ import { getTodosData } from '@/actions/todos';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import RealtimeRefresher from '@/components/RealtimeRefresher';
 import TodoScreen from '@/components/todos/TodoScreen';
+import HelpLink from '@/components/help/HelpLink';
 
 // R-1 §8.5 구독표의 "To-Do" 행 그대로 1개. 전체 구독 금지.
 // projects는 구독표에 없다 — 남이 과제명을 바꿔도 이 화면은 즉시 다시 그려지지 않지만,
@@ -45,7 +46,10 @@ export default async function TodosPage() {
 
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">To-Do</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">To-Do</h1>
+            <HelpLink slug="todos" />
+          </div>
           {/* §7.13 소유권: 팀 공유다. "나만 본다"로 오해하면 남의 할 일을 지운다 */}
           <p className="mt-1 text-sm text-grey-500">
             과제 계층에 매이지 않는 할 일 목록입니다. 승인된 팀원 모두가 함께 보고 고칩니다 —

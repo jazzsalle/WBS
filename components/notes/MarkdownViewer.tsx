@@ -1,10 +1,13 @@
-// 마크다운 뷰어 (SOT §7.12 "마크다운 textarea + 프리뷰 토글")
+// 마크다운 뷰어 (SOT §7.12 "마크다운 textarea + 프리뷰 토글", §7.16 HP-2 도움말 공용)
 //
 // **HTML 문자열을 만들지 않는다.** lib/notes.ts가 원문을 AST로 바꾸고, 여기서는 그 AST를
 // React 엘리먼트로만 옮긴다. dangerouslySetInnerHTML을 쓰지 않으므로 본문에 <script>나
 // on* 속성이 들어와도 React가 글자로 이스케이프해 그린다 — 주입 경로 자체가 없다.
 // 링크는 lib/notes.isSafeUrl을 통과한 http/https/mailto만 <a>가 된다(javascript: 차단).
 // 이 성질은 tests/unit/notes.test.ts가 AST 수준에서 고정한다.
+//
+// 도움말(§7.16)도 이 뷰어를 쓴다 — 서버가 파일을 파싱한 AST(`blocks`)를 그대로 받는다.
+// 렌더 경로를 둘로 만들지 않기 위해서다(HP-2). 원문(`source`)과 AST 중 하나만 있으면 된다.
 
 import type { MdBlock, MdInline, MdListItem } from '@/lib/notes';
 import { parseMarkdown } from '@/lib/notes';
@@ -136,18 +139,31 @@ function Block({ block }: { block: MdBlock }) {
 }
 
 export interface MarkdownViewerProps {
-  /** 마크다운 원문 (Note.body) */
-  source: string;
+  /** 마크다운 원문 (Note.body). blocks가 있으면 무시된다 */
+  source?: string;
+  /** 이미 파싱된 AST (도움말 — 서버가 lib/content.ts로 만든다). source보다 우선한다 */
+  blocks?: MdBlock[];
+  /** 블록이 하나도 없을 때 보일 안내. 기본은 노트 편집기 문구 */
+  emptyText?: string;
   className?: string;
 }
 
-export default function MarkdownViewer({ source, className = '' }: MarkdownViewerProps) {
-  const blocks = parseMarkdown(source);
+export default function MarkdownViewer({
+  source,
+  blocks: given,
+  emptyText = '본문이 비어 있습니다. 왼쪽 편집기에 마크다운으로 적으세요.',
+  className = '',
+}: MarkdownViewerProps) {
+  if (given === undefined && source === undefined) {
+    // 둘 다 없으면 호출부 버그다 — 빈 화면으로 넘기지 않는다
+    throw new Error('MarkdownViewer: source 또는 blocks 중 하나는 있어야 합니다.');
+  }
+  const blocks = given ?? parseMarkdown(source ?? '');
 
   if (blocks.length === 0) {
     return (
       <div className={className}>
-        <p className="text-sm text-grey-400">본문이 비어 있습니다. 왼쪽 편집기에 마크다운으로 적으세요.</p>
+        <p className="text-sm text-grey-400">{emptyText}</p>
       </div>
     );
   }

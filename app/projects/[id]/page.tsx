@@ -31,6 +31,7 @@ import ErrorBanner from '@/components/ui/ErrorBanner';
 import ProgressBar from '@/components/ui/ProgressBar';
 import RealtimeRefresher from '@/components/RealtimeRefresher';
 import StageYearPanel from '@/components/project/StageYearPanel';
+import DeleteProjectButton from '@/components/project/DeleteProjectButton';
 
 // R-1 §8.5 구독표의 "과제 개요" 행 그대로. 다른 테이블은 구독하지 않는다.
 // 고위험 리스크·최근 노트 카드는 `risks`/`notes`를 구독하지 않아 실시간으로 따라오지 않는다 —
@@ -475,6 +476,10 @@ export default async function ProjectOverviewPage({
           <InfoRow label="총괄책임자(PM)" value={pmName} warn={!teamRes.ok} />
           <InfoRow label="주관기관" value={leadOrgName} warn={!teamRes.ok} />
         </dl>
+        {/* §7.3 [과제 삭제] — 협약 정보 아래. 인쇄물에는 실행 버튼을 싣지 않는다 */}
+        <div className="mt-4 flex justify-end print:hidden">
+          <DeleteProjectButton projectId={project.id} projectName={project.name} />
+        </div>
       </section>
 
       <div className="mt-6">

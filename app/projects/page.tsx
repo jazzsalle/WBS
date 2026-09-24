@@ -11,6 +11,7 @@ import { getProjectsSummary } from '@/actions/projects';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import ProjectList from '@/components/project/ProjectList';
 import RealtimeRefresher from '@/components/RealtimeRefresher';
+import HelpLink from '@/components/help/HelpLink';
 
 // R-1 §8.5 구독표: 이 화면의 카드는 projects(협약정보·상태) + years(현재 연차 뱃지)
 // + tasks(진척률 롤업)에서 파생된다. 그 밖의 테이블은 구독하지 않는다.
@@ -26,7 +27,10 @@ export default async function ProjectsPage() {
   return (
     <main className="mx-auto max-w-6xl p-8">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">과제</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">과제</h1>
+          <HelpLink slug="projects" />
+        </div>
         <div className="flex items-center gap-4 text-sm text-grey-500">
           <Link href="/" className="underline hover:text-grey-700">
             대시보드

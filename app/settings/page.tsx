@@ -1,6 +1,6 @@
 // 설정 페이지 (SOT §7.14)
-// §7.14의 4개 섹션을 그 순서대로 둔다: 팀 설정 → 사용자 관리(내 프로필 포함) → 백업·복원
-// → 사내 명부 연동. 데이터 로딩은 서버에서: 가드(lib/auth) → 액션·리포지토리(lib/db) 경유 —
+// §7.14의 5개 섹션을 그 순서대로 둔다: 팀 설정 → 사용자 관리(내 프로필 포함) → 백업·복원
+// → 사내 명부 연동 → 따라하기 되돌리기(§7.17 TU-1, PC 로컬 설정). 데이터 로딩은 서버에서: 가드(lib/auth) → 액션·리포지토리(lib/db) 경유 —
 // supabase를 직접 호출하지 않는다. 백업·복원은 로컬 파일을 다뤄야 하므로
 // 클라이언트 컴포넌트(BackupPanel)가 actions/backup 경유로 처리한다. 사내 명부 연동의
 // HR API 키는 OS 키체인에 있어 서버가 읽을 수 없다 — HrApiKeyPanel이 클라이언트에서 다룬다(HR-12).
@@ -19,6 +19,8 @@ import UserManagement from '@/components/settings/UserManagement';
 import BackupPanel from '@/components/settings/BackupPanel';
 import ImportSnapshotPanel from '@/components/settings/ImportSnapshotPanel';
 import HrApiKeyPanel from '@/components/settings/HrApiKeyPanel';
+import TutorialResetPanel from '@/components/settings/TutorialResetPanel';
+import HelpLink from '@/components/help/HelpLink';
 
 // R-1 §8.5 구독표의 "설정" 행 그대로. 전체 구독 금지.
 const REALTIME_TABLES = ['app_users', 'app_settings'];
@@ -44,7 +46,10 @@ export default async function SettingsPage() {
       <RealtimeRefresher tables={REALTIME_TABLES} selfUserId={ctx.user.id} />
 
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">설정</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">설정</h1>
+          <HelpLink slug="settings" />
+        </div>
         <Link href="/" className="text-sm text-grey-500 underline hover:text-grey-700">
           홈으로
         </Link>
@@ -73,6 +78,9 @@ export default async function SettingsPage() {
 
       {/* §7.14 사내 명부 연동 (Phase 12): HR API 키 등록·연결 확인·삭제 */}
       <HrApiKeyPanel />
+
+      {/* §7.14 "따라하기 다시 열기" — 드로어의 [다시 보지 않기]를 되돌린다. LocalConfig만 쓴다(TU-6) */}
+      <TutorialResetPanel />
     </main>
   );
 }

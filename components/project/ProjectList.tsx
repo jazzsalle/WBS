@@ -14,6 +14,7 @@ import type { ProjectStatus, Year } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import { PROJECT_STATUS_LABELS } from '@/lib/constants';
 import { archiveProject, reorderProjects } from '@/actions/projects';
+import { isSampleProject } from '@/lib/tutorial';
 import Badge, { type BadgeTone } from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import ErrorBanner from '@/components/ui/ErrorBanner';
@@ -257,6 +258,12 @@ export default function ProjectList({ summaries }: ProjectListProps) {
                     <Badge title="status=active인 연차가 없습니다">연차 미지정</Badge>
                   )}
                   {project.archived && <Badge>보관됨</Badge>}
+                  {/* TU-3: 팀 전원에게 보이는 실제 과제라서 "지워도 되는 것"임을 카드에서 밝힌다 */}
+                  {isSampleProject(project) && (
+                    <Badge tone="amber" title="따라하기 예제 — 지워도 됩니다">
+                      예제
+                    </Badge>
+                  )}
                 </div>
 
                 {invalidTaskCount > 0 && (

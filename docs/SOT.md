@@ -1829,6 +1829,7 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 - 하단 목록 테이블: 날짜 / 유형 / 제목 / 연차 / 담당 / 상태 / D-day
 - 상태 인라인 변경, 결과 메모 입력
 - 연차 생성 시 **기본 마일스톤 자동 생성 옵션**: 연차평가, 연차실적계획서 제출 (날짜는 연차 종료일 기준 자동 제안, 수정 가능)
+- **기본 마일스톤 자동 생성은 멱등이다** — `generate_default_milestones`가 `(year_id, type)` 기준으로 중복을 판정해 재실행 시 추가 0건(Phase 4 구현·v4.6에서 명문화). 연차 추가 폼의 "기본 마일스톤 함께 생성" 옵션과 §6.5 자동 생성 규칙이 이 RPC를 쓴다
 
 ### 7.9 연구비 (`/projects/[id]/budget`)
 
@@ -2044,13 +2045,14 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 
 ### 7.14 설정 (`/settings`)
 
-섹션 3개로 구성한다.
+섹션 5개로 구성한다(v4.6: 사내 명부 연동·따라하기 추가).
 
 - **팀 설정**: `Settings`(§5.16) 필드 편집 폼 — 마감 임박 기준일, 마일스톤 알림 기준일, 주 시작 요일, 간트 기본 스케일, 표시 통화 단위, 진척률 가중 기준. 저장 시 `updateSettings`.
 - **사용자 관리**: `app_users` 목록 (이름, 이메일, 상태, 마지막 접속). 승인 대기자(`active=false`)는 상단에 뱃지와 [승인] 버튼(§14.2 A-3). 활성 사용자는 [비활성화] 가능(본인 제외). 내 프로필(표시 이름, Member 연결)도 여기서 편집.
 - **백업·복원**: [지금 내보내기](K-1), 마지막 백업 시각·자동 백업 상태(K-2), 백업 폴더 변경(Tauri 환경만), [복원] — 파일 선택 + 2단계 확인(K-4). 임포트 스냅샷(I-17) 목록·복원도 이 섹션에 둔다.
 - **사내 명부 연동** (Phase 12, §6.13): HR API 키 입력 — `password` 타입, 저장 후에는 **끝 4자리만** 보이고 값은 다시 읽지 않는다. `[연결 확인]`(HR을 한 번 호출해 성공/실패와 인원 수를 보여 준다) · `[키 삭제]`. **키는 OS 키체인에 저장하며 앱 DB·백업 파일에 들어가지 않는다**(HR-11·HR-12 — 그래서 §8.7 백업으로 옮겨지지 않고 PC마다 등록해야 한다. 그 사실을 화면에 적는다). Tauri가 아니면 "이 창에서만 유지됩니다"로 밝힌다.
   - 키 발급 방법을 한 줄로 안내한다: `hr.unes.kr 로그인 → 🔑 API 키 → 용도 입력 → 이메일 인증`. **키는 발급 화면에서 한 번만 보인다**(HR 문서)
+- **따라하기** (Phase 14, §7.17 TU-1): 현재 상태(버튼 표시 중 / 숨김) + `[따라하기 다시 열기]`(`dismissed=false`) + 기록된 예제 과제 링크. 상태는 `LocalConfig`(PC별)
 
 ### 7.15 과제 목록 (`/projects`)
 
@@ -2376,7 +2378,7 @@ createMembersFromHr(projectId, drafts) // name·position·email만 채운 Member
 ```
 getHelpDocument(slug)                 // content/help/<slug>.md → { title, blocks: MdBlock[] } (lib/notes.ts 파싱). 없는 slug는 실패
 getTutorialStatus(projectId | null)   // TU-4: 단계별 완료 여부 + 과제 존재 여부. 조회만
-createSampleProject()                 // TU-3: [예제] 과제 + 데이터 세트. 기존 액션·리포지토리를 순서대로. 부분 실패 시 만든 id와 함께 실패 반환
+createSampleProject(existingSampleProjectId | null) // TU-3: [예제] 과제 + 데이터 세트. 기존 액션을 순서대로. 인자 = LocalConfig의 sampleProjectId(서버는 LocalConfig를 못 읽는다) — 살아 있으면 재생성 없이 그 id 반환. 부분 실패 시 만든 id와 함께 실패 반환
 ```
 - `createSampleProject`는 새 RPC를 만들지 않는다. `create_project_with_defaults`·`createOrganization`·`createMember`·`createTask`·목표·마일스톤·산출근거·`applyRulePreset`의 **기존 경로**를 그대로 탄다 — 예제가 실제 사용 경로와 다르면 튜토리얼이 거짓말을 한다.
 
