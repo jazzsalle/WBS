@@ -153,3 +153,19 @@ export function isUpcomingMilestone(
   const d = daysBetween(todayISO, milestone.date);
   return d >= 0 && d <= milestoneAlertDays;
 }
+
+// 양끝을 포함한 달 수. 연차 기간(startDate~endDate)이 몇 개월인지 셀 때 쓴다 (§6.16 IN-3 —
+// 인건비 참여개월이 이 값을 넘으면 경고). 달력 월 단위라 일(day)은 보지 않는다:
+// 2025-04-01~2025-12-31 = 9, 2026-03-15~2026-03-20 = 1. 시작이 끝보다 뒤면 조용히 0을 주지 않고 던진다.
+export function monthSpan(startISO: string, endISO: string): number {
+  toUTCMidnight(startISO);
+  toUTCMidnight(endISO);
+  const months =
+    (Number(endISO.slice(0, 4)) - Number(startISO.slice(0, 4))) * 12 +
+    (Number(endISO.slice(5, 7)) - Number(startISO.slice(5, 7))) +
+    1;
+  if (months < 1) {
+    throw new RangeError(`종료일이 시작일보다 앞입니다: ${startISO} ~ ${endISO}`);
+  }
+  return months;
+}

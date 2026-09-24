@@ -44,6 +44,8 @@ import RulesEditor from './rules/RulesEditor';
 import ImportWizard from './import/ImportWizard';
 import DetailImportWizard from './import/detail/DetailImportWizard';
 import ExportModal from './ExportModal';
+import InputFormDownload from './input-form/InputFormDownload';
+import InputFormUpload from './input-form/InputFormUpload';
 import PersonnelTab from './personnel/PersonnelTab';
 
 // §7.9.6 제안 모드의 보기. `matrix`가 기본이고 `personnel`은 [인건비] 탭이다
@@ -99,6 +101,9 @@ export default function BudgetScreen({
   const [importOpen, setImportOpen] = useState(false);
   const [detailImportOpen, setDetailImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  // §7.9.7 입력 양식 내려받기·올리기 모달. 제안 모드의 것이다 — 툴바 노출도 `mode` 하나가 정한다
+  const [inputFormDownloadOpen, setInputFormDownloadOpen] = useState(false);
+  const [inputFormUploadOpen, setInputFormUploadOpen] = useState(false);
   // §7.9.5 [연구비 규칙] 모달. 제안 모드의 것이라 모드를 바꾸면 닫는다
   const [rulesOpen, setRulesOpen] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
@@ -334,6 +339,30 @@ export default function BudgetScreen({
               제출 서식 내보내기
             </Button>
           )}
+          {/* §7.9.7: [입력 양식 내려받기]·[입력 양식 올리기]도 **제안 모드에만** 둔다 — 우리 양식으로
+              산출근거를 적어 넣는 제안의 입력 경로다. 같은 `mode` 하나가 노출을 정한다 */}
+          {mode === 'plan' && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              title="고른 연차의 인건비·사업비 시트가 든 입력 양식(xlsx)을 내려받습니다 (§7.9.7). 앱 데이터는 바뀌지 않습니다"
+              onClick={() => setInputFormDownloadOpen(true)}
+            >
+              입력 양식 내려받기
+            </Button>
+          )}
+          {mode === 'plan' && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              title="값을 적은 입력 양식을 올려 미리보기 뒤 산출근거로 반영합니다 (§7.9.7)"
+              onClick={() => setInputFormUploadOpen(true)}
+            >
+              입력 양식 올리기
+            </Button>
+          )}
           <Button
             size="sm"
             variant="primary"
@@ -567,6 +596,29 @@ export default function BudgetScreen({
           years={source.years}
           currencyUnit={source.currencyUnit}
           onClose={() => setExportOpen(false)}
+        />
+      )}
+
+      {/* §7.9.7도 같다 — 모달을 닫으면 선택·미리보기는 언마운트로 폐기된다.
+          연차·표시 단위는 지금 보고 있는 스냅샷의 것을 쓴다 (내보내기 모달과 같은 이유) */}
+      {inputFormDownloadOpen && (
+        <InputFormDownload
+          projectId={source.projectId}
+          years={source.years}
+          onClose={() => setInputFormDownloadOpen(false)}
+        />
+      )}
+
+      {inputFormUploadOpen && (
+        <InputFormUpload
+          projectId={source.projectId}
+          currencyUnit={source.currencyUnit}
+          onClose={() => setInputFormUploadOpen(false)}
+          onDone={(message) => {
+            // 결과는 모달이 먼저 보여 주고, 매트릭스·규칙 패널은 서버에서 다시 그린다 (총괄표 마법사와 같은 갱신)
+            setImportResult(message);
+            router.refresh();
+          }}
         />
       )}
 

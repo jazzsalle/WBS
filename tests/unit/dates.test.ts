@@ -10,6 +10,7 @@ import {
   isOverdueTask,
   isOverdueMilestone,
   isUpcomingMilestone,
+  monthSpan,
   toISODate,
   toISODateInTimeZone,
   todayISO,
@@ -236,5 +237,22 @@ describe('isUpcomingMilestone (§6.5)', () => {
   it('milestoneAlertDays=0이면 오늘만 임박', () => {
     expect(isUpcomingMilestone(milestone(TODAY), TODAY, 0)).toBe(true);
     expect(isUpcomingMilestone(milestone(addDays(TODAY, 1)), TODAY, 0)).toBe(false);
+  });
+});
+
+describe('monthSpan (§6.16 IN-3 연차 개월)', () => {
+  it('양끝을 포함한 달 수를 센다', () => {
+    expect(monthSpan('2025-04-01', '2025-12-31')).toBe(9);
+    expect(monthSpan('2026-01-01', '2026-12-31')).toBe(12);
+    expect(monthSpan('2026-03-15', '2026-03-20')).toBe(1);
+  });
+
+  it('연 경계를 넘어도 달력 월로 센다', () => {
+    expect(monthSpan('2025-10-01', '2026-03-31')).toBe(6);
+  });
+
+  it('잘못된 날짜·역순 기간은 거부한다', () => {
+    expect(() => monthSpan('2026-1-1', '2026-12-31')).toThrow(RangeError);
+    expect(() => monthSpan('2026-04-01', '2026-03-31')).toThrow(RangeError);
   });
 });

@@ -378,3 +378,13 @@ evaluator는 이 체크리스트로 PASS/FAIL을 판정한다. 모든 항목은 
 - [ ] 경고(규칙 findings·연차 개월 초과·연봉 없음)는 막지 않는다
 - [ ] `npm test`·`tsc`·`build`, 부록 E 팔레트, 절대 규칙 3·5
 
+## Phase 18 — 다크 모드 (SOT v4.7 §7.19, 부록 E.5)
+
+- [ ] `app/globals.css`에 `[data-theme="dark"]`(및 `prefers-color-scheme: dark`에서 `:root:not([data-theme="light"])`)가 부록 E.5의 8스케일 × 10단계 + 시맨틱(screen·surface·surface-grey·hairline·dimmed)을 재정의한다. `white`·`black`은 바뀌지 않는다. 값이 E.5 표와 1:1 — `design-tokens.test.ts` 확장으로 고정
+- [ ] `@media print`는 항상 밝은 팔레트(다크 변수 무효화)
+- [ ] 카드·패널 배경 `bg-white`가 `bg-surface`로 치환됐다 — `components/app/lib`에 `bg-white` 0건(정적 검사). `text-white`(버튼 글자)·`border-white`는 그대로
+- [ ] `LocalConfig.theme: 'system'|'light'|'dark'`(Zod `.catch('system')`), 설정 §7.14 "개인 설정 — 화면 모드" 라디오 → 즉시 적용
+- [ ] `<html data-theme>`를 마운트 전에 세팅하는 인라인 스크립트(브라우저 localStorage의 LocalConfig 키를 읽는다; Tauri는 AppBootstrap이 config 파일을 읽은 뒤 세팅 — 깜빡임 허용 범위를 주석으로). system이면 속성 없음
+- [ ] 다크에서 대비가 깨지는 곳 없음 — 배지(연한 배경 + 진한 글자 쌍)·ErrorBanner·모달 dimmed·인쇄 토큰. 수동 확인 목록에 화면별 항목
+- [ ] `npm test`·`tsc`·`build` 통과. §13 9번(다크 모드) 해소 표기
+
