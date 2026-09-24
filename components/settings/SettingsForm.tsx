@@ -119,9 +119,9 @@ function toDigits(raw: string): string {
 }
 
 const SELECT_CLASS =
-  'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none';
+  'mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none';
 const INPUT_CLASS =
-  'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none';
+  'mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none';
 
 export interface SettingsFormProps {
   /** 서버가 내려준 최신 설정. 다시 불러오기·남의 저장 후 새 version이 여기로 온다 */
@@ -231,9 +231,9 @@ export default function SettingsForm({ settings }: SettingsFormProps) {
 
   return (
     <>
-      <section className="rounded-2xl border border-slate-200 bg-white p-6">
+      <section className="rounded-2xl border border-grey-200 bg-white p-6">
         <h2 className="text-lg font-bold">팀 설정</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-grey-500">
           팀 전체가 공유하는 업무 규칙입니다. 저장하면 모든 사용자의 계산·표시에 반영됩니다 (SOT
           §5.16).
         </p>
@@ -251,14 +251,14 @@ export default function SettingsForm({ settings }: SettingsFormProps) {
           {saved && !dirty && (
             <p
               role="status"
-              className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
+              className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800"
             >
               팀 설정을 저장했습니다.
             </p>
           )}
 
           {reloaded && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
               <p className="font-semibold">최신 설정을 다시 불러왔습니다.</p>
               {differences.length === 0 ? (
                 <p className="mt-1 text-xs">내 입력과 다른 항목이 없습니다. 그대로 저장하면 됩니다.</p>
@@ -274,17 +274,17 @@ export default function SettingsForm({ settings }: SettingsFormProps) {
                         key={field.key}
                         className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
                       >
-                        <span className="font-semibold text-slate-700">{field.label}</span>
-                        <span className="text-slate-500">
+                        <span className="font-semibold text-grey-700">{field.label}</span>
+                        <span className="text-grey-500">
                           내 입력: {displayValue(field.key, values)}
                         </span>
-                        <span className="text-slate-500">
+                        <span className="text-grey-500">
                           최신: {displayValue(field.key, baselineValues)}
                         </span>
                         <button
                           type="button"
                           onClick={() => setField(field.key, baselineValues[field.key])}
-                          className="ml-auto rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                          className="ml-auto rounded-md border border-orange-300 px-2 py-0.5 font-semibold text-orange-800"
                         >
                           최신 값 사용
                         </button>
@@ -301,7 +301,7 @@ export default function SettingsForm({ settings }: SettingsFormProps) {
               const field = fieldOf(key);
               return (
                 <label key={key}>
-                  <span className="text-sm font-medium text-slate-700">{field.label}(일)</span>
+                  <span className="text-sm font-medium text-grey-700">{field.label}(일)</span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -310,13 +310,13 @@ export default function SettingsForm({ settings }: SettingsFormProps) {
                     required
                     className={`${INPUT_CLASS} text-right tabular-nums`}
                   />
-                  <span className="mt-1 block text-xs text-slate-500">{field.hint}</span>
+                  <span className="mt-1 block text-xs text-grey-500">{field.hint}</span>
                 </label>
               );
             })}
 
             <label>
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-grey-700">
                 {fieldOf('weekStartsOn').label}
               </span>
               <select
@@ -330,13 +330,13 @@ export default function SettingsForm({ settings }: SettingsFormProps) {
                   </option>
                 ))}
               </select>
-              <span className="mt-1 block text-xs text-slate-500">
+              <span className="mt-1 block text-xs text-grey-500">
                 {fieldOf('weekStartsOn').hint}
               </span>
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-grey-700">
                 {fieldOf('defaultGanttScale').label}
               </span>
               <select
@@ -354,13 +354,13 @@ export default function SettingsForm({ settings }: SettingsFormProps) {
                   )
                 )}
               </select>
-              <span className="mt-1 block text-xs text-slate-500">
+              <span className="mt-1 block text-xs text-grey-500">
                 {fieldOf('defaultGanttScale').hint}
               </span>
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-grey-700">
                 {fieldOf('currencyUnit').label}
               </span>
               <select
@@ -374,13 +374,13 @@ export default function SettingsForm({ settings }: SettingsFormProps) {
                   </option>
                 ))}
               </select>
-              <span className="mt-1 block text-xs text-slate-500">
+              <span className="mt-1 block text-xs text-grey-500">
                 {fieldOf('currencyUnit').hint}
               </span>
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-grey-700">
                 {fieldOf('progressWeightBasis').label}
               </span>
               <select
@@ -401,7 +401,7 @@ export default function SettingsForm({ settings }: SettingsFormProps) {
                   )
                 )}
               </select>
-              <span className="mt-1 block text-xs text-slate-500">
+              <span className="mt-1 block text-xs text-grey-500">
                 {fieldOf('progressWeightBasis').hint}
               </span>
             </label>
@@ -409,7 +409,7 @@ export default function SettingsForm({ settings }: SettingsFormProps) {
 
           <div className="mt-6 flex items-center justify-between gap-4">
             {/* N-10: 앱에서 바꿀 수 없는 값이라 읽기로만 보여준다 */}
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-grey-400">
               스키마 버전 {settings.schemaVersion} · 마이그레이션만 갱신할 수 있습니다.
             </p>
             <Button type="submit" size="md" variant="primary" disabled={saving || !dirty}>

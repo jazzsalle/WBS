@@ -91,7 +91,7 @@ export default function KanbanBoard({
 
   if (lanes.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">
+      <p className="rounded-xl border border-dashed border-grey-300 p-10 text-center text-sm text-grey-500">
         표시할 작업이 없습니다. 연차 필터나 표시 옵션을 바꿔 보세요.
       </p>
     );
@@ -102,9 +102,9 @@ export default function KanbanBoard({
       {lanes.map((lane) => (
         <div key={lane.key}>
           {swimlanes && (
-            <h2 className="mb-1.5 flex items-baseline gap-2 text-sm font-bold text-slate-700">
+            <h2 className="mb-1.5 flex items-baseline gap-2 text-sm font-bold text-grey-700">
               {lane.label}
-              <span className="text-xs font-normal text-slate-400">{lane.cards.length}건</span>
+              <span className="text-xs font-normal text-grey-400">{lane.cards.length}건</span>
             </h2>
           )}
           <div className="flex gap-3 overflow-x-auto pb-1">

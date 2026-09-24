@@ -37,27 +37,27 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-bold">대시보드</h1>
           {res.ok && (
             // §6.5 기준일은 서버가 Asia/Seoul 달력으로 한 번 정한다 — 어느 판정이 언제 기준인지 밝힌다
-            <p className="mt-0.5 text-xs text-slate-500">기준일 {res.data.todayISO}</p>
+            <p className="mt-0.5 text-xs text-grey-500">기준일 {res.data.todayISO}</p>
           )}
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-slate-500">{me.data.name}</span>
+          <span className="text-sm text-grey-500">{me.data.name}</span>
           <Link
             href="/projects"
-            className="text-sm text-slate-500 underline hover:text-slate-700"
+            className="text-sm text-grey-500 underline hover:text-grey-700"
           >
             과제 목록
           </Link>
           {/* /todos·/settings는 과제 밖 라우트라 과제 탭에 없다 (§7.1) — 여기가 유일한 진입점이다 */}
           <Link
             href="/todos"
-            className="text-sm text-slate-500 underline hover:text-slate-700"
+            className="text-sm text-grey-500 underline hover:text-grey-700"
           >
             To-Do
           </Link>
           <Link
             href="/settings"
-            className="text-sm text-slate-500 underline hover:text-slate-700"
+            className="text-sm text-grey-500 underline hover:text-grey-700"
           >
             설정
           </Link>

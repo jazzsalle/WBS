@@ -255,7 +255,7 @@ export default function TechTargetFormModal({
     values.direction === 'lower_better' && values.baselineDomestic.trim() === '';
 
   const numberInputClass =
-    'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none';
+    'mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none';
 
   return (
     <>
@@ -282,7 +282,7 @@ export default function TechTargetFormModal({
           )}
 
           {reloaded && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
               <p className="font-semibold">최신 내용을 다시 불러왔습니다.</p>
               {differences.length === 0 ? (
                 <p className="mt-1 text-xs">
@@ -300,13 +300,13 @@ export default function TechTargetFormModal({
                         key={field.key}
                         className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
                       >
-                        <span className="font-semibold text-slate-700">{field.label}</span>
-                        <span className="text-slate-500">내 입력: {displayValue(field, values)}</span>
-                        <span className="text-slate-500">최신: {displayValue(field, latest)}</span>
+                        <span className="font-semibold text-grey-700">{field.label}</span>
+                        <span className="text-grey-500">내 입력: {displayValue(field, values)}</span>
+                        <span className="text-grey-500">최신: {displayValue(field, latest)}</span>
                         <button
                           type="button"
                           onClick={() => setField(field.key, latest[field.key])}
-                          className="ml-auto rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                          className="ml-auto rounded-md border border-orange-300 px-2 py-0.5 font-semibold text-orange-800"
                         >
                           최신 값 사용
                         </button>
@@ -320,7 +320,7 @@ export default function TechTargetFormModal({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-grey-700">
                 평가항목 <span className="text-red-600">*</span>
               </span>
               <input
@@ -336,7 +336,7 @@ export default function TechTargetFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">단위</span>
+              <span className="text-sm font-medium text-grey-700">단위</span>
               <input
                 type="text"
                 value={values.unit}
@@ -348,11 +348,11 @@ export default function TechTargetFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">방향성</span>
+              <span className="text-sm font-medium text-grey-700">방향성</span>
               <select
                 value={values.direction}
                 onChange={(e) => setField('direction', e.target.value as Direction)}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               >
                 {(Object.keys(DIRECTION_LABELS) as Direction[]).map((direction) => (
                   <option key={direction} value={direction}>
@@ -363,7 +363,7 @@ export default function TechTargetFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">비중(%)</span>
+              <span className="text-sm font-medium text-grey-700">비중(%)</span>
               <input
                 type="number"
                 step="any"
@@ -373,13 +373,13 @@ export default function TechTargetFormModal({
                 placeholder="0"
                 className={numberInputClass}
               />
-              <span className="mt-1 block text-xs text-slate-500">
+              <span className="mt-1 block text-xs text-grey-500">
                 과제 내 합계 100 권장. 100이 아니어도 저장되며 실제 합계로 정규화해 계산합니다.
               </span>
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-grey-700">
                 목표치 <span className="text-red-600">*</span>
               </span>
               <input
@@ -393,7 +393,7 @@ export default function TechTargetFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">국내수준 (연구개발 전)</span>
+              <span className="text-sm font-medium text-grey-700">국내수준 (연구개발 전)</span>
               <input
                 type="number"
                 step="any"
@@ -405,7 +405,7 @@ export default function TechTargetFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">세계최고수준</span>
+              <span className="text-sm font-medium text-grey-700">세계최고수준</span>
               <input
                 type="number"
                 step="any"
@@ -417,7 +417,7 @@ export default function TechTargetFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">보유국/보유기관</span>
+              <span className="text-sm font-medium text-grey-700">보유국/보유기관</span>
               <input
                 type="text"
                 value={values.worldBestHolder}
@@ -429,11 +429,11 @@ export default function TechTargetFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">측정방법</span>
+              <span className="text-sm font-medium text-grey-700">측정방법</span>
               <select
                 value={values.measureMethod}
                 onChange={(e) => setField('measureMethod', e.target.value as MeasureMethod)}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               >
                 {(Object.keys(MEASURE_METHOD_LABELS) as MeasureMethod[]).map((method) => (
                   <option key={method} value={method}>
@@ -444,11 +444,11 @@ export default function TechTargetFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">책임 기관</span>
+              <span className="text-sm font-medium text-grey-700">책임 기관</span>
               <select
                 value={values.orgId}
                 onChange={(e) => setField('orgId', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               >
                 <option value="">미지정</option>
                 {organizations.map((org) => (
@@ -464,20 +464,20 @@ export default function TechTargetFormModal({
             </label>
 
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">측정방법 상세</span>
+              <span className="text-sm font-medium text-grey-700">측정방법 상세</span>
               <textarea
                 value={values.measureDescription}
                 onChange={(e) => setField('measureDescription', e.target.value)}
                 rows={3}
                 maxLength={10000}
                 placeholder="측정 조건, 시험 규격, 데이터셋 등"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
           </div>
 
           {lowerWithoutBaseline && (
-            <p className="mt-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+            <p className="mt-4 rounded-lg bg-orange-50 p-3 text-xs text-orange-800">
               낮을수록 우수한 항목은 국내수준(기준)이 있어야 감소율을 계산할 수 있습니다. 비워 두면
               달성률이 N/A로 표시됩니다.
             </p>

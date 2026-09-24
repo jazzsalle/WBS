@@ -116,9 +116,9 @@ function yearLabel(year: Year): string {
 }
 
 const INPUT_CLASS =
-  'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none';
+  'mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none';
 const SELECT_CLASS =
-  'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none';
+  'mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none';
 
 export interface RiskFormModalProps {
   mode: 'create' | 'edit';
@@ -313,7 +313,7 @@ export default function RiskFormModal({
           )}
 
           {reloaded && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
               <p className="font-semibold">최신 내용을 다시 불러왔습니다.</p>
               {differences.length === 0 ? (
                 <p className="mt-1 text-xs">
@@ -331,13 +331,13 @@ export default function RiskFormModal({
                         key={field.key}
                         className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
                       >
-                        <span className="font-semibold text-slate-700">{field.label}</span>
-                        <span className="text-slate-500">내 입력: {displayValue(field, values)}</span>
-                        <span className="text-slate-500">최신: {displayValue(field, latest)}</span>
+                        <span className="font-semibold text-grey-700">{field.label}</span>
+                        <span className="text-grey-500">내 입력: {displayValue(field, values)}</span>
+                        <span className="text-grey-500">최신: {displayValue(field, latest)}</span>
                         <button
                           type="button"
                           onClick={() => setField(field.key, latest[field.key])}
-                          className="ml-auto rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                          className="ml-auto rounded-md border border-orange-300 px-2 py-0.5 font-semibold text-orange-800"
                         >
                           최신 값 사용
                         </button>
@@ -351,7 +351,7 @@ export default function RiskFormModal({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-grey-700">
                 리스크명 <span className="text-red-600">*</span>
               </span>
               <input
@@ -367,7 +367,7 @@ export default function RiskFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">유형</span>
+              <span className="text-sm font-medium text-grey-700">유형</span>
               <select
                 value={values.category}
                 onChange={(e) => setField('category', e.target.value as RiskCategory)}
@@ -382,7 +382,7 @@ export default function RiskFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">대응전략</span>
+              <span className="text-sm font-medium text-grey-700">대응전략</span>
               <select
                 value={values.strategy}
                 onChange={(e) => setField('strategy', e.target.value as RiskStrategy)}
@@ -397,7 +397,7 @@ export default function RiskFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">발생가능성 (1~5)</span>
+              <span className="text-sm font-medium text-grey-700">발생가능성 (1~5)</span>
               <select
                 value={values.probability}
                 onChange={(e) => setField('probability', Number(e.target.value) as RiskLevel)}
@@ -412,7 +412,7 @@ export default function RiskFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">영향도 (1~5)</span>
+              <span className="text-sm font-medium text-grey-700">영향도 (1~5)</span>
               <select
                 value={values.impact}
                 onChange={(e) => setField('impact', Number(e.target.value) as RiskLevel)}
@@ -426,8 +426,8 @@ export default function RiskFormModal({
               </select>
             </label>
 
-            <div className="sm:col-span-2 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 p-3">
-              <span className="text-xs text-slate-600">
+            <div className="sm:col-span-2 flex flex-wrap items-center gap-3 rounded-lg bg-grey-50 p-3">
+              <span className="text-xs text-grey-600">
                 점수 = 발생가능성 × 영향도 (저장하지 않고 매번 계산합니다)
               </span>
               <span
@@ -438,14 +438,14 @@ export default function RiskFormModal({
                   : `${RISK_SEVERITY_LABELS[previewSeverity]} ${previewScore}`}
               </span>
               {previewSeverity === null && (
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-grey-500">
                   해결·종료 상태는 등급 판정 대상이 아닙니다 (§6.5).
                 </span>
               )}
             </div>
 
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">리스크 내용</span>
+              <span className="text-sm font-medium text-grey-700">리스크 내용</span>
               <textarea
                 value={values.description}
                 onChange={(e) => setField('description', e.target.value)}
@@ -457,7 +457,7 @@ export default function RiskFormModal({
             </label>
 
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">대응 방안</span>
+              <span className="text-sm font-medium text-grey-700">대응 방안</span>
               <textarea
                 value={values.response}
                 onChange={(e) => setField('response', e.target.value)}
@@ -469,7 +469,7 @@ export default function RiskFormModal({
             </label>
 
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">비상 계획</span>
+              <span className="text-sm font-medium text-grey-700">비상 계획</span>
               <textarea
                 value={values.contingency}
                 onChange={(e) => setField('contingency', e.target.value)}
@@ -481,7 +481,7 @@ export default function RiskFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">연차</span>
+              <span className="text-sm font-medium text-grey-700">연차</span>
               <select
                 value={values.yearId}
                 onChange={(e) => setField('yearId', e.target.value)}
@@ -499,7 +499,7 @@ export default function RiskFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">관련 작업</span>
+              <span className="text-sm font-medium text-grey-700">관련 작업</span>
               <select
                 value={values.taskId}
                 onChange={(e) => setField('taskId', e.target.value)}
@@ -516,7 +516,7 @@ export default function RiskFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">담당</span>
+              <span className="text-sm font-medium text-grey-700">담당</span>
               <select
                 value={values.ownerMemberId}
                 onChange={(e) => setField('ownerMemberId', e.target.value)}
@@ -533,7 +533,7 @@ export default function RiskFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">대응 완료 목표일</span>
+              <span className="text-sm font-medium text-grey-700">대응 완료 목표일</span>
               <input
                 type="date"
                 value={values.dueDate}
@@ -543,7 +543,7 @@ export default function RiskFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">상태</span>
+              <span className="text-sm font-medium text-grey-700">상태</span>
               <select
                 value={values.status}
                 onChange={(e) => setField('status', e.target.value as RiskStatus)}
@@ -559,7 +559,7 @@ export default function RiskFormModal({
           </div>
 
           {(danglingYear || danglingTask || danglingMember) && (
-            <p className="mt-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+            <p className="mt-4 rounded-lg bg-orange-50 p-3 text-xs text-orange-800">
               {danglingYear && '이 리스크가 가리키는 연차가 목록에 없습니다. '}
               {danglingTask && '이 리스크가 가리키는 작업이 목록에 없습니다. '}
               {danglingMember && '이 리스크의 담당 인력이 목록에 없습니다. '}

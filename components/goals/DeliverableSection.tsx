@@ -113,7 +113,7 @@ function TypeDonut({
             transform="rotate(-90 44 44)"
           />
         ))}
-      <text x="44" y="49" textAnchor="middle" className="fill-slate-900 text-[13px] font-bold">
+      <text x="44" y="49" textAnchor="middle" className="fill-grey-900 text-[13px] font-bold">
         {targetTotal}건
       </text>
     </svg>
@@ -196,12 +196,12 @@ function YearTargetCell({ cell, unit, disabled, onSave }: YearTargetCellProps) {
           }
         }}
         className={`w-20 rounded-md border px-2 py-1 text-right text-xs tabular-nums focus:outline-none ${
-          invalid ? 'border-red-400 bg-red-50' : 'border-slate-300 focus:border-slate-500'
+          invalid ? 'border-red-400 bg-red-50' : 'border-grey-300 focus:border-grey-500'
         }`}
       />
       {invalid && <p className="mt-0.5 text-[11px] text-red-600">0 이상 정수만 저장됩니다.</p>}
 
-      <div className="mt-1 text-xs text-slate-600">
+      <div className="mt-1 text-xs text-grey-600">
         실적 <span className="font-semibold tabular-nums">{cell.achieved}</span>
       </div>
 
@@ -211,7 +211,7 @@ function YearTargetCell({ cell, unit, disabled, onSave }: YearTargetCellProps) {
           목표 외 달성
         </Badge>
       ) : (
-        <span className="text-xs text-slate-500 tabular-nums">{formatRate(cell.rate)}</span>
+        <span className="text-xs text-grey-500 tabular-nums">{formatRate(cell.rate)}</span>
       )}
     </div>
   );
@@ -331,9 +331,9 @@ export default function DeliverableSection({
   return (
     <section aria-labelledby="deliverable-section-title">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="deliverable-section-title" className="text-base font-bold text-slate-900">
+        <h2 id="deliverable-section-title" className="text-base font-bold text-grey-900">
           정량적 성과목표
-          <span className="ml-2 text-xs font-normal text-slate-500">{views.length}개 지표</span>
+          <span className="ml-2 text-xs font-normal text-grey-500">{views.length}개 지표</span>
         </h2>
         <Button
           size="sm"
@@ -358,12 +358,12 @@ export default function DeliverableSection({
       )}
 
       {/* 상단 요약 (§7.7 "전체 목표 건수 vs 달성 건수, 유형별") */}
-      <div className="mt-3 grid gap-4 rounded-xl border border-slate-200 bg-white p-4 lg:grid-cols-2">
+      <div className="mt-3 grid gap-4 rounded-xl border border-grey-200 bg-white p-4 lg:grid-cols-2">
         <div>
-          <p className="text-xs text-slate-500">전체 목표 대비 달성</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
+          <p className="text-xs text-grey-500">전체 목표 대비 달성</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-grey-900">
             {summary.achievedTotal}
-            <span className="text-base font-normal text-slate-500"> / {summary.targetTotal}건</span>
+            <span className="text-base font-normal text-grey-500"> / {summary.targetTotal}건</span>
           </p>
 
           <div className="mt-2 flex items-center gap-2">
@@ -381,7 +381,7 @@ export default function DeliverableSection({
                   label="전체 달성률"
                   className="w-48"
                 />
-                <span className="text-sm font-semibold tabular-nums text-slate-800">
+                <span className="text-sm font-semibold tabular-nums text-grey-800">
                   {formatRate(summary.rate)}
                 </span>
                 {summary.rate > 100 && (
@@ -395,9 +395,9 @@ export default function DeliverableSection({
         </div>
 
         <div>
-          <p className="text-xs text-slate-500">유형별 목표 구성</p>
+          <p className="text-xs text-grey-500">유형별 목표 구성</p>
           {summary.byType.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-400">등록된 성과목표가 없습니다.</p>
+            <p className="mt-2 text-sm text-grey-400">등록된 성과목표가 없습니다.</p>
           ) : (
             <div className="mt-2 flex items-start gap-4">
               <TypeDonut byType={summary.byType} targetTotal={summary.targetTotal} />
@@ -411,12 +411,12 @@ export default function DeliverableSection({
                       style={{ backgroundColor: typeShade(index) }}
                     />
                     <span
-                      className="min-w-0 flex-1 truncate text-slate-600"
+                      className="min-w-0 flex-1 truncate text-grey-600"
                       title={DELIVERABLE_TYPE_LABELS[bucket.type]}
                     >
                       {DELIVERABLE_TYPE_LABELS[bucket.type]}
                     </span>
-                    <span className="shrink-0 text-right tabular-nums text-slate-600">
+                    <span className="shrink-0 text-right tabular-nums text-grey-600">
                       달성 {bucket.achieved} / 목표 {bucket.target}
                     </span>
                   </li>
@@ -428,14 +428,14 @@ export default function DeliverableSection({
       </div>
 
       {views.length === 0 ? (
-        <p className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-400">
+        <p className="mt-3 rounded-xl border border-dashed border-grey-300 bg-white p-6 text-center text-sm text-grey-400">
           등록된 성과목표가 없습니다. [성과목표 추가]로 시작하세요.
         </p>
       ) : (
-        <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <div className="mt-3 overflow-x-auto rounded-xl border border-grey-200 bg-white">
           <table className="w-full text-left text-sm">
-            <thead className="text-xs text-slate-500">
-              <tr className="border-b border-slate-100">
+            <thead className="text-xs text-grey-500">
+              <tr className="border-b border-grey-100">
                 <th className="px-4 py-2 font-medium">지표명</th>
                 <th className="px-3 py-2 font-medium">유형</th>
                 <th className="px-3 py-2 font-medium">단위</th>
@@ -451,7 +451,7 @@ export default function DeliverableSection({
                 <th className="px-3 py-2 text-right font-medium">동작</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-grey-100">
               {views.map((view, index) => {
                 const { deliverable } = view;
                 const isExpanded = expanded.has(deliverable.id);
@@ -459,15 +459,15 @@ export default function DeliverableSection({
                 return (
                   // 행과 확장 상세가 형제 <tr>이라 Fragment로 묶는다 — 키는 여기에 있어야 한다
                   <Fragment key={deliverable.id}>
-                    <tr className="align-top hover:bg-slate-50">
+                    <tr className="align-top hover:bg-grey-50">
                       <td className="px-4 py-2.5">
                         <button
                           type="button"
                           onClick={() => toggleExpanded(deliverable.id)}
                           aria-expanded={isExpanded}
-                          className="text-left font-medium text-slate-900 underline-offset-2 hover:underline"
+                          className="text-left font-medium text-grey-900 underline-offset-2 hover:underline"
                         >
-                          <span aria-hidden className="mr-1 text-slate-400">
+                          <span aria-hidden className="mr-1 text-grey-400">
                             {isExpanded ? '▾' : '▸'}
                           </span>
                           {deliverable.name}
@@ -483,25 +483,25 @@ export default function DeliverableSection({
                           </Badge>
                         )}
                         {deliverable.note !== '' && (
-                          <p className="mt-1 max-w-xs truncate text-xs text-slate-500" title={deliverable.note}>
+                          <p className="mt-1 max-w-xs truncate text-xs text-grey-500" title={deliverable.note}>
                             {deliverable.note}
                           </p>
                         )}
                       </td>
-                      <td className="px-3 py-2.5 text-slate-600">
+                      <td className="px-3 py-2.5 text-grey-600">
                         {DELIVERABLE_TYPE_LABELS[deliverable.type]}
                       </td>
-                      <td className="px-3 py-2.5 text-slate-600">{deliverable.unit || '—'}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-800">
+                      <td className="px-3 py-2.5 text-grey-600">{deliverable.unit || '—'}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-grey-800">
                         {deliverable.targetTotal}
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-800">
+                      <td className="px-3 py-2.5 text-right tabular-nums text-grey-800">
                         {view.achievedTotal}
                         {/* D-4: 연차 미지정 실적은 연차 셀 합계에서 빠지고 전체 달성에는 들어간다 —
                             표의 가로 합이 안 맞아 보이는 이유를 이 자리에서 밝힌다 */}
                         {view.unassignedAchieved > 0 && (
                           <span
-                            className="mt-0.5 block text-[11px] font-normal text-amber-700"
+                            className="mt-0.5 block text-[11px] font-normal text-orange-700"
                             title="연차 미지정 실적은 연차 셀 합계에서 빠지고 전체 달성에만 포함됩니다 (D-4)"
                           >
                             연차 미지정 {view.unassignedAchieved}
@@ -522,7 +522,7 @@ export default function DeliverableSection({
                             {/* D-2: 바는 100%에서 잘리고 숫자는 실제 값(예 116.7%) */}
                             <ProgressBar value={view.rate} showValue={false} label="달성률" />
                             <div className="mt-1 flex items-center gap-1.5">
-                              <span className="text-xs font-semibold tabular-nums text-slate-700">
+                              <span className="text-xs font-semibold tabular-nums text-grey-700">
                                 {formatRate(view.rate)}
                               </span>
                               {view.rate > 100 && (
@@ -560,7 +560,7 @@ export default function DeliverableSection({
                         );
                       })}
 
-                      <td className="px-3 py-2.5 text-slate-600">{orgName(deliverable.orgId)}</td>
+                      <td className="px-3 py-2.5 text-grey-600">{orgName(deliverable.orgId)}</td>
                       <td className="px-3 py-2.5 text-right">
                         <div className="flex flex-wrap justify-end gap-1.5">
                           <Button
@@ -602,12 +602,12 @@ export default function DeliverableSection({
                     </tr>
 
                     {isExpanded && (
-                      <tr className="bg-slate-50">
+                      <tr className="bg-grey-50">
                         <td colSpan={columnCount} className="px-4 py-3">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-sm font-semibold text-slate-800">
+                            <p className="text-sm font-semibold text-grey-800">
                               실적 목록
-                              <span className="ml-2 text-xs font-normal text-slate-500">
+                              <span className="ml-2 text-xs font-normal text-grey-500">
                                 {deliverable.achievements.length}건
                               </span>
                             </p>
@@ -626,11 +626,11 @@ export default function DeliverableSection({
                           </div>
 
                           {deliverable.achievements.length === 0 ? (
-                            <p className="mt-2 text-sm text-slate-400">등록된 실적이 없습니다.</p>
+                            <p className="mt-2 text-sm text-grey-400">등록된 실적이 없습니다.</p>
                           ) : (
                             <table className="mt-2 w-full text-left text-xs">
-                              <thead className="text-slate-500">
-                                <tr className="border-b border-slate-200">
+                              <thead className="text-grey-500">
+                                <tr className="border-b border-grey-200">
                                   <th className="py-1.5 pr-3 font-medium">산출물명</th>
                                   <th className="py-1.5 pr-3 font-medium">달성일</th>
                                   <th className="py-1.5 pr-3 font-medium">연차</th>
@@ -640,7 +640,7 @@ export default function DeliverableSection({
                                   <th className="py-1.5 text-right font-medium">동작</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-slate-200">
+                              <tbody className="divide-y divide-grey-200">
                                 {[...deliverable.achievements]
                                   // 최근 달성이 위로 — 목록이 길어져도 최신 실적을 먼저 본다
                                   .sort((a, b) => b.date.localeCompare(a.date))
@@ -648,15 +648,15 @@ export default function DeliverableSection({
                                     const label = yearName(achievement.yearId);
                                     return (
                                       <tr key={achievement.id} className="align-top">
-                                        <td className="py-1.5 pr-3 text-slate-800">
+                                        <td className="py-1.5 pr-3 text-grey-800">
                                           {achievement.title}
                                           {achievement.note !== '' && (
-                                            <p className="text-[11px] text-slate-500">
+                                            <p className="text-[11px] text-grey-500">
                                               {achievement.note}
                                             </p>
                                           )}
                                         </td>
-                                        <td className="py-1.5 pr-3 tabular-nums text-slate-600">
+                                        <td className="py-1.5 pr-3 tabular-nums text-grey-600">
                                           {achievement.date}
                                         </td>
                                         <td className="py-1.5 pr-3">
@@ -669,16 +669,16 @@ export default function DeliverableSection({
                                               연차 미지정
                                             </Badge>
                                           ) : (
-                                            <span className="text-slate-600">{label}</span>
+                                            <span className="text-grey-600">{label}</span>
                                           )}
                                         </td>
-                                        <td className="py-1.5 pr-3 text-slate-600">
+                                        <td className="py-1.5 pr-3 text-grey-600">
                                           {orgName(achievement.orgId)}
                                         </td>
-                                        <td className="py-1.5 pr-3 text-slate-600">
+                                        <td className="py-1.5 pr-3 text-grey-600">
                                           {memberNames(achievement.memberIds)}
                                         </td>
-                                        <td className="py-1.5 pr-3 text-slate-600">
+                                        <td className="py-1.5 pr-3 text-grey-600">
                                           {achievement.evidenceUrl === '' ? (
                                             '—'
                                           ) : (
@@ -815,10 +815,10 @@ export default function DeliverableSection({
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{deletingDeliverable.deliverable.name}</strong> 지표를 삭제합니다.
           </p>
-          <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+          <p className="mt-3 rounded-lg bg-orange-50 p-3 text-sm text-orange-800">
             등록된 실적 {deletingDeliverable.deliverable.achievements.length}건과 작업(WBS) 연계가
             함께 지워집니다. 작업 자체는 남습니다.
           </p>
@@ -856,7 +856,7 @@ export default function DeliverableSection({
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{deletingAchievement.achievement.title}</strong> 실적을 삭제하면 달성 건수가
             줄어듭니다.
           </p>

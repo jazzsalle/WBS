@@ -68,8 +68,8 @@ export interface TodoFiltersProps {
 }
 
 const TAB_BASE = 'rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50';
-const TAB_ON = 'bg-slate-900 text-white';
-const TAB_OFF = 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50';
+const TAB_ON = 'bg-grey-900 text-white';
+const TAB_OFF = 'border border-grey-300 bg-white text-grey-700 hover:bg-grey-50';
 
 export default function TodoFilters({
   mode,
@@ -85,7 +85,7 @@ export default function TodoFilters({
   onOrderChange,
 }: TodoFiltersProps) {
   return (
-    <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+    <div className="mt-4 rounded-xl border border-grey-200 bg-white p-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="필터">
           {FILTER_MODES.map((value) => (
@@ -109,7 +109,7 @@ export default function TodoFilters({
               disabled={disabled}
               aria-label="과제 선택"
               onChange={(e) => onProjectChange(decodeProject(e.target.value))}
-              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none disabled:opacity-50"
+              className="rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none disabled:opacity-50"
             >
               <option value={UNSET}>과제를 고르세요…</option>
               {/* T-D5: 과제에 걸리지 않은 할 일도 하나의 선택지다 */}
@@ -124,7 +124,7 @@ export default function TodoFilters({
         </div>
 
         <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="정렬">
-          <span className="text-xs font-semibold text-slate-400">정렬</span>
+          <span className="text-xs font-semibold text-grey-400">정렬</span>
           {SORT_ORDERS.map((value) => (
             <button
               key={value}
@@ -141,20 +141,20 @@ export default function TodoFilters({
           ))}
         </div>
 
-        <p className="ml-auto text-xs text-slate-500 tabular-nums">
+        <p className="ml-auto text-xs text-grey-500 tabular-nums">
           전체 {totalCount}건 · 표시 {visibleCount}건
         </p>
       </div>
 
       {projectUnset && (
-        <p role="status" className="mt-3 rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600">
+        <p role="status" className="mt-3 rounded-lg bg-grey-50 p-2.5 text-xs text-grey-600">
           과제를 고르기 전까지는 <strong>미완료</strong> 목록을 보여줍니다.
         </p>
       )}
 
       {order !== 'manual' && (
         // T-D9: 여기서 드래그하면 결과가 보이지 않으므로 왜 잠갔는지 밝힌다
-        <p className="mt-3 rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600">
+        <p className="mt-3 rounded-lg bg-grey-50 p-2.5 text-xs text-grey-600">
           <strong>{SORT_LABELS[order]}</strong> 정렬 중에는 드래그로 순서를 바꿀 수 없습니다.
           순서를 바꾸려면 <strong>수동</strong> 정렬로 되돌리세요.
         </p>

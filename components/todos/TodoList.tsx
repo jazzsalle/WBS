@@ -44,7 +44,7 @@ export default function TodoList({
 }: TodoListProps) {
   if (todos.length === 0) {
     return (
-      <p className="mt-4 rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">
+      <p className="mt-4 rounded-xl border border-dashed border-grey-300 p-10 text-center text-sm text-grey-500">
         {emptyMessage}
       </p>
     );

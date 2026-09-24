@@ -51,9 +51,9 @@ function formatWeight(weight: number): string {
 function InfoRow({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <div>
-      <dt className="text-xs text-slate-500">{label}</dt>
+      <dt className="text-xs text-grey-500">{label}</dt>
       {/* warn: 값을 못 읽은 행. 미입력과 구분되게 색으로 드러낸다 (절대 규칙 5) */}
-      <dd className={`mt-0.5 text-sm ${warn ? 'text-amber-700' : 'text-slate-900'}`}>
+      <dd className={`mt-0.5 text-sm ${warn ? 'text-orange-700' : 'text-grey-900'}`}>
         {value || '미입력'}
       </dd>
     </div>
@@ -89,7 +89,7 @@ function AchievementDonut({ rate }: { rate: number | null }) {
           transform="rotate(-90 44 44)"
         />
       )}
-      <text x="44" y="49" textAnchor="middle" className="fill-slate-900 text-[13px] font-bold">
+      <text x="44" y="49" textAnchor="middle" className="fill-grey-900 text-[13px] font-bold">
         {formatRate(rate)}
       </text>
     </svg>
@@ -108,9 +108,9 @@ function GoalSummaryCard({
   result: ActionResult<GoalsData>;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5">
+    <section className="rounded-2xl border border-grey-200 bg-white p-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-bold text-slate-900">목표 달성 현황</h2>
+        <h2 className="text-base font-bold text-grey-900">목표 달성 현황</h2>
         <Link
           href={`/projects/${projectId}/goals`}
           className="text-xs font-medium text-blue-600 hover:underline"
@@ -126,16 +126,16 @@ function GoalSummaryCard({
           <div className="flex items-center gap-4">
             <AchievementDonut rate={result.data.deliverableSummary.rate} />
             <div className="min-w-0">
-              <p className="text-xs text-slate-500">정량적 성과목표</p>
-              <p className="mt-0.5 text-lg font-bold text-slate-900">
+              <p className="text-xs text-grey-500">정량적 성과목표</p>
+              <p className="mt-0.5 text-lg font-bold text-grey-900">
                 {result.data.deliverableSummary.achievedTotal}
-                <span className="text-sm font-normal text-slate-500">
+                <span className="text-sm font-normal text-grey-500">
                   {' / '}
                   {result.data.deliverableSummary.targetTotal}건
                 </span>
               </p>
               {result.data.deliverables.length === 0 && (
-                <p className="mt-1 text-xs text-slate-400">등록된 성과목표가 없습니다.</p>
+                <p className="mt-1 text-xs text-grey-400">등록된 성과목표가 없습니다.</p>
               )}
             </div>
           </div>
@@ -148,11 +148,11 @@ function GoalSummaryCard({
               label="정량적 기술목표 가중 달성률"
             />
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <span className="text-lg font-bold text-slate-900">
+              <span className="text-lg font-bold text-grey-900">
                 {formatRate(result.data.techSummary.weightedRate)}
               </span>
               {/* T-3: 비중 합계는 가중 평균의 분모다. 100이 아니면 값의 의미가 달라진다 */}
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-grey-500">
                 비중 합계 {formatWeight(result.data.techSummary.weightSum)}%
               </span>
               {result.data.techSummary.weightMismatch && (
@@ -161,7 +161,7 @@ function GoalSummaryCard({
                 </Badge>
               )}
               {result.data.techTargets.length === 0 && (
-                <span className="text-xs text-slate-400">등록된 기술목표가 없습니다.</span>
+                <span className="text-xs text-grey-400">등록된 기술목표가 없습니다.</span>
               )}
             </div>
           </div>
@@ -182,10 +182,10 @@ const CLOSED_MILESTONE_STATUSES: ReadonlySet<MilestoneStatus> = new Set(['done',
 
 // 부록 A.3 유형 색상 토큰 → Badge 톤. Badge에는 sky·teal 톤이 없어 계열이 가장 가까운 톤으로 옮긴다.
 const MILESTONE_TYPE_TONES: Record<string, BadgeTone> = {
-  'violet-600': 'violet',
-  'sky-600': 'blue',
+  'purple-600': 'violet',
+  'blue-600': 'blue',
   'teal-600': 'green',
-  'slate-600': 'neutral',
+  'grey-600': 'neutral',
 };
 
 /** §5.5: name이 있으면 name, 없으면 order+1 + '차년도' */
@@ -224,9 +224,9 @@ function UpcomingMilestoneCard({
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5">
+    <section className="rounded-2xl border border-grey-200 bg-white p-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-bold text-slate-900">임박 마일스톤</h2>
+        <h2 className="text-base font-bold text-grey-900">임박 마일스톤</h2>
         <Link
           href={`/projects/${projectId}/milestones`}
           className="text-xs font-medium text-blue-600 hover:underline"
@@ -238,7 +238,7 @@ function UpcomingMilestoneCard({
       {!result.ok ? (
         <ErrorBanner message={result.error} code={result.code} className="mt-4" />
       ) : upcoming.length === 0 ? (
-        <p className="mt-4 rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">
+        <p className="mt-4 rounded-xl border border-dashed border-grey-300 p-6 text-center text-xs text-grey-500">
           예정된 마일스톤이 없습니다.
         </p>
       ) : (
@@ -252,15 +252,15 @@ function UpcomingMilestoneCard({
                 ? 'amber'
                 : 'neutral';
             return (
-              <li key={m.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50/60 px-3 py-2">
+              <li key={m.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-grey-50/60 px-3 py-2">
                 <Badge tone={MILESTONE_TYPE_TONES[MILESTONE_TYPE_COLORS[m.type]] ?? 'neutral'}>
                   {MILESTONE_TYPE_LABELS[m.type]}
                 </Badge>
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900" title={m.title}>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-grey-900" title={m.title}>
                   {m.title}
                 </span>
-                <span className="text-xs text-slate-500">{yearNameOf(m)}</span>
-                <span className="text-xs tabular-nums text-slate-500">{m.date}</span>
+                <span className="text-xs text-grey-500">{yearNameOf(m)}</span>
+                <span className="text-xs tabular-nums text-grey-500">{m.date}</span>
                 <Badge tone={tone} className="tabular-nums" title={overdue ? '지연 (§6.5)' : undefined}>
                   {formatDday(today, m.date)}
                 </Badge>
@@ -283,9 +283,9 @@ function HighRiskCard({ projectId, result }: { projectId: string; result: Action
   const top = result.ok ? result.data.risks.filter((v) => v.active).slice(0, OVERVIEW_LIST_LIMIT) : [];
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5">
+    <section className="rounded-2xl border border-grey-200 bg-white p-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-bold text-slate-900">고위험 리스크</h2>
+        <h2 className="text-base font-bold text-grey-900">고위험 리스크</h2>
         <Link
           href={`/projects/${projectId}/risks`}
           className="text-xs font-medium text-blue-600 hover:underline"
@@ -297,7 +297,7 @@ function HighRiskCard({ projectId, result }: { projectId: string; result: Action
       {!result.ok ? (
         <ErrorBanner message={result.error} code={result.code} className="mt-4" />
       ) : top.length === 0 ? (
-        <p className="mt-4 rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">
+        <p className="mt-4 rounded-xl border border-dashed border-grey-300 p-6 text-center text-xs text-grey-500">
           미해결 리스크가 없습니다.
         </p>
       ) : (
@@ -305,18 +305,18 @@ function HighRiskCard({ projectId, result }: { projectId: string; result: Action
           {top.map((v) => (
             <li
               key={v.risk.id}
-              className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50/60 px-3 py-2"
+              className="flex flex-wrap items-center gap-2 rounded-xl bg-grey-50/60 px-3 py-2"
             >
               <Badge tone={v.severity ? RISK_SEVERITY_TONES[v.severity] : 'neutral'} className="tabular-nums">
                 {v.severity ? RISK_SEVERITY_LABELS[v.severity] : '판정 제외'} {v.score}
               </Badge>
               <span
-                className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900"
+                className="min-w-0 flex-1 truncate text-sm font-medium text-grey-900"
                 title={v.risk.title}
               >
                 {v.risk.title}
               </span>
-              <span className="text-xs text-slate-500">{RISK_CATEGORY_LABELS[v.risk.category]}</span>
+              <span className="text-xs text-grey-500">{RISK_CATEGORY_LABELS[v.risk.category]}</span>
               {/* §6.5: 발생한 리스크는 점수와 무관하게 주의 대상이다 */}
               {v.attention && v.severity !== 'high' && <Badge tone="red">주의</Badge>}
             </li>
@@ -335,9 +335,9 @@ function RecentNoteCard({ projectId, result }: { projectId: string; result: Acti
   const recent = result.ok ? sortNotes(result.data.notes).slice(0, OVERVIEW_LIST_LIMIT) : [];
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5">
+    <section className="rounded-2xl border border-grey-200 bg-white p-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-bold text-slate-900">최근 노트</h2>
+        <h2 className="text-base font-bold text-grey-900">최근 노트</h2>
         <Link
           href={`/projects/${projectId}/notes`}
           className="text-xs font-medium text-blue-600 hover:underline"
@@ -349,23 +349,23 @@ function RecentNoteCard({ projectId, result }: { projectId: string; result: Acti
       {!result.ok ? (
         <ErrorBanner message={result.error} code={result.code} className="mt-4" />
       ) : recent.length === 0 ? (
-        <p className="mt-4 rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">
+        <p className="mt-4 rounded-xl border border-dashed border-grey-300 p-6 text-center text-xs text-grey-500">
           작성된 노트가 없습니다.
         </p>
       ) : (
         <ul className="mt-4 space-y-2">
           {recent.map((note) => (
-            <li key={note.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50/60 px-3 py-2">
+            <li key={note.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-grey-50/60 px-3 py-2">
               <Badge tone="neutral">{NOTE_TYPE_LABELS[note.type]}</Badge>
               <Link
                 href={`/projects/${projectId}/notes?note=${note.id}`}
-                className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900 hover:underline"
+                className="min-w-0 flex-1 truncate text-sm font-medium text-grey-900 hover:underline"
                 title={note.title}
               >
                 {note.pinned && <span aria-label="고정됨">📌 </span>}
                 {note.title}
               </Link>
-              <span className="text-xs tabular-nums text-slate-500">{note.date}</span>
+              <span className="text-xs tabular-nums text-grey-500">{note.date}</span>
             </li>
           ))}
         </ul>
@@ -430,11 +430,11 @@ export default async function ProjectOverviewPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold text-slate-900">{project.name}</h1>
+            <h1 className="text-2xl font-bold text-grey-900">{project.name}</h1>
             <Badge>{PROJECT_STATUS_LABELS[project.status]}</Badge>
             {project.archived && <Badge tone="amber">보관됨</Badge>}
           </div>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-grey-500">
             {[project.ministry, project.agency, project.programName].filter(Boolean).join(' · ') ||
               '부처·전문기관·사업명 미입력'}
           </p>
@@ -455,8 +455,8 @@ export default async function ProjectOverviewPage({
         />
       )}
 
-      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="text-base font-bold text-slate-900">협약 정보</h2>
+      <section className="mt-6 rounded-2xl border border-grey-200 bg-white p-5">
+        <h2 className="text-base font-bold text-grey-900">협약 정보</h2>
         <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <InfoRow label="과제번호" value={project.projectNo} />
           <InfoRow label="부처" value={project.ministry} />

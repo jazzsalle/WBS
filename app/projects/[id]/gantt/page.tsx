@@ -50,7 +50,7 @@ export default async function GanttPage({ params, searchParams }: GanttPageProps
     return (
       <main className={CONTENT_CLASS}>
         <h1 className="mb-4 text-xl font-bold">간트</h1>
-        <p className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">
+        <p className="rounded-xl border border-dashed border-grey-300 p-10 text-center text-sm text-grey-500">
           아직 연차가 없습니다. 과제 개요에서 단계와 연차를 먼저 만드세요.
         </p>
       </main>

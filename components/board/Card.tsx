@@ -83,13 +83,13 @@ export default function Card({
         callbacks.onDropCard(card.id, positionFromPointer(e));
       }}
       className={[
-        'relative flex gap-2 rounded-lg border border-slate-200 bg-white p-2 pl-3 text-xs shadow-sm',
+        'relative flex gap-2 rounded-lg border border-grey-200 bg-white p-2 pl-3 text-xs shadow-sm',
         busy ? '' : 'cursor-grab',
-        dragging ? 'opacity-40' : 'hover:border-slate-300',
+        dragging ? 'opacity-40' : 'hover:border-grey-300',
         // PR-6: 완료 작업은 우선순위 표시를 흐리게 한다
         done ? 'opacity-60' : '',
         // PR-5: 막힌 작업은 점수와 무관하게 주의 대상이다
-        card.status === 'blocked' ? 'border-rose-300' : '',
+        card.status === 'blocked' ? 'border-red-300' : '',
         dropPosition === 'before' ? 'shadow-[inset_0_2px_0_0_#2563eb]' : '',
         dropPosition === 'after' ? 'shadow-[inset_0_-2px_0_0_#2563eb]' : '',
       ].join(' ')}
@@ -105,7 +105,7 @@ export default function Card({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-1.5">
-          <span className="shrink-0 font-mono text-[10px] text-slate-400">{card.wbsCode}</span>
+          <span className="shrink-0 font-mono text-[10px] text-grey-400">{card.wbsCode}</span>
           {card.urgencyPinned && (
             // PR-4: 긴급도 고정은 마감일이 바뀌어도 값이 변하지 않는다는 뜻이다
             <span aria-label="긴급도 고정" title="긴급도 고정(수동)" className="shrink-0 text-[10px]">
@@ -121,7 +121,7 @@ export default function Card({
 
         <p
           title={card.title}
-          className={`mt-0.5 truncate font-semibold ${done ? 'text-slate-400 line-through' : 'text-slate-800'}`}
+          className={`mt-0.5 truncate font-semibold ${done ? 'text-grey-400 line-through' : 'text-grey-800'}`}
         >
           {card.title}
         </p>
@@ -133,17 +133,17 @@ export default function Card({
             aria-valuemax={100}
             aria-valuenow={progress}
             aria-label="진척률"
-            className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100"
+            className="h-1.5 w-full overflow-hidden rounded-full bg-grey-100"
           >
             <span className="block h-full rounded-full bg-blue-500" style={{ width: `${progress}%` }} />
           </span>
-          <span className="shrink-0 tabular-nums text-slate-500">{progress}%</span>
+          <span className="shrink-0 tabular-nums text-grey-500">{progress}%</span>
         </div>
 
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-grey-500">
           <span className={card.overdue ? 'font-semibold text-red-600' : ''}>
             {card.dueDate === null ? (
-              <span className="text-slate-300">마감 없음</span>
+              <span className="text-grey-300">마감 없음</span>
             ) : (
               <span title={card.overdue ? '마감일이 지났습니다' : undefined}>
                 {card.dueDate} ({card.dday})
@@ -152,7 +152,7 @@ export default function Card({
           </span>
 
           <span className="truncate" title={ownerName ?? '담당자 미지정'}>
-            {ownerName ?? <span className="text-slate-300">담당 미지정</span>}
+            {ownerName ?? <span className="text-grey-300">담당 미지정</span>}
           </span>
           {extraMemberNames.length > 0 && (
             <Badge title={`참여 담당자: ${extraMemberNames.join(', ')}`}>
@@ -161,7 +161,7 @@ export default function Card({
           )}
 
           {orgName !== null && (
-            <span className="truncate text-slate-400" title={orgName}>
+            <span className="truncate text-grey-400" title={orgName}>
               {orgName}
             </span>
           )}

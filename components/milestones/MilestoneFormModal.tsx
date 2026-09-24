@@ -81,9 +81,9 @@ function yearLabel(year: Year): string {
 }
 
 const INPUT_CLASS =
-  'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none';
+  'mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none';
 const SELECT_CLASS =
-  'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none';
+  'mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none';
 
 export interface MilestoneFormModalProps {
   mode: 'create' | 'edit';
@@ -254,7 +254,7 @@ export default function MilestoneFormModal({
           )}
 
           {reloaded && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
               <p className="font-semibold">최신 내용을 다시 불러왔습니다.</p>
               {differences.length === 0 ? (
                 <p className="mt-1 text-xs">
@@ -272,13 +272,13 @@ export default function MilestoneFormModal({
                         key={field.key}
                         className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
                       >
-                        <span className="font-semibold text-slate-700">{field.label}</span>
-                        <span className="text-slate-500">내 입력: {displayValue(field, values)}</span>
-                        <span className="text-slate-500">최신: {displayValue(field, latest)}</span>
+                        <span className="font-semibold text-grey-700">{field.label}</span>
+                        <span className="text-grey-500">내 입력: {displayValue(field, values)}</span>
+                        <span className="text-grey-500">최신: {displayValue(field, latest)}</span>
                         <button
                           type="button"
                           onClick={() => setField(field.key, latest[field.key])}
-                          className="ml-auto rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                          className="ml-auto rounded-md border border-orange-300 px-2 py-0.5 font-semibold text-orange-800"
                         >
                           최신 값 사용
                         </button>
@@ -292,7 +292,7 @@ export default function MilestoneFormModal({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-grey-700">
                 제목 <span className="text-red-600">*</span>
               </span>
               <input
@@ -308,7 +308,7 @@ export default function MilestoneFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">유형</span>
+              <span className="text-sm font-medium text-grey-700">유형</span>
               <select
                 value={values.type}
                 onChange={(e) => setField('type', e.target.value as MilestoneType)}
@@ -323,7 +323,7 @@ export default function MilestoneFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-grey-700">
                 날짜 <span className="text-red-600">*</span>
               </span>
               <input
@@ -336,7 +336,7 @@ export default function MilestoneFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">연차</span>
+              <span className="text-sm font-medium text-grey-700">연차</span>
               <select
                 value={values.yearId}
                 onChange={(e) => setField('yearId', e.target.value)}
@@ -354,7 +354,7 @@ export default function MilestoneFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">담당</span>
+              <span className="text-sm font-medium text-grey-700">담당</span>
               <select
                 value={values.ownerMemberId}
                 onChange={(e) => setField('ownerMemberId', e.target.value)}
@@ -371,7 +371,7 @@ export default function MilestoneFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">상태</span>
+              <span className="text-sm font-medium text-grey-700">상태</span>
               <select
                 value={values.status}
                 onChange={(e) => setField('status', e.target.value as MilestoneStatus)}
@@ -386,7 +386,7 @@ export default function MilestoneFormModal({
             </label>
 
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">설명</span>
+              <span className="text-sm font-medium text-grey-700">설명</span>
               <textarea
                 value={values.description}
                 onChange={(e) => setField('description', e.target.value)}
@@ -398,7 +398,7 @@ export default function MilestoneFormModal({
             </label>
 
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">결과 메모</span>
+              <span className="text-sm font-medium text-grey-700">결과 메모</span>
               <textarea
                 value={values.resultNote}
                 onChange={(e) => setField('resultNote', e.target.value)}
@@ -411,7 +411,7 @@ export default function MilestoneFormModal({
           </div>
 
           {(danglingYear || danglingMember) && (
-            <p className="mt-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+            <p className="mt-4 rounded-lg bg-orange-50 p-3 text-xs text-orange-800">
               {danglingYear && '이 마일스톤이 가리키는 연차가 목록에 없습니다. '}
               {danglingMember && '이 마일스톤의 담당 인력이 목록에 없습니다. '}
               다른 사용자가 삭제했을 수 있습니다. 다시 선택하거나 비워야 저장됩니다.

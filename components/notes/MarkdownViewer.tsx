@@ -10,12 +10,12 @@ import type { MdBlock, MdInline, MdListItem } from '@/lib/notes';
 import { parseMarkdown } from '@/lib/notes';
 
 const HEADING_CLASS: Record<number, string> = {
-  1: 'mt-5 mb-2 text-xl font-bold text-slate-900',
-  2: 'mt-5 mb-2 text-lg font-bold text-slate-900',
-  3: 'mt-4 mb-1.5 text-base font-bold text-slate-800',
-  4: 'mt-3 mb-1 text-sm font-bold text-slate-800',
-  5: 'mt-3 mb-1 text-sm font-semibold text-slate-700',
-  6: 'mt-3 mb-1 text-xs font-semibold text-slate-600',
+  1: 'mt-5 mb-2 text-xl font-bold text-grey-900',
+  2: 'mt-5 mb-2 text-lg font-bold text-grey-900',
+  3: 'mt-4 mb-1.5 text-base font-bold text-grey-800',
+  4: 'mt-3 mb-1 text-sm font-bold text-grey-800',
+  5: 'mt-3 mb-1 text-sm font-semibold text-grey-700',
+  6: 'mt-3 mb-1 text-xs font-semibold text-grey-600',
 };
 
 function Inline({ nodes }: { nodes: MdInline[] }) {
@@ -27,7 +27,7 @@ function Inline({ nodes }: { nodes: MdInline[] }) {
             return <span key={index}>{node.text}</span>;
           case 'code':
             return (
-              <code key={index} className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.85em] text-slate-800">
+              <code key={index} className="rounded bg-grey-100 px-1 py-0.5 font-mono text-[0.85em] text-grey-800">
                 {node.text}
               </code>
             );
@@ -75,7 +75,7 @@ function ListItem({ item }: { item: MdListItem }) {
           readOnly
           // 본문(마크다운 원문)이 진실이다 — 미리보기에서 체크를 바꿔 저장하지 않는다 (§5.14)
           aria-label={item.checked ? '완료된 항목' : '미완료 항목'}
-          className="mr-1.5 h-3.5 w-3.5 translate-y-[1px] rounded border-slate-300"
+          className="mr-1.5 h-3.5 w-3.5 translate-y-[1px] rounded border-grey-300"
         />
       )}
       <Inline nodes={item.children} />
@@ -96,19 +96,19 @@ function Block({ block }: { block: MdBlock }) {
     case 'paragraph':
       // 문단 안의 줄바꿈은 원문 그대로 보존한다 (회의록은 줄 단위로 읽힌다)
       return (
-        <p className="my-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+        <p className="my-2 whitespace-pre-wrap break-words text-sm leading-6 text-grey-700">
           <Inline nodes={block.children} />
         </p>
       );
     case 'codeBlock':
       return (
-        <pre className="my-3 overflow-x-auto rounded-lg bg-slate-900 p-3 text-xs leading-5 text-slate-100">
+        <pre className="my-3 overflow-x-auto rounded-lg bg-grey-900 p-3 text-xs leading-5 text-grey-100">
           <code>{block.text}</code>
         </pre>
       );
     case 'quote':
       return (
-        <blockquote className="my-3 border-l-4 border-slate-300 pl-3 text-sm text-slate-600">
+        <blockquote className="my-3 border-l-4 border-grey-300 pl-3 text-sm text-grey-600">
           {block.lines.map((line, index) => (
             <p key={index} className="my-0.5">
               <Inline nodes={line} />
@@ -120,7 +120,7 @@ function Block({ block }: { block: MdBlock }) {
       const Tag = block.ordered ? 'ol' : 'ul';
       return (
         <Tag
-          className={`my-2 space-y-1 pl-5 text-sm leading-6 text-slate-700 ${
+          className={`my-2 space-y-1 pl-5 text-sm leading-6 text-grey-700 ${
             block.ordered ? 'list-decimal' : ''
           }`}
         >
@@ -131,7 +131,7 @@ function Block({ block }: { block: MdBlock }) {
       );
     }
     case 'hr':
-      return <hr className="my-4 border-slate-200" />;
+      return <hr className="my-4 border-grey-200" />;
   }
 }
 
@@ -147,7 +147,7 @@ export default function MarkdownViewer({ source, className = '' }: MarkdownViewe
   if (blocks.length === 0) {
     return (
       <div className={className}>
-        <p className="text-sm text-slate-400">본문이 비어 있습니다. 왼쪽 편집기에 마크다운으로 적으세요.</p>
+        <p className="text-sm text-grey-400">본문이 비어 있습니다. 왼쪽 편집기에 마크다운으로 적으세요.</p>
       </div>
     );
   }

@@ -240,10 +240,10 @@ export default function TodoScreen({ data, todayISO }: TodoScreenProps) {
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{deleting.title}</strong>을(를) 삭제합니다. 되돌릴 수 없습니다.
           </p>
-          <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="mt-3 rounded-lg bg-orange-50 p-3 text-xs text-orange-800">
             To-Do는 팀 공유 목록입니다 (§7.13). 다른 팀원이 만든 할 일일 수 있습니다.
           </p>
         </Modal>

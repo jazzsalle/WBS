@@ -308,7 +308,7 @@ export default function DetailImportWizard({ years, onClose }: DetailImportWizar
       }}
       footer={
         <>
-          <span className="mr-auto text-xs text-slate-500">
+          <span className="mr-auto text-xs text-grey-500">
             {step < 4 && blockers.length > 0 && <span className="text-red-600">{blockers[0]}</span>}
             {step === 4 && committed === null && commitBlocker !== null && (
               <span className="text-red-600">{commitBlocker}</span>
@@ -350,7 +350,7 @@ export default function DetailImportWizard({ years, onClose }: DetailImportWizar
         <StepIndicator step={step} skipStep3={preview !== null && !hasPersonnel} />
 
         {file && (
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-grey-400">
             {file.name} · 시트 {draft.sheetName ?? '(미선택)'} · 대상 연차{' '}
             {chosenYear === null ? '(미선택)' : `${chosenYear.order + 1}차년도 · ${chosenYear.name}`}
           </p>
@@ -475,12 +475,12 @@ function StepIndicator({ step, skipStep3 }: { step: DetailWizardStep; skipStep3:
             key={n}
             className={`rounded-full px-2.5 py-1 ${
               n === step
-                ? 'bg-slate-900 font-semibold text-white'
+                ? 'bg-grey-900 font-semibold text-white'
                 : skipped
-                  ? 'bg-slate-50 text-slate-300 line-through'
+                  ? 'bg-grey-50 text-grey-300 line-through'
                   : n < step
-                    ? 'bg-slate-200 text-slate-600'
-                    : 'bg-slate-50 text-slate-400'
+                    ? 'bg-grey-200 text-grey-600'
+                    : 'bg-grey-50 text-grey-400'
             }`}
           >
             {n}. {DETAIL_STEP_TITLES[n]}

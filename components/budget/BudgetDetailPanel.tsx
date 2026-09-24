@@ -68,7 +68,7 @@ function toDraft(amount: number | null): string {
 }
 
 const inputClass =
-  'mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm tabular-nums focus:border-slate-500 focus:outline-none';
+  'mt-1 w-full rounded-lg border border-grey-300 px-2.5 py-1.5 text-sm tabular-nums focus:border-grey-500 focus:outline-none';
 
 export default function BudgetDetailPanel({
   cell,
@@ -264,50 +264,50 @@ export default function BudgetDetailPanel({
     <aside
       aria-label={`${yearName} ${categoryLabel} 집행 내역`}
       // P-R4: 집행 등록·편집 패널은 화면 조작용이다. 인쇄물에는 매트릭스만 남는다
-      className="h-fit space-y-4 rounded-xl border border-slate-200 bg-white p-4 print:hidden"
+      className="h-fit space-y-4 rounded-xl border border-grey-200 bg-white p-4 print:hidden"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-bold text-slate-900">{categoryLabel}</p>
-          <p className="text-xs text-slate-500">{yearName}</p>
+          <p className="text-sm font-bold text-grey-900">{categoryLabel}</p>
+          <p className="text-xs text-grey-500">{yearName}</p>
         </div>
         <button
           type="button"
           onClick={onClose}
           aria-label="패널 닫기"
-          className="text-xl leading-none text-slate-400 hover:text-slate-600"
+          className="text-xl leading-none text-grey-400 hover:text-grey-600"
         >
           ×
         </button>
       </div>
 
       {/* 요약 — 서버가 준 값만 표시한다 (§6.4) */}
-      <dl className="grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-xs">
+      <dl className="grid grid-cols-2 gap-2 rounded-lg bg-grey-50 p-3 text-xs">
         <div>
-          <dt className="text-slate-500">예산</dt>
-          <dd className="font-semibold tabular-nums text-slate-800">
+          <dt className="text-grey-500">예산</dt>
+          <dd className="font-semibold tabular-nums text-grey-800">
             {formatAmount(cell.planned, currencyUnit)}
           </dd>
         </div>
         <div>
-          <dt className="text-slate-500">집행</dt>
-          <dd className="font-semibold tabular-nums text-slate-800">
+          <dt className="text-grey-500">집행</dt>
+          <dd className="font-semibold tabular-nums text-grey-800">
             {formatAmount(cell.executed, currencyUnit)}
           </dd>
         </div>
         <div>
-          <dt className="text-slate-500">집행률</dt>
+          <dt className="text-grey-500">집행률</dt>
           <dd
-            className={`font-semibold tabular-nums ${cell.over ? 'text-red-600' : 'text-slate-800'}`}
+            className={`font-semibold tabular-nums ${cell.over ? 'text-red-600' : 'text-grey-800'}`}
           >
             {formatRate(cell.rate)}
           </dd>
         </div>
         <div>
-          <dt className="text-slate-500">잔액</dt>
+          <dt className="text-grey-500">잔액</dt>
           <dd
             className={`font-semibold tabular-nums ${
-              cell.remaining < 0 ? 'text-red-600' : 'text-slate-800'
+              cell.remaining < 0 ? 'text-red-600' : 'text-grey-800'
             }`}
           >
             {formatAmount(cell.remaining, currencyUnit)}
@@ -336,14 +336,14 @@ export default function BudgetDetailPanel({
       )}
 
       {item === null ? (
-        <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+        <p className="rounded-lg bg-orange-50 p-3 text-xs text-orange-800">
           이 연차·비목의 예산 행이 없습니다. 연차 생성 시 자동으로 만들어지는 행이므로 데이터가
           어긋난 상태입니다. 예산·집행을 등록하려면 관리자에게 알리세요.
         </p>
       ) : (
         <>
           {reloaded && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-xs text-orange-800">
               <p className="font-semibold">최신 값을 다시 불러왔습니다.</p>
               <p className="mt-1">
                 입력하신 값은 그대로 두었습니다. 서버 값으로 되돌리려면 아래 버튼을 누르세요.
@@ -356,7 +356,7 @@ export default function BudgetDetailPanel({
                   setTotalDraft(String(item.plannedAmount));
                   setReloaded(false);
                 }}
-                className="mt-2 rounded-md border border-amber-300 px-2 py-0.5 font-semibold"
+                className="mt-2 rounded-md border border-orange-300 px-2 py-0.5 font-semibold"
               >
                 최신 값 사용
               </button>
@@ -365,11 +365,11 @@ export default function BudgetDetailPanel({
 
           {/* 예산 편집 — 현금/현물 분리 (§7.9, §5.12). 잠긴 셀은 읽기 전용이다 (PL-9) */}
           <section aria-label="예산 편집" className="space-y-2">
-            <p className="text-xs font-semibold text-slate-700">예산 (원 단위 정수)</p>
+            <p className="text-xs font-semibold text-grey-700">예산 (원 단위 정수)</p>
 
             {planLocked && (
               // 이유와 갈 곳을 함께 밝힌다. 막기만 하면 사용자가 "왜 안 되는지" 알 수 없다
-              <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+              <p className="rounded-lg border border-grey-200 bg-grey-50 p-3 text-xs text-grey-600">
                 🔒 산출근거 <strong>{detailCount}건</strong>이 있어 계획액이 내역 합계로 확정됩니다.
                 제안 모드의 산출근거 패널에서 수정하세요. 마지막 행을 지우면 잠금이 풀리고 직전
                 합계가 그대로 남습니다 (PL-9). 아래 집행 내역은 그대로 등록·수정할 수 있습니다.
@@ -377,7 +377,7 @@ export default function BudgetDetailPanel({
             )}
 
             <div className="grid grid-cols-2 gap-2">
-              <label className="text-xs text-slate-600">
+              <label className="text-xs text-grey-600">
                 현금(원)
                 <input
                   type="number"
@@ -391,7 +391,7 @@ export default function BudgetDetailPanel({
                   className={inputClass}
                 />
               </label>
-              <label className="text-xs text-slate-600">
+              <label className="text-xs text-grey-600">
                 현물(원)
                 <input
                   type="number"
@@ -407,7 +407,7 @@ export default function BudgetDetailPanel({
               </label>
             </div>
 
-            <label className="block text-xs text-slate-600">
+            <label className="block text-xs text-grey-600">
               총액(원)
               <input
                 type="number"
@@ -419,10 +419,10 @@ export default function BudgetDetailPanel({
                 disabled={busy || planLocked}
                 onChange={(e) => setTotalDraft(e.target.value)}
                 aria-describedby="plan-total-hint"
-                className={`${inputClass} ${splitMode ? 'bg-slate-100 text-slate-500' : ''}`}
+                className={`${inputClass} ${splitMode ? 'bg-grey-100 text-grey-500' : ''}`}
               />
             </label>
-            <p id="plan-total-hint" className="text-[11px] text-slate-500">
+            <p id="plan-total-hint" className="text-[11px] text-grey-500">
               {planLocked
                 ? '표시된 값은 산출근거 합계입니다. 여기서는 바꿀 수 없습니다.'
                 : splitMode
@@ -442,24 +442,24 @@ export default function BudgetDetailPanel({
 
           {/* 집행 내역 (§7.9: 일자, 금액, 적요 + 추가/수정/삭제) */}
           <section aria-label="집행 내역" className="space-y-2">
-            <p className="text-xs font-semibold text-slate-700">
+            <p className="text-xs font-semibold text-grey-700">
               집행 내역
-              <span className="ml-2 font-normal text-slate-500">{item.executions.length}건</span>
+              <span className="ml-2 font-normal text-grey-500">{item.executions.length}건</span>
             </p>
 
             {item.executions.length === 0 ? (
-              <p className="text-xs text-slate-400">등록된 집행 내역이 없습니다.</p>
+              <p className="text-xs text-grey-400">등록된 집행 내역이 없습니다.</p>
             ) : (
               <table className="w-full text-left text-xs">
-                <thead className="text-slate-500">
-                  <tr className="border-b border-slate-200">
+                <thead className="text-grey-500">
+                  <tr className="border-b border-grey-200">
                     <th className="py-1 pr-2 font-medium">일자</th>
                     <th className="py-1 pr-2 text-right font-medium">금액</th>
                     <th className="py-1 pr-2 font-medium">적요</th>
                     <th className="py-1 text-right font-medium">동작</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-grey-100">
                   {item.executions.map((execution) =>
                     editingId === execution.id ? (
                       <tr key={execution.id} className="align-top">
@@ -515,13 +515,13 @@ export default function BudgetDetailPanel({
                       </tr>
                     ) : (
                       <tr key={execution.id} className="align-top">
-                        <td className="py-1.5 pr-2 tabular-nums text-slate-600">
+                        <td className="py-1.5 pr-2 tabular-nums text-grey-600">
                           {execution.date}
                         </td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums text-slate-800">
+                        <td className="py-1.5 pr-2 text-right tabular-nums text-grey-800">
                           {formatAmount(execution.amount, currencyUnit)}
                         </td>
-                        <td className="py-1.5 pr-2 text-slate-600">
+                        <td className="py-1.5 pr-2 text-grey-600">
                           {execution.description === '' ? '—' : execution.description}
                         </td>
                         <td className="py-1.5 text-right">
@@ -546,10 +546,10 @@ export default function BudgetDetailPanel({
               </table>
             )}
 
-            <form onSubmit={handleAddExecution} className="space-y-2 rounded-lg bg-slate-50 p-3">
-              <p className="text-xs font-semibold text-slate-700">집행 추가</p>
+            <form onSubmit={handleAddExecution} className="space-y-2 rounded-lg bg-grey-50 p-3">
+              <p className="text-xs font-semibold text-grey-700">집행 추가</p>
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-xs text-slate-600">
+                <label className="text-xs text-grey-600">
                   집행일
                   <input
                     type="date"
@@ -560,7 +560,7 @@ export default function BudgetDetailPanel({
                     className={inputClass}
                   />
                 </label>
-                <label className="text-xs text-slate-600">
+                <label className="text-xs text-grey-600">
                   집행액(원)
                   <input
                     type="number"
@@ -575,7 +575,7 @@ export default function BudgetDetailPanel({
                   />
                 </label>
               </div>
-              <label className="block text-xs text-slate-600">
+              <label className="block text-xs text-grey-600">
                 적요
                 <input
                   type="text"
@@ -621,11 +621,11 @@ export default function BudgetDetailPanel({
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             {deleting.date} · <strong>{formatAmount(deleting.amount, currencyUnit)}</strong>
             {deleting.description === '' ? '' : ` · ${deleting.description}`}
           </p>
-          <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+          <p className="mt-3 rounded-lg bg-orange-50 p-3 text-sm text-orange-800">
             삭제하면 이 비목의 집행액과 집행률이 줄어듭니다.
           </p>
         </Modal>

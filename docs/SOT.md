@@ -2,10 +2,20 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v4.4** |
+| 문서 버전 | **v4.5** |
 | 최종 수정 | 2026-09-24 |
 | 상태 | 확정 (Phase 0 착수 가능) |
 | 목적 | 이 문서는 구현의 유일한 기준점이다. 코드와 문서가 다르면 **문서가 옳다**. |
+
+### v4.4 → v4.5 변경 요약 — 토스 디자인 시스템(TDS) 토큰 도입 (사용자 결정 2026-09-24)
+
+사용자가 토스 디자인 시스템 적용을 지시했다(참조: `tossmini-docs.toss.im/tds-react-native`, 웹 대응은 `tds-mobile`). 조사 결과 **컴포넌트 라이브러리는 쓸 수 없다** — `@toss/tds-mobile`은 React 16~18 + emotion을 요구하고(우리는 React 19 + Tailwind v4), npm에 라이선스 표기가 없다. 대신 **공개된 디자인 토큰(색상·타이포 스케일)을 우리 CSS에 옮겨 적는다.** 색상 값과 크기 체계는 저작권 대상이 아니다.
+
+- **부록 E 신설 — 디자인 토큰**: TDS 회색 10단계·브랜드 7색 스케일·시맨틱 배경·타이포 7단계·둥글기·간격. Tailwind v4 `@theme`에 등록하고 **Tailwind 기본 팔레트는 제거**한다(`--color-*: initial`) — 남은 옛 클래스가 조용히 옛 색으로 그려지지 않고 눈에 띄게 깨지도록.
+- **부록 A.3 색상 규약을 TDS 팔레트로 재매핑**: `slate→grey`, `rose→red`, `emerald→green`, `amber→orange`, `sky→blue`, `indigo·violet→purple`. 의미(상태·마감·리스크·우선순위·기관 역할)는 그대로다.
+- **폰트**: 토스 전용 서체는 비공개라 **Pretendard Variable**(OFL-1.1, npm `pretendard`)로 대체. Tauri 오프라인을 위해 CDN이 아니라 번들에 포함한다.
+- **§3 기술 스택**에 "디자인 토큰: TDS 값 이식(부록 E)" 한 줄. `tests/unit/design-tokens.test.ts`가 옛 팔레트 이름 사용을 금지한다.
+- 범위(사용자 선택 A): 토큰 + 공통 프리미티브 + 전 화면 색상 치환. **레이아웃·동작은 바꾸지 않는다.**
 
 ### v4.3 → v4.4 변경 요약 — Phase 13(연구비 사용 규칙) 착수 전 스펙 신설
 
@@ -247,7 +257,7 @@ Phase 8 계획 중 **§7.13이 두 줄뿐이라 구현이 임의로 정해야 �
 | 프레임워크 | Next.js 15 (App Router) | Server Components + Server Actions |
 | 언어 | TypeScript (strict) | |
 | UI | React 19 | |
-| 스타일 | Tailwind CSS v4 | |
+| 스타일 | Tailwind CSS v4 | 디자인 토큰은 TDS 값 이식(부록 E). 기본 팔레트 제거 |
 | 상태 | React 내장 (useState / useOptimistic) | 전역 상태 라이브러리 없음 |
 | 검증 | Zod | DB 응답도 검증한다 (마이그레이션 누락 조기 발견) |
 | 테스트 | **Vitest** | 순수 함수 단위 테스트(§11 필수 1) + 리포지토리 통합 테스트 |
@@ -1273,9 +1283,9 @@ priorityScore = importance × urgency        # 1 ~ 25
 | 점수 | 등급 | 색상 | 의미 |
 |---|---|---|---|
 | 15 ~ 25 | 최우선 | `red-600` | 지금 한다 |
-| 8 ~ 14 | 높음 | `amber-500` | 이번 주에 한다 |
-| 4 ~ 7 | 보통 | `slate-500` | 계획대로 |
-| 1 ~ 3 | 낮음 | `slate-400` | 여유 있을 때 |
+| 8 ~ 14 | 높음 | `orange-500` | 이번 주에 한다 |
+| 4 ~ 7 | 보통 | `grey-500` | 계획대로 |
+| 1 ~ 3 | 낮음 | `grey-400` | 여유 있을 때 |
 
 #### 6.9.3 규칙
 
@@ -2554,7 +2564,7 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 │   │                  (대상 계층이 다르다). StructureTree, MemberMapper, DetailPreviewTable
 │   ├── team/          OrgCards, MemberTable
 │   ├── risks/         RiskScreen, RiskMatrix, RiskTable, RiskFormModal,
-│   │                  severity.ts(부록 A.3 색상 토큰 → Tailwind 클래스 매핑)
+│   │                  severity.ts(부록 A.3 색상 토큰 → Tailwind 클래스 매핑, 부록 E 팔레트)
 │   ├── notes/         NoteScreen, NoteList, MarkdownEditor, MarkdownViewer,
 │   │                  LinkedNoteList(§7.12 역참조 — Task·Milestone 화면이 쓴다)
 │   └── todos/         TodoScreen, TodoQuickAdd, TodoList, TodoRow, TodoFilters
@@ -2897,41 +2907,43 @@ create policy "approved users full access" on tasks
 | `other` | 기타 | 건 |
 
 ### A.3 색상 규약
-| 대상 | 값 | Tailwind |
+
+> v4.5부터 클래스 이름은 부록 E의 TDS 팔레트다(`grey`·`blue`·`red`·`green`·`orange`·`teal`·`purple`·`yellow`). 옛 Tailwind 이름(`slate`·`emerald`·`amber`·`rose`·`sky`·`indigo`·`violet`)은 테마에서 제거되어 **쓰면 색이 나오지 않는다.**
+| 대상 | 값 | Tailwind (부록 E TDS 팔레트) |
 |---|---|---|
-| Task | `todo` | `slate-400` |
+| Task | `todo` | `grey-400` |
 | Task | `in_progress` | `blue-500` |
-| Task | `done` | `emerald-500` |
-| Task | `blocked` | `rose-500` |
+| Task | `done` | `green-500` |
+| Task | `blocked` | `red-500` |
 | 마감 | `overdue` | `red-600` |
-| 마감 | `dueSoon` | `amber-500` |
-| Milestone | `annual_eval` / `stage_eval` / `final_eval` | `violet-600` |
-| Milestone | `report` | `sky-600` |
+| 마감 | `dueSoon` | `orange-500` |
+| Milestone | `annual_eval` / `stage_eval` / `final_eval` | `purple-600` |
+| Milestone | `report` | `blue-600` |
 | Milestone | `progress_check` | `teal-600` |
-| Milestone | `contract` / `demo` / `custom` | `slate-600` |
+| Milestone | `contract` / `demo` / `custom` | `grey-600` |
 | 우선순위 | score 15~25 (최우선) | `red-600` |
-| 우선순위 | score 8~14 (높음) | `amber-500` |
-| 우선순위 | score 4~7 (보통) | `slate-500` |
-| 우선순위 | score 1~3 (낮음) | `slate-400` |
+| 우선순위 | score 8~14 (높음) | `orange-500` |
+| 우선순위 | score 4~7 (보통) | `grey-500` |
+| 우선순위 | score 1~3 (낮음) | `grey-400` |
 | Todo 우선순위 | `high` | `red` 뱃지 톤 |
 | Todo 우선순위 | `normal` | `blue` 뱃지 톤 |
 | Todo 우선순위 | `low` | `neutral` 뱃지 톤 |
 | Risk | score ≥ 15 | `red-600` |
-| Risk | 8 ≤ score < 15 | `amber-500` |
-| Risk | score < 8 | `emerald-600` |
-| Org | `lead` | `indigo-600` |
-| Org | `joint` | `sky-600` |
-| Org | `consign` | `slate-500` |
-| Project 상태 | `planning` | `slate-400` |
+| Risk | 8 ≤ score < 15 | `orange-500` |
+| Risk | score < 8 | `green-600` |
+| Org | `lead` | `purple-600` |
+| Org | `joint` | `blue-600` |
+| Org | `consign` | `grey-500` |
+| Project 상태 | `planning` | `grey-400` |
 | Project 상태 | `active` | `blue-500` |
-| Project 상태 | `on_hold` | `amber-500` |
-| Project 상태 | `done` | `emerald-500` |
-| Project 상태 | `dropped` | `rose-500` |
-| Year 상태 | `planned` | `slate-400` |
+| Project 상태 | `on_hold` | `orange-500` |
+| Project 상태 | `done` | `green-500` |
+| Project 상태 | `dropped` | `red-500` |
+| Year 상태 | `planned` | `grey-400` |
 | Year 상태 | `active` | `blue-500` |
-| Year 상태 | `evaluating` | `amber-500` |
-| Year 상태 | `closed` | `emerald-500` |
-| Project 색상 미지정 폴백 | `''` | `slate-500` |
+| Year 상태 | `evaluating` | `orange-500` |
+| Year 상태 | `closed` | `green-500` |
+| Project 색상 미지정 폴백 | `''` | `grey-500` |
 
 ### A.4 기타 enum 한글 라벨
 
@@ -3572,3 +3584,68 @@ export const SUBCATEGORY_ALIASES: Record<BudgetCategory, Record<string, string>>
 - 영리기관 계좌 일괄 흡수 후 3주 내 개인 지급 (별표 6 연구수당-10)
 
 > **추출 시 의심 항목(사람이 원문으로 확인할 것)**: ㉡ 제23조③ 현금 비율 표가 텍스트 추출에서 원천/혁신제품 열 구분 없이 한 값씩만 나왔다(15/13/10%). ㉠ 별표 6(간접비고시비율 산출표)·계산식 여러 곳이 텍스트로 뽑히지 않았다. ㉡ 별표 5 연구수당 조항이 인용하는 "제27조②7"은 실제 제25조②7로 보인다(원문 오기).
+
+---
+
+## 부록 E. 디자인 토큰 (토스 디자인 시스템 값 이식, v4.5)
+
+출처: TDS 문서 `tossmini-docs.toss.im/tds-mobile/foundation/{colors,typography}` 및 `@toss/tds-colors@0.1.0`의 light 값. **패키지를 의존하지 않고 값만 `app/globals.css`의 `@theme`에 적는다.** 다크 모드는 v1 범위 밖(§13 후보). 값을 바꿀 때는 여기부터 고친다.
+
+### E.1 색상
+
+| 스케일 | 50 | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `grey` | #f9fafb | #f2f4f6 | #e5e8eb | #d1d6db | #b0b8c1 | #8b95a1 | #6b7684 | #4e5968 | #333d4b | #191f28 |
+| `blue` | #e8f3ff | #c9e2ff | #90c2ff | #64a8ff | #4593fc | **#3182f6** | #2272eb | #1b64da | #1957c2 | #194aa6 |
+| `red` | #ffeeee | #ffd4d6 | #feafb4 | #fb8890 | #f66570 | **#f04452** | #e42939 | #d22030 | #bc1b2a | #a51926 |
+| `green` | #f0faf6 | #aeefd5 | #76e4b8 | #3fd599 | #15c47e | **#03b26c** | #02a262 | #029359 | #028450 | #027648 |
+| `orange` | #fff3e0 | #ffe0b0 | #ffcd80 | #ffbd51 | #ffa927 | **#fe9800** | #fb8800 | #f57800 | #ed6700 | #e45600 |
+| `yellow` | #fff9e7 | #ffefbf | #ffe69b | #ffdd78 | #ffd158 | **#ffc342** | #ffb331 | #faa131 | #ee8f11 | #dd7d02 |
+| `teal` | #edf8f8 | #bce9e9 | #89d8d8 | #58c7c7 | #30b6b6 | **#18a5a5** | #109595 | #0c8585 | #097575 | #076565 |
+| `purple` | #f9f0fc | #edccf8 | #da9bef | #c770e4 | #b44bd7 | **#a234c7** | #9128b4 | #8222a2 | #73228e | #65237b |
+
+시맨틱: `white` #ffffff · `black` #000000 · `screen` #f6f7f9(PC 화면 바탕, `lightThemePcScreenBg`) · `surface` #ffffff(카드) · `surface-grey` #f2f4f6 · `hairline` #e5e8eb(구분선) · `dimmed` rgba(0,0,0,0.2)(모달 뒤).
+
+**용법**: 주 동작은 `blue-500`(hover `blue-600`), 본문 `grey-900`, 보조 텍스트 `grey-600`, 힌트 `grey-500`, 비활성 `grey-400`, 테두리 `grey-200`, 오류 `red-500`, 성공 `green-500`, 주의 `orange-500`. 화면 바탕은 `screen`, 카드는 `white` + `hairline` 테두리.
+
+### E.2 타이포그래피
+
+폰트: **Pretendard Variable**(OFL-1.1) → 시스템 산세리프 폴백. 토스 전용 서체는 비공개.
+
+| 토큰 | 크기 | 행간 | 용도 |
+|---|---:|---:|---|
+| `t1` | 30px | 40px | 화면 대제목 |
+| `t2` | 26px | 35px | 큰 제목 |
+| `t3` | 22px | 31px | 페이지 제목 |
+| `t4` | 20px | 29px | 섹션 제목 |
+| `t5` | 17px | 25.5px | 본문 강조·카드 제목 |
+| `t6` | 15px | 22.5px | 본문 |
+| `t7` | 13px | 19.5px | 보조·캡션 |
+
+굵기: Regular 400 · Medium 500 · Semibold 600 · Bold 700. Tailwind 기본 `text-xs`~`text-2xl`은 유지한다(기존 화면 호환). 새로 만들거나 손보는 컴포넌트는 `text-t*`를 쓴다.
+
+### E.3 둥글기·간격
+
+| 토큰 | 값 | 용도 |
+|---|---:|---|
+| `rounded-md` | 8px | 배지·입력 |
+| `rounded-lg` | 12px | 버튼 |
+| `rounded-xl` | 16px | 카드 |
+| `rounded-2xl` | 20px | 패널 |
+| `rounded-3xl` | 24px | 모달·바텀시트 |
+
+간격은 Tailwind 4px 격자 그대로. 카드 안쪽 여백 20~24px, 카드 사이 12~16px.
+
+### E.4 프리미티브 규약 (`components/ui/`)
+
+| 컴포넌트 | 규약 |
+|---|---|
+| Button primary | `bg-blue-500 text-white hover:bg-blue-600`, `rounded-lg`, semibold |
+| Button secondary | `bg-grey-100 text-grey-800 hover:bg-grey-200` — **테두리 없는 채움형**(TDS weak) |
+| Button danger | `bg-red-500 text-white hover:bg-red-600` |
+| Button ghost | `text-grey-700 hover:bg-grey-100` |
+| Badge | 연한 배경 + 진한 글자 한 쌍(`blue-50/blue-600`, `red-50/red-600`, `green-50/green-600`, `orange-50/orange-700`, `grey-100/grey-700`), `rounded-md`, 13px |
+| Modal | `rounded-3xl bg-white`, 뒤는 `dimmed`, 헤더 `t4` bold |
+| ErrorBanner | `bg-red-50 border-red-100 text-red-700` |
+| ProgressBar | 트랙 `grey-200`, 채움 `blue-500`(완료 `green-500`) |
+| 입력 | `rounded-md border-grey-300 focus:border-blue-500 focus:ring-blue-100` |

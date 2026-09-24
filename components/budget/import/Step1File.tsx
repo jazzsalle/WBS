@@ -65,20 +65,20 @@ export default function Step1File({
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
         className={`rounded-xl border-2 border-dashed p-8 text-center transition ${
-          dragging ? 'border-slate-900 bg-slate-50' : 'border-slate-300 bg-white'
+          dragging ? 'border-grey-900 bg-grey-50' : 'border-grey-300 bg-white'
         }`}
       >
-        <p className="text-sm font-semibold text-slate-700">
+        <p className="text-sm font-semibold text-grey-700">
           엑셀 파일을 여기에 끌어다 놓거나 선택하세요
         </p>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-grey-500">
           {ACCEPTED_EXTENSIONS.join(' · ')} · 최대 10MB · 20,000행
         </p>
         <button
           type="button"
           disabled={busy}
           onClick={() => inputRef.current?.click()}
-          className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-4 rounded-lg bg-grey-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-grey-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           파일 선택
         </button>
@@ -94,7 +94,7 @@ export default function Step1File({
           }}
         />
         {file && (
-          <p className="mt-4 text-xs text-slate-600">
+          <p className="mt-4 text-xs text-grey-600">
             선택됨 · <span className="font-semibold">{file.name}</span> ({formatBytes(file.size)})
           </p>
         )}
@@ -105,8 +105,8 @@ export default function Step1File({
       )}
 
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold text-slate-700">저장된 프로파일 (부처 템플릿)</h3>
-        <p className="text-xs text-slate-500">
+        <h3 className="text-sm font-semibold text-grey-700">저장된 프로파일 (부처 템플릿)</h3>
+        <p className="text-xs text-grey-500">
           프로파일을 고르면 시트·범위·열 매핑을 건너뛰고 <strong>비목 매핑(Step 4)</strong>부터
           시작합니다. 자동 인식은 제안일 뿐이므로 비목 매핑 확인과 미리보기는 건너뛰지 않습니다.
         </p>
@@ -116,7 +116,7 @@ export default function Step1File({
         <div className="space-y-1.5">
           <label
             className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm ${
-              selectedProfileId === null ? 'border-slate-900 bg-slate-50' : 'border-slate-200'
+              selectedProfileId === null ? 'border-grey-900 bg-grey-50' : 'border-grey-200'
             }`}
           >
             <input
@@ -126,14 +126,14 @@ export default function Step1File({
               disabled={busy}
               onChange={() => onSelectProfile(null)}
             />
-            <span className="font-medium text-slate-700">프로파일 없이 시작 (자동 감지)</span>
+            <span className="font-medium text-grey-700">프로파일 없이 시작 (자동 감지)</span>
           </label>
 
           {profiles.map((profile) => (
             <label
               key={profile.id}
               className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm ${
-                selectedProfileId === profile.id ? 'border-slate-900 bg-slate-50' : 'border-slate-200'
+                selectedProfileId === profile.id ? 'border-grey-900 bg-grey-50' : 'border-grey-200'
               }`}
             >
               <input
@@ -144,8 +144,8 @@ export default function Step1File({
                 onChange={() => onSelectProfile(profile.id)}
               />
               <span className="min-w-0 flex-1">
-                <span className="font-medium text-slate-700">{profile.name}</span>
-                <span className="ml-2 text-xs text-slate-500">
+                <span className="font-medium text-grey-700">{profile.name}</span>
+                <span className="ml-2 text-xs text-grey-500">
                   {profile.sheetName ?? '첫 시트'} · 헤더 {profile.headerRow + 1}행 · 라벨{' '}
                   {profile.labelColumns.join(',') || '-'} · 연차 열{' '}
                   {profile.yearColumnMappings.length}개 · ×{profile.amountUnit.toLocaleString()}
@@ -153,12 +153,12 @@ export default function Step1File({
               </span>
               {profile.ministry && <Badge tone="violet">{profile.ministry}</Badge>}
               {profile.projectId === null && <Badge tone="neutral">전역</Badge>}
-              <span className="shrink-0 text-xs text-slate-400">{profile.useCount}회 사용</span>
+              <span className="shrink-0 text-xs text-grey-400">{profile.useCount}회 사용</span>
             </label>
           ))}
 
           {profiles.length === 0 && !profilesError && (
-            <p className="rounded-lg border border-dashed border-slate-300 px-3 py-3 text-xs text-slate-400">
+            <p className="rounded-lg border border-dashed border-grey-300 px-3 py-3 text-xs text-grey-400">
               저장된 프로파일이 없습니다. 마지막 단계에서 이번 매핑을 프로파일로 저장할 수 있습니다.
             </p>
           )}

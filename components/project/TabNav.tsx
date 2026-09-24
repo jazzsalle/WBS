@@ -41,8 +41,8 @@ const SECONDARY_TABS: readonly TabDef[] = [
  */
 const IMPLEMENTED_THROUGH = 8;
 
-const ACTIVE_CLASSES = 'border-slate-900 text-slate-900';
-const INACTIVE_CLASSES = 'border-transparent text-slate-500 hover:text-slate-800';
+const ACTIVE_CLASSES = 'border-grey-900 text-grey-900';
+const INACTIVE_CLASSES = 'border-transparent text-grey-500 hover:text-grey-800';
 
 export interface TabNavProps {
   projectId: string;
@@ -70,7 +70,7 @@ export default function TabNav({ projectId }: TabNavProps) {
           aria-disabled
           title={`Phase ${tab.phase}에서 구현됩니다`}
           onClick={() => setNotice(`${tab.label} 화면은 Phase ${tab.phase}에서 구현됩니다.`)}
-          className={`shrink-0 border-b-2 border-transparent text-slate-300 ${sizeClasses}`}
+          className={`shrink-0 border-b-2 border-transparent text-grey-300 ${sizeClasses}`}
         >
           {tab.label}
         </button>
@@ -93,10 +93,10 @@ export default function TabNav({ projectId }: TabNavProps) {
   return (
     <div>
       <nav aria-label="과제 화면" className="flex flex-wrap items-end gap-x-6 gap-y-1">
-        <div className="flex items-end gap-1 border-b border-slate-200">
+        <div className="flex items-end gap-1 border-b border-grey-200">
           {PRIMARY_TABS.map((tab) => renderTab(tab, 'primary'))}
         </div>
-        <div className="flex items-end gap-1 border-b border-slate-200">
+        <div className="flex items-end gap-1 border-b border-grey-200">
           {SECONDARY_TABS.map((tab) => renderTab(tab, 'secondary'))}
         </div>
       </nav>
@@ -104,14 +104,14 @@ export default function TabNav({ projectId }: TabNavProps) {
       {notice && (
         <p
           role="status"
-          className="mt-2 flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-600"
+          className="mt-2 flex items-center gap-2 rounded-lg bg-grey-100 px-3 py-1.5 text-xs text-grey-600"
         >
           {notice}
           <button
             type="button"
             onClick={() => setNotice(null)}
             aria-label="안내 닫기"
-            className="ml-auto font-bold text-slate-400 hover:text-slate-600"
+            className="ml-auto font-bold text-grey-400 hover:text-grey-600"
           >
             ×
           </button>

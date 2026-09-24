@@ -58,7 +58,7 @@ export default function PrintHeader({
   usePageOrientation(orientation);
 
   return (
-    <header className="hidden text-black print:mb-2 print:block print:border-b print:border-slate-400 print:pb-1">
+    <header className="hidden text-black print:mb-2 print:block print:border-b print:border-grey-400 print:pb-1">
       <p className="text-sm font-bold">
         {/* 과제명이 비어 있어도 무엇을 뽑았는지 알 수 있게 사실대로 적는다 */}
         {projectName.trim() === '' ? '(이름 없는 과제)' : projectName} · {title}

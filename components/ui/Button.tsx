@@ -1,4 +1,4 @@
-// 공통 버튼 (SOT §7 화면 전반)
+// 공통 버튼 (SOT §7 화면 전반, 부록 E.4 — 토스 스타일: 파란 주 버튼, 테두리 없는 회색 보조 버튼)
 // 스타일 토큰을 한 곳에 모아 화면마다 클래스 문자열이 갈라지는 것을 막는다.
 // Tailwind는 클래스명을 정적으로 스캔하므로 변형별 클래스를 문자열 조합이 아니라
 // 완전한 형태로 나열한다.
@@ -9,15 +9,15 @@ type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 type Size = 'sm' | 'md';
 
 const VARIANT_CLASSES: Record<Variant, string> = {
-  primary: 'bg-slate-900 text-white hover:bg-slate-700',
-  secondary: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50',
-  danger: 'bg-red-600 text-white hover:bg-red-500',
-  ghost: 'text-slate-600 hover:bg-slate-100',
+  primary: 'bg-blue-500 text-white hover:bg-blue-600',
+  secondary: 'bg-grey-100 text-grey-800 hover:bg-grey-200',
+  danger: 'bg-red-500 text-white hover:bg-red-600',
+  ghost: 'text-grey-700 hover:bg-grey-100',
 };
 
 const SIZE_CLASSES: Record<Size, string> = {
-  sm: 'px-3 py-1.5 text-xs',
-  md: 'px-4 py-2.5 text-sm',
+  sm: 'px-3 py-1.5 text-t7',
+  md: 'px-4 py-2.5 text-t6',
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

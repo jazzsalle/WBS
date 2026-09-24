@@ -58,25 +58,25 @@ export default function UserManagement({ users, currentUserId }: UserManagementP
       )}
 
       {pendingUsers.length > 0 && (
-        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+        <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-4">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-orange-800">
             승인 대기
-            <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-bold text-amber-900">
+            <span className="rounded-full bg-orange-200 px-2 py-0.5 text-xs font-bold text-orange-900">
               {pendingUsers.length}
             </span>
           </h3>
-          <ul className="mt-2 divide-y divide-amber-200/60">
+          <ul className="mt-2 divide-y divide-orange-200/60">
             {pendingUsers.map((user) => (
               <li key={user.id} className="flex items-center justify-between gap-4 py-2.5">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-900">{user.name}</p>
-                  <p className="truncate text-xs text-slate-500">{user.email}</p>
+                  <p className="truncate text-sm font-medium text-grey-900">{user.name}</p>
+                  <p className="truncate text-xs text-grey-500">{user.email}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => run(user.id, approveUser)}
                   disabled={pendingId !== null}
-                  className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50"
+                  className="shrink-0 rounded-lg bg-grey-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-grey-700 disabled:opacity-50"
                 >
                   {pendingId === user.id ? '처리 중…' : '승인'}
                 </button>
@@ -86,9 +86,9 @@ export default function UserManagement({ users, currentUserId }: UserManagementP
         </div>
       )}
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="mt-4 overflow-hidden rounded-xl border border-grey-200 bg-white">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs text-slate-500">
+          <thead className="bg-grey-50 text-xs text-grey-500">
             <tr>
               <th className="px-4 py-2.5 font-medium">이름</th>
               <th className="px-4 py-2.5 font-medium">이메일</th>
@@ -96,26 +96,26 @@ export default function UserManagement({ users, currentUserId }: UserManagementP
               <th className="px-4 py-2.5 font-medium sr-only">동작</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-grey-100">
             {activeUsers.map((user) => (
               <tr key={user.id}>
-                <td className="px-4 py-2.5 font-medium text-slate-900">
+                <td className="px-4 py-2.5 font-medium text-grey-900">
                   {user.name}
                   {user.id === currentUserId && (
-                    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                    <span className="ml-2 rounded-full bg-grey-100 px-2 py-0.5 text-xs text-grey-500">
                       나
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-2.5 text-slate-600">{user.email}</td>
-                <td className="px-4 py-2.5 text-slate-500">{formatDate(user.lastSeenAt)}</td>
+                <td className="px-4 py-2.5 text-grey-600">{user.email}</td>
+                <td className="px-4 py-2.5 text-grey-500">{formatDate(user.lastSeenAt)}</td>
                 <td className="px-4 py-2.5 text-right">
                   {user.id !== currentUserId && (
                     <button
                       type="button"
                       onClick={() => run(user.id, deactivateUser)}
                       disabled={pendingId !== null}
-                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                      className="rounded-lg border border-grey-300 px-3 py-1.5 text-xs font-semibold text-grey-600 transition hover:bg-grey-50 disabled:opacity-50"
                     >
                       {pendingId === user.id ? '처리 중…' : '비활성화'}
                     </button>
@@ -125,7 +125,7 @@ export default function UserManagement({ users, currentUserId }: UserManagementP
             ))}
             {activeUsers.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={4} className="px-4 py-6 text-center text-grey-400">
                   활성 사용자가 없습니다.
                 </td>
               </tr>

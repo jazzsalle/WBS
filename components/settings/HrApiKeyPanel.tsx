@@ -149,16 +149,16 @@ export default function HrApiKeyPanel() {
         : null;
 
   return (
-    <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6">
+    <section className="mt-8 rounded-2xl border border-grey-200 bg-white p-6">
       <h2 className="text-lg font-bold">사내 명부 연동</h2>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-grey-500">
         인력 화면의 [사내 명부에서 추가]가 쓰는 HR API 키입니다 (SOT §6.13).
       </p>
 
       {/* 고정 안내 ①·② — §7.14가 화면에 적으라고 한 두 문장 */}
-      <ul className="mt-4 space-y-1 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+      <ul className="mt-4 space-y-1 rounded-lg bg-grey-50 p-3 text-sm text-grey-600">
         <li>
-          <span className="font-medium text-slate-700">발급 방법:</span>{' '}
+          <span className="font-medium text-grey-700">발급 방법:</span>{' '}
           <code className="rounded bg-white px-1 py-0.5 text-xs">
             hr.unes.kr 로그인 → 🔑 API 키 → 용도 입력 → 이메일 인증
           </code>{' '}
@@ -176,8 +176,8 @@ export default function HrApiKeyPanel() {
           role="status"
           className={`mt-4 rounded-lg border p-3 text-sm ${
             message.kind === 'notice'
-              ? 'border-amber-200 bg-amber-50 text-amber-800'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              ? 'border-orange-200 bg-orange-50 text-orange-800'
+              : 'border-green-200 bg-green-50 text-green-800'
           }`}
         >
           {message.text}
@@ -186,14 +186,14 @@ export default function HrApiKeyPanel() {
 
       <dl className="mt-4 space-y-1 text-sm">
         <div className="flex gap-2">
-          <dt className="w-28 shrink-0 font-medium text-slate-500">상태</dt>
+          <dt className="w-28 shrink-0 font-medium text-grey-500">상태</dt>
           <dd>
             {status === null ? (
-              <span className="text-slate-400">확인 중…</span>
+              <span className="text-grey-400">확인 중…</span>
             ) : registered ? (
               <>
-                등록됨 <code className="rounded bg-slate-100 px-1">{status.masked}</code>
-                <span className="ml-2 text-xs text-slate-500">
+                등록됨 <code className="rounded bg-grey-100 px-1">{status.masked}</code>
+                <span className="ml-2 text-xs text-grey-500">
                   ({status.storage === 'keychain' ? 'OS 키체인' : '이 창에서만 유지'})
                 </span>
               </>
@@ -204,8 +204,8 @@ export default function HrApiKeyPanel() {
         </div>
         {!tauri && status !== null && (
           <div className="flex gap-2">
-            <dt className="w-28 shrink-0 font-medium text-slate-500">환경</dt>
-            <dd className="text-amber-600">{SESSION_ONLY_NOTICE}</dd>
+            <dt className="w-28 shrink-0 font-medium text-grey-500">환경</dt>
+            <dd className="text-orange-600">{SESSION_ONLY_NOTICE}</dd>
           </div>
         )}
       </dl>
@@ -219,7 +219,7 @@ export default function HrApiKeyPanel() {
         }}
       >
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">
+          <span className="font-medium text-grey-700">
             {registered ? '새 키로 교체' : 'HR API 키'}
           </span>
           <input
@@ -230,7 +230,7 @@ export default function HrApiKeyPanel() {
             onChange={(e) => setInput(e.target.value)}
             disabled={busy !== null}
             placeholder="발급받은 키를 붙여넣으세요"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none disabled:bg-slate-50"
+            className="w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none disabled:bg-grey-50"
           />
         </label>
         <Button type="submit" variant="primary" disabled={busy !== null || input.trim().length === 0}>
@@ -254,21 +254,21 @@ export default function HrApiKeyPanel() {
           {busy === 'clear' ? '삭제 중…' : '키 삭제'}
         </Button>
         {checkDisabledReason && (
-          <span className="text-xs text-slate-500">{checkDisabledReason}</span>
+          <span className="text-xs text-grey-500">{checkDisabledReason}</span>
         )}
       </div>
 
       {checkResult && (
         <div
           role="status"
-          className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
+          className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800"
         >
           <p className="font-semibold">연결 성공 — {checkResult.users}명</p>
           {checkResult.unreadable > 0 && (
             <p className="mt-1">읽을 수 없음 {checkResult.unreadable}건</p>
           )}
           {checkResult.countMismatch && (
-            <p className="mt-1 text-amber-800">
+            <p className="mt-1 text-orange-800">
               HR이 알린 인원({checkResult.count ?? '없음'})과 받은 행 수({checkResult.rowCount})가
               다릅니다.
             </p>

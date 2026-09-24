@@ -64,13 +64,13 @@ const TYPE_LEGEND = (Object.keys(MILESTONE_TYPE_COLORS) as (keyof typeof MILESTO
   }, []);
 
 const LEGEND_DOT_CLASSES: Record<string, string> = {
-  'violet-600': 'bg-violet-600',
-  'sky-600': 'bg-sky-600',
+  'purple-600': 'bg-purple-600',
+  'blue-600': 'bg-blue-600',
   'teal-600': 'bg-teal-600',
-  'slate-600': 'bg-slate-600',
+  'grey-600': 'bg-grey-600',
 };
 
-const BAND_TINTS = ['bg-slate-100', 'bg-white'];
+const BAND_TINTS = ['bg-grey-100', 'bg-white'];
 
 type Row =
   | { kind: 'year'; key: string; year: Year; progress: number }
@@ -391,11 +391,11 @@ export default function GanttChart({ data }: GanttChartProps) {
       return (
         <div
           key={row.key}
-          className="flex items-center gap-2 border-b border-slate-200 bg-slate-100 px-2 text-xs font-bold text-slate-700"
+          className="flex items-center gap-2 border-b border-grey-200 bg-grey-100 px-2 text-xs font-bold text-grey-700"
           style={{ height: ROW_HEIGHT }}
         >
           <span className="truncate">{yearLabel(row.year)}</span>
-          <span className="ml-auto shrink-0 tabular-nums text-slate-500">
+          <span className="ml-auto shrink-0 tabular-nums text-grey-500">
             {row.progress.toFixed(1)}%
           </span>
         </div>
@@ -411,7 +411,7 @@ export default function GanttChart({ data }: GanttChartProps) {
     return (
       <div
         key={row.key}
-        className="flex items-center gap-1 border-b border-slate-100 px-2 text-xs text-slate-700"
+        className="flex items-center gap-1 border-b border-grey-100 px-2 text-xs text-grey-700"
         style={{ height: ROW_HEIGHT }}
       >
         <span style={{ width: (node.depth - 1) * INDENT_PX }} aria-hidden />
@@ -428,27 +428,27 @@ export default function GanttChart({ data }: GanttChartProps) {
             }
             aria-expanded={!collapsed}
             aria-label={`${node.task.title} 하위 작업 ${collapsed ? '펼치기' : '접기'}`}
-            className="w-4 shrink-0 text-slate-400 hover:text-slate-700"
+            className="w-4 shrink-0 text-grey-400 hover:text-grey-700"
           >
             {collapsed ? '▸' : '▾'}
           </button>
         ) : (
           <span className="w-4 shrink-0" aria-hidden />
         )}
-        <span className="shrink-0 tabular-nums text-[10px] text-slate-400">{node.wbsCode}</span>
+        <span className="shrink-0 tabular-nums text-[10px] text-grey-400">{node.wbsCode}</span>
         <span className="truncate" title={node.task.title}>
           {node.task.title}
         </span>
         {!hasDate && (
           // §7.5: 날짜 없는 작업은 막대 없이 목록에만 나온다 — 이유를 배지로 밝힌다
-          <span className="ml-auto shrink-0 rounded bg-slate-100 px-1 text-[10px] text-slate-500">
+          <span className="ml-auto shrink-0 rounded bg-grey-100 px-1 text-[10px] text-grey-500">
             날짜 없음
           </span>
         )}
         {hasDate && (
           <span
             className={`ml-auto shrink-0 tabular-nums text-[10px] ${
-              unsaved ? 'font-semibold text-amber-700' : 'text-slate-400'
+              unsaved ? 'font-semibold text-orange-700' : 'text-grey-400'
             }`}
             title={dateRangeLabel(dates)}
           >
@@ -467,7 +467,7 @@ export default function GanttChart({ data }: GanttChartProps) {
         <div
           key={row.key}
           className={`relative border-b ${
-            row.kind === 'year' ? 'border-slate-200 bg-slate-100/70' : 'border-slate-100'
+            row.kind === 'year' ? 'border-grey-200 bg-grey-100/70' : 'border-grey-100'
           }`}
           style={{ height: ROW_HEIGHT, width: range?.widthPx }}
         />
@@ -482,7 +482,7 @@ export default function GanttChart({ data }: GanttChartProps) {
     return (
       <div
         key={row.key}
-        className="relative border-b border-slate-100"
+        className="relative border-b border-grey-100"
         style={{ height: ROW_HEIGHT, width: range.widthPx }}
       >
         {geometry && (
@@ -509,7 +509,7 @@ export default function GanttChart({ data }: GanttChartProps) {
   return (
     <section>
       {/* 툴바 — 스케일 전환(§7.5) */}
-      <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+      <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-grey-200 bg-white p-3 text-sm">
         <div role="group" aria-label="시간축 스케일" className="flex items-center gap-1">
           {GANTT_SCALES.map((s) => (
             <Button
@@ -531,12 +531,12 @@ export default function GanttChart({ data }: GanttChartProps) {
           전체 접기
         </Button>
 
-        <ul className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+        <ul className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-grey-500">
           {TYPE_LEGEND.map((group) => (
             <li key={group.token} className="flex items-center gap-1.5">
               <span
                 aria-hidden
-                className={`h-2.5 w-2.5 rotate-45 ${LEGEND_DOT_CLASSES[group.token] ?? 'bg-slate-600'}`}
+                className={`h-2.5 w-2.5 rotate-45 ${LEGEND_DOT_CLASSES[group.token] ?? 'bg-grey-600'}`}
               />
               {group.labels.join(' · ')}
             </li>
@@ -566,15 +566,15 @@ export default function GanttChart({ data }: GanttChartProps) {
         // O-3: 저장하지 못한 위치를 조용히 되돌리지 않는다. 내 위치와 최신 값을 나란히 둔다
         <div
           role="status"
-          className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+          className="mb-3 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800"
         >
           <p className="font-semibold">기간 변경이 저장되지 않았습니다.</p>
           <div className="mt-2 flex flex-wrap items-center gap-3 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs">
-            <span className="font-semibold text-slate-700">
+            <span className="font-semibold text-grey-700">
               {overrideNode?.task.title ?? '(삭제된 작업)'}
             </span>
-            <span className="text-slate-500">내 위치: {dateRangeLabel(override.dates)}</span>
-            <span className="text-slate-500">
+            <span className="text-grey-500">내 위치: {dateRangeLabel(override.dates)}</span>
+            <span className="text-grey-500">
               최신:{' '}
               {overrideNode
                 ? dateRangeLabel({
@@ -589,7 +589,7 @@ export default function GanttChart({ data }: GanttChartProps) {
               type="button"
               disabled={busy || overrideNode === undefined}
               onClick={() => void retrySave()}
-              className="rounded-md border border-amber-300 px-2 py-0.5 text-xs font-semibold text-amber-800 disabled:opacity-50"
+              className="rounded-md border border-orange-300 px-2 py-0.5 text-xs font-semibold text-orange-800 disabled:opacity-50"
             >
               내 위치로 다시 저장
             </button>
@@ -601,7 +601,7 @@ export default function GanttChart({ data }: GanttChartProps) {
                 setConflict(null);
                 router.refresh();
               }}
-              className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-semibold text-slate-600"
+              className="rounded-md border border-grey-300 px-2 py-0.5 text-xs font-semibold text-grey-600"
             >
               최신 값 두기 (내 변경 버림)
             </button>
@@ -610,32 +610,32 @@ export default function GanttChart({ data }: GanttChartProps) {
       )}
 
       {range === null || ticks === null || laneLayout === null || bandResult === null ? (
-        <p className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">
+        <p className="rounded-xl border border-dashed border-grey-300 p-10 text-center text-sm text-grey-500">
           날짜가 입력된 작업·마일스톤·연차가 없어 시간축을 그릴 수 없습니다. 연차 기간이나 작업의
           시작일·마감일을 입력하면 여기에 그려집니다.
           {allNodes.length > 0 && ` (작업 ${allNodes.length}건은 아래 목록에만 있습니다)`}
         </p>
       ) : (
         <div
-          className="grid overflow-hidden rounded-xl border border-slate-200 bg-white"
+          className="grid overflow-hidden rounded-xl border border-grey-200 bg-white"
           style={{ gridTemplateColumns: `${LEFT_WIDTH}px minmax(0, 1fr)` }}
         >
           {/* 좌측 고정 패널: 연차 > 작업 트리 (§7.5) */}
-          <div className="border-r border-slate-300">
+          <div className="border-r border-grey-300">
             <div
-              className="flex items-end border-b border-slate-300 bg-slate-50 px-2 pb-1 text-[11px] font-semibold text-slate-500"
+              className="flex items-end border-b border-grey-300 bg-grey-50 px-2 pb-1 text-[11px] font-semibold text-grey-500"
               style={{ height: AXIS_HEIGHT }}
             >
               연차 · 작업
             </div>
             <div
-              className="flex items-center border-b border-slate-200 px-2 text-[11px] text-slate-400"
+              className="flex items-center border-b border-grey-200 px-2 text-[11px] text-grey-400"
               style={{ height: laneLayout.height }}
             >
               마일스톤
             </div>
             <div
-              className="flex items-center border-b border-slate-200 bg-slate-50 px-2 text-[11px] text-slate-400"
+              className="flex items-center border-b border-grey-200 bg-grey-50 px-2 text-[11px] text-grey-400"
               style={{ height: BAND_STRIP_HEIGHT }}
             >
               연차 구간
@@ -652,14 +652,14 @@ export default function GanttChart({ data }: GanttChartProps) {
 
               {/* 연차 라벨 띠 */}
               <div
-                className="relative border-b border-slate-200 bg-slate-50"
+                className="relative border-b border-grey-200 bg-grey-50"
                 style={{ height: BAND_STRIP_HEIGHT, width: range.widthPx }}
               >
                 {bandResult.bands.map((band, i) => (
                   <div
                     key={band.id}
                     title={`${yearNameById.get(band.id) ?? '연차'} ${band.startDate} ~ ${band.endDate}`}
-                    className={`absolute inset-y-0 flex items-center justify-center overflow-hidden border-x border-slate-300 px-1 text-[11px] font-medium text-slate-600 ${
+                    className={`absolute inset-y-0 flex items-center justify-center overflow-hidden border-x border-grey-300 px-1 text-[11px] font-medium text-grey-600 ${
                       BAND_TINTS[i % BAND_TINTS.length]
                     }`}
                     style={{ left: band.left, width: band.width }}
@@ -683,13 +683,13 @@ export default function GanttChart({ data }: GanttChartProps) {
                   {bandResult.bands.map((band) => (
                     <div
                       key={`edge-${band.id}`}
-                      className="absolute inset-y-0 w-px bg-slate-300"
+                      className="absolute inset-y-0 w-px bg-grey-300"
                       style={{ left: band.left }}
                     />
                   ))}
                   {bandResult.bands.length > 0 && (
                     <div
-                      className="absolute inset-y-0 w-px bg-slate-300"
+                      className="absolute inset-y-0 w-px bg-grey-300"
                       style={{
                         left:
                           (bandResult.bands[bandResult.bands.length - 1]?.left ?? 0) +
@@ -710,7 +710,7 @@ export default function GanttChart({ data }: GanttChartProps) {
         </div>
       )}
 
-      <ul className="mt-3 space-y-1 text-xs text-slate-500">
+      <ul className="mt-3 space-y-1 text-xs text-grey-500">
         <li>
           막대를 끌면 기간이 옮겨지고 양끝을 끌면 시작일·마감일이 바뀝니다. 하위 작업이 있는 작업의
           막대는 하위에서 계산된 기간이라 끌 수 없습니다(§6.1.1).
@@ -721,7 +721,7 @@ export default function GanttChart({ data }: GanttChartProps) {
           </li>
         )}
         {truncatedCount > 0 && (
-          <li className="text-amber-700">
+          <li className="text-orange-700">
             현재 스케일({GANTT_SCALE_LABELS[scale]})에서 너무 짧아 최소 폭으로 넓게 그린 막대가{' '}
             {truncatedCount}건 있습니다(점선 테두리). 정확한 기간은 좌측 목록의 날짜를 보세요.
           </li>
@@ -736,7 +736,7 @@ export default function GanttChart({ data }: GanttChartProps) {
           </li>
         )}
         {bandResult && bandResult.overlappingIds.length > 0 && (
-          <li className="text-amber-700">
+          <li className="text-orange-700">
             기간이 서로 겹치는 연차가 있습니다:{' '}
             {bandResult.overlappingIds.map((id) => yearNameById.get(id) ?? id).join(', ')}. 밴드를
             임의로 자르지 않고 그대로 겹쳐 그렸습니다.

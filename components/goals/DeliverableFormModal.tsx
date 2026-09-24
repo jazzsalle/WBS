@@ -205,7 +205,7 @@ export default function DeliverableFormModal({
 
   const isEdit = mode === 'edit';
   const inputClass =
-    'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none';
+    'mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none';
 
   return (
     <>
@@ -228,7 +228,7 @@ export default function DeliverableFormModal({
           )}
 
           {reloaded && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
               <p className="font-semibold">최신 내용을 다시 불러왔습니다.</p>
               {differences.length === 0 ? (
                 <p className="mt-1 text-xs">
@@ -246,17 +246,17 @@ export default function DeliverableFormModal({
                         key={field.key}
                         className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
                       >
-                        <span className="font-semibold text-slate-700">{field.label}</span>
-                        <span className="text-slate-500">
+                        <span className="font-semibold text-grey-700">{field.label}</span>
+                        <span className="text-grey-500">
                           내 입력: {displayValue(field.key, values)}
                         </span>
-                        <span className="text-slate-500">
+                        <span className="text-grey-500">
                           최신: {displayValue(field.key, latest)}
                         </span>
                         <button
                           type="button"
                           onClick={() => setField(field.key, latest[field.key])}
-                          className="ml-auto rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                          className="ml-auto rounded-md border border-orange-300 px-2 py-0.5 font-semibold text-orange-800"
                         >
                           최신 값 사용
                         </button>
@@ -270,7 +270,7 @@ export default function DeliverableFormModal({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-grey-700">
                 지표명 <span className="text-red-600">*</span>
               </span>
               <input
@@ -286,7 +286,7 @@ export default function DeliverableFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">유형</span>
+              <span className="text-sm font-medium text-grey-700">유형</span>
               <select
                 value={values.type}
                 onChange={(e) => handleTypeChange(e.target.value as DeliverableType)}
@@ -301,7 +301,7 @@ export default function DeliverableFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">단위</span>
+              <span className="text-sm font-medium text-grey-700">단위</span>
               <input
                 type="text"
                 value={values.unit}
@@ -312,7 +312,7 @@ export default function DeliverableFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">목표(총)</span>
+              <span className="text-sm font-medium text-grey-700">목표(총)</span>
               <input
                 type="number"
                 inputMode="numeric"
@@ -322,13 +322,13 @@ export default function DeliverableFormModal({
                 onChange={(e) => setField('targetTotal', e.target.value)}
                 className={inputClass}
               />
-              <span className="mt-1 block text-xs text-slate-500">
+              <span className="mt-1 block text-xs text-grey-500">
                 0이면 달성률은 N/A로 표시됩니다.
               </span>
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">책임기관</span>
+              <span className="text-sm font-medium text-grey-700">책임기관</span>
               <select
                 value={values.orgId}
                 onChange={(e) => setField('orgId', e.target.value)}
@@ -348,7 +348,7 @@ export default function DeliverableFormModal({
             </label>
 
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">비고</span>
+              <span className="text-sm font-medium text-grey-700">비고</span>
               <textarea
                 value={values.note}
                 onChange={(e) => setField('note', e.target.value)}

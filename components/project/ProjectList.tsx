@@ -131,12 +131,12 @@ export default function ProjectList({ summaries }: ProjectListProps) {
   return (
     <section>
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+        <label className="flex items-center gap-2 text-sm text-grey-600">
           상태
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as ProjectStatus | 'all')}
-            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+            className="rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
           >
             <option value="all">전체</option>
             {(Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map((status) => (
@@ -147,12 +147,12 @@ export default function ProjectList({ summaries }: ProjectListProps) {
           </select>
         </label>
 
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+        <label className="flex items-center gap-2 text-sm text-grey-600">
           <input
             type="checkbox"
             checked={showArchived}
             onChange={(e) => setShowArchived(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300"
+            className="h-4 w-4 rounded border-grey-300"
           />
           보관 과제 표시 ({archivedCount})
         </label>
@@ -177,7 +177,7 @@ export default function ProjectList({ summaries }: ProjectListProps) {
       )}
 
       {visible.length === 0 ? (
-        <p className="mt-6 rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">
+        <p className="mt-6 rounded-xl border border-dashed border-grey-300 p-10 text-center text-sm text-grey-500">
           {summaries.length === 0
             ? '아직 과제가 없습니다. [새 과제]로 첫 과제를 만드세요.'
             : '조건에 맞는 과제가 없습니다. 필터를 바꿔보세요.'}
@@ -199,7 +199,7 @@ export default function ProjectList({ summaries }: ProjectListProps) {
                 void handleDrop(project.id);
               }}
               className={`flex overflow-hidden rounded-xl border bg-white shadow-sm transition ${
-                dropTargetId === project.id ? 'border-blue-400 ring-2 ring-blue-200' : 'border-slate-200'
+                dropTargetId === project.id ? 'border-blue-400 ring-2 ring-blue-200' : 'border-grey-200'
               } ${dragId === project.id ? 'opacity-40' : ''} ${
                 project.archived ? 'opacity-60 grayscale' : ''
               }`}
@@ -215,7 +215,7 @@ export default function ProjectList({ summaries }: ProjectListProps) {
                 <div className="flex items-start justify-between gap-2">
                   <Link
                     href={`/projects/${project.id}`}
-                    className="min-w-0 text-base font-semibold text-slate-900 hover:underline"
+                    className="min-w-0 text-base font-semibold text-grey-900 hover:underline"
                   >
                     {project.name}
                   </Link>
@@ -233,13 +233,13 @@ export default function ProjectList({ summaries }: ProjectListProps) {
                     role="button"
                     aria-label={`${project.name} 순서 변경 손잡이`}
                     title="끌어서 순서 변경"
-                    className="shrink-0 cursor-grab px-1 text-slate-300 hover:text-slate-500"
+                    className="shrink-0 cursor-grab px-1 text-grey-300 hover:text-grey-500"
                   >
                     ⠿
                   </span>
                 </div>
 
-                <p className="mt-1 truncate text-xs text-slate-500">
+                <p className="mt-1 truncate text-xs text-grey-500">
                   {[project.ministry, project.agency].filter(Boolean).join(' · ') || '부처·전문기관 미입력'}
                 </p>
 

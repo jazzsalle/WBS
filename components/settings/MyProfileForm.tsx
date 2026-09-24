@@ -17,7 +17,7 @@ import ErrorBanner from '@/components/ui/ErrorBanner';
 import { setRealtimePaused } from '@/components/RealtimeRefresher';
 
 const INPUT_CLASS =
-  'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none';
+  'mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none';
 
 // 동명이인이 흔해 기관명을 앞에 붙인다 (§7.14). 기관 미지정 인력은 이름만 보여준다.
 function optionLabel(option: MemberOption): string {
@@ -98,8 +98,8 @@ export default function MyProfileForm({ me, memberOptions }: MyProfileFormProps)
   };
 
   return (
-    <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-      <h3 className="text-sm font-bold text-slate-800">내 프로필</h3>
+    <div className="mt-6 rounded-xl border border-grey-200 bg-grey-50/60 p-4">
+      <h3 className="text-sm font-bold text-grey-800">내 프로필</h3>
 
       <form onSubmit={handleSubmit} className="mt-3">
         {failure && (
@@ -114,7 +114,7 @@ export default function MyProfileForm({ me, memberOptions }: MyProfileFormProps)
         {saved && !dirty && (
           <p
             role="status"
-            className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
+            className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800"
           >
             내 프로필을 저장했습니다.
           </p>
@@ -122,7 +122,7 @@ export default function MyProfileForm({ me, memberOptions }: MyProfileFormProps)
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label>
-            <span className="text-sm font-medium text-slate-700">표시 이름</span>
+            <span className="text-sm font-medium text-grey-700">표시 이름</span>
             <input
               type="text"
               value={name}
@@ -134,18 +134,18 @@ export default function MyProfileForm({ me, memberOptions }: MyProfileFormProps)
               required
               className={INPUT_CLASS}
             />
-            <span className="mt-1 block text-xs text-slate-500">{me.email}</span>
+            <span className="mt-1 block text-xs text-grey-500">{me.email}</span>
           </label>
 
           <label>
-            <span className="text-sm font-medium text-slate-700">참여인력 연결</span>
+            <span className="text-sm font-medium text-grey-700">참여인력 연결</span>
             <select
               value={memberId}
               onChange={(e) => {
                 setMemberId(e.target.value);
                 setSaved(false);
               }}
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
             >
               <option value="">연결 안 함</option>
               {missingLink && (
@@ -157,7 +157,7 @@ export default function MyProfileForm({ me, memberOptions }: MyProfileFormProps)
                 </option>
               ))}
             </select>
-            <span className="mt-1 block text-xs text-slate-500">
+            <span className="mt-1 block text-xs text-grey-500">
               담당자 배정·회의 참석자에서 나를 식별하는 데 쓰입니다.
             </span>
           </label>

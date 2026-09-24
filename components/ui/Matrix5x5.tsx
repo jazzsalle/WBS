@@ -83,10 +83,10 @@ export default function Matrix5x5({
   const droppable = onCellDrop !== undefined;
 
   return (
-    <section aria-label={ariaLabel} className="rounded-xl border border-slate-200 bg-white p-4">
+    <section aria-label={ariaLabel} className="rounded-xl border border-grey-200 bg-white p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-bold text-slate-900">{title}</h2>
-        <p className="text-xs text-slate-500">{description}</p>
+        <h2 className="text-sm font-bold text-grey-900">{title}</h2>
+        <p className="text-xs text-grey-500">{description}</p>
       </div>
 
       <div className="mt-3 overflow-x-auto">
@@ -97,11 +97,11 @@ export default function Matrix5x5({
           </caption>
           <thead>
             <tr>
-              <th scope="col" className="w-20 px-1 py-1 text-right align-bottom text-slate-500">
+              <th scope="col" className="w-20 px-1 py-1 text-right align-bottom text-grey-500">
                 {yAxisLabel} ↓
               </th>
               {LEVELS.map((x) => (
-                <th key={x} scope="col" className="w-16 px-1 py-1 font-semibold text-slate-600">
+                <th key={x} scope="col" className="w-16 px-1 py-1 font-semibold text-grey-600">
                   {x}
                 </th>
               ))}
@@ -111,7 +111,7 @@ export default function Matrix5x5({
             {/* 위에서 아래로 세로축 5 → 1 */}
             {[...LEVELS].reverse().map((y) => (
               <tr key={y}>
-                <th scope="row" className="px-1 py-1 text-right font-semibold text-slate-600">
+                <th scope="row" className="px-1 py-1 text-right font-semibold text-grey-600">
                   {y}
                 </th>
                 {LEVELS.map((x) => {
@@ -169,7 +169,7 @@ export default function Matrix5x5({
             ))}
             <tr>
               <td />
-              <td colSpan={LEVELS.length} className="pt-1 text-right text-slate-500">
+              <td colSpan={LEVELS.length} className="pt-1 text-right text-grey-500">
                 {xAxisLabel} →
               </td>
             </tr>

@@ -250,7 +250,7 @@ export default function MarkdownEditor({
   };
 
   const inputClass =
-    'mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none';
+    'mt-1 w-full rounded-lg border border-grey-300 px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none';
   const busy = saving || paused;
 
   const statusText = saving
@@ -262,11 +262,11 @@ export default function MarkdownEditor({
         : '저장된 상태';
 
   return (
-    <section aria-label="노트 편집" className="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white">
-      <header className="border-b border-slate-200 p-4">
+    <section aria-label="노트 편집" className="flex min-h-0 flex-col rounded-xl border border-grey-200 bg-white">
+      <header className="border-b border-grey-200 p-4">
         <div className="flex flex-wrap items-start gap-3">
           <label className="min-w-0 flex-1">
-            <span className="text-xs font-semibold text-slate-500">
+            <span className="text-xs font-semibold text-grey-500">
               제목 <span className="text-red-600">*</span>
             </span>
             <input
@@ -277,7 +277,7 @@ export default function MarkdownEditor({
             />
           </label>
           <label className="w-32">
-            <span className="text-xs font-semibold text-slate-500">유형</span>
+            <span className="text-xs font-semibold text-grey-500">유형</span>
             <select
               value={values.type}
               onChange={(e) => patchValue('type', e.target.value as NoteType)}
@@ -291,7 +291,7 @@ export default function MarkdownEditor({
             </select>
           </label>
           <label className="w-40">
-            <span className="text-xs font-semibold text-slate-500">날짜</span>
+            <span className="text-xs font-semibold text-grey-500">날짜</span>
             <input
               type="date"
               value={values.date}
@@ -303,7 +303,7 @@ export default function MarkdownEditor({
 
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <label>
-            <span className="text-xs font-semibold text-slate-500">연차</span>
+            <span className="text-xs font-semibold text-grey-500">연차</span>
             <select
               value={values.yearId}
               onChange={(e) => patchValue('yearId', e.target.value)}
@@ -318,7 +318,7 @@ export default function MarkdownEditor({
             </select>
           </label>
           <label>
-            <span className="text-xs font-semibold text-slate-500">작업 연결</span>
+            <span className="text-xs font-semibold text-grey-500">작업 연결</span>
             <select
               value={values.taskId}
               onChange={(e) => patchValue('taskId', e.target.value)}
@@ -333,7 +333,7 @@ export default function MarkdownEditor({
             </select>
           </label>
           <label>
-            <span className="text-xs font-semibold text-slate-500">마일스톤 연결</span>
+            <span className="text-xs font-semibold text-grey-500">마일스톤 연결</span>
             <select
               value={values.milestoneId}
               onChange={(e) => patchValue('milestoneId', e.target.value)}
@@ -350,7 +350,7 @@ export default function MarkdownEditor({
         </div>
 
         <label className="mt-3 block">
-          <span className="text-xs font-semibold text-slate-500">태그 (쉼표 구분)</span>
+          <span className="text-xs font-semibold text-grey-500">태그 (쉼표 구분)</span>
           <input
             value={values.tags}
             onChange={(e) => patchValue('tags', e.target.value)}
@@ -359,23 +359,23 @@ export default function MarkdownEditor({
           />
         </label>
 
-        <fieldset className="mt-3 rounded-lg border border-slate-200 p-3">
-          <legend className="px-1 text-xs font-semibold text-slate-500">
+        <fieldset className="mt-3 rounded-lg border border-grey-200 p-3">
+          <legend className="px-1 text-xs font-semibold text-grey-500">
             참석자 ({values.attendeeIds.length}명) · 고르면 본문 상단 참석자 줄이 함께 바뀝니다
           </legend>
           {members.length === 0 ? (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-grey-500">
               등록된 인력이 없습니다. [인력·기관] 화면에서 먼저 등록하세요.
             </p>
           ) : (
             <div className="flex max-h-28 flex-wrap gap-x-4 gap-y-1 overflow-y-auto">
               {members.map((member) => (
-                <label key={member.id} className="flex items-center gap-1.5 text-xs text-slate-600">
+                <label key={member.id} className="flex items-center gap-1.5 text-xs text-grey-600">
                   <input
                     type="checkbox"
                     checked={values.attendeeIds.includes(member.id)}
                     onChange={(e) => toggleAttendee(member.id, e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300"
+                    className="h-4 w-4 rounded border-grey-300"
                   />
                   {member.active ? member.name : `${member.name} (참여종료)`}
                 </label>
@@ -385,7 +385,7 @@ export default function MarkdownEditor({
         </fieldset>
       </header>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-grey-200 px-4 py-2">
         <div className="flex items-center gap-1" role="group" aria-label="보기 모드">
           {(Object.keys(VIEW_LABELS) as ViewMode[]).map((mode) => (
             <button
@@ -395,8 +395,8 @@ export default function MarkdownEditor({
               aria-pressed={viewMode === mode}
               className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
                 viewMode === mode
-                  ? 'bg-slate-900 text-white'
-                  : 'border border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+                  ? 'bg-grey-900 text-white'
+                  : 'border border-grey-300 bg-white text-grey-600 hover:bg-grey-50'
               }`}
             >
               {VIEW_LABELS[mode]}
@@ -424,7 +424,7 @@ export default function MarkdownEditor({
 
       {reloaded && (
         // O-3: 입력은 그대로 두고 사용자가 고르게 한다. 고르기 전에는 자동 저장을 멈춘다.
-        <div role="status" className="m-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div role="status" className="m-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
           <p className="font-semibold">다른 사람이 이 노트를 수정했습니다.</p>
           <p className="mt-1 text-xs">
             내 입력은 그대로 두었습니다. 최신 본문으로 갈아끼우거나, 내 입력을 유지한 채 저장할 수
@@ -437,14 +437,14 @@ export default function MarkdownEditor({
                 setValues(toValues(baseline));
                 setReloaded(false);
               }}
-              className="rounded-md border border-amber-300 px-2 py-0.5 text-xs font-semibold text-amber-800"
+              className="rounded-md border border-orange-300 px-2 py-0.5 text-xs font-semibold text-orange-800"
             >
               최신 내용 사용 (내 입력 버림)
             </button>
             <button
               type="button"
               onClick={() => setReloaded(false)}
-              className="rounded-md border border-amber-300 px-2 py-0.5 text-xs font-semibold text-amber-800"
+              className="rounded-md border border-orange-300 px-2 py-0.5 text-xs font-semibold text-orange-800"
             >
               내 입력 유지
             </button>
@@ -463,22 +463,22 @@ export default function MarkdownEditor({
                 rows={22}
                 spellCheck={false}
                 placeholder="# 제목&#10;- [ ] 액션 아이템&#10;**굵게**, *기울임*, `코드`, [링크](https://…)"
-                className="w-full resize-y rounded-lg border border-slate-300 p-3 font-mono text-sm leading-6 focus:border-slate-500 focus:outline-none"
+                className="w-full resize-y rounded-lg border border-grey-300 p-3 font-mono text-sm leading-6 focus:border-grey-500 focus:outline-none"
               />
             </label>
           )}
           {viewMode !== 'edit' && (
-            <div className="min-w-0 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+            <div className="min-w-0 overflow-y-auto rounded-lg border border-grey-200 bg-grey-50/50 p-3">
               <MarkdownViewer source={values.body} />
             </div>
           )}
         </div>
       </div>
 
-      <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 p-4">
-        <div className="flex items-center gap-2 text-xs text-slate-500">
+      <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-grey-200 p-4">
+        <div className="flex items-center gap-2 text-xs text-grey-500">
           <span
-            className={dirty ? 'font-semibold text-amber-700' : undefined}
+            className={dirty ? 'font-semibold text-orange-700' : undefined}
             role="status"
             aria-live="polite"
           >

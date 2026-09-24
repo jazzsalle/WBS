@@ -577,7 +577,7 @@ export default function ImportWizard({
       }}
       footer={
         <>
-          <span className="mr-auto text-xs text-slate-500">
+          <span className="mr-auto text-xs text-grey-500">
             {nextBlockers.length > 0 && step < 5 && <span className="text-red-600">{nextBlockers[0]}</span>}
           </span>
           <Button variant="ghost" onClick={onClose} disabled={busy !== null}>
@@ -611,7 +611,7 @@ export default function ImportWizard({
         <StepIndicator step={step} />
 
         {file && (
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-grey-400">
             {file.name} · 시트 {draft.profile.sheetName ?? '(미선택)'} · 금액 단위 ×
             {draft.profile.amountUnit.toLocaleString()}
             {selectedProfile && ` · 프로파일 "${selectedProfile.name}"`}
@@ -871,10 +871,10 @@ function StepIndicator({ step }: { step: WizardStep }) {
           key={n}
           className={`rounded-full px-2.5 py-1 ${
             n === step
-              ? 'bg-slate-900 font-semibold text-white'
+              ? 'bg-grey-900 font-semibold text-white'
               : n < step
-                ? 'bg-slate-200 text-slate-600'
-                : 'bg-slate-50 text-slate-400'
+                ? 'bg-grey-200 text-grey-600'
+                : 'bg-grey-50 text-grey-400'
           }`}
         >
           {n}. {STEP_TITLES[n]}

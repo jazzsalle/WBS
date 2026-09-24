@@ -692,7 +692,7 @@ export default function WbsScreen({
       </div>
 
       {/* 툴바 (§7.4). 태그 필터는 아직 없다 */}
-      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-grey-200 bg-white p-3 text-sm">
         <Button size="sm" onClick={() => setCollapsedIds(new Set())}>
           전체 펼치기
         </Button>
@@ -700,22 +700,22 @@ export default function WbsScreen({
           전체 접기
         </Button>
 
-        <label className="flex items-center gap-2 text-slate-600">
+        <label className="flex items-center gap-2 text-grey-600">
           <input
             type="checkbox"
             checked={hideDone}
             onChange={(e) => setHideDone(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300"
+            className="h-4 w-4 rounded border-grey-300"
           />
           완료 숨기기
         </label>
 
-        <label className="flex items-center gap-2 text-slate-600">
+        <label className="flex items-center gap-2 text-grey-600">
           상태
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as TaskStatus | 'all')}
-            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+            className="rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
           >
             <option value="all">전체</option>
             {(Object.keys(TASK_STATUS_LABELS) as TaskStatus[]).map((status) => (
@@ -726,12 +726,12 @@ export default function WbsScreen({
           </select>
         </label>
 
-        <label className="flex items-center gap-2 text-slate-600">
+        <label className="flex items-center gap-2 text-grey-600">
           담당
           <select
             value={memberFilter}
             onChange={(e) => setMemberFilter(e.target.value)}
-            className="max-w-40 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+            className="max-w-40 rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
           >
             <option value="all">전체</option>
             {members.map((member) => (
@@ -742,12 +742,12 @@ export default function WbsScreen({
           </select>
         </label>
 
-        <label className="flex items-center gap-2 text-slate-600">
+        <label className="flex items-center gap-2 text-grey-600">
           기관
           <select
             value={orgFilter}
             onChange={(e) => setOrgFilter(e.target.value)}
-            className="max-w-40 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+            className="max-w-40 rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
           >
             <option value="all">전체</option>
             {organizations.map((org) => (
@@ -758,12 +758,12 @@ export default function WbsScreen({
           </select>
         </label>
 
-        <label className="flex items-center gap-2 text-slate-600">
+        <label className="flex items-center gap-2 text-grey-600">
           우선순위
           <select
             value={gradeFilter}
             onChange={(e) => setGradeFilter(e.target.value as PriorityGrade | 'all')}
-            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+            className="rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none"
           >
             <option value="all">전체</option>
             {GRADES.map((grade) => (
@@ -774,7 +774,7 @@ export default function WbsScreen({
           </select>
         </label>
 
-        <span className="ml-auto text-xs text-slate-400">
+        <span className="ml-auto text-xs text-grey-400">
           행 선택 후 Enter 새 작업 · Tab 들여쓰기 · Shift+Tab 내어쓰기 · F2 이름 변경 · Delete 삭제
         </span>
       </div>
@@ -801,14 +801,14 @@ export default function WbsScreen({
         // O-3: 이름 변경이 충돌해도 입력한 제목을 날리지 않는다. 최신 값과 나란히 두고 고르게 한다
         <div
           role="status"
-          className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+          className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800"
         >
           <p className="font-semibold">이름 변경이 저장되지 않았습니다.</p>
           <p className="mt-1 text-xs">{renameConflict.message}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs">
-            <span className="font-semibold text-slate-700">작업명</span>
-            <span className="text-slate-500">내 입력: {renameConflict.mine}</span>
-            <span className="text-slate-500">
+            <span className="font-semibold text-grey-700">작업명</span>
+            <span className="text-grey-500">내 입력: {renameConflict.mine}</span>
+            <span className="text-grey-500">
               최신: {renameConflictLatestTitle ?? '(작업이 삭제되었습니다)'}
             </span>
           </div>
@@ -820,7 +820,7 @@ export default function WbsScreen({
               type="button"
               disabled={busy || renameConflictLatestTitle === null}
               onClick={handleRenameRetry}
-              className="rounded-md border border-amber-300 px-2 py-0.5 text-xs font-semibold text-amber-800 disabled:opacity-50"
+              className="rounded-md border border-orange-300 px-2 py-0.5 text-xs font-semibold text-orange-800 disabled:opacity-50"
             >
               내 입력으로 다시 저장
             </button>
@@ -828,7 +828,7 @@ export default function WbsScreen({
               type="button"
               disabled={busy}
               onClick={closeRename}
-              className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-semibold text-slate-600"
+              className="rounded-md border border-grey-300 px-2 py-0.5 text-xs font-semibold text-grey-600"
             >
               최신 이름 두기 (내 입력 버림)
             </button>
@@ -877,13 +877,13 @@ export default function WbsScreen({
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{deleteTarget.task.title}</strong>
             {descendantCount > 0
               ? ` 및 하위 작업 ${descendantCount}건이 함께 삭제됩니다.`
               : '을(를) 삭제합니다.'}
           </p>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-grey-500">
             삭제한 작업은 되돌릴 수 없습니다. 이 작업을 참조하던 노트·리스크는 연결만 해제됩니다.
           </p>
         </Modal>

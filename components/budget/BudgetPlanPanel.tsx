@@ -248,24 +248,24 @@ export default function BudgetPlanPanel({
     <aside
       aria-label={`${yearName} ${categoryLabel} 산출근거`}
       // §7.9.2 마지막 줄: 산출근거 자체의 인쇄는 Phase 9 범위 밖이다 (인쇄는 매트릭스만 나간다)
-      className="h-fit space-y-4 rounded-xl border border-slate-200 bg-white p-4 print:hidden"
+      className="h-fit space-y-4 rounded-xl border border-grey-200 bg-white p-4 print:hidden"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-bold text-slate-900">{categoryLabel} · 산출근거</p>
-          <p className="text-xs text-slate-500">
+          <p className="text-sm font-bold text-grey-900">{categoryLabel} · 산출근거</p>
+          <p className="text-xs text-grey-500">
             {yearName}
             <span className="ml-2">· 입력은 언제나 원 단위 정수입니다</span>
             <span className="ml-2">· 표시 단위 {currencyUnit}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {loading && <span className="text-xs text-slate-400">불러오는 중…</span>}
+          {loading && <span className="text-xs text-grey-400">불러오는 중…</span>}
           <button
             type="button"
             onClick={onClose}
             aria-label="패널 닫기"
-            className="text-xl leading-none text-slate-400 hover:text-slate-600"
+            className="text-xl leading-none text-grey-400 hover:text-grey-600"
           >
             ×
           </button>
@@ -284,7 +284,7 @@ export default function BudgetPlanPanel({
       {data === null ? (
         // 실패는 위 배너가 이미 말한다. 여기서 빈 표를 그리면 "행이 없다"는 거짓말이 된다
         !failure && (
-          <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">
+          <p className="rounded-lg border border-dashed border-grey-300 p-6 text-center text-sm text-grey-400">
             산출근거를 불러오는 중입니다…
           </p>
         )
@@ -374,28 +374,28 @@ export default function BudgetPlanPanel({
 
           {/* 셀 합계 — 이 값이 매트릭스 셀에 그대로 올라간다 (§7.9.2 하단, PL-7) */}
           {total && (
-            <dl className="grid grid-cols-3 gap-2 rounded-lg bg-slate-50 p-3 text-xs">
+            <dl className="grid grid-cols-3 gap-2 rounded-lg bg-grey-50 p-3 text-xs">
               <div>
-                <dt className="text-slate-500">{DETAIL_AXIS_LABELS.cash}</dt>
-                <dd className="font-semibold tabular-nums text-slate-800">
+                <dt className="text-grey-500">{DETAIL_AXIS_LABELS.cash}</dt>
+                <dd className="font-semibold tabular-nums text-grey-800">
                   {formatAmount(total.cashAmount, currencyUnit)}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-500">{DETAIL_AXIS_LABELS.in_kind}</dt>
-                <dd className="font-semibold tabular-nums text-slate-800">
+                <dt className="text-grey-500">{DETAIL_AXIS_LABELS.in_kind}</dt>
+                <dd className="font-semibold tabular-nums text-grey-800">
                   {formatAmount(total.inKindAmount, currencyUnit)}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-500">계</dt>
-                <dd className="font-bold tabular-nums text-slate-900">
+                <dt className="text-grey-500">계</dt>
+                <dd className="font-bold tabular-nums text-grey-900">
                   {formatAmount(total.plannedAmount, currencyUnit)}
                 </dd>
               </div>
             </dl>
           )}
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-grey-500">
             이 합계가 매트릭스의 (연차 × 비목) 셀 값이 됩니다. 행이 하나라도 있으면 셀은 잠기고
             직접 편집할 수 없습니다 (PL-9).
           </p>
@@ -426,11 +426,11 @@ export default function BudgetPlanPanel({
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{formatAmount(deleting.amount, currencyUnit)}</strong>
             {deleting.name === '' ? '' : ` · ${deleting.name}`}
           </p>
-          <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+          <p className="mt-3 rounded-lg bg-orange-50 p-3 text-sm text-orange-800">
             삭제하면 이 비목의 계획액이 그만큼 줄어듭니다. 되돌릴 수 없습니다 (PL-D6). 마지막 행을
             지우면 셀 잠금이 풀리고 직전 합계가 그대로 남습니다 (PL-9).
           </p>
@@ -507,17 +507,17 @@ function SubcategorySection({
   return (
     <section
       aria-label={def.label}
-      className={`rounded-lg border ${empty ? 'border-dashed border-slate-200' : 'border-slate-200'}`}
+      className={`rounded-lg border ${empty ? 'border-dashed border-grey-200' : 'border-grey-200'}`}
     >
       <header className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-        <p className="text-xs font-semibold text-slate-700">
+        <p className="text-xs font-semibold text-grey-700">
           {def.label}
-          {!empty && <span className="ml-2 font-normal text-slate-500">{rows.length}행</span>}
+          {!empty && <span className="ml-2 font-normal text-grey-500">{rows.length}행</span>}
         </p>
         {subtotal && (
-          <p className="text-xs tabular-nums text-slate-600">
+          <p className="text-xs tabular-nums text-grey-600">
             소계 {formatAmount(subtotal.plannedAmount, currencyUnit)}
-            <span className="ml-2 text-slate-400">
+            <span className="ml-2 text-grey-400">
               ({DETAIL_AXIS_LABELS.cash} {formatAmount(subtotal.cashAmount, currencyUnit)} ·{' '}
               {DETAIL_AXIS_LABELS.in_kind} {formatAmount(subtotal.inKindAmount, currencyUnit)})
             </span>
@@ -529,8 +529,8 @@ function SubcategorySection({
       {!empty && (
         <div className="overflow-x-auto px-3">
           <table className="w-full min-w-[52rem] text-left text-xs">
-            <thead className="text-slate-500">
-              <tr className="border-b border-slate-200">
+            <thead className="text-grey-500">
+              <tr className="border-b border-grey-200">
                 {headers.map((header, index) => (
                   <th
                     key={index}
@@ -545,7 +545,7 @@ function SubcategorySection({
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-grey-100">
               {rows.map((row) => (
                 <DetailRowEditor
                   key={row.detail.id}
@@ -579,7 +579,7 @@ function SubcategorySection({
         <div className="flex flex-wrap items-center gap-2 px-3 py-2">
           {isPersonnel ? (
             members.length === 0 ? (
-              <p className="text-[11px] text-amber-700">
+              <p className="text-[11px] text-orange-700">
                 이 과제에 등록된 인력이 없어 인건비 행을 만들 수 없습니다.{' '}
                 <Link
                   href={`/projects/${projectId}/team`}
@@ -595,7 +595,7 @@ function SubcategorySection({
                   disabled={busy}
                   aria-label={`${def.label} 추가할 인력`}
                   onChange={(e) => setNewMemberId(e.target.value)}
-                  className="rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none disabled:bg-slate-50"
+                  className="rounded-md border border-grey-300 px-2 py-1 text-xs focus:border-grey-500 focus:outline-none disabled:bg-grey-50"
                 >
                   <option value="">인력 선택</option>
                   {members.map((member) => (

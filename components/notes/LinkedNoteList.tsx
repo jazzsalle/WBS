@@ -22,7 +22,7 @@ export default function LinkedNoteList({
   className = '',
 }: LinkedNoteListProps) {
   if (notes.length === 0) {
-    return <p className={`text-xs text-slate-500 ${className}`}>{emptyText}</p>;
+    return <p className={`text-xs text-grey-500 ${className}`}>{emptyText}</p>;
   }
 
   return (
@@ -32,14 +32,14 @@ export default function LinkedNoteList({
           <Link
             // 노트 화면이 이 id를 초기 선택으로 받는다 — 목록에서 다시 찾지 않게
             href={`/projects/${projectId}/notes?note=${note.id}`}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+            className="flex items-center gap-1.5 rounded-lg border border-grey-200 px-2 py-1.5 text-xs text-grey-700 hover:bg-grey-50"
           >
             <span aria-hidden className="shrink-0">
               {NOTE_TYPE_ICONS[note.type]}
             </span>
             <span className="min-w-0 flex-1 truncate font-medium">{note.title}</span>
-            <span className="shrink-0 text-slate-400">{NOTE_TYPE_LABELS[note.type]}</span>
-            <span className="shrink-0 tabular-nums text-slate-400">{note.date}</span>
+            <span className="shrink-0 text-grey-400">{NOTE_TYPE_LABELS[note.type]}</span>
+            <span className="shrink-0 tabular-nums text-grey-400">{note.date}</span>
           </Link>
         </li>
       ))}

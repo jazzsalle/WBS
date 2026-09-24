@@ -147,11 +147,11 @@ export default function HrDirectoryModal({
       }
     >
       {state.phase === 'loading' && (
-        <p className="py-6 text-center text-sm text-slate-500">사내 명부를 불러오는 중…</p>
+        <p className="py-6 text-center text-sm text-grey-500">사내 명부를 불러오는 중…</p>
       )}
 
       {state.phase === 'no-key' && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800">
           <p className="font-semibold">설정에서 HR API 키를 등록하세요.</p>
           <p className="mt-1 text-xs">
             사내 명부를 읽으려면 hr.unes.kr에서 발급한 API 키가 필요합니다. 키는 이 PC의 OS
@@ -181,7 +181,7 @@ export default function HrDirectoryModal({
 
           {/* HR-16: 페이징이 없으므로 count와 행 수가 다르면 무언가 잘못된 것이다 — 감추지 않는다 */}
           {state.directory.countMismatch && (
-            <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <p className="mb-3 rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
               HR이 알린 인원({state.directory.count ?? '없음'})과 받은 행 수(
               {state.directory.rowCount})가 다릅니다. 명부가 온전하지 않을 수 있습니다.
             </p>
@@ -194,17 +194,17 @@ export default function HrDirectoryModal({
               onChange={(e) => setQuery(e.target.value)}
               placeholder="이름 또는 이메일로 검색"
               aria-label="이름 또는 이메일로 검색"
-              className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+              className="w-full max-w-sm rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
             />
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-grey-500">
               {visible.length}명 표시 · {selectedCount}명 선택
             </span>
           </div>
 
-          <div className="max-h-[60vh] overflow-y-auto rounded-xl border border-slate-200">
+          <div className="max-h-[60vh] overflow-y-auto rounded-xl border border-grey-200">
             <table className="w-full text-left text-sm">
-              <thead className="sticky top-0 bg-slate-50 text-xs text-slate-500">
-                <tr className="border-b border-slate-100">
+              <thead className="sticky top-0 bg-grey-50 text-xs text-grey-500">
+                <tr className="border-b border-grey-100">
                   <th className="px-3 py-2">
                     <input
                       type="checkbox"
@@ -222,10 +222,10 @@ export default function HrDirectoryModal({
                   <th className="px-3 py-2 font-medium">상태</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-grey-100">
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center text-slate-400">
+                    <td colSpan={7} className="px-3 py-6 text-center text-grey-400">
                       {entries.length === 0
                         ? '사내 명부에 항목이 없습니다.'
                         : '검색과 일치하는 인원이 없습니다.'}
@@ -235,7 +235,7 @@ export default function HrDirectoryModal({
                 {visible.map(({ entry, index }) => {
                   if (entry.kind === 'unreadable') {
                     return (
-                      <tr key={index} className="bg-slate-50 text-slate-400">
+                      <tr key={index} className="bg-grey-50 text-grey-400">
                         <td className="px-3 py-2">
                           <input type="checkbox" checked={false} disabled readOnly />
                         </td>
@@ -262,8 +262,8 @@ export default function HrDirectoryModal({
                       onClick={() => entry.selectable && toggle(index)}
                       className={
                         entry.selectable
-                          ? `cursor-pointer transition ${isSelected ? 'bg-slate-100' : 'hover:bg-slate-50'}`
-                          : 'bg-slate-50 text-slate-400'
+                          ? `cursor-pointer transition ${isSelected ? 'bg-grey-100' : 'hover:bg-grey-50'}`
+                          : 'bg-grey-50 text-grey-400'
                       }
                     >
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>

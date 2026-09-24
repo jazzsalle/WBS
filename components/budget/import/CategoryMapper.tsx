@@ -38,16 +38,16 @@ export default function CategoryMapper({
 
   if (entries.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">
+      <p className="rounded-xl border border-dashed border-grey-300 p-6 text-center text-sm text-grey-400">
         표시할 항목이 없습니다.
       </p>
     );
   }
 
   return (
-    <div className="max-h-[24rem] overflow-auto rounded-xl border border-slate-200">
+    <div className="max-h-[24rem] overflow-auto rounded-xl border border-grey-200">
       <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-slate-50 text-slate-500">
+        <thead className="sticky top-0 bg-grey-50 text-grey-500">
           <tr>
             <th className="w-14 px-2 py-1.5 text-left">행</th>
             <th className="px-2 py-1.5 text-left">원본 비목명</th>
@@ -63,23 +63,23 @@ export default function CategoryMapper({
             return (
               <tr
                 key={entry.rowIndex}
-                className={`border-t border-slate-100 ${
+                className={`border-t border-grey-100 ${
                   isSkipped
-                    ? 'bg-slate-50 text-slate-400'
+                    ? 'bg-grey-50 text-grey-400'
                     : entry.needsDecision
-                      ? 'bg-amber-50/70'
+                      ? 'bg-orange-50/70'
                       : ''
                 }`}
               >
-                <td className="px-2 py-1.5 font-mono text-slate-500">{entry.rowIndex + 1}</td>
-                <td className="max-w-[16rem] truncate px-2 py-1.5 text-slate-700" title={entry.label}>
+                <td className="px-2 py-1.5 font-mono text-grey-500">{entry.rowIndex + 1}</td>
+                <td className="max-w-[16rem] truncate px-2 py-1.5 text-grey-700" title={entry.label}>
                   {entry.label}
                 </td>
                 <td className={`px-2 py-1.5 ${MAPPING_STATUS_CLASS[entry.status]}`}>
                   <span className="mr-1">{MAPPING_STATUS_ICON[entry.status]}</span>
                   {MAPPING_STATUS_LABEL[entry.status]}
                   {entry.reason && (
-                    <span className="ml-1 text-slate-400" title={entry.reason}>
+                    <span className="ml-1 text-grey-400" title={entry.reason}>
                       ⓘ
                     </span>
                   )}
@@ -96,7 +96,7 @@ export default function CategoryMapper({
                       manual
                         ? 'border-blue-400 font-semibold text-blue-700'
                         : entry.category
-                          ? 'border-slate-300 text-slate-500'
+                          ? 'border-grey-300 text-grey-500'
                           : 'border-red-300 text-red-700'
                     }`}
                   >
@@ -109,7 +109,7 @@ export default function CategoryMapper({
                   </select>
                 </td>
                 <td className="px-2 py-1.5">
-                  <label className="flex cursor-pointer items-center gap-1.5 text-slate-600">
+                  <label className="flex cursor-pointer items-center gap-1.5 text-grey-600">
                     <input
                       type="checkbox"
                       checked={isSkipped}

@@ -171,13 +171,13 @@ export default function MilestoneScreen({ data, todayISO, linkedNotes }: Milesto
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-grey-600">
           전체 {views.length}건
           {overdueCount > 0 && (
             <span className="ml-2 font-semibold text-red-700">지연 {overdueCount}건</span>
           )}
           {upcomingCount > 0 && (
-            <span className="ml-2 font-semibold text-amber-700">
+            <span className="ml-2 font-semibold text-orange-700">
               임박 {upcomingCount}건 (기준 {data.milestoneAlertDays}일)
             </span>
           )}
@@ -207,14 +207,14 @@ export default function MilestoneScreen({ data, todayISO, linkedNotes }: Milesto
       {notice && (
         <div
           role="status"
-          className="mt-3 flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+          className="mt-3 flex items-start justify-between gap-4 rounded-xl border border-grey-200 bg-grey-50 p-3 text-sm text-grey-700"
         >
           <p className="min-w-0 break-words">{notice}</p>
           <button
             type="button"
             onClick={() => setNotice(null)}
             aria-label="알림 닫기"
-            className="shrink-0 font-bold text-slate-400 hover:text-slate-600"
+            className="shrink-0 font-bold text-grey-400 hover:text-grey-600"
           >
             ×
           </button>
@@ -293,10 +293,10 @@ export default function MilestoneScreen({ data, todayISO, linkedNotes }: Milesto
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{deletingMilestone.title}</strong>({deletingMilestone.date})을 삭제합니다.
           </p>
-          <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="mt-3 rounded-lg bg-orange-50 p-3 text-xs text-orange-800">
             이 마일스톤에 연결된 노트는 지워지지 않고 연결만 끊어집니다.
           </p>
         </Modal>

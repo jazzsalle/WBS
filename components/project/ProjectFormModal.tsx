@@ -20,7 +20,7 @@ import ErrorBanner from '@/components/ui/ErrorBanner';
 import ConflictDialog from '@/components/ui/ConflictDialog';
 import { setRealtimePaused } from '@/components/RealtimeRefresher';
 
-/** projects.color는 hex 문자열이고 DB 기본값은 ''다. 미지정 과제의 색상 띠 기본값 (slate-500) */
+/** projects.color는 hex 문자열이고 DB 기본값은 ''다. 미지정 과제의 색상 띠 기본값 (grey-500) */
 export const DEFAULT_PROJECT_COLOR = '#64748b';
 
 interface FormValues {
@@ -270,7 +270,7 @@ export default function ProjectFormModal({
           )}
 
           {reloaded && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
               <p className="font-semibold">최신 내용을 다시 불러왔습니다.</p>
               {differences.length === 0 ? (
                 <p className="mt-1 text-xs">
@@ -288,13 +288,13 @@ export default function ProjectFormModal({
                         key={field.key}
                         className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
                       >
-                        <span className="font-semibold text-slate-700">{field.label}</span>
-                        <span className="text-slate-500">내 입력: {displayValue(field, values)}</span>
-                        <span className="text-slate-500">최신: {displayValue(field, latest)}</span>
+                        <span className="font-semibold text-grey-700">{field.label}</span>
+                        <span className="text-grey-500">내 입력: {displayValue(field, values)}</span>
+                        <span className="text-grey-500">최신: {displayValue(field, latest)}</span>
                         <button
                           type="button"
                           onClick={() => setField(field.key, latest[field.key])}
-                          className="ml-auto rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                          className="ml-auto rounded-md border border-orange-300 px-2 py-0.5 font-semibold text-orange-800"
                         >
                           최신 값 사용
                         </button>
@@ -308,7 +308,7 @@ export default function ProjectFormModal({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-grey-700">
                 과제명 <span className="text-red-600">*</span>
               </span>
               <input
@@ -319,7 +319,7 @@ export default function ProjectFormModal({
                 maxLength={200}
                 required
                 placeholder={fieldOf('name').placeholder}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
@@ -327,25 +327,25 @@ export default function ProjectFormModal({
               const field = fieldOf(key);
               return (
                 <label key={key}>
-                  <span className="text-sm font-medium text-slate-700">{field.label}</span>
+                  <span className="text-sm font-medium text-grey-700">{field.label}</span>
                   <input
                     type="text"
                     value={values[key]}
                     onChange={(e) => setField(key, e.target.value)}
                     maxLength={100}
                     placeholder={field.placeholder}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                    className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
                   />
                 </label>
               );
             })}
 
             <label>
-              <span className="text-sm font-medium text-slate-700">상태</span>
+              <span className="text-sm font-medium text-grey-700">상태</span>
               <select
                 value={values.status}
                 onChange={(e) => setField('status', e.target.value as ProjectStatus)}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               >
                 {(Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map((status) => (
                   <option key={status} value={status}>
@@ -356,38 +356,38 @@ export default function ProjectFormModal({
             </label>
 
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">사업명</span>
+              <span className="text-sm font-medium text-grey-700">사업명</span>
               <input
                 type="text"
                 value={values.programName}
                 onChange={(e) => setField('programName', e.target.value)}
                 maxLength={200}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">협약 시작일</span>
+              <span className="text-sm font-medium text-grey-700">협약 시작일</span>
               <input
                 type="date"
                 value={values.contractStartDate}
                 onChange={(e) => setField('contractStartDate', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
               {!isEdit && (
-                <span className="mt-1 block text-xs text-slate-500">
+                <span className="mt-1 block text-xs text-grey-500">
                   1차년도 기간(시작일 ~ +1년-1일)의 기준이 됩니다.
                 </span>
               )}
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">협약 종료일</span>
+              <span className="text-sm font-medium text-grey-700">협약 종료일</span>
               <input
                 type="date"
                 value={values.contractEndDate}
                 onChange={(e) => setField('contractEndDate', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
@@ -395,29 +395,29 @@ export default function ProjectFormModal({
               const field = fieldOf(key);
               return (
                 <label key={key}>
-                  <span className="text-sm font-medium text-slate-700">{field.label}</span>
+                  <span className="text-sm font-medium text-grey-700">{field.label}</span>
                   <input
                     type="text"
                     inputMode="numeric"
                     value={formatAmount(values[key])}
                     onChange={(e) => setField(key, toDigits(e.target.value))}
                     placeholder="0"
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-right text-sm tabular-nums focus:border-slate-500 focus:outline-none"
+                    className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-right text-sm tabular-nums focus:border-grey-500 focus:outline-none"
                   />
                 </label>
               );
             })}
 
             <label className="flex items-center gap-3">
-              <span className="text-sm font-medium text-slate-700">색상</span>
+              <span className="text-sm font-medium text-grey-700">색상</span>
               <input
                 type="color"
                 value={values.color}
                 onChange={(e) => setField('color', e.target.value)}
                 aria-label="과제 색상"
-                className="h-9 w-16 cursor-pointer rounded border border-slate-300"
+                className="h-9 w-16 cursor-pointer rounded border border-grey-300"
               />
-              <span className="text-xs text-slate-500">목록 카드의 색상 띠에 쓰입니다.</span>
+              <span className="text-xs text-grey-500">목록 카드의 색상 띠에 쓰입니다.</span>
             </label>
           </div>
 

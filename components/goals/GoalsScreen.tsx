@@ -18,8 +18,8 @@ const TABS: readonly { id: GoalTab; label: string }[] = [
   { id: 'techTargets', label: '정량적 기술목표' },
 ] as const;
 
-const ACTIVE_CLASSES = 'border-slate-900 text-slate-900';
-const INACTIVE_CLASSES = 'border-transparent text-slate-500 hover:text-slate-800';
+const ACTIVE_CLASSES = 'border-grey-900 text-grey-900';
+const INACTIVE_CLASSES = 'border-transparent text-grey-500 hover:text-grey-800';
 
 export interface GoalsScreenProps {
   projectId: string;
@@ -32,7 +32,7 @@ export default function GoalsScreen({ projectId, data }: GoalsScreenProps) {
   return (
     <div>
       {/* 인쇄(§7.7)에서는 탭 자체가 의미 없으므로 감춘다 — 표만 남는다 */}
-      <div role="tablist" aria-label="목표 종류" className="flex gap-1 border-b border-slate-200 print:hidden">
+      <div role="tablist" aria-label="목표 종류" className="flex gap-1 border-b border-grey-200 print:hidden">
         {TABS.map((item) => (
           <button
             key={item.id}

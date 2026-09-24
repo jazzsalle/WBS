@@ -27,11 +27,11 @@ export default async function ProjectsPage() {
     <main className="mx-auto max-w-6xl p-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">과제</h1>
-        <div className="flex items-center gap-4 text-sm text-slate-500">
-          <Link href="/" className="underline hover:text-slate-700">
+        <div className="flex items-center gap-4 text-sm text-grey-500">
+          <Link href="/" className="underline hover:text-grey-700">
             대시보드
           </Link>
-          <Link href="/settings" className="underline hover:text-slate-700">
+          <Link href="/settings" className="underline hover:text-grey-700">
             설정
           </Link>
         </div>

@@ -10,10 +10,10 @@ import { TASK_STATUS_LABELS } from '@/lib/constants';
 import Card, { type CardCallbacks } from './Card';
 
 const HEADER_CLASSES: Record<TaskStatus, string> = {
-  todo: 'border-slate-200 bg-slate-50 text-slate-600',
+  todo: 'border-grey-200 bg-grey-50 text-grey-600',
   in_progress: 'border-blue-200 bg-blue-50 text-blue-700',
-  done: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  blocked: 'border-rose-200 bg-rose-50 text-rose-700',
+  done: 'border-green-200 bg-green-50 text-green-700',
+  blocked: 'border-red-200 bg-red-50 text-red-700',
 };
 
 export interface ColumnCallbacks extends CardCallbacks {
@@ -60,8 +60,8 @@ export default function Column({
         e.preventDefault();
         callbacks.onDropColumn(status);
       }}
-      className={`flex min-w-56 flex-1 flex-col rounded-xl border bg-slate-50/60 p-2 transition ${
-        dropActive ? 'border-blue-400 ring-2 ring-blue-300' : 'border-slate-200'
+      className={`flex min-w-56 flex-1 flex-col rounded-xl border bg-grey-50/60 p-2 transition ${
+        dropActive ? 'border-blue-400 ring-2 ring-blue-300' : 'border-grey-200'
       }`}
     >
       <h3
@@ -73,7 +73,7 @@ export default function Column({
 
       <div className="flex min-h-16 flex-col gap-2">
         {cards.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-200 p-3 text-center text-[11px] text-slate-400">
+          <p className="rounded-lg border border-dashed border-grey-200 p-3 text-center text-[11px] text-grey-400">
             여기로 카드를 끌어오면 상태가 바뀝니다
           </p>
         ) : (

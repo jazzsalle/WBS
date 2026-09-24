@@ -61,7 +61,7 @@ function CallbackHandler() {
 
   return (
     <main className="flex min-h-screen items-center justify-center p-8">
-      <p className="text-sm text-slate-500" role="status">
+      <p className="text-sm text-grey-500" role="status">
         {failure ? `로그인 처리 실패: ${failure}` : '로그인 처리 중…'}
       </p>
     </main>
@@ -74,7 +74,7 @@ export default function AuthCallbackPage() {
     <Suspense
       fallback={
         <main className="flex min-h-screen items-center justify-center p-8">
-          <p className="text-sm text-slate-500">로그인 처리 중…</p>
+          <p className="text-sm text-grey-500">로그인 처리 중…</p>
         </main>
       }
     >

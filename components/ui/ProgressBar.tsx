@@ -19,9 +19,9 @@ export default function ProgressBar({
   const clamped = Math.max(0, Math.min(100, Math.round(value)));
   return (
     <div className={className}>
-      <div className="flex items-center justify-between text-xs text-slate-500">
+      <div className="flex items-center justify-between text-xs text-grey-500">
         <span>{label ?? '진척률'}</span>
-        {showValue && <span className="font-semibold text-slate-700">{clamped}%</span>}
+        {showValue && <span className="font-semibold text-grey-700">{clamped}%</span>}
       </div>
       <div
         role="progressbar"
@@ -29,7 +29,7 @@ export default function ProgressBar({
         aria-valuemax={100}
         aria-valuenow={clamped}
         aria-label={label ?? '진척률'}
-        className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100"
+        className="mt-1 h-2 w-full overflow-hidden rounded-full bg-grey-200"
       >
         <div
           className="h-full rounded-full bg-blue-500 transition-[width]"

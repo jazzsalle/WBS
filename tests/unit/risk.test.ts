@@ -104,10 +104,10 @@ describe('riskColor (부록 A.3)', () => {
   it('경계 6종의 색상', () => {
     expect(riskColor(25)).toBe('red-600');
     expect(riskColor(15)).toBe('red-600');
-    expect(riskColor(14)).toBe('amber-500');
-    expect(riskColor(8)).toBe('amber-500');
-    expect(riskColor(7)).toBe('emerald-600');
-    expect(riskColor(1)).toBe('emerald-600');
+    expect(riskColor(14)).toBe('orange-500');
+    expect(riskColor(8)).toBe('orange-500');
+    expect(riskColor(7)).toBe('green-600');
+    expect(riskColor(1)).toBe('green-600');
   });
 
   it('1~25 밖의 점수는 조용히 넘기지 않고 던진다', () => {

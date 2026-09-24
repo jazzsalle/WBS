@@ -17,11 +17,11 @@ function MetricCard({ label, value, caption, title }: MetricCardProps) {
   return (
     <div
       title={title}
-      className="rounded-2xl border border-slate-200 bg-white p-4"
+      className="rounded-2xl border border-grey-200 bg-white p-4"
     >
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className="mt-1.5 text-2xl font-bold tabular-nums text-slate-900">{value}</p>
-      <p className="mt-1 text-xs text-slate-400">{caption}</p>
+      <p className="text-xs font-medium text-grey-500">{label}</p>
+      <p className="mt-1.5 text-2xl font-bold tabular-nums text-grey-900">{value}</p>
+      <p className="mt-1 text-xs text-grey-400">{caption}</p>
     </div>
   );
 }

@@ -87,12 +87,12 @@ describe('priorityGrade (§6.9.2)', () => {
   it('구간별 등급·색상', () => {
     expect(priorityGrade(25)).toEqual({ grade: '최우선', color: 'red-600' });
     expect(priorityGrade(15)).toEqual({ grade: '최우선', color: 'red-600' });
-    expect(priorityGrade(14)).toEqual({ grade: '높음', color: 'amber-500' });
-    expect(priorityGrade(8)).toEqual({ grade: '높음', color: 'amber-500' });
-    expect(priorityGrade(7)).toEqual({ grade: '보통', color: 'slate-500' });
-    expect(priorityGrade(4)).toEqual({ grade: '보통', color: 'slate-500' });
-    expect(priorityGrade(3)).toEqual({ grade: '낮음', color: 'slate-400' });
-    expect(priorityGrade(1)).toEqual({ grade: '낮음', color: 'slate-400' });
+    expect(priorityGrade(14)).toEqual({ grade: '높음', color: 'orange-500' });
+    expect(priorityGrade(8)).toEqual({ grade: '높음', color: 'orange-500' });
+    expect(priorityGrade(7)).toEqual({ grade: '보통', color: 'grey-500' });
+    expect(priorityGrade(4)).toEqual({ grade: '보통', color: 'grey-500' });
+    expect(priorityGrade(3)).toEqual({ grade: '낮음', color: 'grey-400' });
+    expect(priorityGrade(1)).toEqual({ grade: '낮음', color: 'grey-400' });
   });
 
   it('등급 경계 3/4, 7/8, 14/15에서 전환한다', () => {

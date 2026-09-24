@@ -224,7 +224,7 @@ function EntityFormModal({
           )}
 
           {reloaded && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
               <p className="font-semibold">최신 내용을 다시 불러왔습니다.</p>
               {differences.length === 0 ? (
                 <p className="mt-1 text-xs">내 입력과 다른 항목이 없습니다. 그대로 저장하면 됩니다.</p>
@@ -235,13 +235,13 @@ function EntityFormModal({
                       key={field.key}
                       className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
                     >
-                      <span className="font-semibold text-slate-700">{field.label}</span>
-                      <span className="text-slate-500">내 입력: {displayValue(field.key, values)}</span>
-                      <span className="text-slate-500">최신: {displayValue(field.key, latest)}</span>
+                      <span className="font-semibold text-grey-700">{field.label}</span>
+                      <span className="text-grey-500">내 입력: {displayValue(field.key, values)}</span>
+                      <span className="text-grey-500">최신: {displayValue(field.key, latest)}</span>
                       <button
                         type="button"
                         onClick={() => setField(field.key, latest[field.key])}
-                        className="ml-auto rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                        className="ml-auto rounded-md border border-orange-300 px-2 py-0.5 font-semibold text-orange-800"
                       >
                         최신 값 사용
                       </button>
@@ -254,60 +254,60 @@ function EntityFormModal({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">이름</span>
+              <span className="text-sm font-medium text-grey-700">이름</span>
               <input
                 type="text"
                 value={values.name}
                 onChange={(e) => setField('name', e.target.value)}
                 maxLength={100}
                 placeholder={namePlaceholder}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
-              <span className="mt-1 block text-xs text-slate-500">
+              <span className="mt-1 block text-xs text-grey-500">
                 비워 두면 순서에 따라 자동으로 표시됩니다 ({namePlaceholder}).
               </span>
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">시작일</span>
+              <span className="text-sm font-medium text-grey-700">시작일</span>
               <input
                 type="date"
                 value={values.startDate}
                 onChange={(e) => setField('startDate', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">종료일</span>
+              <span className="text-sm font-medium text-grey-700">종료일</span>
               <input
                 type="date"
                 value={values.endDate}
                 onChange={(e) => setField('endDate', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">연구개발비(원)</span>
+              <span className="text-sm font-medium text-grey-700">연구개발비(원)</span>
               <input
                 type="text"
                 inputMode="numeric"
                 value={formatAmountInput(values.budget)}
                 onChange={(e) => setField('budget', toDigits(e.target.value))}
                 placeholder="0"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-right text-sm tabular-nums focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-right text-sm tabular-nums focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">목표</span>
+              <span className="text-sm font-medium text-grey-700">목표</span>
               <textarea
                 value={values.goal}
                 onChange={(e) => setField('goal', e.target.value)}
                 rows={3}
                 maxLength={2000}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
           </div>
@@ -511,11 +511,11 @@ export default function StageYearPanel({
   const canDeleteStage = stages.length > 1; // H-6: 마지막 단계는 삭제 불가
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5">
+    <section className="rounded-2xl border border-grey-200 bg-white p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-slate-900">단계 · 연차</h2>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <h2 className="text-base font-bold text-grey-900">단계 · 연차</h2>
+          <p className="mt-0.5 text-xs text-grey-500">
             연차를 클릭하면 해당 연차의 WBS로 이동합니다. 손잡이(⠿)를 끌어 순서를 바꿉니다.
           </p>
         </div>
@@ -541,7 +541,7 @@ export default function StageYearPanel({
       )}
 
       {orderedStages.length === 0 ? (
-        <p className="mt-6 rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+        <p className="mt-6 rounded-xl border border-dashed border-grey-300 p-8 text-center text-sm text-grey-500">
           단계가 없습니다. [단계 추가]로 첫 단계를 만드세요.
         </p>
       ) : (
@@ -563,7 +563,7 @@ export default function StageYearPanel({
                   void handleStageDrop(stage.id);
                 }}
                 className={`rounded-xl border p-4 transition ${
-                  dropTargetId === stage.id ? 'border-blue-400 ring-2 ring-blue-200' : 'border-slate-200'
+                  dropTargetId === stage.id ? 'border-blue-400 ring-2 ring-blue-200' : 'border-grey-200'
                 } ${drag?.kind === 'stage' && drag.id === stage.id ? 'opacity-40' : ''}`}
               >
                 <div className="flex flex-wrap items-center gap-2">
@@ -582,17 +582,17 @@ export default function StageYearPanel({
                       role="button"
                       aria-label={`${stageLabel(stage)} 순서 변경 손잡이`}
                       title="끌어서 단계 순서 변경"
-                      className="cursor-grab px-1 text-slate-300 hover:text-slate-500"
+                      className="cursor-grab px-1 text-grey-300 hover:text-grey-500"
                     >
                       ⠿
                     </span>
                   )}
 
-                  <h3 className="text-sm font-bold text-slate-900">{stageLabel(stage)}</h3>
-                  <span className="text-xs text-slate-500">
+                  <h3 className="text-sm font-bold text-grey-900">{stageLabel(stage)}</h3>
+                  <span className="text-xs text-grey-500">
                     {formatRange(stage.startDate, stage.endDate)}
                   </span>
-                  <span className="text-xs text-slate-500">· {formatWon(stage.budget)}</span>
+                  <span className="text-xs text-grey-500">· {formatWon(stage.budget)}</span>
                   <Badge tone="neutral" title="단계 진척률 (§6.1)">
                     진척 {Math.round(stageProgress[stage.id] ?? 0)}%
                   </Badge>
@@ -633,11 +633,11 @@ export default function StageYearPanel({
                 </div>
 
                 {stage.goal.trim() && (
-                  <p className="mt-2 whitespace-pre-wrap text-xs text-slate-600">{stage.goal}</p>
+                  <p className="mt-2 whitespace-pre-wrap text-xs text-grey-600">{stage.goal}</p>
                 )}
 
                 {stageYears.length === 0 ? (
-                  <p className="mt-3 rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500">
+                  <p className="mt-3 rounded-lg border border-dashed border-grey-300 p-4 text-center text-xs text-grey-500">
                     연차가 없습니다. [연차 추가]를 누르세요.
                   </p>
                 ) : (
@@ -659,18 +659,18 @@ export default function StageYearPanel({
                           e.stopPropagation();
                           void handleYearDrop(year.id);
                         }}
-                        className={`rounded-xl border bg-slate-50/60 p-3 transition ${
+                        className={`rounded-xl border bg-grey-50/60 p-3 transition ${
                           dropTargetId === year.id
                             ? 'border-blue-400 ring-2 ring-blue-200'
                             : year.status === 'active'
                               ? 'border-blue-300 ring-1 ring-blue-200' // §5.5 현재 연차 하이라이트
-                              : 'border-slate-200'
+                              : 'border-grey-200'
                         } ${drag?.kind === 'year' && drag.id === year.id ? 'opacity-40' : ''}`}
                       >
                         <div className="flex items-start gap-2">
                           <Link
                             href={`/projects/${projectId}/wbs?yearId=${year.id}`}
-                            className="min-w-0 text-sm font-semibold text-slate-900 hover:underline"
+                            className="min-w-0 text-sm font-semibold text-grey-900 hover:underline"
                           >
                             {yearLabel(year)}
                           </Link>
@@ -693,17 +693,17 @@ export default function StageYearPanel({
                             role="button"
                             aria-label={`${yearLabel(year)} 순서 변경 손잡이`}
                             title="끌어서 연차 순서 변경 (같은 단계 안에서만 가능)"
-                            className="ml-auto cursor-grab px-1 text-slate-300 hover:text-slate-500"
+                            className="ml-auto cursor-grab px-1 text-grey-300 hover:text-grey-500"
                           >
                             ⠿
                           </span>
                         </div>
 
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="mt-1 text-xs text-grey-500">
                           {formatRange(year.startDate, year.endDate)}
                         </p>
                         <ProgressBar value={progress} className="mt-2" />
-                        <p className="mt-2 text-xs text-slate-600">
+                        <p className="mt-2 text-xs text-grey-600">
                           연구개발비 <span className="tabular-nums">{formatWon(year.budget)}</span>
                         </p>
 
@@ -711,7 +711,7 @@ export default function StageYearPanel({
                           <Badge tone={YEAR_STATUS_TONES[year.status]}>
                             {YEAR_STATUS_LABELS[year.status]}
                           </Badge>
-                          <label className="text-xs text-slate-500">
+                          <label className="text-xs text-grey-500">
                             <span className="sr-only">{yearLabel(year)} 상태</span>
                             <select
                               value={year.status}
@@ -719,7 +719,7 @@ export default function StageYearPanel({
                               onChange={(e) =>
                                 void handleYearStatus(year.id, e.target.value as YearStatus)
                               }
-                              className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs focus:border-slate-500 focus:outline-none"
+                              className="rounded-lg border border-grey-300 bg-white px-2 py-1 text-xs focus:border-grey-500 focus:outline-none"
                             >
                               {(Object.keys(YEAR_STATUS_LABELS) as YearStatus[]).map((status) => (
                                 <option key={status} value={status}>
@@ -801,7 +801,7 @@ export default function StageYearPanel({
             // §7.8 날짜는 연차 종료일에서 제안된다 — 종료일이 없으면 만들 수 없다
             const canGenerate = values.endDate !== '';
             return (
-              <label className="mt-4 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <label className="mt-4 flex items-start gap-2 rounded-xl border border-grey-200 bg-grey-50 p-3">
                 <input
                   type="checkbox"
                   checked={canGenerate && withDefaultMilestones}
@@ -809,8 +809,8 @@ export default function StageYearPanel({
                   onChange={(e) => setWithDefaultMilestones(e.target.checked)}
                   className="mt-0.5"
                 />
-                <span className="text-xs text-slate-600">
-                  <span className="block text-sm font-medium text-slate-800">
+                <span className="text-xs text-grey-600">
+                  <span className="block text-sm font-medium text-grey-800">
                     기본 마일스톤 함께 생성(연차평가·연차실적계획서 제출)
                   </span>
                   <span className="mt-0.5 block">
@@ -873,7 +873,7 @@ export default function StageYearPanel({
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{yearLabel(editingYear)}</strong>를 삭제합니다.
           </p>
           {/* H-5 필수 안내 문구 */}
@@ -909,7 +909,7 @@ export default function StageYearPanel({
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{stageLabel(editingStage)}</strong>를 삭제합니다. 소속 연차{' '}
             <strong>{(yearsByStage.get(editingStage.id) ?? []).length}개</strong>가 함께 삭제됩니다.
           </p>
@@ -918,7 +918,7 @@ export default function StageYearPanel({
             각 연차의 작업·예산이 함께 삭제됩니다. 관련 마일스톤·실적은 연차 없음 상태로 남습니다.
           </p>
           {!canDeleteStage && (
-            <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+            <p className="mt-3 rounded-lg bg-grey-50 p-3 text-xs text-grey-600">
               과제에는 단계가 최소 1개 필요합니다. 마지막 단계는 삭제할 수 없습니다 (H-6).
             </p>
           )}

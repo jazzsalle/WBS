@@ -288,9 +288,9 @@ export default function MemberSection({
   return (
     <section aria-labelledby="member-section-title">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="member-section-title" className="text-base font-bold text-slate-900">
+        <h2 id="member-section-title" className="text-base font-bold text-grey-900">
           참여인력
-          <span className="ml-2 text-xs font-normal text-slate-500">{members.length}명</span>
+          <span className="ml-2 text-xs font-normal text-grey-500">{members.length}명</span>
         </h2>
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -314,14 +314,14 @@ export default function MemberSection({
       {notice && (
         <div
           role="status"
-          className="mt-3 flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+          className="mt-3 flex items-start justify-between gap-4 rounded-xl border border-grey-200 bg-grey-50 p-3 text-sm text-grey-700"
         >
           <p className="min-w-0 break-words">{notice}</p>
           <button
             type="button"
             onClick={() => setNotice(null)}
             aria-label="알림 닫기"
-            className="shrink-0 font-bold text-slate-400 hover:text-slate-600"
+            className="shrink-0 font-bold text-grey-400 hover:text-grey-600"
           >
             ×
           </button>
@@ -331,7 +331,7 @@ export default function MemberSection({
       <div className="mt-3 flex flex-col gap-4 lg:flex-row">
         <div className="min-w-0 flex-1 space-y-5">
           {groups.length === 0 && (
-            <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-400">
+            <p className="rounded-xl border border-dashed border-grey-300 bg-white p-6 text-center text-sm text-grey-400">
               등록된 인력이 없습니다. [인력 추가]로 시작하세요.
             </p>
           )}
@@ -339,17 +339,17 @@ export default function MemberSection({
           {groups.map((group) => (
             <div
               key={group.key}
-              className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+              className="overflow-hidden rounded-xl border border-grey-200 bg-white"
             >
-              <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2.5">
-                <span className="text-sm font-semibold text-slate-800">{group.label}</span>
+              <div className="flex items-center gap-2 border-b border-grey-100 bg-grey-50 px-4 py-2.5">
+                <span className="text-sm font-semibold text-grey-800">{group.label}</span>
                 {group.role && <Badge tone={ORG_ROLE_TONES[group.role]}>{ORG_ROLE_LABELS[group.role]}</Badge>}
-                <span className="text-xs text-slate-500">{group.members.length}명</span>
+                <span className="text-xs text-grey-500">{group.members.length}명</span>
               </div>
 
               <table className="w-full text-left text-sm">
-                <thead className="text-xs text-slate-500">
-                  <tr className="border-b border-slate-100">
+                <thead className="text-xs text-grey-500">
+                  <tr className="border-b border-grey-100">
                     <th className="px-4 py-2 font-medium">이름</th>
                     <th className="px-4 py-2 font-medium">역할</th>
                     <th className="px-4 py-2 font-medium">직급</th>
@@ -360,7 +360,7 @@ export default function MemberSection({
                     <th className="px-4 py-2 text-right font-medium">동작</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-grey-100">
                   {group.members.map((member) => {
                     const isPm = member.id === pmMemberId;
                     const isSelected = member.id === selectedId;
@@ -369,15 +369,15 @@ export default function MemberSection({
                         key={member.id}
                         onClick={() => setSelectedId(member.id)}
                         className={`cursor-pointer transition ${
-                          isSelected ? 'bg-slate-100' : 'hover:bg-slate-50'
-                        } ${member.active ? '' : 'text-slate-400'}`}
+                          isSelected ? 'bg-grey-100' : 'hover:bg-grey-50'
+                        } ${member.active ? '' : 'text-grey-400'}`}
                       >
                         <td className="px-4 py-2.5">
                           <button
                             type="button"
                             // 행 클릭과 같은 동작 — 키보드 사용자를 위한 접근 경로다
                             onClick={() => setSelectedId(member.id)}
-                            className="text-left font-medium text-slate-900 underline-offset-2 hover:underline"
+                            className="text-left font-medium text-grey-900 underline-offset-2 hover:underline"
                           >
                             {member.name}
                           </button>
@@ -393,25 +393,25 @@ export default function MemberSection({
                             </Badge>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 text-slate-600">
+                        <td className="px-4 py-2.5 text-grey-600">
                           {MEMBER_ROLE_LABELS[member.role]}
                         </td>
-                        <td className="px-4 py-2.5 text-slate-600">{member.position || '—'}</td>
-                        <td className="px-4 py-2.5 text-slate-600">{member.field || '—'}</td>
-                        <td className="px-4 py-2.5 text-slate-600">
+                        <td className="px-4 py-2.5 text-grey-600">{member.position || '—'}</td>
+                        <td className="px-4 py-2.5 text-grey-600">{member.field || '—'}</td>
+                        <td className="px-4 py-2.5 text-grey-600">
                           {member.email === '' && member.phone === '' ? (
                             '—'
                           ) : (
                             <>
                               {member.email && <span className="block">{member.email}</span>}
                               {member.phone && (
-                                <span className="block text-xs text-slate-500">{member.phone}</span>
+                                <span className="block text-xs text-grey-500">{member.phone}</span>
                               )}
                             </>
                           )}
                         </td>
                         {/* 미입력(null)은 0원과 다르다 — '—'로 구분해 보여준다 (§5.11) */}
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-600">
+                        <td className="px-4 py-2.5 text-right tabular-nums text-grey-600">
                           {member.annualSalary === null
                             ? '—'
                             : `${member.annualSalary.toLocaleString('ko-KR')}원`}
@@ -526,10 +526,10 @@ export default function MemberSection({
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{pmTarget.name}</strong>님을 이 과제의 총괄책임자(PM)로 지정합니다.
           </p>
-          <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+          <p className="mt-3 rounded-lg bg-orange-50 p-3 text-sm text-orange-800">
             기존 PM({currentPmName ?? '미지정'})의 역할은 자동으로 바뀌지 않습니다. 필요하면 직접
             수정하세요.
           </p>
@@ -583,20 +583,20 @@ export default function MemberSection({
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{deletingMember.name}</strong>님을 삭제하면 아래 참조가 함께 정리됩니다.
           </p>
 
-          {countsLoading && <p className="mt-3 text-sm text-slate-500">참조 건수를 확인하는 중…</p>}
+          {countsLoading && <p className="mt-3 text-sm text-grey-500">참조 건수를 확인하는 중…</p>}
 
           {counts && (
-            <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg bg-slate-50 p-3 text-sm">
+            <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg bg-grey-50 p-3 text-sm">
               {REFERENCE_FIELDS.map(({ key, label }) => (
                 <li key={key} className="flex items-center justify-between gap-2">
-                  <span className="text-slate-600">{label}</span>
+                  <span className="text-grey-600">{label}</span>
                   <span
                     className={`tabular-nums ${
-                      counts[key] > 0 ? 'font-semibold text-slate-900' : 'text-slate-400'
+                      counts[key] > 0 ? 'font-semibold text-grey-900' : 'text-grey-400'
                     }`}
                   >
                     {counts[key]}건
@@ -610,11 +610,11 @@ export default function MemberSection({
           {counts && (
             <div
               className={`mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg p-3 text-sm ${
-                deleteBlocked ? 'bg-red-50 text-red-800' : 'bg-slate-50 text-slate-600'
+                deleteBlocked ? 'bg-red-50 text-red-800' : 'bg-grey-50 text-grey-600'
               }`}
             >
               <span>인건비 산출근거</span>
-              <span className={`tabular-nums ${deleteBlocked ? 'font-semibold' : 'text-slate-400'}`}>
+              <span className={`tabular-nums ${deleteBlocked ? 'font-semibold' : 'text-grey-400'}`}>
                 {counts.budgetDetails}건
               </span>
             </div>
@@ -640,7 +640,7 @@ export default function MemberSection({
             </div>
           )}
 
-          <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="mt-3 rounded-lg bg-orange-50 p-3 text-xs text-orange-800">
             참여가 끝난 인력이라면 삭제 대신 <strong>[비활성]</strong>을 권장합니다. 비활성으로
             두면 지난 작업·실적 기록이 그대로 남습니다.
           </p>

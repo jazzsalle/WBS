@@ -18,7 +18,7 @@ import { DELETED_GOAL } from './conflict';
 export type DropZone = 'before' | 'inside' | 'after';
 
 // 부록 A.3의 색 의미를 뱃지 톤으로 옮긴다. Tailwind는 클래스명을 정적으로 스캔하므로
-// 'slate-400' 같은 토큰을 문자열로 조립하지 않고 완전한 클래스를 나열한다.
+// 'grey-400' 같은 토큰을 문자열로 조립하지 않고 완전한 클래스를 나열한다.
 const STATUS_TONES: Record<TaskStatus, BadgeTone> = {
   todo: 'neutral',
   in_progress: 'blue',
@@ -27,13 +27,13 @@ const STATUS_TONES: Record<TaskStatus, BadgeTone> = {
 };
 
 const STATUS_SELECT_CLASSES: Record<TaskStatus, string> = {
-  todo: 'border-slate-200 bg-white text-slate-600',
+  todo: 'border-grey-200 bg-white text-grey-600',
   in_progress: 'border-blue-200 bg-blue-50 text-blue-700',
-  done: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  blocked: 'border-rose-200 bg-rose-50 text-rose-700',
+  done: 'border-green-200 bg-green-50 text-green-700',
+  blocked: 'border-red-200 bg-red-50 text-red-700',
 };
 
-// §6.9.2 등급 색(red-600 / amber-500 / slate-500 / slate-400)에 대응하는 뱃지 톤
+// §6.9.2 등급 색(red-600 / orange-500 / grey-500 / grey-400)에 대응하는 뱃지 톤
 const GRADE_TONES: Record<PriorityGrade, BadgeTone> = {
   최우선: 'red',
   높음: 'amber',
@@ -195,16 +195,16 @@ export default function TreeRow({
         callbacks.onDropRow(task.id, zoneFromPointer(e));
       }}
       className={[
-        'border-b border-slate-100 text-sm outline-none focus:bg-slate-50',
-        selected ? 'bg-blue-50/70' : 'hover:bg-slate-50',
+        'border-b border-grey-100 text-sm outline-none focus:bg-grey-50',
+        selected ? 'bg-blue-50/70' : 'hover:bg-grey-50',
         dragging ? 'opacity-40' : '',
-        task.status === 'done' ? 'text-slate-400' : 'text-slate-700', // PR-6: 완료는 흐리게
+        task.status === 'done' ? 'text-grey-400' : 'text-grey-700', // PR-6: 완료는 흐리게
         dropZone === 'before' ? 'shadow-[inset_0_2px_0_0_#2563eb]' : '',
         dropZone === 'after' ? 'shadow-[inset_0_-2px_0_0_#2563eb]' : '',
         dropZone === 'inside' ? 'ring-2 ring-inset ring-blue-400' : '',
       ].join(' ')}
     >
-      <td className="px-2 py-1.5 font-mono text-xs text-slate-400">{node.wbsCode}</td>
+      <td className="px-2 py-1.5 font-mono text-xs text-grey-400">{node.wbsCode}</td>
 
       <td className="px-2 py-1.5">
         <div className="flex items-center" style={{ paddingLeft: (node.depth - 1) * INDENT_PX }}>
@@ -217,7 +217,7 @@ export default function TreeRow({
               }}
               aria-label={collapsed ? '하위 작업 펼치기' : '하위 작업 접기'}
               aria-expanded={!collapsed}
-              className="mr-1 w-4 shrink-0 text-xs text-slate-400 hover:text-slate-700"
+              className="mr-1 w-4 shrink-0 text-xs text-grey-400 hover:text-grey-700"
             >
               {collapsed ? '▸' : '▾'}
             </button>
@@ -260,13 +260,13 @@ export default function TreeRow({
         </div>
       </td>
 
-      <td className="px-2 py-1.5 text-xs text-slate-500">
+      <td className="px-2 py-1.5 text-xs text-grey-500">
         {ownerName === null && extraMemberNames.length === 0 ? (
-          <span className="text-slate-300">—</span>
+          <span className="text-grey-300">—</span>
         ) : (
           <span className="flex items-center gap-1">
             <span className="truncate" title={ownerName ?? '책임자 미지정'}>
-              {ownerName ?? <span className="text-slate-400">미지정</span>}
+              {ownerName ?? <span className="text-grey-400">미지정</span>}
             </span>
             {extraMemberNames.length > 0 && (
               <Badge
@@ -279,9 +279,9 @@ export default function TreeRow({
           </span>
         )}
       </td>
-      <td className="px-2 py-1.5 text-xs text-slate-500">
+      <td className="px-2 py-1.5 text-xs text-grey-500">
         {orgName === null ? (
-          <span className="text-slate-300">—</span>
+          <span className="text-grey-300">—</span>
         ) : (
           // 기관명은 길다. 잘라 보여주되 전체 이름은 title로 남긴다
           <span className="block truncate" title={orgName}>
@@ -331,7 +331,7 @@ export default function TreeRow({
             aria-valuemax={100}
             aria-valuenow={Math.round(node.progress)}
             aria-label="진척률"
-            className="h-1.5 w-full min-w-8 overflow-hidden rounded-full bg-slate-100"
+            className="h-1.5 w-full min-w-8 overflow-hidden rounded-full bg-grey-100"
           >
             <span
               className="block h-full rounded-full bg-blue-500"
@@ -388,7 +388,7 @@ export default function TreeRow({
                   ? '자동(하위 작업 가중 평균). 클릭하면 수동으로 바꿉니다'
                   : '수동 입력. 클릭하면 자동 롤업으로 되돌립니다'
               }
-              className="shrink-0 rounded border border-slate-200 px-1 text-[10px] text-slate-500 hover:bg-slate-100"
+              className="shrink-0 rounded border border-grey-200 px-1 text-[10px] text-grey-500 hover:bg-grey-100"
             >
               {task.progressMode === 'auto' ? '자동' : '수동'}
             </button>
@@ -396,7 +396,7 @@ export default function TreeRow({
         </div>
       </td>
 
-      <td className={`px-2 py-1.5 text-xs whitespace-nowrap ${overdue ? 'font-semibold text-red-600' : 'text-slate-500'}`}>
+      <td className={`px-2 py-1.5 text-xs whitespace-nowrap ${overdue ? 'font-semibold text-red-600' : 'text-grey-500'}`}>
         {node.rolledUpStartDate === null && node.rolledUpDueDate === null ? (
           '—'
         ) : (
@@ -406,13 +406,13 @@ export default function TreeRow({
         )}
       </td>
 
-      <td className="px-2 py-1.5 text-xs whitespace-nowrap text-slate-500" title="예상 / 실적 공수">
+      <td className="px-2 py-1.5 text-xs whitespace-nowrap text-grey-500" title="예상 / 실적 공수">
         {formatHours(task.estimatedHours)} / {formatHours(task.actualHours)}
       </td>
 
       <td className="px-2 py-1.5 text-xs">
         {linkedCount === 0 ? (
-          <span className="text-slate-300">—</span>
+          <span className="text-grey-300">—</span>
         ) : (
           <span className="flex gap-1">
             {task.deliverableIds.length > 0 && (

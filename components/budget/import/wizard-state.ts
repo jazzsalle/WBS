@@ -234,13 +234,13 @@ export const MAPPING_STATUS_LABEL: Record<MappingStatus, string> = {
 };
 
 export const MAPPING_STATUS_CLASS: Record<MappingStatus, string> = {
-  exact: 'text-emerald-700',
+  exact: 'text-green-700',
   alias: 'text-blue-700',
   manual: 'text-blue-700 font-semibold',
-  fuzzy: 'text-amber-700',
-  ambiguous: 'text-amber-700',
+  fuzzy: 'text-orange-700',
+  ambiguous: 'text-orange-700',
   unmapped: 'text-red-700 font-semibold',
-  skipped: 'text-slate-400',
+  skipped: 'text-grey-400',
 };
 
 /** 미리보기 오류 행의 사유가 "비목을 못 정했다"는 뜻인지 (금액 셀 오류와 구분) */

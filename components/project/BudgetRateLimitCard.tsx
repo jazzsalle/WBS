@@ -79,7 +79,7 @@ function displayValue(key: keyof FormValues, values: FormValues): string {
 }
 
 const INPUT_CLASS =
-  'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-right text-sm tabular-nums focus:border-slate-500 focus:outline-none';
+  'mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-right text-sm tabular-nums focus:border-grey-500 focus:outline-none';
 
 export interface BudgetRateLimitCardProps {
   projectId: string;
@@ -186,9 +186,9 @@ export default function BudgetRateLimitCard({ projectId, project }: BudgetRateLi
 
   return (
     <>
-      <section className="rounded-2xl border border-slate-200 bg-white p-5">
+      <section className="rounded-2xl border border-grey-200 bg-white p-5">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-base font-bold text-slate-900">지침 한도</h2>
+          <h2 className="text-base font-bold text-grey-900">지침 한도</h2>
           <Link
             href={`/projects/${projectId}/budget`}
             className="text-xs font-medium text-blue-600 hover:underline"
@@ -196,7 +196,7 @@ export default function BudgetRateLimitCard({ projectId, project }: BudgetRateLi
             연구비 →
           </Link>
         </div>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-grey-500">
           연구비 제안 화면의 지침 검증에 쓰는 한도율입니다. 과제마다 다르므로 사용자가 직접
           입력합니다 (§6.10.3 PL-14).
         </p>
@@ -214,14 +214,14 @@ export default function BudgetRateLimitCard({ projectId, project }: BudgetRateLi
           {saved && !dirty && (
             <p
               role="status"
-              className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
+              className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800"
             >
               지침 한도를 저장했습니다.
             </p>
           )}
 
           {reloaded && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
               <p className="font-semibold">최신 내용을 다시 불러왔습니다.</p>
               {differences.length === 0 ? (
                 <p className="mt-1 text-xs">내 입력과 다른 항목이 없습니다. 그대로 저장하면 됩니다.</p>
@@ -237,17 +237,17 @@ export default function BudgetRateLimitCard({ projectId, project }: BudgetRateLi
                         key={field.key}
                         className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
                       >
-                        <span className="font-semibold text-slate-700">{field.label}</span>
-                        <span className="text-slate-500">
+                        <span className="font-semibold text-grey-700">{field.label}</span>
+                        <span className="text-grey-500">
                           내 입력: {displayValue(field.key, values)}
                         </span>
-                        <span className="text-slate-500">
+                        <span className="text-grey-500">
                           최신: {displayValue(field.key, baselineValues)}
                         </span>
                         <button
                           type="button"
                           onClick={() => setField(field.key, baselineValues[field.key])}
-                          className="ml-auto rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                          className="ml-auto rounded-md border border-orange-300 px-2 py-0.5 font-semibold text-orange-800"
                         >
                           최신 값 사용
                         </button>
@@ -264,7 +264,7 @@ export default function BudgetRateLimitCard({ projectId, project }: BudgetRateLi
               const empty = values[field.key].trim() === '';
               return (
                 <label key={field.key}>
-                  <span className="text-sm font-medium text-slate-700">
+                  <span className="text-sm font-medium text-grey-700">
                     {fieldOf(field.key).label}
                   </span>
                   <input
@@ -279,20 +279,20 @@ export default function BudgetRateLimitCard({ projectId, project }: BudgetRateLi
                   />
                   {/* 지금 이 필드가 검사 대상인지 아닌지를 값 옆에서 바로 읽을 수 있게 한다 */}
                   <span
-                    className={`mt-1 block text-xs font-medium ${empty ? 'text-slate-400' : 'text-slate-600'}`}
+                    className={`mt-1 block text-xs font-medium ${empty ? 'text-grey-400' : 'text-grey-600'}`}
                   >
                     {empty
                       ? '비어 있음 — 이 검사를 하지 않습니다'
                       : `${values[field.key].trim()}%를 넘으면 경고합니다`}
                   </span>
-                  <span className="mt-1 block text-xs text-slate-500">{field.hint}</span>
+                  <span className="mt-1 block text-xs text-grey-500">{field.hint}</span>
                 </label>
               );
             })}
           </div>
 
           <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
-            <div className="max-w-md space-y-1 text-xs text-slate-500">
+            <div className="max-w-md space-y-1 text-xs text-grey-500">
               {/* §5.3 주석 그대로: 모르는 값을 0으로 취급하면 전 과제에 빨간 경고가 뜬다 */}
               <p>
                 빈 값은 <strong>0%가 아니라 &ldquo;검사하지 않음&rdquo;</strong>입니다. 모르는 값을

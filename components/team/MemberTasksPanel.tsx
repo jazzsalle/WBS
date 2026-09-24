@@ -32,30 +32,30 @@ export default function MemberTasksPanel({ member, tasks, onClose }: MemberTasks
   return (
     <aside
       aria-label={`${member.name} 배정 작업`}
-      className="w-full shrink-0 rounded-xl border border-slate-200 bg-white lg:w-80"
+      className="w-full shrink-0 rounded-xl border border-grey-200 bg-white lg:w-80"
     >
-      <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
+      <div className="flex items-start justify-between gap-3 border-b border-grey-100 px-4 py-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-slate-900">{member.name}</p>
-          <p className="mt-0.5 text-xs text-slate-500">배정된 작업 {tasks.length}건</p>
+          <p className="truncate text-sm font-bold text-grey-900">{member.name}</p>
+          <p className="mt-0.5 text-xs text-grey-500">배정된 작업 {tasks.length}건</p>
         </div>
         <button
           type="button"
           onClick={onClose}
           aria-label="배정 작업 패널 닫기"
-          className="shrink-0 text-lg leading-none text-slate-400 hover:text-slate-600"
+          className="shrink-0 text-lg leading-none text-grey-400 hover:text-grey-600"
         >
           ×
         </button>
       </div>
 
       {sorted.length === 0 ? (
-        <p className="px-4 py-6 text-center text-sm text-slate-400">배정된 작업이 없습니다.</p>
+        <p className="px-4 py-6 text-center text-sm text-grey-400">배정된 작업이 없습니다.</p>
       ) : (
-        <ul className="max-h-[28rem] divide-y divide-slate-100 overflow-y-auto">
+        <ul className="max-h-[28rem] divide-y divide-grey-100 overflow-y-auto">
           {sorted.map((task) => (
             <li key={task.id} className="px-4 py-2.5">
-              <p className="text-sm text-slate-900">{task.title}</p>
+              <p className="text-sm text-grey-900">{task.title}</p>
               <div className="mt-1 flex items-center gap-1.5">
                 <Badge tone={STATUS_TONES[task.status]}>{TASK_STATUS_LABELS[task.status]}</Badge>
                 <Badge tone={task.isOwner ? 'violet' : 'neutral'}>

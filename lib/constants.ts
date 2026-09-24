@@ -126,48 +126,48 @@ export const DELIVERABLE_TYPE_DEFAULT_UNITS: Record<DeliverableType, string> = {
 // ─── 부록 A.3 색상 규약 (Tailwind 팔레트 토큰) ───────────────
 
 export const TASK_STATUS_COLORS: Record<TaskStatus, string> = {
-  todo: 'slate-400',
+  todo: 'grey-400',
   in_progress: 'blue-500',
-  done: 'emerald-500',
-  blocked: 'rose-500',
+  done: 'green-500',
+  blocked: 'red-500',
 };
 
 // 마감 판정 색상 (§6.5)
 export const DUE_COLORS = {
   overdue: 'red-600',
-  dueSoon: 'amber-500',
+  dueSoon: 'orange-500',
 } as const;
 
 export const MILESTONE_TYPE_COLORS: Record<MilestoneType, string> = {
-  annual_eval: 'violet-600',
-  stage_eval: 'violet-600',
-  final_eval: 'violet-600',
-  report: 'sky-600',
+  annual_eval: 'purple-600',
+  stage_eval: 'purple-600',
+  final_eval: 'purple-600',
+  report: 'blue-600',
   progress_check: 'teal-600',
-  contract: 'slate-600',
-  demo: 'slate-600',
-  custom: 'slate-600',
+  contract: 'grey-600',
+  demo: 'grey-600',
+  custom: 'grey-600',
 };
 
 // 우선순위 점수(§6.9.2 importance × urgency, 1~25) 구간별 등급·색상. min ≤ score ≤ max
 export const PRIORITY_SCORE_COLORS = [
   { min: 15, max: 25, grade: '최우선', color: 'red-600' },
-  { min: 8, max: 14, grade: '높음', color: 'amber-500' },
-  { min: 4, max: 7, grade: '보통', color: 'slate-500' },
-  { min: 1, max: 3, grade: '낮음', color: 'slate-400' },
+  { min: 8, max: 14, grade: '높음', color: 'orange-500' },
+  { min: 4, max: 7, grade: '보통', color: 'grey-500' },
+  { min: 1, max: 3, grade: '낮음', color: 'grey-400' },
 ] as const;
 
 // 리스크 점수(probability × impact, 1~25) 구간별 색상. min ≤ score ≤ max
 export const RISK_SCORE_COLORS = [
   { min: 15, max: 25, color: 'red-600' },
-  { min: 8, max: 14, color: 'amber-500' },
-  { min: 1, max: 7, color: 'emerald-600' },
+  { min: 8, max: 14, color: 'orange-500' },
+  { min: 1, max: 7, color: 'green-600' },
 ] as const;
 
 export const ORG_ROLE_COLORS: Record<OrgRole, string> = {
-  lead: 'indigo-600',
-  joint: 'sky-600',
-  consign: 'slate-500',
+  lead: 'purple-600',
+  joint: 'blue-600',
+  consign: 'grey-500',
 };
 
 // ─── 부록 A.4 기타 enum 한글 라벨 (17종) ─────────────────────

@@ -37,8 +37,8 @@ export default function ConflictDialog({
         </>
       }
     >
-      <p className="text-sm text-slate-700">{message}</p>
-      <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+      <p className="text-sm text-grey-700">{message}</p>
+      <p className="mt-3 rounded-lg bg-grey-50 p-3 text-xs text-grey-600">
         입력하신 내용은 그대로 남아 있습니다. <strong>다시 불러오기</strong>를 누르면 최신 값을
         가져와 내 입력과 다른 항목만 비교해 보여줍니다. <strong>계속 편집</strong>을 누르면 지금
         화면 그대로 작업을 이어갈 수 있습니다.

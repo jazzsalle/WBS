@@ -71,9 +71,9 @@ function positionFromPointer(e: DragEvent<HTMLElement>): DropPosition {
 }
 
 const CELL_BUTTON =
-  'rounded-lg px-2 py-1 text-left text-xs text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50';
+  'rounded-lg px-2 py-1 text-left text-xs text-grey-600 hover:bg-grey-100 disabled:cursor-not-allowed disabled:opacity-50';
 const EDIT_INPUT =
-  'rounded-lg border border-slate-400 px-2 py-1 text-sm focus:border-slate-600 focus:outline-none';
+  'rounded-lg border border-grey-400 px-2 py-1 text-sm focus:border-grey-600 focus:outline-none';
 
 export default function TodoRow({
   todo,
@@ -254,8 +254,8 @@ export default function TodoRow({
         dragCallbacks.onDropRow(todo.id, positionFromPointer(e));
       }}
       className={[
-        'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-slate-200 bg-white px-2 py-1.5',
-        dragging ? 'opacity-40' : 'hover:border-slate-300',
+        'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-grey-200 bg-white px-2 py-1.5',
+        dragging ? 'opacity-40' : 'hover:border-grey-300',
         // T-D8: 완료 항목은 `전체` 필터에서 흐린 스타일로 남는다
         done ? 'opacity-60' : '',
         dropPosition === 'before' ? 'shadow-[inset_0_2px_0_0_#2563eb]' : '',
@@ -278,7 +278,7 @@ export default function TodoRow({
             : '수동 정렬일 때만 순서를 바꿀 수 있습니다 (T-D9)'
         }
         className={`select-none px-1 text-sm leading-none ${
-          dragEnabled && !disabled ? 'cursor-grab text-slate-400' : 'cursor-not-allowed text-slate-200'
+          dragEnabled && !disabled ? 'cursor-grab text-grey-400' : 'cursor-not-allowed text-grey-200'
         }`}
       >
         ⠿
@@ -290,7 +290,7 @@ export default function TodoRow({
         disabled={disabled}
         onChange={() => void handleToggle()}
         aria-label={`${todo.title} 완료`}
-        className="h-4 w-4 shrink-0 rounded border-slate-300"
+        className="h-4 w-4 shrink-0 rounded border-grey-300"
       />
 
       {/* 제목 — 인라인 편집 */}
@@ -316,8 +316,8 @@ export default function TodoRow({
             disabled={disabled}
             onClick={() => open('title')}
             title="눌러서 제목을 고칩니다"
-            className={`w-full truncate rounded-lg px-2 py-1 text-left text-sm hover:bg-slate-100 disabled:cursor-not-allowed ${
-              done ? 'text-slate-400 line-through' : 'text-slate-900'
+            className={`w-full truncate rounded-lg px-2 py-1 text-left text-sm hover:bg-grey-100 disabled:cursor-not-allowed ${
+              done ? 'text-grey-400 line-through' : 'text-grey-900'
             }`}
           >
             {todo.title}
@@ -360,8 +360,8 @@ export default function TodoRow({
               onClick={() => open('projectId')}
               title="눌러서 과제를 바꿉니다"
               className={`min-w-0 flex-1 truncate ${CELL_BUTTON} ${
-                todo.projectId === null ? 'text-slate-300' : ''
-              } ${todo.projectId !== null && projectArchived(todo.projectId) ? 'italic text-slate-400' : ''}`}
+                todo.projectId === null ? 'text-grey-300' : ''
+              } ${todo.projectId !== null && projectArchived(todo.projectId) ? 'italic text-grey-400' : ''}`}
             >
               {todo.projectId === null ? NO_PROJECT_LABEL : projectName(todo.projectId)}
             </button>
@@ -370,7 +370,7 @@ export default function TodoRow({
                 href={`/projects/${todo.projectId}`}
                 aria-label="과제 열기"
                 title="과제 화면으로 이동"
-                className="shrink-0 rounded px-1 text-xs text-slate-400 hover:text-blue-600"
+                className="shrink-0 rounded px-1 text-xs text-grey-400 hover:text-blue-600"
               >
                 ↗
               </Link>
@@ -404,9 +404,9 @@ export default function TodoRow({
               onClick={() => open('dueDate')}
               title="눌러서 마감일을 바꿉니다 (비우면 마감 없음)"
               className={`${CELL_BUTTON} tabular-nums ${
-                todo.dueDate === null ? 'text-slate-300' : ''
+                todo.dueDate === null ? 'text-grey-300' : ''
               } ${dueState === 'overdue' ? 'font-semibold text-red-600' : ''} ${
-                dueState === 'dueSoon' ? 'font-semibold text-amber-600' : ''
+                dueState === 'dueSoon' ? 'font-semibold text-orange-600' : ''
               }`}
             >
               {todo.dueDate ?? '마감 없음'}
@@ -452,7 +452,7 @@ export default function TodoRow({
             disabled={disabled}
             onClick={() => open('priority')}
             title="눌러서 우선순위를 바꿉니다"
-            className="rounded-lg p-0.5 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg p-0.5 hover:bg-grey-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Badge tone={PRIORITY_TONES[todo.priority]}>{PRIORITY_LABELS[todo.priority]}</Badge>
           </button>
@@ -465,14 +465,14 @@ export default function TodoRow({
         onClick={() => onRequestDelete(todo.id)}
         aria-label={`${todo.title} 삭제`}
         title="삭제"
-        className="shrink-0 rounded-lg px-2 py-1 text-sm text-slate-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+        className="shrink-0 rounded-lg px-2 py-1 text-sm text-grey-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
       >
         ×
       </button>
 
       {showComparison && editing !== null && (
         // O-3: 작업 내용을 날리지 않는다 — 최신 값과 내 입력을 나란히 두고 사용자가 고르게 한다
-        <p className="w-full rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <p className="w-full rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-800">
           최신 저장값: <strong>{displayValue(editing, currentValue(editing))}</strong> · 내 입력:{' '}
           <strong>{displayValue(editing, draft)}</strong> — 그대로 저장하려면 다시 저장하세요.
         </p>

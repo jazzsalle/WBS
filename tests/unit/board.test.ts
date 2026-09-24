@@ -46,9 +46,9 @@ describe('buildPriorityCells', () => {
       cells.find((c) => c.importance === importance && c.urgency === urgency)!;
 
     expect(at(3, 5)).toMatchObject({ score: 15, grade: '최우선', colorToken: 'red-600' });
-    expect(at(3, 4)).toMatchObject({ score: 12, grade: '높음', colorToken: 'amber-500' });
-    expect(at(3, 2)).toMatchObject({ score: 6, grade: '보통', colorToken: 'slate-500' });
-    expect(at(1, 3)).toMatchObject({ score: 3, grade: '낮음', colorToken: 'slate-400' });
+    expect(at(3, 4)).toMatchObject({ score: 12, grade: '높음', colorToken: 'orange-500' });
+    expect(at(3, 2)).toMatchObject({ score: 6, grade: '보통', colorToken: 'grey-500' });
+    expect(at(1, 3)).toMatchObject({ score: 3, grade: '낮음', colorToken: 'grey-400' });
   });
 
   it('PR-6: 완료 작업은 별도 목록에 담아 셀 개수를 토글할 수 있게 한다', () => {

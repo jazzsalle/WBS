@@ -51,8 +51,8 @@ const FALLBACK: CodePresentation = {
 };
 
 const TONE_CLASSES = {
-  red: 'border-red-200 bg-red-50 text-red-700',
-  amber: 'border-amber-200 bg-amber-50 text-amber-800',
+  red: 'border-red-100 bg-red-50 text-red-700',
+  amber: 'border-orange-100 bg-orange-50 text-orange-800',
 } as const;
 
 export interface ErrorBannerProps {

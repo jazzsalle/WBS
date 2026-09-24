@@ -37,7 +37,7 @@ export default function Step5Preview({
 }: Step5PreviewProps) {
   if (!preview) {
     return (
-      <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">
+      <p className="rounded-xl border border-dashed border-grey-300 p-6 text-center text-sm text-grey-400">
         미리보기를 불러오는 중입니다.
       </p>
     );
@@ -47,37 +47,37 @@ export default function Step5Preview({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-        <span className="text-emerald-700">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-grey-200 bg-grey-50 px-3 py-2 text-xs">
+        <span className="text-green-700">
           신규 <strong>{summary.new}</strong>건
         </span>
-        <span className="text-amber-700">
+        <span className="text-orange-700">
           덮어씀 <strong>{summary.overwrite}</strong>건
         </span>
-        <span className="text-slate-500">
+        <span className="text-grey-500">
           건너뜀 <strong>{summary.skipped}</strong>건 (합계{' '}
           {summary.skippedAmount.toLocaleString('ko-KR')}원)
         </span>
-        <span className="text-slate-600">
+        <span className="text-grey-600">
           <span aria-hidden className="mr-0.5">
             🔒
           </span>
           잠김 <strong>{summary.locked}</strong>건
         </span>
-        <span className={summary.error > 0 ? 'font-semibold text-red-700' : 'text-slate-500'}>
+        <span className={summary.error > 0 ? 'font-semibold text-red-700' : 'text-grey-500'}>
           오류 <strong>{summary.error}</strong>건
         </span>
-        <span className="ml-auto font-semibold text-slate-700">
+        <span className="ml-auto font-semibold text-grey-700">
           합계 {summary.totalAmount.toLocaleString('ko-KR')}원
         </span>
       </div>
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-grey-500">
         이 파일에 없는 비목 <strong>{summary.untouchedCategories.length}</strong>건은 유지됩니다
         (S-9). 덮어쓰기 범위는 파일에 등장한 (연차, 비목) 조합뿐입니다.
         {summary.untouchedCategories.length > 0 && (
           <span
-            className="ml-1 text-slate-400"
+            className="ml-1 text-grey-400"
             title={summary.untouchedCategories
               .map((c) => `${(c.yearOrder ?? 0) + 1}차년도 ${c.category}`)
               .join(', ')}
@@ -88,7 +88,7 @@ export default function Step5Preview({
       </p>
 
       {summary.locked > 0 && (
-        <div className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <div className="rounded-xl border border-grey-300 bg-grey-50 px-3 py-2 text-xs text-grey-600">
           <p className="font-semibold">
             <span aria-hidden className="mr-1">
               🔒
@@ -97,14 +97,14 @@ export default function Step5Preview({
           </p>
           {/* 문장은 lib/import/preview가 행 사유에도 쓰는 원본을 그대로 가져온다 (복사하면 어긋난다) */}
           <p className="mt-1">{LOCKED_ROW_GUIDE}</p>
-          <p className="mt-1 text-slate-500">
+          <p className="mt-1 text-grey-500">
             잠김은 오류가 아니므로 나머지 내역의 반영은 그대로 진행할 수 있습니다.
           </p>
         </div>
       )}
 
       {dirty && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-orange-300 bg-orange-50 px-3 py-2 text-xs text-orange-900">
           <span>Step 4에서 바꾼 내용이 아직 반영되지 않은 미리보기입니다.</span>
           <Button size="sm" variant="secondary" disabled={busy} onClick={onRecheck} className="ml-auto">
             다시 확인
@@ -143,7 +143,7 @@ export default function Step5Preview({
         currencyUnit={currencyUnit}
       />
 
-      <p className="text-[11px] text-slate-400">
+      <p className="text-[11px] text-grey-400">
         반영 직전의 기존 계획액은 스냅샷으로 저장되어 설정 화면에서 되돌릴 수 있습니다 (I-17).
         파일: {preview.fileName} · 시트: {preview.sheetName}
       </p>

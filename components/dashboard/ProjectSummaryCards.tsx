@@ -16,8 +16,8 @@ import ProgressBar from '@/components/ui/ProgressBar';
 function RateRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[11px] text-slate-500">{label}</dt>
-      <dd className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">{value}</dd>
+      <dt className="text-[11px] text-grey-500">{label}</dt>
+      <dd className="mt-0.5 text-sm font-semibold tabular-nums text-grey-900">{value}</dd>
     </div>
   );
 }
@@ -48,16 +48,16 @@ function BudgetLine({
       <span
         // B-2: 100% 초과는 빨강 경고. 판정 기준은 서버가 준 rate 하나뿐이다
         className={`text-sm font-semibold tabular-nums ${
-          budget.rate !== null && budget.rate > 100 ? 'text-red-600' : 'text-slate-900'
+          budget.rate !== null && budget.rate > 100 ? 'text-red-600' : 'text-grey-900'
         }`}
       >
         {formatRate(budget.rate)}
       </span>
-      <span className="text-[11px] tabular-nums text-slate-500">
+      <span className="text-[11px] tabular-nums text-grey-500">
         {formatAmount(budget.executed, currencyUnit)} / {formatAmount(budget.planned, currencyUnit)}
       </span>
       {budget.rate === null && (
-        <span className="text-[11px] text-slate-400">편성된 예산이 없습니다</span>
+        <span className="text-[11px] text-grey-400">편성된 예산이 없습니다</span>
       )}
     </div>
   );
@@ -72,7 +72,7 @@ export default function ProjectSummaryCards({ cards, currencyUnit }: ProjectSumm
   return (
     <section aria-labelledby="dashboard-projects-title">
       <div className="flex items-center justify-between gap-3">
-        <h2 id="dashboard-projects-title" className="text-base font-bold text-slate-900">
+        <h2 id="dashboard-projects-title" className="text-base font-bold text-grey-900">
           과제 요약
         </h2>
         <Link href="/projects" className="text-xs font-medium text-blue-600 hover:underline">
@@ -81,7 +81,7 @@ export default function ProjectSummaryCards({ cards, currencyUnit }: ProjectSumm
       </div>
 
       {cards.length === 0 ? (
-        <p className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-white/60 p-6 text-center text-xs text-slate-500">
+        <p className="mt-3 rounded-2xl border border-dashed border-grey-300 bg-white/60 p-6 text-center text-xs text-grey-500">
           표시할 과제가 없습니다. 과제를 등록하면 여기에 요약이 나타납니다(아카이브 과제는 제외됩니다).
         </p>
       ) : (
@@ -90,7 +90,7 @@ export default function ProjectSummaryCards({ cards, currencyUnit }: ProjectSumm
             <li key={card.projectId}>
               <Link
                 href={`/projects/${card.projectId}`}
-                className="block rounded-2xl border border-slate-200 bg-white p-5 hover:border-blue-300 hover:shadow-sm"
+                className="block rounded-2xl border border-grey-200 bg-white p-5 hover:border-blue-300 hover:shadow-sm"
               >
                 <div className="flex items-start gap-3">
                   {/* 과제 색은 사용자가 지정한 임의 값이라 클래스가 아닌 인라인 스타일로만 쓸 수 있다 */}
@@ -101,7 +101,7 @@ export default function ProjectSummaryCards({ cards, currencyUnit }: ProjectSumm
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-sm font-bold text-slate-900" title={card.name}>
+                      <span className="truncate text-sm font-bold text-grey-900" title={card.name}>
                         {card.name}
                       </span>
                       <Badge>{PROJECT_STATUS_LABELS[card.status]}</Badge>
@@ -111,7 +111,7 @@ export default function ProjectSummaryCards({ cards, currencyUnit }: ProjectSumm
                         </Badge>
                       )}
                     </div>
-                    <p className="mt-0.5 truncate text-xs text-slate-500">
+                    <p className="mt-0.5 truncate text-xs text-grey-500">
                       {card.agency || '전문기관 미입력'}
                     </p>
                   </div>
@@ -125,7 +125,7 @@ export default function ProjectSummaryCards({ cards, currencyUnit }: ProjectSumm
                     label="진척률"
                     className="min-w-0 flex-1"
                   />
-                  <span className="shrink-0 text-lg font-bold tabular-nums text-slate-900">
+                  <span className="shrink-0 text-lg font-bold tabular-nums text-grey-900">
                     {formatRate(card.progress)}
                   </span>
                 </div>
@@ -134,26 +134,26 @@ export default function ProjectSummaryCards({ cards, currencyUnit }: ProjectSumm
                   <RateRow label="성과목표 달성률" value={formatRate(card.deliverableRate)} />
                   <RateRow label="기술목표 달성률" value={formatRate(card.techTargetRate)} />
                   <div>
-                    <dt className="text-[11px] text-slate-500">예산 집행률</dt>
+                    <dt className="text-[11px] text-grey-500">예산 집행률</dt>
                     <dd className="mt-0.5">
                       <BudgetLine budget={card.budget} currencyUnit={currencyUnit} />
                     </dd>
                   </div>
                 </dl>
 
-                <div className="mt-4 border-t border-slate-100 pt-3 text-xs">
+                <div className="mt-4 border-t border-grey-100 pt-3 text-xs">
                   {card.nextMilestone === null ? (
-                    <span className="text-slate-400">예정된 마일스톤이 없습니다.</span>
+                    <span className="text-grey-400">예정된 마일스톤이 없습니다.</span>
                   ) : (
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-slate-500">다음 마일스톤</span>
+                      <span className="text-grey-500">다음 마일스톤</span>
                       <span
-                        className="min-w-0 flex-1 truncate font-medium text-slate-900"
+                        className="min-w-0 flex-1 truncate font-medium text-grey-900"
                         title={card.nextMilestone.title}
                       >
                         {card.nextMilestone.title}
                       </span>
-                      <span className="tabular-nums text-slate-500">{card.nextMilestone.date}</span>
+                      <span className="tabular-nums text-grey-500">{card.nextMilestone.date}</span>
                       {/* §6.5: 지연은 빨강, 그 밖은 중립. 판정은 서버가 준 daysLeft 하나로 한다 */}
                       <Badge
                         tone={card.nextMilestone.daysLeft < 0 ? 'red' : 'amber'}

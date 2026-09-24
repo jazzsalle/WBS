@@ -123,12 +123,12 @@ export default function NoteScreen({ data, todayISO, initialNoteId = null }: Not
   };
 
   const inputClass =
-    'mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none';
+    'mt-1 w-full rounded-lg border border-grey-300 px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none';
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-grey-600">
           전체 {data.notes.length}건 · 마크다운으로 적고 미리보기로 확인합니다.
         </p>
         <Button
@@ -185,7 +185,7 @@ export default function NoteScreen({ data, todayISO, initialNoteId = null }: Not
             onDelete={() => setDeletingId(selected.id)}
           />
         ) : (
-          <div className="flex items-center justify-center rounded-xl border border-dashed border-slate-300 p-16 text-center text-sm text-slate-500">
+          <div className="flex items-center justify-center rounded-xl border border-dashed border-grey-300 p-16 text-center text-sm text-grey-500">
             왼쪽 목록에서 노트를 고르거나 [새 노트]로 만드세요.
           </div>
         )}
@@ -209,7 +209,7 @@ export default function NoteScreen({ data, todayISO, initialNoteId = null }: Not
           }
         >
           <label className="block">
-            <span className="text-xs font-semibold text-slate-500">
+            <span className="text-xs font-semibold text-grey-500">
               제목 <span className="text-red-600">*</span>
             </span>
             <input
@@ -223,7 +223,7 @@ export default function NoteScreen({ data, todayISO, initialNoteId = null }: Not
 
           <div className="mt-3 grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="text-xs font-semibold text-slate-500">유형</span>
+              <span className="text-xs font-semibold text-grey-500">유형</span>
               <select
                 value={draft.type}
                 onChange={(e) => setDraft({ ...draft, type: e.target.value as NoteType })}
@@ -237,7 +237,7 @@ export default function NoteScreen({ data, todayISO, initialNoteId = null }: Not
               </select>
             </label>
             <label className="block">
-              <span className="text-xs font-semibold text-slate-500">날짜</span>
+              <span className="text-xs font-semibold text-grey-500">날짜</span>
               <input
                 type="date"
                 value={draft.date}
@@ -247,16 +247,16 @@ export default function NoteScreen({ data, todayISO, initialNoteId = null }: Not
             </label>
           </div>
 
-          <label className="mt-3 flex items-center gap-2 text-sm text-slate-600">
+          <label className="mt-3 flex items-center gap-2 text-sm text-grey-600">
             <input
               type="checkbox"
               checked={draft.useTemplate}
               onChange={(e) => setDraft({ ...draft, useTemplate: e.target.checked })}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-grey-300"
             />
             회의록 템플릿으로 시작 (일시·장소·참석자·안건·논의·결정사항·액션아이템)
           </label>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-grey-500">
             연차·작업·마일스톤 연결과 참석자는 만든 뒤 편집기에서 지정합니다.
           </p>
         </Modal>
@@ -284,10 +284,10 @@ export default function NoteScreen({ data, todayISO, initialNoteId = null }: Not
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{deleting.title}</strong>({deleting.date})을 삭제합니다. 본문은 복구할 수 없습니다.
           </p>
-          <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="mt-3 rounded-lg bg-orange-50 p-3 text-xs text-orange-800">
             연결된 작업·마일스톤 화면의 역참조도 함께 사라집니다. 작업·마일스톤 자체는 지워지지
             않습니다.
           </p>

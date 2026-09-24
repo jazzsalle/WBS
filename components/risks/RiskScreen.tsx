@@ -180,18 +180,18 @@ export default function RiskScreen({ data }: RiskScreenProps) {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-grey-600">
           미해결 {data.activeCount}건
           {data.highCount > 0 && (
             <span className="ml-2 font-semibold text-red-700">고위험 {data.highCount}건</span>
           )}
           {data.attentionCount > 0 && (
-            <span className="ml-2 font-semibold text-amber-700">
+            <span className="ml-2 font-semibold text-orange-700">
               주의 필요 {data.attentionCount}건
             </span>
           )}
           {data.resolvedCount > 0 && (
-            <span className="ml-2 text-slate-400">해결·종료 {data.resolvedCount}건</span>
+            <span className="ml-2 text-grey-400">해결·종료 {data.resolvedCount}건</span>
           )}
         </p>
         <Button
@@ -220,14 +220,14 @@ export default function RiskScreen({ data }: RiskScreenProps) {
       {notice && (
         <div
           role="status"
-          className="mt-3 flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 print:hidden"
+          className="mt-3 flex items-start justify-between gap-4 rounded-xl border border-grey-200 bg-grey-50 p-3 text-sm text-grey-700 print:hidden"
         >
           <p className="min-w-0 break-words">{notice}</p>
           <button
             type="button"
             onClick={() => setNotice(null)}
             aria-label="알림 닫기"
-            className="shrink-0 font-bold text-slate-400 hover:text-slate-600"
+            className="shrink-0 font-bold text-grey-400 hover:text-grey-600"
           >
             ×
           </button>
@@ -247,22 +247,22 @@ export default function RiskScreen({ data }: RiskScreenProps) {
       {/* P-R4: 필터·정렬은 편집 컨트롤이다. 인쇄물에는 그 결과(대장)만 남는다 */}
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 print:hidden">
         {/* §7.11: 해결/종료 항목은 기본 숨김, 토글로 표시 */}
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <label className="flex items-center gap-2 text-sm text-grey-700">
           <input
             type="checkbox"
             checked={showResolved}
             onChange={(e) => setShowResolved(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300"
+            className="h-4 w-4 rounded border-grey-300"
           />
           해결·종료 항목 표시
         </label>
 
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <label className="flex items-center gap-2 text-sm text-grey-700">
           정렬
           <select
             value={sortMode}
             onChange={(e) => setSortMode(e.target.value as SortMode)}
-            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium focus:border-slate-500 focus:outline-none"
+            className="rounded-md border border-grey-300 bg-white px-2 py-1 text-xs font-medium focus:border-grey-500 focus:outline-none"
           >
             <option value="score">점수 내림차순 (기본)</option>
             <option value="manual">수동 순서</option>
@@ -285,7 +285,7 @@ export default function RiskScreen({ data }: RiskScreenProps) {
           </div>
         )}
 
-        <span className="text-xs text-slate-500">표시 {visible.length}건</span>
+        <span className="text-xs text-grey-500">표시 {visible.length}건</span>
       </div>
 
       <div className="mt-3">
@@ -353,10 +353,10 @@ export default function RiskScreen({ data }: RiskScreenProps) {
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{deletingRisk.title}</strong> 리스크를 삭제합니다.
           </p>
-          <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="mt-3 rounded-lg bg-orange-50 p-3 text-xs text-orange-800">
             대응 방안·비상 계획도 함께 지워집니다. 종료된 리스크는 삭제 대신 상태를
             &lsquo;종결&rsquo;로 두면 기록이 남습니다.
           </p>

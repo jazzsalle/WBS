@@ -13,10 +13,10 @@ import { BUDGET_CATEGORY_LABELS } from '@/lib/constants';
 import { formatAmount } from '@/lib/currency';
 
 const STATUS_CLASS: Record<PreviewRowStatus, string> = {
-  new: 'bg-emerald-50 text-emerald-800',
-  overwrite: 'bg-amber-50 text-amber-800',
-  skipped: 'bg-slate-50 text-slate-400',
-  locked: 'bg-slate-100 text-slate-500',  // S-14 잠김 — 회색
+  new: 'bg-green-50 text-green-800',
+  overwrite: 'bg-orange-50 text-orange-800',
+  skipped: 'bg-grey-50 text-grey-400',
+  locked: 'bg-grey-100 text-grey-500',  // S-14 잠김 — 회색
   error: 'bg-red-50 text-red-700',
 };
 
@@ -48,9 +48,9 @@ export default function ImportPreviewTable({
   );
 
   return (
-    <div className="max-h-[24rem] overflow-auto rounded-xl border border-slate-200">
+    <div className="max-h-[24rem] overflow-auto rounded-xl border border-grey-200">
       <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-slate-50 text-slate-500">
+        <thead className="sticky top-0 bg-grey-50 text-grey-500">
           <tr>
             <th className="w-20 px-2 py-1.5 text-left">상태</th>
             <th className="w-28 px-2 py-1.5 text-left">연차</th>
@@ -63,17 +63,17 @@ export default function ImportPreviewTable({
         </thead>
         <tbody>
           {sorted.map((row, index) => (
-            <tr key={`${row.status}-${row.sourceRowIndexes.join('_')}-${index}`} className="border-t border-slate-100">
+            <tr key={`${row.status}-${row.sourceRowIndexes.join('_')}-${index}`} className="border-t border-grey-100">
               <td className="px-2 py-1.5">
                 <span className={`rounded px-1.5 py-0.5 font-semibold ${STATUS_CLASS[row.status]}`}>
                   {row.status === 'locked' && <span aria-hidden className="mr-0.5">🔒</span>}
                   {row.statusLabel}
                 </span>
               </td>
-              <td className="px-2 py-1.5 text-slate-600">
+              <td className="px-2 py-1.5 text-grey-600">
                 {row.yearId ? (yearNameById[row.yearId] ?? `${(row.yearOrder ?? 0) + 1}차년도`) : '—'}
               </td>
-              <td className="px-2 py-1.5 text-slate-700">
+              <td className="px-2 py-1.5 text-grey-700">
                 {row.category ? BUDGET_CATEGORY_LABELS[row.category] : (row.label ?? '—')}
               </td>
               <td className="px-2 py-1.5 text-right tabular-nums">
@@ -87,7 +87,7 @@ export default function ImportPreviewTable({
                 {/* 잠김 행이 보여주는 금액은 파일 값이 아니라 유지되는 산출근거 합계다 —
                     파일 값의 반올림(I-11) 표시를 여기 붙이면 엉뚱한 숫자를 가리킨다 */}
                 {row.rounded && row.status !== 'locked' && (
-                  <span className="ml-1 text-amber-600" title="소수점이 있어 반올림했습니다 (I-11)">
+                  <span className="ml-1 text-orange-600" title="소수점이 있어 반올림했습니다 (I-11)">
                     ≈
                   </span>
                 )}
@@ -110,12 +110,12 @@ export default function ImportPreviewTable({
                   currencyUnit={currencyUnit}
                 />
               </td>
-              <td className="max-w-[18rem] px-2 py-1.5 text-slate-500">
+              <td className="max-w-[18rem] px-2 py-1.5 text-grey-500">
                 <span className="block truncate" title={row.reason ?? row.label ?? ''}>
                   {row.reason ?? row.label ?? ''}
                 </span>
                 {row.sourceRowIndexes.length > 0 && (
-                  <span className="text-[10px] text-slate-400">
+                  <span className="text-[10px] text-grey-400">
                     원본 {row.sourceRowIndexes.map((i) => i + 1).join(', ')}행
                   </span>
                 )}
@@ -124,7 +124,7 @@ export default function ImportPreviewTable({
           ))}
           {sorted.length === 0 && (
             <tr>
-              <td colSpan={7} className="px-2 py-6 text-center text-slate-400">
+              <td colSpan={7} className="px-2 py-6 text-center text-grey-400">
                 반영 예정 내역이 없습니다.
               </td>
             </tr>
@@ -152,21 +152,21 @@ function AmountCell({
   // S-14: 잠김 행은 파일 값이 버려지고 산출근거 합계가 그대로 남는다 — 남는 값을 보여준다
   if (locked) {
     return previous === null ? (
-      <span className="text-slate-300">—</span>
+      <span className="text-grey-300">—</span>
     ) : (
-      <span className="text-slate-500" title="산출근거 합계 — 그대로 유지됩니다">
+      <span className="text-grey-500" title="산출근거 합계 — 그대로 유지됩니다">
         {formatAmount(previous, currencyUnit)}
       </span>
     );
   }
-  if (next === null && previous === null) return <span className="text-slate-300">—</span>;
+  if (next === null && previous === null) return <span className="text-grey-300">—</span>;
   return (
     <span>
       {overwrite && previous !== null && (
-        <span className="text-slate-400 line-through">{formatAmount(previous, currencyUnit)}</span>
+        <span className="text-grey-400 line-through">{formatAmount(previous, currencyUnit)}</span>
       )}
-      {overwrite && previous !== null && <span className="mx-1 text-slate-400">→</span>}
-      <span className="font-medium text-slate-700">
+      {overwrite && previous !== null && <span className="mx-1 text-grey-400">→</span>}
+      <span className="font-medium text-grey-700">
         {next === null ? '—' : formatAmount(next, currencyUnit)}
       </span>
     </span>

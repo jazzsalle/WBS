@@ -136,8 +136,8 @@ export interface DetailRowEditorProps {
 }
 
 const CELL_INPUT =
-  'w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none disabled:bg-slate-50';
-const READONLY_CELL = 'rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-500';
+  'w-full rounded-md border border-grey-300 px-2 py-1 text-xs focus:border-grey-500 focus:outline-none disabled:bg-grey-50';
+const READONLY_CELL = 'rounded-md bg-grey-100 px-2 py-1 text-xs text-grey-500';
 
 function positionFromPointer(e: DragEvent<HTMLElement>): DropPosition {
   const rect = e.currentTarget.getBoundingClientRect();
@@ -337,7 +337,7 @@ export default function DetailRowEditor({
     : dragging
       ? 'opacity-40'
       : dirty
-        ? 'bg-amber-50/60'
+        ? 'bg-orange-50/60'
         : '';
 
   const messages: { tone: 'red' | 'amber'; text: string }[] = [];
@@ -392,7 +392,7 @@ export default function DetailRowEditor({
                 : '지금은 순서를 바꿀 수 없습니다'
             }
             className={`select-none text-sm leading-none ${
-              dragEnabled && !disabled ? 'cursor-grab text-slate-400' : 'cursor-not-allowed text-slate-200'
+              dragEnabled && !disabled ? 'cursor-grab text-grey-400' : 'cursor-not-allowed text-grey-200'
             }`}
           >
             ⠿
@@ -539,7 +539,7 @@ export default function DetailRowEditor({
                     {/* isPercent는 계산 규칙을 바꾼다 (PL-3: value/100). 새로 만든 인자를 비율로
                         쓸 수 있어야 하므로 라벨과 함께 행에서 고른다 */}
                     <label
-                      className="flex items-center gap-0.5 text-[11px] text-slate-500"
+                      className="flex items-center gap-0.5 text-[11px] text-grey-500"
                       title="체크하면 계산 시 100으로 나눕니다 (PL-3)"
                     >
                       <input
@@ -553,7 +553,7 @@ export default function DetailRowEditor({
                             )
                           )
                         }
-                        className="h-3 w-3 rounded border-slate-300"
+                        className="h-3 w-3 rounded border-grey-300"
                       />
                       %
                     </label>
@@ -563,7 +563,7 @@ export default function DetailRowEditor({
                       aria-label={`인자 ${index + 1} 삭제`}
                       title="이 인자를 뺍니다"
                       onClick={() => setFactorDrafts((prev) => prev.filter((_, i) => i !== index))}
-                      className="px-1 text-sm leading-none text-slate-400 hover:text-red-600 disabled:opacity-50"
+                      className="px-1 text-sm leading-none text-grey-400 hover:text-red-600 disabled:opacity-50"
                     >
                       ×
                     </button>
@@ -583,13 +583,13 @@ export default function DetailRowEditor({
                         },
                       ])
                     }
-                    className="rounded-md border border-dashed border-slate-300 px-2 py-0.5 text-[11px] text-slate-500 hover:border-slate-400 disabled:opacity-50"
+                    className="rounded-md border border-dashed border-grey-300 px-2 py-0.5 text-[11px] text-grey-500 hover:border-grey-400 disabled:opacity-50"
                   >
                     + 인자
                   </button>
                 )}
                 {factorDrafts.length === 0 && (
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-grey-400">
                     인자가 없으면 금액 = 단가 + 조정액입니다 (PL-3).
                   </p>
                 )}
@@ -633,14 +633,14 @@ export default function DetailRowEditor({
         <td className="py-1.5 pr-2 text-right">
           <span
             className={`block font-semibold tabular-nums ${
-              computed.negative ? 'text-red-600' : 'text-slate-800'
+              computed.negative ? 'text-red-600' : 'text-grey-800'
             }`}
             title="금액은 단가 × 인자들 + 조정액으로 서버가 계산합니다. 손으로 맞추려면 조정액을 쓰세요"
           >
             {formatAmount(computed.amount, currencyUnit)}
           </span>
           {dirty && (
-            <span className="text-[11px] text-amber-700">저장 전 (금액은 마지막 저장 기준)</span>
+            <span className="text-[11px] text-orange-700">저장 전 (금액은 마지막 저장 기준)</span>
           )}
         </td>
 
@@ -677,13 +677,13 @@ export default function DetailRowEditor({
       </tr>
 
       {(messages.length > 0 || salaryMissing || (refreshed && dirty)) && (
-        <tr className={computed.negative ? 'bg-red-50' : dirty ? 'bg-amber-50/60' : ''}>
+        <tr className={computed.negative ? 'bg-red-50' : dirty ? 'bg-orange-50/60' : ''}>
           <td />
           <td colSpan={columnCount - 1} className="pb-2 text-[11px]">
             {messages.map((message, index) => (
               <p
                 key={index}
-                className={message.tone === 'red' ? 'text-red-700' : 'text-amber-700'}
+                className={message.tone === 'red' ? 'text-red-700' : 'text-orange-700'}
               >
                 {message.text}
               </p>
@@ -691,7 +691,7 @@ export default function DetailRowEditor({
 
             {/* 연봉이 비어 있으면 금액이 0이 된다 — 어디서 고치는지까지 알려준다 (§7.9.2, §5.11) */}
             {salaryMissing && !memberDeleted && (
-              <p className="text-amber-700">
+              <p className="text-orange-700">
                 <Badge tone="amber">연봉 미입력</Badge>{' '}
                 {memberId === ''
                   ? '참여인력을 선택하면 연봉을 단가로 씁니다.'
@@ -707,12 +707,12 @@ export default function DetailRowEditor({
 
             {/* O-3: 남이 먼저 저장했다. 내 입력은 그대로 두고 선택지만 준다 */}
             {refreshed && dirty && (
-              <p className="mt-1 text-amber-700">
+              <p className="mt-1 text-orange-700">
                 이 행의 최신 값을 다시 불러왔습니다. 입력하신 값은 그대로 두었습니다.{' '}
                 <button
                   type="button"
                   onClick={resetDrafts}
-                  className="rounded-md border border-amber-300 px-1.5 py-0.5 font-semibold"
+                  className="rounded-md border border-orange-300 px-1.5 py-0.5 font-semibold"
                 >
                   최신 값 사용
                 </button>

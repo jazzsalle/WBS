@@ -16,15 +16,15 @@ import { xOf, type GanttRange, type GanttScale } from '@/lib/gantt';
 
 // Tailwind는 클래스명을 정적으로 스캔한다 — 토큰을 문자열로 조합하지 않고 완전한 형태로 나열한다.
 const MARKER_COLOR_CLASSES: Record<string, string> = {
-  'violet-600': 'bg-violet-600',
-  'sky-600': 'bg-sky-600',
+  'purple-600': 'bg-purple-600',
+  'blue-600': 'bg-blue-600',
   'teal-600': 'bg-teal-600',
-  'slate-600': 'bg-slate-600',
+  'grey-600': 'bg-grey-600',
 };
 
 const DUE_RING_CLASSES: Record<string, string> = {
   'red-600': 'ring-2 ring-red-600',
-  'amber-500': 'ring-2 ring-amber-500',
+  'orange-500': 'ring-2 ring-orange-500',
 };
 
 const MARKER_PX = 12;
@@ -96,12 +96,12 @@ export default function MilestoneLane({ layout, range }: MilestoneLaneProps) {
   return (
     <div
       aria-label="마일스톤"
-      className="relative border-b border-slate-200 bg-white"
+      className="relative border-b border-grey-200 bg-white"
       style={{ width: range.widthPx, height: layout.height }}
     >
       {layout.markers.map((marker) => {
         const m = marker.milestone;
-        const colorClass = MARKER_COLOR_CLASSES[MILESTONE_TYPE_COLORS[m.type]] ?? 'bg-slate-600';
+        const colorClass = MARKER_COLOR_CLASSES[MILESTONE_TYPE_COLORS[m.type]] ?? 'bg-grey-600';
         const ringClass = marker.overdue
           ? (DUE_RING_CLASSES[DUE_COLORS.overdue] ?? '')
           : marker.upcoming
@@ -128,7 +128,7 @@ export default function MilestoneLane({ layout, range }: MilestoneLaneProps) {
         );
       })}
       {layout.markers.length === 0 && (
-        <span className="absolute left-2 top-1 text-[11px] text-slate-400">
+        <span className="absolute left-2 top-1 text-[11px] text-grey-400">
           등록된 마일스톤이 없습니다
         </span>
       )}

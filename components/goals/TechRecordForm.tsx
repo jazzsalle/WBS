@@ -191,13 +191,13 @@ export default function TechRecordForm({
   // T-4를 저장 전에 알린다 — 공인시험 결과는 평가기관이 있어야 근거가 된다(§6.3)
   const evaluatorHint = values.method === 'certified_lab' && values.evaluator.trim() === '';
   const inputClass =
-    'mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none';
+    'mt-1 w-full rounded-lg border border-grey-300 px-2.5 py-1.5 text-sm focus:border-grey-500 focus:outline-none';
 
   return (
     <>
       <form
         onSubmit={handleSubmit}
-        className="mt-3 rounded-xl border border-slate-200 bg-white p-3"
+        className="mt-3 rounded-xl border border-grey-200 bg-white p-3"
         aria-label={mode === 'edit' ? '측정 이력 편집' : '측정값 추가'}
       >
         {failure && (
@@ -210,7 +210,7 @@ export default function TechRecordForm({
         )}
 
         {reloaded && (
-          <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <div className="mb-3 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
             <p className="font-semibold">최신 내용을 다시 불러왔습니다.</p>
             {differences.length === 0 ? (
               <p className="mt-1 text-xs">내 입력과 다른 항목이 없습니다. 그대로 저장하면 됩니다.</p>
@@ -226,13 +226,13 @@ export default function TechRecordForm({
                       key={field.key}
                       className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
                     >
-                      <span className="font-semibold text-slate-700">{field.label}</span>
-                      <span className="text-slate-500">내 입력: {displayValue(field.key, values)}</span>
-                      <span className="text-slate-500">최신: {displayValue(field.key, latest)}</span>
+                      <span className="font-semibold text-grey-700">{field.label}</span>
+                      <span className="text-grey-500">내 입력: {displayValue(field.key, values)}</span>
+                      <span className="text-grey-500">최신: {displayValue(field.key, latest)}</span>
                       <button
                         type="button"
                         onClick={() => setField(field.key, latest[field.key])}
-                        className="ml-auto rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                        className="ml-auto rounded-md border border-orange-300 px-2 py-0.5 font-semibold text-orange-800"
                       >
                         최신 값 사용
                       </button>
@@ -246,9 +246,9 @@ export default function TechRecordForm({
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <label className="lg:col-span-1">
-            <span className="text-xs font-medium text-slate-700">
+            <span className="text-xs font-medium text-grey-700">
               측정값 <span className="text-red-600">*</span>
-              {unit.trim() !== '' && <span className="ml-1 text-slate-400">({unit})</span>}
+              {unit.trim() !== '' && <span className="ml-1 text-grey-400">({unit})</span>}
             </span>
             <input
               type="number"
@@ -262,7 +262,7 @@ export default function TechRecordForm({
           </label>
 
           <label>
-            <span className="text-xs font-medium text-slate-700">
+            <span className="text-xs font-medium text-grey-700">
               측정일 <span className="text-red-600">*</span>
             </span>
             <input
@@ -275,7 +275,7 @@ export default function TechRecordForm({
           </label>
 
           <label>
-            <span className="text-xs font-medium text-slate-700">측정방법</span>
+            <span className="text-xs font-medium text-grey-700">측정방법</span>
             <select
               value={values.method}
               onChange={(e) => setField('method', e.target.value as MeasureMethod)}
@@ -290,7 +290,7 @@ export default function TechRecordForm({
           </label>
 
           <label>
-            <span className="text-xs font-medium text-slate-700">평가기관</span>
+            <span className="text-xs font-medium text-grey-700">평가기관</span>
             <input
               type="text"
               value={values.evaluator}
@@ -302,7 +302,7 @@ export default function TechRecordForm({
           </label>
 
           <label>
-            <span className="text-xs font-medium text-slate-700">증빙</span>
+            <span className="text-xs font-medium text-grey-700">증빙</span>
             <input
               type="text"
               value={values.evidenceUrl}
@@ -315,14 +315,14 @@ export default function TechRecordForm({
         </div>
 
         {evaluatorHint && (
-          <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+          <p className="mt-2 rounded-lg bg-orange-50 px-2.5 py-1.5 text-xs text-orange-800">
             공인시험으로 저장하면 평가기관이 비어 있어 경고가 표시됩니다. 시험기관명을 함께
             남기세요.
           </p>
         )}
 
         {mode === 'edit' && (
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-grey-500">
             가장 최근 측정값을 고치면 현재 실적치와 달성률이 바뀝니다. 연차·비고는 이 폼에서 바꾸지
             않습니다.
           </p>

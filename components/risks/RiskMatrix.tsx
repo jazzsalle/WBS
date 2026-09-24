@@ -66,16 +66,16 @@ export default function RiskMatrix({
       }
       legend={
         // 등급 경계는 부록 A.3이 원본이다 — 여기서는 색만 안내한다
-        <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-grey-500">
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded border border-red-200 bg-red-50" /> 고위험
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded border border-amber-200 bg-amber-50" />{' '}
+            <span className="inline-block h-3 w-3 rounded border border-orange-200 bg-orange-50" />{' '}
             중위험
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded border border-emerald-200 bg-emerald-50" />{' '}
+            <span className="inline-block h-3 w-3 rounded border border-green-200 bg-green-50" />{' '}
             저위험
           </span>
         </div>

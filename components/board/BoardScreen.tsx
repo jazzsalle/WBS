@@ -337,8 +337,8 @@ export default function BoardScreen({ board, matrix, members, organizations }: B
                 title={twoLevel && stage ? stageLabel(stage) : undefined}
                 className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
                   active
-                    ? 'bg-slate-900 text-white'
-                    : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    ? 'bg-grey-900 text-white'
+                    : 'border border-grey-300 bg-white text-grey-700 hover:bg-grey-50'
                 }`}
               >
                 {yearLabel(year)}
@@ -354,8 +354,8 @@ export default function BoardScreen({ board, matrix, members, organizations }: B
             title="모든 연차를 한 화면에서 봅니다. WBS 코드에 연차 접두가 붙습니다"
             className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
               selectedYearId === BOARD_ALL_YEARS
-                ? 'bg-slate-900 text-white'
-                : 'border border-dashed border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+                ? 'bg-grey-900 text-white'
+                : 'border border-dashed border-grey-300 bg-white text-grey-600 hover:bg-grey-50'
             }`}
           >
             전체 연차 보기
@@ -366,26 +366,26 @@ export default function BoardScreen({ board, matrix, members, organizations }: B
       </div>
 
       {view === 'board' && (
-        <div className="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white p-3 text-sm">
-          <label className="flex items-center gap-2 text-slate-700">
+        <div className="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-grey-200 bg-white p-3 text-sm">
+          <label className="flex items-center gap-2 text-grey-700">
             <input
               type="checkbox"
               checked={!leafOnly}
               onChange={(e) => setLeafOnly(!e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-grey-300"
             />
             묶음(상위) 작업도 표시
           </label>
-          <label className="flex items-center gap-2 text-slate-700">
+          <label className="flex items-center gap-2 text-grey-700">
             <input
               type="checkbox"
               checked={swimlanes}
               onChange={(e) => setSwimlanes(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-grey-300"
             />
             담당자별 그룹핑
           </label>
-          <span className="ml-auto text-xs text-slate-400">
+          <span className="ml-auto text-xs text-grey-400">
             카드를 다른 컬럼으로 끌면 상태가, 같은 컬럼 안에서 끌면 순서가 바뀝니다
           </span>
         </div>
@@ -419,14 +419,14 @@ export default function BoardScreen({ board, matrix, members, organizations }: B
       {notice && (
         <div
           role="status"
-          className="mt-4 flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+          className="mt-4 flex items-start justify-between gap-4 rounded-xl border border-grey-200 bg-grey-50 p-3 text-sm text-grey-700"
         >
           <p className="min-w-0 break-words">{notice}</p>
           <button
             type="button"
             onClick={() => setNotice(null)}
             aria-label="알림 닫기"
-            className="shrink-0 font-bold text-slate-400 hover:text-slate-600"
+            className="shrink-0 font-bold text-grey-400 hover:text-grey-600"
           >
             ×
           </button>

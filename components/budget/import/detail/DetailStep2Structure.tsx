@@ -98,17 +98,17 @@ export default function DetailStep2Structure({
               }
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
                 selected
-                  ? 'border-slate-900 bg-slate-900 text-white'
+                  ? 'border-grey-900 bg-grey-900 text-white'
                   : recommended
-                    ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
+                    ? 'border-green-400 bg-green-50 text-green-800'
                     : item.eligible
-                      ? 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                      : 'border-slate-200 bg-slate-50 text-slate-400 hover:bg-slate-100'
+                      ? 'border-grey-200 bg-white text-grey-600 hover:bg-grey-50'
+                      : 'border-grey-200 bg-grey-50 text-grey-400 hover:bg-grey-100'
               }`}
             >
               {item.name}
               {recommended && <span className="ml-1.5">★</span>}
-              <span className={`ml-1.5 ${selected ? 'text-slate-300' : 'text-slate-400'}`}>
+              <span className={`ml-1.5 ${selected ? 'text-grey-300' : 'text-grey-400'}`}>
                 {item.eligible ? `표 ${item.blocks.length}` : '섹션 없음'}
               </span>
             </button>
@@ -116,7 +116,7 @@ export default function DetailStep2Structure({
         })}
       </div>
       {inspect.recommendedSheet && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-grey-500">
           ★ <strong>{inspect.recommendedSheet}</strong> 시트에서 <code>1. 직접비 소요명세</code>{' '}
           섹션을 찾았습니다. 추천일 뿐이니 실제 시트를 확인하고 고르세요.
         </p>
@@ -143,20 +143,20 @@ export default function DetailStep2Structure({
             onPickRow={() => {}}
             disabled
           />
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-grey-400">
             원본 그리드는 상위 {grid.rows.length}행입니다. 산출근거 표는 대개 그 아래에 있으니, 아래
             트리의 행 번호로 원본과 대조하세요.
           </p>
         </>
       ) : (
-        <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">
+        <p className="rounded-xl border border-dashed border-grey-300 p-6 text-center text-sm text-grey-400">
           시트를 선택하면 원본 미리보기가 표시됩니다.
         </p>
       )}
 
       {/* 확인이 남은 항목을 상단에 모아 둔다 — 트리가 길어 아래로 밀리면 놓친다 */}
       {pending > 0 && (
-        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+        <p className="rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-900">
           ⚠️ 확인이 필요한 항목 {pending}건이 있습니다. 자동 인식은 제안이지 확정이 아닙니다 — 아래
           트리에서 세목을 고르거나 통화를 확인하세요.
         </p>
@@ -164,31 +164,31 @@ export default function DetailStep2Structure({
 
       {tree && sheet && (
         <section className="space-y-3">
-          <h3 className="text-sm font-semibold text-slate-700">
+          <h3 className="text-sm font-semibold text-grey-700">
             감지 결과 — 섹션 {tree.sections.length}개 · 표 {sheet.blocks.length}개
           </h3>
 
           {tree.sections.map((section) => (
-            <div key={`${section.kind}:${section.headerRow}`} className="rounded-xl border border-slate-200">
-              <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+            <div key={`${section.kind}:${section.headerRow}`} className="rounded-xl border border-grey-200">
+              <div className="flex flex-wrap items-center gap-2 border-b border-grey-200 bg-grey-50 px-3 py-2 text-xs">
                 <Badge tone={section.kind === 'direct' ? 'blue' : 'violet'}>
                   {SECTION_LABELS[section.kind]}
                 </Badge>
-                <span className="font-semibold text-slate-700">{section.label}</span>
-                <span className="text-slate-400">{section.headerRow + 1}행</span>
-                <span className="ml-auto text-slate-500">비목 {section.categories.length}개</span>
+                <span className="font-semibold text-grey-700">{section.label}</span>
+                <span className="text-grey-400">{section.headerRow + 1}행</span>
+                <span className="ml-auto text-grey-500">비목 {section.categories.length}개</span>
               </div>
 
               {section.categories.length === 0 ? (
-                <p className="px-3 py-3 text-xs text-slate-400">이 섹션에서 비목 표를 찾지 못했습니다.</p>
+                <p className="px-3 py-3 text-xs text-grey-400">이 섹션에서 비목 표를 찾지 못했습니다.</p>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-grey-100">
                   {section.categories.map((category) => (
                     <div key={`${category.categoryRow}:${category.category}`} className="px-3 py-3">
                       <div className="flex flex-wrap items-baseline gap-2 text-sm">
-                        <span className="font-semibold text-slate-800">{category.categoryLabel}</span>
-                        <span className="text-[11px] text-slate-400">{category.categoryRow + 1}행</span>
-                        <span className="ml-auto text-xs text-slate-500">
+                        <span className="font-semibold text-grey-800">{category.categoryLabel}</span>
+                        <span className="text-[11px] text-grey-400">{category.categoryRow + 1}행</span>
+                        <span className="ml-auto text-xs text-grey-500">
                           세목 {category.blocks.length}개 · 행 {category.rowCount}개 · 파일 합계{' '}
                           {category.fileAmount.toLocaleString()}원
                         </span>
@@ -265,11 +265,11 @@ function BlockCard({
   return (
     <div
       className={`rounded-lg border p-3 ${
-        unresolved.length > 0 ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 bg-white'
+        unresolved.length > 0 ? 'border-orange-300 bg-orange-50/60' : 'border-grey-200 bg-white'
       }`}
     >
       <div className="flex flex-wrap items-baseline gap-2 text-xs">
-        <span className="font-semibold text-slate-800">
+        <span className="font-semibold text-grey-800">
           {block.subcategoryLabel ?? '(세목 헤더 없음)'}
         </span>
         {block.numberToken && <Badge tone="neutral">{block.numberToken}</Badge>}
@@ -279,7 +279,7 @@ function BlockCard({
           </Badge>
         )}
         {block.tableIndex > 0 && <Badge tone="neutral">{block.tableIndex + 1}번째 표</Badge>}
-        <span className="ml-auto text-slate-500">
+        <span className="ml-auto text-grey-500">
           {hasData
             ? `${block.dataStartRow + 1}~${block.dataEndRow + 1}행`
             : `${block.dataStartRow + 1}행~ (데이터 없음)`}{' '}
@@ -298,8 +298,8 @@ function BlockCard({
               key={item.key}
               className={`rounded px-2 py-1 text-[11px] ${
                 item.resolved
-                  ? 'bg-emerald-50 text-emerald-800'
-                  : 'bg-amber-100 font-semibold text-amber-900'
+                  ? 'bg-green-50 text-green-800'
+                  : 'bg-orange-100 font-semibold text-orange-900'
               }`}
             >
               {item.resolved ? '✓' : '⚠️'} {item.label} — <span className="font-normal">{item.hint}</span>
@@ -310,13 +310,13 @@ function BlockCard({
 
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
         <label className="flex items-center gap-2">
-          <span className="font-medium text-slate-600">세목</span>
+          <span className="font-medium text-grey-600">세목</span>
           <select
             value={selected ?? ''}
             disabled={busy}
             onChange={(e) => onSubcategoryChoice(info.key, e.target.value === '' ? null : e.target.value)}
             className={`rounded-lg border px-2 py-1 ${
-              chosen === undefined ? 'border-slate-300 text-slate-600' : 'border-blue-400 font-semibold text-blue-700'
+              chosen === undefined ? 'border-grey-300 text-grey-600' : 'border-blue-400 font-semibold text-blue-700'
             }`}
           >
             <option value="">(미지정 — 파서 판정을 따름)</option>
@@ -327,7 +327,7 @@ function BlockCard({
             ))}
           </select>
         </label>
-        <span className="text-[11px] text-slate-400">
+        <span className="text-[11px] text-grey-400">
           {chosen === undefined
             ? '시트에서 읽은 제안입니다. 다르면 직접 고르세요.'
             : '사용자가 고른 세목입니다.'}
@@ -336,7 +336,7 @@ function BlockCard({
 
       {/* D-10: 확인 없이는 반영하지 않는다. 환율을 앱이 지어내지 않는다 */}
       {info.currency !== null && (
-        <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-amber-300 bg-amber-100 px-2 py-1.5 text-[11px] font-semibold text-amber-900">
+        <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-orange-300 bg-orange-100 px-2 py-1.5 text-[11px] font-semibold text-orange-900">
           <input
             type="checkbox"
             checked={(draft.confirmedCurrencyBlocks ?? []).includes(info.key)}
@@ -394,7 +394,7 @@ function ColumnMapping({
 
   return (
     <details className="mt-2" open={changedCount > 0}>
-      <summary className="cursor-pointer text-[11px] text-slate-500">
+      <summary className="cursor-pointer text-[11px] text-grey-500">
         컬럼 매핑 {block.columns.length}열 (헤더 {headerRows}) — 헤더 텍스트로 매핑합니다 (D-7)
         {changedCount > 0 && (
           <span className="ml-1 font-semibold text-blue-700">· 사용자 지정 {changedCount}열</span>
@@ -408,10 +408,10 @@ function ColumnMapping({
         <div className="mt-1 overflow-x-auto">
           <table className="w-max min-w-full border-collapse text-[11px]">
             <thead>
-              <tr className="bg-slate-50 text-slate-500">
-                <th className="border border-slate-200 px-2 py-1 font-normal">열</th>
-                <th className="border border-slate-200 px-2 py-1 font-normal">헤더</th>
-                <th className="border border-slate-200 px-2 py-1 font-normal">역할</th>
+              <tr className="bg-grey-50 text-grey-500">
+                <th className="border border-grey-200 px-2 py-1 font-normal">열</th>
+                <th className="border border-grey-200 px-2 py-1 font-normal">헤더</th>
+                <th className="border border-grey-200 px-2 py-1 font-normal">역할</th>
               </tr>
             </thead>
             <tbody>
@@ -419,16 +419,16 @@ function ColumnMapping({
                 const { role, overridden } = effectiveColumnRole(column, overrides);
                 return (
                   <tr key={column.index}>
-                    <td className="border border-slate-200 px-2 py-1 font-mono text-slate-500">
+                    <td className="border border-grey-200 px-2 py-1 font-mono text-grey-500">
                       {column.column}
                     </td>
                     <td
-                      className="max-w-[16rem] truncate border border-slate-200 px-2 py-1"
+                      className="max-w-[16rem] truncate border border-grey-200 px-2 py-1"
                       title={column.label}
                     >
                       {column.label || '(빈 헤더)'}
                     </td>
-                    <td className="border border-slate-200 px-2 py-1">
+                    <td className="border border-grey-200 px-2 py-1">
                       <select
                         value={role ?? ''}
                         disabled={busy || onColumnRoleOverride === undefined}
@@ -446,8 +446,8 @@ function ColumnMapping({
                           overridden
                             ? 'border-blue-400 font-semibold text-blue-700'
                             : role === null
-                              ? 'border-slate-200 text-slate-400'
-                              : 'border-slate-200 text-slate-500'
+                              ? 'border-grey-200 text-grey-400'
+                              : 'border-grey-200 text-grey-500'
                         }`}
                       >
                         <option value="">— (쓰지 않음)</option>
@@ -473,7 +473,7 @@ function ColumnMapping({
               })}
             </tbody>
           </table>
-          <p className="mt-1 text-[11px] text-slate-400">
+          <p className="mt-1 text-[11px] text-grey-400">
             회색은 헤더 텍스트로 자동 인식한 역할이고 파랑(✎)은 사용자가 바꾼 역할입니다. 자동
             인식은 제안이지 확정이 아닙니다 — 서식이 달라 역할이 비어 있으면 여기서 지정하세요
             (D-7). 인자(수량·회·월) 외의 역할은 표마다 열 하나입니다.

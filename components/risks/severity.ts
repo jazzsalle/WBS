@@ -24,23 +24,23 @@ const COLOR_CLASSES: Record<string, RiskColorClasses> = {
     cellSelected: 'border-red-600 bg-red-100 text-red-900 ring-2 ring-red-500',
     badge: 'bg-red-600 text-white',
   },
-  'amber-500': {
-    cell: 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100',
-    cellSelected: 'border-amber-600 bg-amber-100 text-amber-900 ring-2 ring-amber-500',
-    badge: 'bg-amber-500 text-white',
+  'orange-500': {
+    cell: 'border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100',
+    cellSelected: 'border-orange-600 bg-orange-100 text-orange-900 ring-2 ring-orange-500',
+    badge: 'bg-orange-500 text-white',
   },
-  'emerald-600': {
-    cell: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
-    cellSelected: 'border-emerald-600 bg-emerald-100 text-emerald-900 ring-2 ring-emerald-500',
-    badge: 'bg-emerald-600 text-white',
+  'green-600': {
+    cell: 'border-green-200 bg-green-50 text-green-800 hover:bg-green-100',
+    cellSelected: 'border-green-600 bg-green-100 text-green-900 ring-2 ring-green-500',
+    badge: 'bg-green-600 text-white',
   },
 };
 
 // 알 수 없는 토큰은 조용히 중립색으로 넘기지 않는다 — 부록 A.3과 어긋났다는 신호다
 const UNKNOWN: RiskColorClasses = {
-  cell: 'border-slate-300 bg-slate-100 text-slate-700',
-  cellSelected: 'border-slate-600 bg-slate-200 text-slate-900 ring-2 ring-slate-500',
-  badge: 'bg-slate-500 text-white',
+  cell: 'border-grey-300 bg-grey-100 text-grey-700',
+  cellSelected: 'border-grey-600 bg-grey-200 text-grey-900 ring-2 ring-grey-500',
+  badge: 'bg-grey-500 text-white',
 };
 
 export function riskColorClasses(colorToken: string): RiskColorClasses {

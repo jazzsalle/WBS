@@ -220,16 +220,16 @@ export default function AchievementForm({
   };
 
   const inputClass =
-    'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none';
+    'mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none';
 
   return (
     <>
       <form
         onSubmit={handleSubmit}
-        className="rounded-xl border border-slate-200 bg-white p-4"
+        className="rounded-xl border border-grey-200 bg-white p-4"
         aria-label={mode === 'edit' ? '실적 편집' : '실적 추가'}
       >
-        <p className="text-sm font-semibold text-slate-800">
+        <p className="text-sm font-semibold text-grey-800">
           {mode === 'edit' ? '실적 편집' : '실적 추가'}
         </p>
 
@@ -243,7 +243,7 @@ export default function AchievementForm({
         )}
 
         {reloaded && (
-          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
             <p className="font-semibold">최신 내용을 다시 불러왔습니다.</p>
             {differences.length === 0 ? (
               <p className="mt-1 text-xs">내 입력과 다른 항목이 없습니다. 그대로 저장하면 됩니다.</p>
@@ -259,15 +259,15 @@ export default function AchievementForm({
                       key={field.key}
                       className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
                     >
-                      <span className="font-semibold text-slate-700">{field.label}</span>
-                      <span className="text-slate-500">
+                      <span className="font-semibold text-grey-700">{field.label}</span>
+                      <span className="text-grey-500">
                         내 입력: {displayValue(field.key, values)}
                       </span>
-                      <span className="text-slate-500">최신: {displayValue(field.key, latest)}</span>
+                      <span className="text-grey-500">최신: {displayValue(field.key, latest)}</span>
                       <button
                         type="button"
                         onClick={() => setField(field.key, latest[field.key])}
-                        className="ml-auto rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                        className="ml-auto rounded-md border border-orange-300 px-2 py-0.5 font-semibold text-orange-800"
                       >
                         최신 값 사용
                       </button>
@@ -281,7 +281,7 @@ export default function AchievementForm({
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <label className="sm:col-span-2">
-            <span className="text-sm font-medium text-slate-700">
+            <span className="text-sm font-medium text-grey-700">
               산출물명 <span className="text-red-600">*</span>
             </span>
             <input
@@ -297,7 +297,7 @@ export default function AchievementForm({
           </label>
 
           <label>
-            <span className="text-sm font-medium text-slate-700">
+            <span className="text-sm font-medium text-grey-700">
               달성일 <span className="text-red-600">*</span>
             </span>
             <input
@@ -310,7 +310,7 @@ export default function AchievementForm({
           </label>
 
           <label>
-            <span className="text-sm font-medium text-slate-700">연차</span>
+            <span className="text-sm font-medium text-grey-700">연차</span>
             <select
               value={values.yearId}
               onChange={(e) => setField('yearId', e.target.value)}
@@ -327,13 +327,13 @@ export default function AchievementForm({
                 <option value={values.yearId}>(삭제된 연차)</option>
               )}
             </select>
-            <span className="mt-1 block text-xs text-slate-500">
+            <span className="mt-1 block text-xs text-grey-500">
               연차를 비우면 연차별 집계에서 빠지고 전체 집계에만 포함됩니다.
             </span>
           </label>
 
           <label>
-            <span className="text-sm font-medium text-slate-700">기관</span>
+            <span className="text-sm font-medium text-grey-700">기관</span>
             <select
               value={values.orgId}
               onChange={(e) => setField('orgId', e.target.value)}
@@ -352,7 +352,7 @@ export default function AchievementForm({
           </label>
 
           <label>
-            <span className="text-sm font-medium text-slate-700">증빙 링크</span>
+            <span className="text-sm font-medium text-grey-700">증빙 링크</span>
             <input
               type="text"
               value={values.evidenceUrl}
@@ -364,21 +364,21 @@ export default function AchievementForm({
           </label>
 
           <div className="sm:col-span-2">
-            <span className="text-sm font-medium text-slate-700">참여자</span>
+            <span className="text-sm font-medium text-grey-700">참여자</span>
             {members.length === 0 ? (
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-grey-500">
                 등록된 인력이 없습니다. 인력·기관 화면에서 먼저 등록하세요.
               </p>
             ) : (
-              <div className="mt-1 flex max-h-32 flex-wrap gap-x-4 gap-y-1.5 overflow-y-auto rounded-lg border border-slate-200 p-2.5">
+              <div className="mt-1 flex max-h-32 flex-wrap gap-x-4 gap-y-1.5 overflow-y-auto rounded-lg border border-grey-200 p-2.5">
                 {members.map((member) => (
-                  <label key={member.id} className="flex items-center gap-1.5 text-sm text-slate-700">
+                  <label key={member.id} className="flex items-center gap-1.5 text-sm text-grey-700">
                     <input
                       type="checkbox"
                       checked={values.memberIds.includes(member.id)}
                       onChange={() => toggleMember(member.id)}
                     />
-                    <span className={member.active ? '' : 'text-slate-400'}>
+                    <span className={member.active ? '' : 'text-grey-400'}>
                       {member.name}
                       {member.active ? '' : ' (비활성)'}
                     </span>
@@ -398,7 +398,7 @@ export default function AchievementForm({
           </div>
 
           <label className="sm:col-span-2">
-            <span className="text-sm font-medium text-slate-700">비고</span>
+            <span className="text-sm font-medium text-grey-700">비고</span>
             <textarea
               value={values.note}
               onChange={(e) => setField('note', e.target.value)}

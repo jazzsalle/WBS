@@ -7,12 +7,12 @@ import type { ReactNode } from 'react';
 export type BadgeTone = 'neutral' | 'blue' | 'green' | 'amber' | 'red' | 'violet';
 
 const TONE_CLASSES: Record<BadgeTone, string> = {
-  neutral: 'bg-slate-100 text-slate-600',
-  blue: 'bg-blue-50 text-blue-700',
-  green: 'bg-emerald-50 text-emerald-700',
-  amber: 'bg-amber-50 text-amber-700',
-  red: 'bg-red-50 text-red-700',
-  violet: 'bg-violet-50 text-violet-700',
+  neutral: 'bg-grey-100 text-grey-700',
+  blue: 'bg-blue-50 text-blue-600',
+  green: 'bg-green-50 text-green-600',
+  amber: 'bg-orange-50 text-orange-700',
+  red: 'bg-red-50 text-red-600',
+  violet: 'bg-purple-50 text-purple-700',
 };
 
 export interface BadgeProps {
@@ -26,7 +26,7 @@ export default function Badge({ children, tone = 'neutral', className = '', titl
   return (
     <span
       title={title}
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${TONE_CLASSES[tone]} ${className}`}
+      className={`inline-flex items-center rounded-md px-2 py-0.5 text-t7 font-medium ${TONE_CLASSES[tone]} ${className}`}
     >
       {children}
     </span>

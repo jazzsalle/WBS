@@ -65,7 +65,7 @@ export default function TreeTable({
   callbacks,
 }: TreeTableProps) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-xl border border-grey-200 bg-white">
       <table className="w-full min-w-[1100px] border-collapse">
         <colgroup>
           <col className="w-20" />
@@ -79,8 +79,8 @@ export default function TreeTable({
           <col className="w-24" />
           <col className="w-28" />
         </colgroup>
-        <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs font-semibold text-slate-500">
-          <tr className="border-b border-slate-200">
+        <thead className="sticky top-0 z-10 bg-grey-50 text-left text-xs font-semibold text-grey-500">
+          <tr className="border-b border-grey-200">
             <th className="px-2 py-2">WBS</th>
             <th className="px-2 py-2">작업명</th>
             <th className="px-2 py-2">담당</th>
@@ -96,10 +96,10 @@ export default function TreeTable({
 
         {groups.map((group) => (
           <tbody key={group.year.id}>
-            <tr className="border-b border-slate-200 bg-slate-100/70">
+            <tr className="border-b border-grey-200 bg-grey-100/70">
               <td colSpan={COLUMN_COUNT} className="px-2 py-2">
                 <div className="flex items-center gap-3">
-                  <span className="font-semibold text-slate-700">{yearLabel(group.year)}</span>
+                  <span className="font-semibold text-grey-700">{yearLabel(group.year)}</span>
                   <Badge tone="violet">{YEAR_STATUS_LABELS[group.year.status]}</Badge>
                   <ProgressBar
                     value={group.yearProgress}
@@ -108,11 +108,11 @@ export default function TreeTable({
                     className="w-40"
                   />
                   {/* 중간 계산은 소수점을 유지하고 표시에서만 자른다 (P-8) */}
-                  <span className="text-xs font-semibold text-slate-600 tabular-nums">
+                  <span className="text-xs font-semibold text-grey-600 tabular-nums">
                     {group.yearProgress.toFixed(1)}%
                   </span>
                   <span
-                    className="text-xs text-slate-500"
+                    className="text-xs text-grey-500"
                     // P-13: 작업이 없는 연차도 진척률 0으로 상위 평균에 포함된다
                     title={group.totalCount === 0 ? '작업 없음 (진척률 0으로 집계됩니다)' : undefined}
                   >
@@ -125,7 +125,7 @@ export default function TreeTable({
 
             {group.rows.length === 0 ? (
               <tr>
-                <td colSpan={COLUMN_COUNT} className="px-4 py-6 text-center text-sm text-slate-500">
+                <td colSpan={COLUMN_COUNT} className="px-4 py-6 text-center text-sm text-grey-500">
                   {group.totalCount === 0
                     ? '이 연차에는 작업이 없습니다. [새 작업]으로 첫 작업을 만드세요.'
                     : '필터에 맞는 작업이 없습니다.'}

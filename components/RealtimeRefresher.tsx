@@ -189,7 +189,7 @@ export default function RealtimeRefresher({ tables, selfUserId }: RealtimeRefres
       {disconnected && (
         <div
           role="status"
-          className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 shadow-lg"
+          className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800 shadow-lg"
         >
           실시간 연결이 끊겨 30초마다 새로고침합니다.
         </div>

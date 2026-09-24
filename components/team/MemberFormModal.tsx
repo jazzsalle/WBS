@@ -283,7 +283,7 @@ export default function MemberFormModal({
           )}
 
           {reloaded && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
               <p className="font-semibold">최신 내용을 다시 불러왔습니다.</p>
               {differences.length === 0 ? (
                 <p className="mt-1 text-xs">
@@ -301,13 +301,13 @@ export default function MemberFormModal({
                         key={field.key}
                         className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
                       >
-                        <span className="font-semibold text-slate-700">{field.label}</span>
-                        <span className="text-slate-500">내 입력: {displayValue(field, values)}</span>
-                        <span className="text-slate-500">최신: {displayValue(field, latest)}</span>
+                        <span className="font-semibold text-grey-700">{field.label}</span>
+                        <span className="text-grey-500">내 입력: {displayValue(field, values)}</span>
+                        <span className="text-grey-500">최신: {displayValue(field, latest)}</span>
                         <button
                           type="button"
                           onClick={() => setField(field.key, latest[field.key])}
-                          className="ml-auto rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                          className="ml-auto rounded-md border border-orange-300 px-2 py-0.5 font-semibold text-orange-800"
                         >
                           최신 값 사용
                         </button>
@@ -321,7 +321,7 @@ export default function MemberFormModal({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label>
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-grey-700">
                 이름 <span className="text-red-600">*</span>
               </span>
               <input
@@ -331,16 +331,16 @@ export default function MemberFormModal({
                 onChange={(e) => setField('name', e.target.value)}
                 maxLength={200}
                 required
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">역할</span>
+              <span className="text-sm font-medium text-grey-700">역할</span>
               <select
                 value={values.role}
                 onChange={(e) => setField('role', e.target.value as MemberRole)}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               >
                 {(Object.keys(MEMBER_ROLE_LABELS) as MemberRole[]).map((role) => (
                   <option key={role} value={role}>
@@ -349,17 +349,17 @@ export default function MemberFormModal({
                 ))}
               </select>
               {/* 역할 pm은 라벨일 뿐이다 — 과제의 PM은 인력 목록의 [PM으로 지정]이 정한다 (§7.10) */}
-              <span className="mt-1 block text-xs text-slate-500">
+              <span className="mt-1 block text-xs text-grey-500">
                 과제 총괄책임자 지정은 인력 목록의 [PM으로 지정]으로 합니다.
               </span>
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">소속 기관</span>
+              <span className="text-sm font-medium text-grey-700">소속 기관</span>
               <select
                 value={values.orgId}
                 onChange={(e) => setField('orgId', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               >
                 <option value="">소속 없음</option>
                 {organizations.map((org) => (
@@ -376,74 +376,74 @@ export default function MemberFormModal({
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">직급</span>
+              <span className="text-sm font-medium text-grey-700">직급</span>
               <input
                 type="text"
                 value={values.position}
                 onChange={(e) => setField('position', e.target.value)}
                 maxLength={100}
                 placeholder="예: 책임연구원"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">분야</span>
+              <span className="text-sm font-medium text-grey-700">분야</span>
               <input
                 type="text"
                 value={values.field}
                 onChange={(e) => setField('field', e.target.value)}
                 maxLength={100}
                 placeholder="예: 제어 SW"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">이메일</span>
+              <span className="text-sm font-medium text-grey-700">이메일</span>
               <input
                 type="email"
                 value={values.email}
                 onChange={(e) => setField('email', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">연락처</span>
+              <span className="text-sm font-medium text-grey-700">연락처</span>
               <input
                 type="text"
                 value={values.phone}
                 onChange={(e) => setField('phone', e.target.value)}
                 maxLength={50}
                 placeholder="예: 010-0000-0000"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">연봉(원)</span>
+              <span className="text-sm font-medium text-grey-700">연봉(원)</span>
               <input
                 type="text"
                 inputMode="numeric"
                 value={formatAmount(values.annualSalary)}
                 onChange={(e) => setField('annualSalary', toDigits(e.target.value))}
                 placeholder="미입력"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-right text-sm tabular-nums focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-right text-sm tabular-nums focus:border-grey-500 focus:outline-none"
               />
               {/* 참여율은 여기 없다 — 연차마다 달라지므로 산출근거가 갖는다 (§5.11, §7.10) */}
-              <span className="mt-1 block text-xs text-slate-500">
+              <span className="mt-1 block text-xs text-grey-500">
                 인건비 산출근거의 단가로 쓰입니다. 참여율·참여기간은 연구비 화면에서 연차별로
                 입력합니다.
               </span>
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">채용구분</span>
+              <span className="text-sm font-medium text-grey-700">채용구분</span>
               <select
                 value={values.hireType}
                 onChange={(e) => setField('hireType', e.target.value as HireType)}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               >
                 {(Object.keys(HIRE_TYPE_LABELS) as HireType[]).map((hireType) => (
                   <option key={hireType} value={hireType}>
@@ -451,7 +451,7 @@ export default function MemberFormModal({
                   </option>
                 ))}
               </select>
-              <span className="mt-1 block text-xs text-slate-500">
+              <span className="mt-1 block text-xs text-grey-500">
                 아직 사람이 정해지지 않은 자리도 <strong>채용예정</strong>으로 등록합니다.
               </span>
             </label>
@@ -487,10 +487,10 @@ export default function MemberFormModal({
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             이 연봉을 쓰는 <strong>산출근거 {preview.detailCount}건</strong>의 금액이 함께 바뀝니다.
           </p>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-grey-600">
             연봉{' '}
             <span className="tabular-nums">
               {preview.currentAnnualSalary === null
@@ -498,21 +498,21 @@ export default function MemberFormModal({
                 : formatWon(preview.currentAnnualSalary)}
             </span>{' '}
             →{' '}
-            <span className="font-semibold tabular-nums text-slate-900">
+            <span className="font-semibold tabular-nums text-grey-900">
               {preview.nextAnnualSalary === null ? '(미입력)' : formatWon(preview.nextAnnualSalary)}
             </span>
           </p>
 
           {preview.missingSalaryCount > 0 && (
-            <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+            <p className="mt-3 rounded-lg bg-orange-50 p-3 text-sm text-orange-800">
               연봉이 비어 있으면 인건비 산출근거 {preview.missingSalaryCount}건이{' '}
               <strong>0원</strong>으로 계산됩니다.
             </p>
           )}
 
           <table className="mt-3 w-full text-left text-sm">
-            <thead className="text-xs text-slate-500">
-              <tr className="border-b border-slate-200">
+            <thead className="text-xs text-grey-500">
+              <tr className="border-b border-grey-200">
                 <th className="py-2 font-medium">연차</th>
                 <th className="py-2 font-medium">비목</th>
                 <th className="py-2 text-right font-medium">건수</th>
@@ -520,40 +520,40 @@ export default function MemberFormModal({
                 <th className="py-2 text-right font-medium">변경 후</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-grey-100">
               {preview.cells.map((cell) => (
                 <tr key={`${cell.yearId}|${cell.category}`}>
-                  <td className="py-2 text-slate-700">{cell.yearName}</td>
-                  <td className="py-2 text-slate-600">{BUDGET_CATEGORY_LABELS[cell.category]}</td>
-                  <td className="py-2 text-right tabular-nums text-slate-600">{cell.rowCount}건</td>
-                  <td className="py-2 text-right tabular-nums text-slate-500">
+                  <td className="py-2 text-grey-700">{cell.yearName}</td>
+                  <td className="py-2 text-grey-600">{BUDGET_CATEGORY_LABELS[cell.category]}</td>
+                  <td className="py-2 text-right tabular-nums text-grey-600">{cell.rowCount}건</td>
+                  <td className="py-2 text-right tabular-nums text-grey-500">
                     {formatWon(cell.beforeAmount)}
                   </td>
-                  <td className="py-2 text-right font-semibold tabular-nums text-slate-900">
+                  <td className="py-2 text-right font-semibold tabular-nums text-grey-900">
                     {formatWon(cell.afterAmount)}
                   </td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
-              <tr className="border-t border-slate-300">
-                <td className="py-2 font-semibold text-slate-700" colSpan={2}>
+              <tr className="border-t border-grey-300">
+                <td className="py-2 font-semibold text-grey-700" colSpan={2}>
                   합계
                 </td>
-                <td className="py-2 text-right tabular-nums text-slate-600">
+                <td className="py-2 text-right tabular-nums text-grey-600">
                   {preview.detailCount}건
                 </td>
-                <td className="py-2 text-right tabular-nums text-slate-500">
+                <td className="py-2 text-right tabular-nums text-grey-500">
                   {formatWon(preview.beforeTotal)}
                 </td>
-                <td className="py-2 text-right font-semibold tabular-nums text-slate-900">
+                <td className="py-2 text-right font-semibold tabular-nums text-grey-900">
                   {formatWon(preview.afterTotal)}
                 </td>
               </tr>
             </tfoot>
           </table>
 
-          <p className="mt-3 text-sm text-slate-700">
+          <p className="mt-3 text-sm text-grey-700">
             총액 변동{' '}
             <span
               className={`font-semibold tabular-nums ${

@@ -76,7 +76,7 @@ function RateCell({ rate, limit, over, zeroBaseReason }: RateCellProps) {
   return (
     <span className="block">
       <span
-        className={`block font-semibold tabular-nums ${over ? 'text-red-600 print:text-black' : 'text-slate-800'}`}
+        className={`block font-semibold tabular-nums ${over ? 'text-red-600 print:text-black' : 'text-grey-800'}`}
         title={rate === null ? zeroBaseReason : rateTitle(rate, limit)}
       >
         {formatPercent(rate)}
@@ -90,7 +90,7 @@ function RateCell({ rate, limit, over, zeroBaseReason }: RateCellProps) {
               한도 {limit}% 초과
             </Badge>
           ) : (
-            <span className="text-[11px] text-slate-400 print:text-black">한도 {limit}%</span>
+            <span className="text-[11px] text-grey-400 print:text-black">한도 {limit}%</span>
           )}
         </span>
       )}
@@ -114,7 +114,7 @@ function AxisShareCell({
     // 미입력 금액을 그대로 적어 "얼마가 아직 안 나뉘었는지"를 화면에서 바로 읽게 한다
     return (
       <span
-        className="block font-semibold text-amber-700 print:text-black"
+        className="block font-semibold text-orange-700 print:text-black"
         title="현금/현물 구분이 없는 계획액이 있어 비중의 분모가 확정되지 않습니다. 수행 모드에서 셀을 열어 현금·현물을 나누거나, 제안 모드에서 산출근거를 넣으면 비중이 나옵니다."
       >
         미입력 {formatAmount(axis.unspecified, currencyUnit)} — 비중을 낼 수 없습니다
@@ -124,7 +124,7 @@ function AxisShareCell({
   if (axis.shareBlockedBy === 'zero-total') {
     return (
       <span
-        className="block text-slate-400 print:text-black"
+        className="block text-grey-400 print:text-black"
         title="이 연차의 계획액이 0이라 비중을 내지 않습니다."
       >
         —
@@ -132,7 +132,7 @@ function AxisShareCell({
     );
   }
   return (
-    <span className="block tabular-nums text-slate-800 print:text-black">
+    <span className="block tabular-nums text-grey-800 print:text-black">
       현금 {formatPercent(axis.cashRate)} · 현물 {formatPercent(axis.inKindRate)}
     </span>
   );
@@ -165,7 +165,7 @@ function SummaryCell({
       );
     }
     return row.kind === 'axisAmount' ? (
-      <span className="tabular-nums text-slate-800 print:text-black">
+      <span className="tabular-nums text-grey-800 print:text-black">
         {formatAmount(row.amount(axis), currencyUnit)}
       </span>
     ) : (
@@ -179,7 +179,7 @@ function SummaryCell({
     );
   }
   return row.kind === 'amount' ? (
-    <span className="tabular-nums text-slate-800 print:text-black">
+    <span className="tabular-nums text-grey-800 print:text-black">
       {formatAmount(row.amount(rules), currencyUnit)}
     </span>
   ) : (
@@ -227,7 +227,7 @@ export default function BudgetPlanSummary({
       {(negativeCount > 0 || missingSalaryCount > 0) && (
         <div
           role="alert"
-          className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 print:border-slate-400 print:bg-transparent print:text-black"
+          className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-xs text-orange-800 print:border-grey-400 print:bg-transparent print:text-black"
         >
           {negativeCount > 0 && (
             <p>
@@ -249,16 +249,16 @@ export default function BudgetPlanSummary({
         </div>
       )}
 
-      <div className={`overflow-x-auto rounded-xl border border-slate-200 bg-white ${PRINT_TABLE_WRAP}`}>
+      <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-white ${PRINT_TABLE_WRAP}`}>
         <table className={`w-full text-left text-xs ${PRINT_TABLE}`}>
-          <caption className="px-3 pt-2 text-left text-xs font-semibold text-slate-700 print:text-black">
+          <caption className="px-3 pt-2 text-left text-xs font-semibold text-grey-700 print:text-black">
             연차별 합계 · 현금/현물 비중 · 지침 검증
-            <span className="ml-2 font-normal text-slate-400 print:text-black">
+            <span className="ml-2 font-normal text-grey-400 print:text-black">
               지침 검증은 경고일 뿐 저장·반영을 막지 않습니다 (PL-15)
             </span>
           </caption>
-          <thead className="text-slate-500 print:text-black">
-            <tr className="border-b border-slate-100">
+          <thead className="text-grey-500 print:text-black">
+            <tr className="border-b border-grey-100">
               <th scope="col" className={`px-3 py-2 font-medium ${PRINT_TH}`}>
                 항목
               </th>
@@ -266,7 +266,7 @@ export default function BudgetPlanSummary({
                 <th
                   key={column.yearId}
                   scope="col"
-                  className={`px-3 py-2 text-right font-medium text-slate-700 print:text-black ${PRINT_TH}`}
+                  className={`px-3 py-2 text-right font-medium text-grey-700 print:text-black ${PRINT_TH}`}
                 >
                   {column.name}
                 </th>
@@ -274,12 +274,12 @@ export default function BudgetPlanSummary({
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-grey-100">
             {rows.map((row) => (
               <tr key={row.key} className="align-top">
                 <th
                   scope="row"
-                  className={`px-3 py-2 text-left font-medium text-slate-700 print:text-black ${PRINT_TD}`}
+                  className={`px-3 py-2 text-left font-medium text-grey-700 print:text-black ${PRINT_TD}`}
                   title={row.hint}
                 >
                   {row.label}
@@ -301,7 +301,7 @@ export default function BudgetPlanSummary({
       </div>
 
       {missingLimits && (
-        <p className="text-[11px] text-slate-500 print:hidden">
+        <p className="text-[11px] text-grey-500 print:hidden">
           한도가 비어 있는 검사는 비율만 표시하고 위반 판정을 하지 않습니다 (PL-15). 한도는{' '}
           <Link
             href={`/projects/${projectId}`}

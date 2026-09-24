@@ -32,14 +32,14 @@ export interface MilestoneView {
 // 날짜 / 유형 / 제목 / 연차 / 담당 / 상태 / D-day / 동작
 const COLUMN_COUNT = 8;
 
-const TH_CLASS = 'px-3 py-2 font-medium print:border print:border-slate-500';
-const TD_CLASS = 'px-3 py-2 align-top print:border print:border-slate-400';
+const TH_CLASS = 'px-3 py-2 font-medium print:border print:border-grey-500';
+const TD_CLASS = 'px-3 py-2 align-top print:border print:border-grey-400';
 
 // done·cancelled는 §6.5의 판정 대상이 아니다 — 목록에서도 시선을 덜 끌게 낮춘다
 const CLOSED_STATUSES: ReadonlySet<MilestoneStatus> = new Set(['done', 'cancelled']);
 
 const SELECT_CLASS =
-  'w-full rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs font-medium focus:border-slate-500 focus:outline-none disabled:opacity-50';
+  'w-full rounded-md border border-grey-300 bg-white px-1.5 py-1 text-xs font-medium focus:border-grey-500 focus:outline-none disabled:opacity-50';
 
 // ─── 결과 메모 편집기 (§7.8 "결과 메모 입력") ─────────────────────────────────
 // 마운트되어 있는 동안이 곧 "편집 중인 폼이 열려 있는" 상태다 — R-4로 자동 새로고침을 보류해
@@ -63,14 +63,14 @@ function NoteEditor({ milestone, busy, onSave, onCancel }: NoteEditorProps) {
   return (
     <div>
       <label className="block">
-        <span className="text-xs font-semibold text-slate-600">결과 메모</span>
+        <span className="text-xs font-semibold text-grey-600">결과 메모</span>
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           rows={4}
           maxLength={10000}
           placeholder="평가 결과, 제출 결과 등을 적습니다."
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+          className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
         />
       </label>
       <div className="mt-2 flex justify-end gap-2">
@@ -140,13 +140,13 @@ export default function MilestoneTable({
   };
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white print:overflow-visible print:rounded-none print:border-0">
+    <div className="overflow-x-auto rounded-xl border border-grey-200 bg-white print:overflow-visible print:rounded-none print:border-0">
       <table className="w-full min-w-[900px] text-left text-sm print:min-w-0 print:border-collapse print:text-xs">
-        <caption className="hidden px-3 py-2 text-left text-sm font-bold text-slate-900 print:table-caption">
+        <caption className="hidden px-3 py-2 text-left text-sm font-bold text-grey-900 print:table-caption">
           마일스톤 목록
         </caption>
-        <thead className="text-xs text-slate-500 print:text-black">
-          <tr className="border-b border-slate-100">
+        <thead className="text-xs text-grey-500 print:text-black">
+          <tr className="border-b border-grey-100">
             <th className={TH_CLASS}>날짜</th>
             <th className={TH_CLASS}>유형</th>
             <th className={TH_CLASS}>제목</th>
@@ -157,10 +157,10 @@ export default function MilestoneTable({
             <th className={`${TH_CLASS} text-right print:hidden`}>동작</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-grey-100">
           {views.length === 0 && (
             <tr>
-              <td colSpan={COLUMN_COUNT} className="px-3 py-8 text-center text-sm text-slate-400">
+              <td colSpan={COLUMN_COUNT} className="px-3 py-8 text-center text-sm text-grey-400">
                 등록된 마일스톤이 없습니다. [마일스톤 추가]로 시작하세요.
               </td>
             </tr>
@@ -175,14 +175,14 @@ export default function MilestoneTable({
               <Fragment key={m.id}>
                 <tr
                   className={
-                    selectedId === m.id ? 'bg-blue-50/70' : expanded ? 'bg-slate-50' : undefined
+                    selectedId === m.id ? 'bg-blue-50/70' : expanded ? 'bg-grey-50' : undefined
                   }
                 >
-                  <td className={`${TD_CLASS} tabular-nums ${closed ? 'text-slate-400' : 'text-slate-700'}`}>
+                  <td className={`${TD_CLASS} tabular-nums ${closed ? 'text-grey-400' : 'text-grey-700'}`}>
                     {m.date}
                   </td>
                   <td className={TD_CLASS}>
-                    <span className="text-slate-600">{MILESTONE_TYPE_LABELS[m.type]}</span>
+                    <span className="text-grey-600">{MILESTONE_TYPE_LABELS[m.type]}</span>
                   </td>
                   <td className={TD_CLASS}>
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -191,12 +191,12 @@ export default function MilestoneTable({
                         onClick={() => onToggleExpand(m.id)}
                         aria-expanded={expanded}
                         aria-label={`${m.title} 상세 ${expanded ? '접기' : '펼치기'}`}
-                        className="shrink-0 rounded-md border border-slate-200 px-1.5 text-xs text-slate-500 hover:bg-slate-100 print:hidden"
+                        className="shrink-0 rounded-md border border-grey-200 px-1.5 text-xs text-grey-500 hover:bg-grey-100 print:hidden"
                       >
                         {expanded ? '▾' : '▸'}
                       </button>
                       <span
-                        className={`font-medium ${m.status === 'cancelled' ? 'text-slate-400 line-through' : 'text-slate-900'}`}
+                        className={`font-medium ${m.status === 'cancelled' ? 'text-grey-400 line-through' : 'text-grey-900'}`}
                       >
                         {m.title}
                       </span>
@@ -207,8 +207,8 @@ export default function MilestoneTable({
                       )}
                     </div>
                   </td>
-                  <td className={`${TD_CLASS} text-slate-600`}>{yearLabel(m.yearId)}</td>
-                  <td className={`${TD_CLASS} text-slate-600`}>{memberLabel(m.ownerMemberId)}</td>
+                  <td className={`${TD_CLASS} text-grey-600`}>{yearLabel(m.yearId)}</td>
+                  <td className={`${TD_CLASS} text-grey-600`}>{memberLabel(m.ownerMemberId)}</td>
                   <td className={TD_CLASS}>
                     {/* O-2: 단일 조작이므로 낙관적 잠금 없이 바로 저장한다 */}
                     <select
@@ -225,7 +225,7 @@ export default function MilestoneTable({
                       ))}
                     </select>
                     {/* 인쇄에는 드롭다운 대신 값만 남긴다 */}
-                    <span className="hidden text-slate-700 print:inline">
+                    <span className="hidden text-grey-700 print:inline">
                       {MILESTONE_STATUS_LABELS[m.status]}
                     </span>
                   </td>
@@ -241,7 +241,7 @@ export default function MilestoneTable({
                         임박 {view.dday}
                       </Badge>
                     ) : (
-                      <span className={`tabular-nums ${closed ? 'text-slate-400' : 'text-slate-600'}`}>
+                      <span className={`tabular-nums ${closed ? 'text-grey-400' : 'text-grey-600'}`}>
                         {view.dday}
                       </span>
                     )}
@@ -264,14 +264,14 @@ export default function MilestoneTable({
                 </tr>
 
                 {expanded && (
-                  <tr className="bg-slate-50 print:hidden">
+                  <tr className="bg-grey-50 print:hidden">
                     <td colSpan={COLUMN_COUNT} className="px-4 py-4">
                       <div className="grid gap-4 lg:grid-cols-3">
                         <div className="min-w-0">
-                          <p className="text-xs font-semibold text-slate-600">설명</p>
-                          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
+                          <p className="text-xs font-semibold text-grey-600">설명</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-grey-700">
                             {m.description.trim() === '' ? (
-                              <span className="text-slate-400">등록된 설명이 없습니다.</span>
+                              <span className="text-grey-400">등록된 설명이 없습니다.</span>
                             ) : (
                               m.description
                             )}
@@ -289,7 +289,7 @@ export default function MilestoneTable({
 
                         <div className="min-w-0">
                           {/* §7.12 역참조. 연결은 Note.milestoneId 단방향이라 보여주기만 한다 */}
-                          <p className="text-xs font-semibold text-slate-600">관련 노트</p>
+                          <p className="text-xs font-semibold text-grey-600">관련 노트</p>
                           <LinkedNoteList
                             className="mt-1"
                             notes={notesByMilestoneId.get(m.id) ?? []}

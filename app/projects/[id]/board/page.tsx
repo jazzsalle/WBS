@@ -68,7 +68,7 @@ export default async function BoardPage({ params, searchParams }: BoardPageProps
   if (board.data.years.length === 0) {
     return (
       <main className={CONTENT_CLASS}>
-        <p className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">
+        <p className="rounded-xl border border-dashed border-grey-300 p-10 text-center text-sm text-grey-500">
           아직 연차가 없습니다. 과제 개요에서 단계와 연차를 먼저 만드세요.
         </p>
       </main>

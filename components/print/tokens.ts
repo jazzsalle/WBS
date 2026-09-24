@@ -9,7 +9,7 @@ export const PRINT_TABLE_WRAP = 'print:overflow-visible print:rounded-none print
 export const PRINT_TABLE = 'print:min-w-0 print:border-collapse print:text-xs';
 
 /** 머리셀 괘선 — 본문보다 진하게 */
-export const PRINT_TH = 'print:border print:border-slate-500';
+export const PRINT_TH = 'print:border print:border-grey-500';
 
 /** 본문셀 괘선 */
-export const PRINT_TD = 'print:border print:border-slate-400';
+export const PRINT_TD = 'print:border print:border-grey-400';

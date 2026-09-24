@@ -45,7 +45,7 @@ export default async function SettingsPage() {
 
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">설정</h1>
-        <Link href="/" className="text-sm text-slate-500 underline hover:text-slate-700">
+        <Link href="/" className="text-sm text-grey-500 underline hover:text-grey-700">
           홈으로
         </Link>
       </div>

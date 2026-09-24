@@ -54,11 +54,11 @@ export default function NoteList({
   busy,
 }: NoteListProps) {
   const controlClass =
-    'w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs focus:border-slate-500 focus:outline-none';
+    'w-full rounded-lg border border-grey-300 bg-white px-2 py-1.5 text-xs focus:border-grey-500 focus:outline-none';
 
   return (
-    <div className="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white">
-      <div className="space-y-2 border-b border-slate-200 p-3">
+    <div className="flex min-h-0 flex-col rounded-xl border border-grey-200 bg-white">
+      <div className="space-y-2 border-b border-grey-200 p-3">
         <label className="block">
           <span className="sr-only">노트 검색</span>
           <input
@@ -126,14 +126,14 @@ export default function NoteList({
           </label>
         </div>
 
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-grey-500">
           {notes.length}건 표시 / 전체 {totalCount}건
         </p>
       </div>
 
-      <ul className="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto">
+      <ul className="min-h-0 flex-1 divide-y divide-grey-100 overflow-y-auto">
         {notes.length === 0 && (
-          <li className="px-3 py-10 text-center text-xs text-slate-400">
+          <li className="px-3 py-10 text-center text-xs text-grey-400">
             {totalCount === 0
               ? '등록된 노트가 없습니다. [새 노트]로 시작하세요.'
               : '조건에 맞는 노트가 없습니다. 필터를 바꿔 보세요.'}
@@ -143,7 +143,7 @@ export default function NoteList({
         {notes.map((note) => {
           const selected = note.id === selectedId;
           return (
-            <li key={note.id} className={selected ? 'bg-slate-50' : undefined}>
+            <li key={note.id} className={selected ? 'bg-grey-50' : undefined}>
               <div className="flex items-start gap-1 px-2 py-2">
                 <button
                   type="button"
@@ -153,7 +153,7 @@ export default function NoteList({
                   aria-label={`${note.title} ${note.pinned ? '고정 해제' : '고정'}`}
                   title={note.pinned ? '고정 해제' : '목록 상단에 고정'}
                   className={`shrink-0 rounded px-1 text-sm leading-6 disabled:opacity-50 ${
-                    note.pinned ? 'text-amber-500' : 'text-slate-300 hover:text-slate-500'
+                    note.pinned ? 'text-orange-500' : 'text-grey-300 hover:text-grey-500'
                   }`}
                 >
                   ★
@@ -170,16 +170,16 @@ export default function NoteList({
                       {NOTE_TYPE_ICONS[note.type]}
                     </span>
                     <span
-                      className={`truncate text-sm ${selected ? 'font-bold text-slate-900' : 'font-medium text-slate-700'}`}
+                      className={`truncate text-sm ${selected ? 'font-bold text-grey-900' : 'font-medium text-grey-700'}`}
                     >
                       {note.title}
                     </span>
                   </span>
-                  <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                  <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-grey-500">
                     <span className="tabular-nums">{note.date}</span>
-                    <span className="text-slate-400">{NOTE_TYPE_LABELS[note.type]}</span>
+                    <span className="text-grey-400">{NOTE_TYPE_LABELS[note.type]}</span>
                     {(note.taskId !== null || note.milestoneId !== null) && (
-                      <span className="text-slate-400" title="작업·마일스톤에 연결됨">
+                      <span className="text-grey-400" title="작업·마일스톤에 연결됨">
                         🔗
                       </span>
                     )}
@@ -189,7 +189,7 @@ export default function NoteList({
                       {note.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600"
+                          className="rounded-full bg-grey-100 px-1.5 py-0.5 text-[11px] text-grey-600"
                         >
                           #{tag}
                         </span>

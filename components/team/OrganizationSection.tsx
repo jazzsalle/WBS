@@ -30,9 +30,9 @@ function toRuleMessage(serverMessage: string): string {
 // 부록 A.3의 Org 색(indigo/sky/slate)을 Badge가 받는 톤으로 옮긴다.
 // 색 정의의 원본은 어디까지나 ORG_ROLE_COLORS다.
 const COLOR_TONES: Record<string, BadgeTone | undefined> = {
-  'indigo-600': 'violet',
-  'sky-600': 'blue',
-  'slate-500': 'neutral',
+  'purple-600': 'violet',
+  'blue-600': 'blue',
+  'grey-500': 'neutral',
 };
 
 function formatBudget(budget: number | null): string {
@@ -125,7 +125,7 @@ export default function OrganizationSection({
     <section aria-labelledby="org-section-heading">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="org-section-heading" className="text-lg font-bold">
-          기관 <span className="text-sm font-medium text-slate-400">{organizations.length}곳</span>
+          기관 <span className="text-sm font-medium text-grey-400">{organizations.length}곳</span>
         </h2>
         <Button
           variant="primary"
@@ -143,7 +143,7 @@ export default function OrganizationSection({
       {leadInconsistent && (
         <p
           role="status"
-          className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+          className="mt-3 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800"
         >
           주관기관 지정이 어긋나 있습니다 (역할이 &apos;주관&apos;인 기관 {leadByRole.length}곳).
           과제당 주관기관은 정확히 1곳이어야 합니다. 아래에서 [주관으로 지정]을 눌러 바로잡으세요.
@@ -151,7 +151,7 @@ export default function OrganizationSection({
       )}
 
       {sorted.length === 0 ? (
-        <p className="mt-4 rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+        <p className="mt-4 rounded-xl border border-dashed border-grey-300 p-8 text-center text-sm text-grey-500">
           등록된 기관이 없습니다. 주관기관부터 추가하세요.
         </p>
       ) : (
@@ -162,7 +162,7 @@ export default function OrganizationSection({
               <li
                 key={org.id}
                 className={`flex flex-col rounded-xl border bg-white p-4 ${
-                  lead ? 'border-indigo-200 ring-1 ring-indigo-100' : 'border-slate-200'
+                  lead ? 'border-purple-200 ring-1 ring-purple-100' : 'border-grey-200'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -173,33 +173,33 @@ export default function OrganizationSection({
                       </Badge>
                       {org.type && <Badge>{org.type}</Badge>}
                     </div>
-                    <p className="mt-2 truncate font-semibold text-slate-900" title={org.name}>
+                    <p className="mt-2 truncate font-semibold text-grey-900" title={org.name}>
                       {org.name}
                     </p>
                   </div>
                 </div>
 
-                <dl className="mt-3 space-y-1.5 text-xs text-slate-600">
+                <dl className="mt-3 space-y-1.5 text-xs text-grey-600">
                   <div className="flex gap-2">
-                    <dt className="w-24 shrink-0 text-slate-400">책임자</dt>
+                    <dt className="w-24 shrink-0 text-grey-400">책임자</dt>
                     <dd className="min-w-0 break-words">
                       {org.representative || '미입력'}
-                      {org.contact && <span className="text-slate-400"> · {org.contact}</span>}
+                      {org.contact && <span className="text-grey-400"> · {org.contact}</span>}
                     </dd>
                   </div>
                   <div className="flex gap-2">
-                    <dt className="w-24 shrink-0 text-slate-400">담당 연구개발 내용</dt>
+                    <dt className="w-24 shrink-0 text-grey-400">담당 연구개발 내용</dt>
                     <dd className="min-w-0 whitespace-pre-wrap break-words">
                       {org.responsibility || '미입력'}
                     </dd>
                   </div>
                   <div className="flex gap-2">
-                    <dt className="w-24 shrink-0 text-slate-400">배분 연구개발비</dt>
+                    <dt className="w-24 shrink-0 text-grey-400">배분 연구개발비</dt>
                     <dd className="min-w-0 tabular-nums">{formatBudget(org.budget)}</dd>
                   </div>
                 </dl>
 
-                <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-grey-100 pt-3">
                   <Button
                     size="sm"
                     disabled={busy}
@@ -226,7 +226,7 @@ export default function OrganizationSection({
                     삭제
                   </Button>
                   {lead && (
-                    <span className="basis-full text-xs text-slate-500">
+                    <span className="basis-full text-xs text-grey-500">
                       다른 기관을 주관으로 먼저 지정하세요.
                     </span>
                   )}
@@ -275,10 +275,10 @@ export default function OrganizationSection({
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{deleteTarget.name}</strong>을(를) 삭제합니다.
           </p>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-grey-500">
             {orphanedMemberCount > 0
               ? `이 기관에 소속된 인력 ${orphanedMemberCount}명은 삭제되지 않고 소속만 비워집니다.`
               : '이 기관에 소속된 인력은 없습니다.'}{' '}

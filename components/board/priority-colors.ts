@@ -22,31 +22,31 @@ const COLOR_CLASSES: Record<string, PriorityColorClasses> = {
     band: 'bg-red-600',
     badge: 'red',
   },
-  'amber-500': {
-    cell: 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100',
-    cellSelected: 'border-amber-600 bg-amber-100 text-amber-900 ring-2 ring-amber-500',
-    band: 'bg-amber-500',
+  'orange-500': {
+    cell: 'border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100',
+    cellSelected: 'border-orange-600 bg-orange-100 text-orange-900 ring-2 ring-orange-500',
+    band: 'bg-orange-500',
     badge: 'amber',
   },
-  'slate-500': {
-    cell: 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
-    cellSelected: 'border-slate-600 bg-slate-100 text-slate-900 ring-2 ring-slate-500',
-    band: 'bg-slate-500',
+  'grey-500': {
+    cell: 'border-grey-200 bg-grey-50 text-grey-700 hover:bg-grey-100',
+    cellSelected: 'border-grey-600 bg-grey-100 text-grey-900 ring-2 ring-grey-500',
+    band: 'bg-grey-500',
     badge: 'neutral',
   },
-  'slate-400': {
-    cell: 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50',
-    cellSelected: 'border-slate-500 bg-slate-100 text-slate-800 ring-2 ring-slate-400',
-    band: 'bg-slate-400',
+  'grey-400': {
+    cell: 'border-grey-200 bg-white text-grey-500 hover:bg-grey-50',
+    cellSelected: 'border-grey-500 bg-grey-100 text-grey-800 ring-2 ring-grey-400',
+    band: 'bg-grey-400',
     badge: 'neutral',
   },
 };
 
 // 알 수 없는 토큰은 조용히 중립색으로 넘기지 않는다 — 부록 A.3과 어긋났다는 신호다
 const UNKNOWN: PriorityColorClasses = {
-  cell: 'border-slate-300 bg-slate-100 text-slate-700',
-  cellSelected: 'border-slate-600 bg-slate-200 text-slate-900 ring-2 ring-slate-500',
-  band: 'bg-slate-300',
+  cell: 'border-grey-300 bg-grey-100 text-grey-700',
+  cellSelected: 'border-grey-600 bg-grey-200 text-grey-900 ring-2 ring-grey-500',
+  band: 'bg-grey-300',
   badge: 'neutral',
 };
 

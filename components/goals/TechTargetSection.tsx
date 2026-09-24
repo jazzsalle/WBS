@@ -135,7 +135,7 @@ function Sparkline({ records, unit }: { records: readonly TechTargetRecord[]; un
   const ordered = sortRecordsAsc(records);
   if (ordered.length < 2) {
     return (
-      <p className="text-xs text-slate-400">측정값이 2건 이상이면 추이 그래프를 그립니다.</p>
+      <p className="text-xs text-grey-400">측정값이 2건 이상이면 추이 그래프를 그립니다.</p>
     );
   }
 
@@ -172,7 +172,7 @@ function Sparkline({ records, unit }: { records: readonly TechTargetRecord[]; un
           <circle key={point.id} cx={point.x} cy={point.y} r={2} fill="#3b82f6" />
         ))}
       </svg>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-grey-500">
         최저 {formatMeasure(min, unit)} · 최고 {formatMeasure(max, unit)}
       </p>
     </div>
@@ -291,9 +291,9 @@ export default function TechTargetSection({
 
       {/* 제목은 인쇄 머리말이 대신한다 — 종이에 같은 줄을 두 번 남기지 않는다 (P-R4) */}
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <h2 id="tech-target-section-title" className="text-base font-bold text-slate-900">
+        <h2 id="tech-target-section-title" className="text-base font-bold text-grey-900">
           정량적 기술목표
-          <span className="ml-2 text-xs font-normal text-slate-500">{views.length}개 항목</span>
+          <span className="ml-2 text-xs font-normal text-grey-500">{views.length}개 항목</span>
         </h2>
         <div className="flex gap-2 print:hidden">
           <Button size="sm" onClick={() => window.print()}>
@@ -325,14 +325,14 @@ export default function TechTargetSection({
       {notice && (
         <div
           role="status"
-          className="mt-3 flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 print:hidden"
+          className="mt-3 flex items-start justify-between gap-4 rounded-xl border border-grey-200 bg-grey-50 p-3 text-sm text-grey-700 print:hidden"
         >
           <p className="min-w-0 break-words">{notice}</p>
           <button
             type="button"
             onClick={() => setNotice(null)}
             aria-label="알림 닫기"
-            className="shrink-0 font-bold text-slate-400 hover:text-slate-600"
+            className="shrink-0 font-bold text-grey-400 hover:text-grey-600"
           >
             ×
           </button>
@@ -340,12 +340,12 @@ export default function TechTargetSection({
       )}
 
       {/* 상단 요약: 가중 달성률 게이지 + 비중 합계 (§7.7). 값은 전부 techSummary 그대로다 */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-4 rounded-xl border border-slate-200 bg-white p-4 print:rounded-none print:border-slate-400">
+      <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-4 rounded-xl border border-grey-200 bg-white p-4 print:rounded-none print:border-grey-400">
         <div className="flex items-center gap-3">
           {summary.weightSum === 0 || summary.weightedRate === null ? (
             // T-3: 비중 합계가 0이면 나눌 분모가 없다 — 게이지 대신 N/A
             <div
-              className="flex h-16 w-[120px] items-center justify-center rounded-lg bg-slate-50 text-lg font-bold text-slate-400"
+              className="flex h-16 w-[120px] items-center justify-center rounded-lg bg-grey-50 text-lg font-bold text-grey-400"
               title="비중 합계가 0이라 가중 달성률을 계산할 수 없습니다."
             >
               N/A
@@ -354,16 +354,16 @@ export default function TechTargetSection({
             <WeightedGauge rate={summary.weightedRate} />
           )}
           <div>
-            <p className="text-xs text-slate-500">전체 가중 달성률</p>
-            <p className="text-2xl font-bold tabular-nums text-slate-900">
+            <p className="text-xs text-grey-500">전체 가중 달성률</p>
+            <p className="text-2xl font-bold tabular-nums text-grey-900">
               {formatRate(summary.weightedRate)}
             </p>
           </div>
         </div>
 
         <div className="min-w-0">
-          <p className="text-xs text-slate-500">비중 합계</p>
-          <p className="text-sm font-semibold tabular-nums text-slate-800">
+          <p className="text-xs text-grey-500">비중 합계</p>
+          <p className="text-sm font-semibold tabular-nums text-grey-800">
             {formatNumber(summary.weightSum)}%
           </p>
           {summary.weightMismatch && (
@@ -373,20 +373,20 @@ export default function TechTargetSection({
             </Badge>
           )}
           {unmeasuredCount > 0 && (
-            <p className="mt-1.5 text-xs text-slate-500">
+            <p className="mt-1.5 text-xs text-grey-500">
               미측정 {unmeasuredCount}건은 달성률 0으로 전체 계산에 포함됩니다.
             </p>
           )}
         </div>
       </div>
 
-      <div className={`mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white ${PRINT_TABLE_WRAP}`}>
+      <div className={`mt-4 overflow-x-auto rounded-xl border border-grey-200 bg-white ${PRINT_TABLE_WRAP}`}>
         <table className={`w-full min-w-[1040px] text-left text-sm ${PRINT_TABLE}`}>
-          <caption className="hidden px-3 py-2 text-left text-sm font-bold text-slate-900 print:table-caption">
+          <caption className="hidden px-3 py-2 text-left text-sm font-bold text-grey-900 print:table-caption">
             정량적 기술목표
           </caption>
-          <thead className="text-xs text-slate-500 print:text-black">
-            <tr className="border-b border-slate-100">
+          <thead className="text-xs text-grey-500 print:text-black">
+            <tr className="border-b border-grey-100">
               <th className={TH_CLASS}>평가항목</th>
               <th className={TH_CLASS}>단위</th>
               <th className={TH_CLASS}>비중(%)</th>
@@ -399,10 +399,10 @@ export default function TechTargetSection({
               <th className={`${TH_CLASS} text-right print:hidden`}>동작</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-grey-100">
             {views.length === 0 && (
               <tr>
-                <td colSpan={COLUMN_COUNT} className="px-3 py-8 text-center text-sm text-slate-400">
+                <td colSpan={COLUMN_COUNT} className="px-3 py-8 text-center text-sm text-grey-400">
                   등록된 평가항목이 없습니다. [평가항목 추가]로 시작하세요.
                 </td>
               </tr>
@@ -415,7 +415,7 @@ export default function TechTargetSection({
 
               return (
                 <Fragment key={target.id}>
-                  <tr className={expanded ? 'bg-slate-50' : ''}>
+                  <tr className={expanded ? 'bg-grey-50' : ''}>
                     <td className={TD_CLASS}>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <button
@@ -423,11 +423,11 @@ export default function TechTargetSection({
                           onClick={() => setExpandedId(expanded ? null : target.id)}
                           aria-expanded={expanded}
                           aria-label={`${target.name} 측정 이력 ${expanded ? '접기' : '펼치기'}`}
-                          className="shrink-0 rounded-md border border-slate-200 px-1.5 text-xs text-slate-500 hover:bg-slate-100 print:hidden"
+                          className="shrink-0 rounded-md border border-grey-200 px-1.5 text-xs text-grey-500 hover:bg-grey-100 print:hidden"
                         >
                           {expanded ? '▾' : '▸'}
                         </button>
-                        <span className="font-medium text-slate-900">{target.name}</span>
+                        <span className="font-medium text-grey-900">{target.name}</span>
                         <Badge tone="neutral">{DIRECTION_LABELS[target.direction]}</Badge>
                         {/* T-4 */}
                         {view.evaluatorMissing && (
@@ -435,23 +435,23 @@ export default function TechTargetSection({
                         )}
                       </div>
                     </td>
-                    <td className={`${TD_CLASS} text-slate-600`}>{target.unit || '—'}</td>
-                    <td className={`${TD_CLASS} tabular-nums text-slate-600`}>
+                    <td className={`${TD_CLASS} text-grey-600`}>{target.unit || '—'}</td>
+                    <td className={`${TD_CLASS} tabular-nums text-grey-600`}>
                       {formatNumber(target.weight)}
                     </td>
-                    <td className={`${TD_CLASS} tabular-nums text-slate-600`}>
+                    <td className={`${TD_CLASS} tabular-nums text-grey-600`}>
                       {formatMeasure(target.baselineDomestic, target.unit)}
                     </td>
-                    <td className={`${TD_CLASS} tabular-nums text-slate-600`}>
+                    <td className={`${TD_CLASS} tabular-nums text-grey-600`}>
                       {formatMeasure(target.worldBest, target.unit)}
                       {target.worldBestHolder && (
-                        <span className="block text-xs text-slate-400">{target.worldBestHolder}</span>
+                        <span className="block text-xs text-grey-400">{target.worldBestHolder}</span>
                       )}
                     </td>
-                    <td className={`${TD_CLASS} tabular-nums font-medium text-slate-800`}>
+                    <td className={`${TD_CLASS} tabular-nums font-medium text-grey-800`}>
                       {formatMeasure(target.targetValue, target.unit)}
                     </td>
-                    <td className={`${TD_CLASS} tabular-nums text-slate-800`}>
+                    <td className={`${TD_CLASS} tabular-nums text-grey-800`}>
                       {view.current === null ? (
                         <Badge
                           tone="neutral"
@@ -475,16 +475,16 @@ export default function TechTargetSection({
                           <div className="print:hidden">
                             <ProgressBar value={view.rate} showValue={false} label="달성률" />
                           </div>
-                          <span className="text-sm font-semibold tabular-nums text-slate-800">
+                          <span className="text-sm font-semibold tabular-nums text-grey-800">
                             {formatRate(view.rate)}
                           </span>
                         </div>
                       )}
                     </td>
-                    <td className={`${TD_CLASS} text-slate-600`}>
+                    <td className={`${TD_CLASS} text-grey-600`}>
                       {MEASURE_METHOD_LABELS[target.measureMethod]}
                       {target.measureDescription && (
-                        <span className="block max-w-[220px] truncate text-xs text-slate-400 print:max-w-none print:overflow-visible print:whitespace-normal">
+                        <span className="block max-w-[220px] truncate text-xs text-grey-400 print:max-w-none print:overflow-visible print:whitespace-normal">
                           {target.measureDescription}
                         </span>
                       )}
@@ -515,22 +515,22 @@ export default function TechTargetSection({
 
                   {expanded && (
                     // 확장 영역은 인쇄에서 빠진다 — 계획서 표에는 본문 표만 남는다 (§7.7)
-                    <tr className="bg-slate-50 print:hidden">
+                    <tr className="bg-grey-50 print:hidden">
                       <td colSpan={COLUMN_COUNT} className="px-4 py-4">
                         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
                           <div className="min-w-0">
                             <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs sm:grid-cols-3">
                               <div>
-                                <dt className="text-slate-500">책임 기관</dt>
-                                <dd className="text-slate-800">{orgLabel(target.orgId)}</dd>
+                                <dt className="text-grey-500">책임 기관</dt>
+                                <dd className="text-grey-800">{orgLabel(target.orgId)}</dd>
                               </div>
                               <div>
-                                <dt className="text-slate-500">세계최고 보유국/기관</dt>
-                                <dd className="text-slate-800">{target.worldBestHolder || '—'}</dd>
+                                <dt className="text-grey-500">세계최고 보유국/기관</dt>
+                                <dd className="text-grey-800">{target.worldBestHolder || '—'}</dd>
                               </div>
                               <div>
-                                <dt className="text-slate-500">측정방법 상세</dt>
-                                <dd className="whitespace-pre-wrap text-slate-800">
+                                <dt className="text-grey-500">측정방법 상세</dt>
+                                <dd className="whitespace-pre-wrap text-grey-800">
                                   {target.measureDescription || '—'}
                                 </dd>
                               </div>
@@ -538,17 +538,17 @@ export default function TechTargetSection({
 
                             {years.length > 0 && (
                               <div className="mt-3">
-                                <p className="text-xs font-semibold text-slate-600">연차별 목표치</p>
+                                <p className="text-xs font-semibold text-grey-600">연차별 목표치</p>
                                 <div className="mt-1 flex flex-wrap gap-2">
                                   {years.map((year) => {
                                     const yearTarget = target.targetByYear[year.id];
                                     return (
                                       <span
                                         key={year.id}
-                                        className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                                        className="rounded-lg border border-grey-200 bg-white px-2 py-1 text-xs"
                                       >
-                                        <span className="text-slate-500">{yearLabel(year)}</span>{' '}
-                                        <span className="font-semibold tabular-nums text-slate-800">
+                                        <span className="text-grey-500">{yearLabel(year)}</span>{' '}
+                                        <span className="font-semibold tabular-nums text-grey-800">
                                           {yearTarget === undefined
                                             ? '미설정'
                                             : formatMeasure(yearTarget, target.unit)}
@@ -566,9 +566,9 @@ export default function TechTargetSection({
 
                         <div className="mt-4">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-xs font-semibold text-slate-600">
+                            <p className="text-xs font-semibold text-grey-600">
                               측정 이력
-                              <span className="ml-1.5 font-normal text-slate-400">
+                              <span className="ml-1.5 font-normal text-grey-400">
                                 {target.records.length}건
                               </span>
                             </p>
@@ -587,34 +587,34 @@ export default function TechTargetSection({
                           </div>
 
                           {target.records.length === 0 ? (
-                            <p className="mt-2 text-xs text-slate-400">
+                            <p className="mt-2 text-xs text-grey-400">
                               측정 이력이 없습니다. 측정값을 추가하면 최신 값이 현재 실적치가 됩니다.
                             </p>
                           ) : (
-                            <ul className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
+                            <ul className="mt-2 divide-y divide-grey-200 rounded-xl border border-grey-200 bg-white">
                               {recordsDesc.map((record) => (
                                 <li
                                   key={record.id}
                                   className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs"
                                 >
-                                  <span className="w-24 shrink-0 tabular-nums text-slate-500">
+                                  <span className="w-24 shrink-0 tabular-nums text-grey-500">
                                     {record.date}
                                   </span>
-                                  <span className="font-semibold tabular-nums text-slate-900">
+                                  <span className="font-semibold tabular-nums text-grey-900">
                                     {formatMeasure(record.value, target.unit)}
                                   </span>
                                   <Badge tone="neutral">
                                     {MEASURE_METHOD_LABELS[record.method]}
                                   </Badge>
-                                  <span className="text-slate-600">
+                                  <span className="text-grey-600">
                                     {record.evaluator.trim() === '' ? (
-                                      <span className="text-slate-400">평가기관 미기재</span>
+                                      <span className="text-grey-400">평가기관 미기재</span>
                                     ) : (
                                       record.evaluator
                                     )}
                                   </span>
                                   {record.yearId !== null && (
-                                    <span className="text-slate-500">
+                                    <span className="text-grey-500">
                                       {/* 목록에 없는 연차를 가리키면 감추지 않고 사실을 드러낸다 */}
                                       {(() => {
                                         const year = yearById.get(record.yearId);
@@ -633,12 +633,12 @@ export default function TechTargetSection({
                                         증빙
                                       </a>
                                     ) : (
-                                      <span className="text-slate-500">
+                                      <span className="text-grey-500">
                                         증빙: {record.evidenceUrl}
                                       </span>
                                     ))}
                                   {record.note.trim() !== '' && (
-                                    <span className="min-w-0 break-words text-slate-500">
+                                    <span className="min-w-0 break-words text-grey-500">
                                       {record.note}
                                     </span>
                                   )}
@@ -748,11 +748,11 @@ export default function TechTargetSection({
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{deletingTarget.name}</strong> 평가항목을 삭제하면 측정 이력{' '}
             {deletingTarget.records.length}건과 작업 연계도 함께 정리됩니다.
           </p>
-          <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="mt-3 rounded-lg bg-orange-50 p-3 text-xs text-orange-800">
             삭제하면 이 항목의 비중({formatNumber(deletingTarget.weight)}%)이 빠져 전체 가중
             달성률이 달라집니다.
           </p>
@@ -783,12 +783,12 @@ export default function TechTargetSection({
             </>
           }
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-grey-700">
             <strong>{deletingRecord.techTarget.name}</strong>의 {deletingRecord.record.date} 측정값(
             {formatMeasure(deletingRecord.record.value, deletingRecord.techTarget.unit)})을
             삭제합니다.
           </p>
-          <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="mt-3 rounded-lg bg-orange-50 p-3 text-xs text-orange-800">
             가장 최근 측정값을 지우면 그 이전 측정값이 현재 실적치가 되어 달성률이 바뀝니다.
           </p>
         </Modal>

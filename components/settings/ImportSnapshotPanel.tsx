@@ -143,15 +143,15 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
   const selected = projects.find((p) => p.id === projectId) ?? null;
 
   return (
-    <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
+    <section className="mt-4 rounded-2xl border border-grey-200 bg-white p-6">
       <h2 className="text-lg font-bold">임포트 스냅샷</h2>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-grey-500">
         엑셀 반영 직전의 상태입니다. 잘못 반영했을 때 여기서 되돌립니다. 예산계획 반영(§6.8)은
         계획액을, 산출근거 반영(§6.11)은 계획액과 <strong>삭제된 산출근거 행</strong>까지 담습니다.
       </p>
 
       {/* I-17의 사실을 그대로 적는다 — 안 적으면 사용자가 "복원의 복원"을 기대한다 */}
-      <ul className="mt-4 list-disc space-y-1 rounded-lg bg-slate-50 p-4 pl-8 text-xs text-slate-600">
+      <ul className="mt-4 list-disc space-y-1 rounded-lg bg-grey-50 p-4 pl-8 text-xs text-grey-600">
         <li>
           스냅샷은 <strong>과제별 최근 20개</strong>만 남습니다. 21번째 반영이 들어오면 가장 오래된
           것부터 사라집니다.
@@ -175,14 +175,14 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
       </ul>
 
       <label className="mt-5 block">
-        <span className="text-sm font-medium text-slate-700">과제</span>
+        <span className="text-sm font-medium text-grey-700">과제</span>
         <select
           value={projectId}
           onChange={(e) => {
             setProjectId(e.target.value);
             setNotice(null);
           }}
-          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+          className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
         >
           <option value="">과제를 고르세요</option>
           {projects.map((project) => (
@@ -206,7 +206,7 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
       {notice && (
         <p
           role="status"
-          className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
+          className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800"
         >
           {notice}
         </p>
@@ -214,22 +214,22 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
 
       <div className="mt-4">
         {projectId === '' ? (
-          <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+          <p className="rounded-lg border border-dashed border-grey-300 p-4 text-sm text-grey-500">
             과제를 고르세요. 스냅샷은 과제별로 보관됩니다.
           </p>
         ) : loading ? (
-          <p className="text-sm text-slate-500">불러오는 중…</p>
+          <p className="text-sm text-grey-500">불러오는 중…</p>
         ) : snapshots === null ? null : snapshots.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+          <p className="rounded-lg border border-dashed border-grey-300 p-4 text-sm text-grey-500">
             {selected?.name ?? '이 과제'}에 아직 엑셀 반영 이력이 없습니다.
           </p>
         ) : (
-          <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+          <ul className="divide-y divide-grey-100 rounded-xl border border-grey-200">
             {snapshots.map((snapshot, index) => (
               <li key={snapshot.id} className="flex flex-wrap items-center gap-3 p-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="break-all text-sm font-semibold text-slate-800">
+                    <span className="break-all text-sm font-semibold text-grey-800">
                       {snapshot.snapshot.source.fileName}
                     </span>
                     {/* 두 종류가 한 목록에 섞이고 복원 범위가 다르다 (D-17a) */}
@@ -238,11 +238,11 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                     </Badge>
                     {index === 0 && <Badge tone="blue">최근 반영</Badge>}
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-grey-500">
                     {new Date(snapshot.snapshot.capturedAt).toLocaleString('ko-KR')} ·{' '}
                     {snapshot.snapshot.source.sheetName} 시트
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-grey-500">
                     연차 {yearCount(snapshot)}개 · 비목 {snapshot.snapshot.items.length}칸 · 되돌리면
                     계획액 합계 {formatAmount(restoredTotal(snapshot), '원')}
                   </p>
@@ -293,29 +293,29 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
       >
         {target && (
           <>
-            <dl className="space-y-1 rounded-lg bg-slate-50 p-3 text-sm">
+            <dl className="space-y-1 rounded-lg bg-grey-50 p-3 text-sm">
               <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-slate-500">파일</dt>
+                <dt className="w-24 shrink-0 text-grey-500">파일</dt>
                 <dd className="break-all">{target.snapshot.source.fileName}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-slate-500">반영 시각</dt>
+                <dt className="w-24 shrink-0 text-grey-500">반영 시각</dt>
                 <dd>{new Date(target.snapshot.capturedAt).toLocaleString('ko-KR')}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-slate-500">되돌릴 범위</dt>
+                <dt className="w-24 shrink-0 text-grey-500">되돌릴 범위</dt>
                 <dd>
                   연차 {yearCount(target)}개 · 비목 {target.snapshot.items.length}칸
                 </dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-slate-500">계획액 합계</dt>
+                <dt className="w-24 shrink-0 text-grey-500">계획액 합계</dt>
                 <dd>{formatAmount(restoredTotal(target), '원')}</dd>
               </div>
             </dl>
 
             {step === 1 ? (
-              <div className="mt-4 space-y-2 text-sm text-slate-600">
+              <div className="mt-4 space-y-2 text-sm text-grey-600">
                 <p>
                   이 반영으로 바뀐 <strong className="text-red-600">계획액이 반영 직전 값으로
                   되돌아갑니다.</strong> 반영 이후에 손으로 고친 계획액도 함께 사라집니다.
@@ -329,7 +329,7 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                   <p>
                     이 스냅샷은 <strong>산출근거</strong>도 담고 있어, 대상 비목의 현재 산출근거 행을
                     지우고 스냅샷의 행을 되살립니다 (D-17a). 다만{' '}
-                    <strong className="text-slate-800">
+                    <strong className="text-grey-800">
                       임포트가 만든 인력은 명부에 남습니다
                     </strong>{' '}
                     (D-17b) — 필요 없으면 인력 화면에서 지우세요.
@@ -346,7 +346,7 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                   value={confirmText}
                   onChange={(e) => setConfirmText(e.target.value)}
                   placeholder={CONFIRM_WORD}
-                  className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none"
+                  className="mt-2 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none"
                 />
               </div>
             )}

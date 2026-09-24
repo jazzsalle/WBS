@@ -190,10 +190,10 @@ function PlannedInput({
           }
         }}
         className={`w-28 rounded-md border px-1.5 py-1 text-right text-xs tabular-nums focus:outline-none print:hidden ${
-          invalid ? 'border-red-400 bg-red-50' : 'border-slate-300 focus:border-slate-500'
+          invalid ? 'border-red-400 bg-red-50' : 'border-grey-300 focus:border-grey-500'
         }`}
       />
-      <span className="text-[10px] text-slate-400 print:hidden">원</span>
+      <span className="text-[10px] text-grey-400 print:hidden">원</span>
       {invalid && (
         <span className="block text-[10px] text-red-600">0 이상 정수(원)만 저장됩니다.</span>
       )}
@@ -208,7 +208,7 @@ function executionSummary(
 ): ReactNode {
   return (
     <>
-      <span className="block text-xs tabular-nums text-slate-600 print:text-black">
+      <span className="block text-xs tabular-nums text-grey-600 print:text-black">
         집행 {formatAmount(cell.executed, currencyUnit)}
       </span>
       <span className="mt-0.5 flex items-center justify-end gap-1">
@@ -217,7 +217,7 @@ function executionSummary(
           <span
             aria-label="예산 외 집행 경고"
             title="예산 외 집행: 계획액이 0인데 집행액이 있습니다 (B-1)"
-            className="text-amber-600 print:text-black"
+            className="text-orange-600 print:text-black"
           >
             ⚠
           </span>
@@ -225,7 +225,7 @@ function executionSummary(
         <span
           // B-2: 집행률 100% 초과는 빨강 (부록 A.3 red-600)
           className={`text-xs font-semibold tabular-nums ${
-            cell.over ? 'text-red-600' : 'text-slate-500'
+            cell.over ? 'text-red-600' : 'text-grey-500'
           }`}
           title={cell.over ? '집행률이 100%를 넘었습니다 (B-2)' : undefined}
         >
@@ -260,7 +260,7 @@ function ExecutionButton({
         onClick={onSelect}
         aria-label={`${label} 집행 내역 열기`}
         // P-R4: 패널 트리거는 인쇄에서 빠진다. 숫자는 아래 정적 블록이 그대로 남긴다
-        className="mt-1 block w-full rounded-md px-1.5 py-1 text-right hover:bg-slate-100 print:hidden"
+        className="mt-1 block w-full rounded-md px-1.5 py-1 text-right hover:bg-grey-100 print:hidden"
       >
         {summary}
       </button>
@@ -296,14 +296,14 @@ function planSummary(
   }
   return (
     <>
-      <span className="block text-xs tabular-nums text-slate-600 print:text-black">
+      <span className="block text-xs tabular-nums text-grey-600 print:text-black">
         {DETAIL_AXIS_LABELS.cash} {formatSplit(view.saved.cashAmount, currencyUnit)}
       </span>
-      <span className="block text-xs tabular-nums text-slate-600 print:text-black">
+      <span className="block text-xs tabular-nums text-grey-600 print:text-black">
         {DETAIL_AXIS_LABELS.in_kind} {formatSplit(view.saved.inKindAmount, currencyUnit)}
       </span>
       {view.detailCount > 0 && (
-        <span className="block text-[11px] text-slate-400 print:text-black">
+        <span className="block text-[11px] text-grey-400 print:text-black">
           근거 {view.detailCount}행
         </span>
       )}
@@ -332,7 +332,7 @@ function planSummary(
       )}
       {view.missingSalaryCount > 0 && (
         <span
-          className="block text-[11px] text-amber-700 print:text-black"
+          className="block text-[11px] text-orange-700 print:text-black"
           title="연봉이 비어 있는 인력의 인건비 행은 0원으로 계산됩니다 (§7.9.2)"
         >
           연봉 미입력 {view.missingSalaryCount}행
@@ -362,7 +362,7 @@ function PlanButton({
         onClick={onSelect}
         aria-label={`${label} 산출근거 열기`}
         // P-R4: 패널 트리거는 인쇄에서 빠진다. 숫자는 아래 정적 블록이 그대로 남긴다
-        className="mt-1 block w-full rounded-md px-1.5 py-1 text-right hover:bg-slate-100 print:hidden"
+        className="mt-1 block w-full rounded-md px-1.5 py-1 text-right hover:bg-grey-100 print:hidden"
       >
         {summary}
       </button>
@@ -428,7 +428,7 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
         </Button>
       </div>
 
-      <div className={`overflow-x-auto rounded-xl border border-slate-200 bg-white ${PRINT_TABLE_WRAP}`}>
+      <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-white ${PRINT_TABLE_WRAP}`}>
         <table className={`w-full text-left text-sm ${PRINT_TABLE}`}>
           <caption className="sr-only">
             비목 × 연차 예산 매트릭스.{' '}
@@ -436,8 +436,8 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
               ? '각 셀은 예산·현금·현물입니다.'
               : '각 셀은 예산·집행·집행률입니다.'}
           </caption>
-          <thead className="text-xs text-slate-500 print:text-black">
-            <tr className="border-b border-slate-100">
+          <thead className="text-xs text-grey-500 print:text-black">
+            <tr className="border-b border-grey-100">
               <th scope="col" className={`px-3 py-2 font-medium ${PRINT_TH}`}>
                 비목
               </th>
@@ -449,8 +449,8 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
                     scope="col"
                     className={`px-3 py-2 text-right font-medium ${PRINT_TH}`}
                   >
-                    <span className="block text-slate-700 print:text-black">{column.name}</span>
-                    <span className="block text-[11px] font-normal tabular-nums text-slate-400 print:text-black">
+                    <span className="block text-grey-700 print:text-black">{column.name}</span>
+                    <span className="block text-[11px] font-normal tabular-nums text-grey-400 print:text-black">
                       연차 예산{' '}
                       {column.yearBudget === null
                         ? '미입력'
@@ -472,13 +472,13 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
                   </th>
                 );
               })}
-              <th scope="col" className={`px-3 py-2 text-right font-medium text-slate-700 ${PRINT_TH}`}>
+              <th scope="col" className={`px-3 py-2 text-right font-medium text-grey-700 ${PRINT_TH}`}>
                 합계
               </th>
             </tr>
           </thead>
   
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-grey-100">
             {matrix.rows.map((row, rowIndex) => {
               const group = BUDGET_CATEGORY_GROUPS[row.category];
               const previous = rowIndex === 0 ? undefined : matrix.rows[rowIndex - 1];
@@ -489,14 +489,14 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
                 <tr
                   key={row.category}
                   data-category={row.category}
-                  className={`align-top ${groupChanged && rowIndex > 0 ? 'border-t-2 border-t-slate-200' : ''}`}
+                  className={`align-top ${groupChanged && rowIndex > 0 ? 'border-t-2 border-t-grey-200' : ''}`}
                 >
                   <th
                     scope="row"
-                    className={`px-3 py-2 text-left font-medium text-slate-800 ${PRINT_TD}`}
+                    className={`px-3 py-2 text-left font-medium text-grey-800 ${PRINT_TD}`}
                   >
                     {BUDGET_CATEGORY_LABELS[row.category]}
-                    <span className="mt-0.5 block text-[11px] font-normal text-slate-400 print:text-black">
+                    <span className="mt-0.5 block text-[11px] font-normal text-grey-400 print:text-black">
                       {/* 부록 A.1에서 'other'는 어느 쪽도 아니다 — 없는 구분을 지어내지 않는다 */}
                       {group ?? '구분 없음'}
                     </span>
@@ -519,7 +519,7 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
                           cell.over && mode === 'execution' ? 'bg-red-50' : ''
                         } ${
                           // 선택 표시는 조작 흔적이라 인쇄에서 지운다 (P-R4)
-                          isSelected ? 'ring-2 ring-inset ring-slate-900 print:ring-0' : ''
+                          isSelected ? 'ring-2 ring-inset ring-grey-900 print:ring-0' : ''
                         }`}
                       >
                         {lock === null ? (
@@ -535,7 +535,7 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
                         ) : (
                           <span
                             title={lockMessage(lock, mode)}
-                            className="inline-flex items-center gap-1 text-xs tabular-nums text-slate-700 print:text-black"
+                            className="inline-flex items-center gap-1 text-xs tabular-nums text-grey-700 print:text-black"
                           >
                             {/* 자물쇠는 편집 가능 여부라는 화면 사정이다 — 종이에는 금액만 남긴다 */}
                             <span aria-hidden className="print:hidden">
@@ -570,18 +570,18 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
                   })}
   
                   <td className={`px-3 py-2 text-right ${PRINT_TD}`}>
-                    <span className="block text-xs font-semibold tabular-nums text-slate-800">
+                    <span className="block text-xs font-semibold tabular-nums text-grey-800">
                       {formatAmount(row.total.planned, currencyUnit)}
                     </span>
                     {/* 집행 숫자는 수행 모드의 것이다. 제안 모드에서는 계획액만 남긴다 (§7.9 표) */}
                     {mode === 'execution' && (
                       <>
-                        <span className="block text-xs tabular-nums text-slate-600 print:text-black">
+                        <span className="block text-xs tabular-nums text-grey-600 print:text-black">
                           집행 {formatAmount(row.total.executed, currencyUnit)}
                         </span>
                         <span
                           className={`block text-xs font-semibold tabular-nums ${
-                            row.total.over ? 'text-red-600' : 'text-slate-500'
+                            row.total.over ? 'text-red-600' : 'text-grey-500'
                           }`}
                         >
                           {formatRate(row.total.rate)}
@@ -599,27 +599,27 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
           {/* 하단 요약 행 (§7.9): 수행은 연차별 합계 / 집행률 / 잔액, 제안은 계획액 합계만.
               제안 모드의 현금/현물 비중과 연차별 지침 검증(PL-12·PL-13)은 표 아래
               BudgetPlanSummary가 맡는다 */}
-          <tfoot className="border-t-2 border-slate-200 bg-slate-50 text-xs">
+          <tfoot className="border-t-2 border-grey-200 bg-grey-50 text-xs">
             <tr>
               <th
                 scope="row"
-                className={`px-3 py-2 text-left font-semibold text-slate-800 ${PRINT_TH}`}
+                className={`px-3 py-2 text-left font-semibold text-grey-800 ${PRINT_TH}`}
               >
                 합계
               </th>
               {matrix.columns.map((column) => (
                 <td key={column.yearId} className={`px-3 py-2 text-right ${PRINT_TD}`}>
-                  <span className="block font-semibold tabular-nums text-slate-800">
+                  <span className="block font-semibold tabular-nums text-grey-800">
                     {formatAmount(column.total.planned, currencyUnit)}
                   </span>
                   {mode === 'execution' && (
                     <>
-                      <span className="block tabular-nums text-slate-600 print:text-black">
+                      <span className="block tabular-nums text-grey-600 print:text-black">
                         집행 {formatAmount(column.total.executed, currencyUnit)}
                       </span>
                       <span
                         className={`block font-semibold tabular-nums ${
-                          column.total.over ? 'text-red-600' : 'text-slate-500'
+                          column.total.over ? 'text-red-600' : 'text-grey-500'
                         }`}
                       >
                         {formatRate(column.total.rate)}
@@ -627,7 +627,7 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
                       </span>
                       <span
                         className={`block tabular-nums ${
-                          column.total.remaining < 0 ? 'text-red-600' : 'text-slate-500'
+                          column.total.remaining < 0 ? 'text-red-600' : 'text-grey-500'
                         }`}
                         title="잔액 = 예산 − 집행"
                       >
@@ -638,17 +638,17 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
                 </td>
               ))}
               <td className={`px-3 py-2 text-right ${PRINT_TD}`}>
-                <span className="block font-semibold tabular-nums text-slate-900">
+                <span className="block font-semibold tabular-nums text-grey-900">
                   {formatAmount(matrix.total.planned, currencyUnit)}
                 </span>
                 {mode === 'execution' && (
                   <>
-                    <span className="block tabular-nums text-slate-600 print:text-black">
+                    <span className="block tabular-nums text-grey-600 print:text-black">
                       집행 {formatAmount(matrix.total.executed, currencyUnit)}
                     </span>
                     <span
                       className={`block font-semibold tabular-nums ${
-                        matrix.total.over ? 'text-red-600' : 'text-slate-500'
+                        matrix.total.over ? 'text-red-600' : 'text-grey-500'
                       }`}
                     >
                       {formatRate(matrix.total.rate)}
@@ -656,7 +656,7 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
                     </span>
                     <span
                       className={`block tabular-nums ${
-                        matrix.total.remaining < 0 ? 'text-red-600' : 'text-slate-500'
+                        matrix.total.remaining < 0 ? 'text-red-600' : 'text-grey-500'
                       }`}
                       title="잔액 = 예산 − 집행"
                     >

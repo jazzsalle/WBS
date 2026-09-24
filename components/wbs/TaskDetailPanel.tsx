@@ -252,18 +252,18 @@ export default function TaskDetailPanel({
   return (
     <aside
       aria-label="작업 상세"
-      className="fixed top-0 right-0 z-30 flex h-full w-[380px] flex-col border-l border-slate-200 bg-white shadow-xl"
+      className="fixed top-0 right-0 z-30 flex h-full w-[380px] flex-col border-l border-grey-200 bg-white shadow-xl"
     >
-      <header className="flex items-start justify-between gap-2 border-b border-slate-200 p-4">
+      <header className="flex items-start justify-between gap-2 border-b border-grey-200 p-4">
         <div className="min-w-0">
-          <p className="font-mono text-xs text-slate-400">{wbsCode}</p>
+          <p className="font-mono text-xs text-grey-400">{wbsCode}</p>
           <h2 className="truncate text-base font-bold">{task.title}</h2>
         </div>
         <button
           type="button"
           onClick={onClose}
           aria-label="상세 패널 닫기"
-          className="shrink-0 text-xl leading-none text-slate-400 hover:text-slate-600"
+          className="shrink-0 text-xl leading-none text-grey-400 hover:text-grey-600"
         >
           ×
         </button>
@@ -282,7 +282,7 @@ export default function TaskDetailPanel({
           // O-3 비교 UI: 최신 값과 내 입력을 나란히 두고 항목마다 사용자가 고르게 한다
           <div
             role="status"
-            className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+            className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800"
           >
             <p className="font-semibold">최신 내용을 다시 불러왔습니다.</p>
             {diffKeys.length === 0 ? (
@@ -299,11 +299,11 @@ export default function TaskDetailPanel({
                     return (
                       <li key={field.key} className="rounded-lg bg-white/70 px-2.5 py-1.5 text-xs">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold text-slate-700">{field.label}</span>
-                          <span className="text-slate-500">
+                          <span className="font-semibold text-grey-700">{field.label}</span>
+                          <span className="text-grey-500">
                             내 입력: {displayDetailValue(field.key, form, valueLabels)}
                           </span>
-                          <span className="text-slate-500">
+                          <span className="text-grey-500">
                             최신: {displayDetailValue(field.key, latest, valueLabels)}
                           </span>
                         </div>
@@ -313,7 +313,7 @@ export default function TaskDetailPanel({
                             onClick={() =>
                               setForm((prev) => adoptLatestValue(prev, latest, field.key))
                             }
-                            className="rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                            className="rounded-md border border-orange-300 px-2 py-0.5 font-semibold text-orange-800"
                           >
                             최신 값 사용
                           </button>
@@ -328,14 +328,14 @@ export default function TaskDetailPanel({
                             }
                             className={`rounded-md border px-2 py-0.5 font-semibold ${
                               kept
-                                ? 'border-slate-300 bg-slate-100 text-slate-500'
-                                : 'border-amber-300 text-amber-800'
+                                ? 'border-grey-300 bg-grey-100 text-grey-500'
+                                : 'border-orange-300 text-orange-800'
                             }`}
                           >
                             {kept ? '내 입력 유지됨' : '내 입력 유지'}
                           </button>
                           {kept && (
-                            <span className="text-slate-500">저장하면 최신 값을 덮어씁니다.</span>
+                            <span className="text-grey-500">저장하면 최신 값을 덮어씁니다.</span>
                           )}
                         </div>
                       </li>
@@ -348,70 +348,70 @@ export default function TaskDetailPanel({
         )}
 
         <label className="block">
-          <span className="text-xs font-semibold text-slate-500">작업명</span>
+          <span className="text-xs font-semibold text-grey-500">작업명</span>
           <input
             value={form.title}
             onChange={(e) => patch('title', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-grey-300 px-2.5 py-1.5 focus:border-grey-500 focus:outline-none"
           />
         </label>
 
         <label className="block">
-          <span className="text-xs font-semibold text-slate-500">설명</span>
+          <span className="text-xs font-semibold text-grey-500">설명</span>
           <textarea
             rows={4}
             value={form.description}
             onChange={(e) => patch('description', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-grey-300 px-2.5 py-1.5 focus:border-grey-500 focus:outline-none"
           />
         </label>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="text-xs font-semibold text-slate-500">시작일</span>
+            <span className="text-xs font-semibold text-grey-500">시작일</span>
             <input
               type="date"
               value={form.startDate}
               onChange={(e) => patch('startDate', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-grey-300 px-2.5 py-1.5 focus:border-grey-500 focus:outline-none"
             />
           </label>
           <label className="block">
-            <span className="text-xs font-semibold text-slate-500">마감일</span>
+            <span className="text-xs font-semibold text-grey-500">마감일</span>
             <input
               type="date"
               value={form.dueDate}
               onChange={(e) => patch('dueDate', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-grey-300 px-2.5 py-1.5 focus:border-grey-500 focus:outline-none"
             />
           </label>
           <label className="block">
-            <span className="text-xs font-semibold text-slate-500">예상 공수(h)</span>
+            <span className="text-xs font-semibold text-grey-500">예상 공수(h)</span>
             <input
               inputMode="decimal"
               value={form.estimatedHours}
               placeholder="미입력 시 가중치 1"
               onChange={(e) => patch('estimatedHours', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-grey-300 px-2.5 py-1.5 focus:border-grey-500 focus:outline-none"
             />
           </label>
           <label className="block">
-            <span className="text-xs font-semibold text-slate-500">실적 공수(h)</span>
+            <span className="text-xs font-semibold text-grey-500">실적 공수(h)</span>
             <input
               inputMode="decimal"
               value={form.actualHours}
               onChange={(e) => patch('actualHours', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-grey-300 px-2.5 py-1.5 focus:border-grey-500 focus:outline-none"
             />
           </label>
         </div>
 
         <label className="block">
-          <span className="text-xs font-semibold text-slate-500">상태</span>
+          <span className="text-xs font-semibold text-grey-500">상태</span>
           <select
             value={form.status}
             onChange={(e) => patch('status', e.target.value as TaskStatus)}
-            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 focus:border-grey-500 focus:outline-none"
           >
             {(Object.keys(TASK_STATUS_LABELS) as TaskStatus[]).map((status) => (
               <option key={status} value={status}>
@@ -421,11 +421,11 @@ export default function TaskDetailPanel({
           </select>
         </label>
 
-        <fieldset className="rounded-lg border border-slate-200 p-3">
-          <legend className="px-1 text-xs font-semibold text-slate-500">우선순위</legend>
+        <fieldset className="rounded-lg border border-grey-200 p-3">
+          <legend className="px-1 text-xs font-semibold text-grey-500">우선순위</legend>
 
           <label className="block">
-            <span className="text-xs text-slate-500">중요도 {form.importance}</span>
+            <span className="text-xs text-grey-500">중요도 {form.importance}</span>
             <input
               type="range"
               min={1}
@@ -438,19 +438,19 @@ export default function TaskDetailPanel({
             />
           </label>
 
-          <label className="mt-3 flex items-center gap-2 text-xs text-slate-600">
+          <label className="mt-3 flex items-center gap-2 text-xs text-grey-600">
             <input
               type="checkbox"
               checked={form.urgencyMode === 'manual'}
               onChange={(e) => patch('urgencyMode', e.target.checked ? 'manual' : 'auto')}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-grey-300"
             />
             긴급도 고정 (마감일이 바뀌어도 값을 유지)
           </label>
 
           {form.urgencyMode === 'manual' ? (
             <label className="mt-2 block">
-              <span className="text-xs text-slate-500">고정 긴급도 {form.urgencyManual}</span>
+              <span className="text-xs text-grey-500">고정 긴급도 {form.urgencyManual}</span>
               <input
                 type="range"
                 min={1}
@@ -463,12 +463,12 @@ export default function TaskDetailPanel({
               />
             </label>
           ) : (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-grey-500">
               마감일에서 자동 계산한 긴급도: <strong>{urgency}</strong>
             </p>
           )}
 
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-grey-500">
             현재 점수{' '}
             <Badge tone={grade.grade === '최우선' ? 'red' : grade.grade === '높음' ? 'amber' : 'neutral'}>
               {priorityScore}
@@ -477,21 +477,21 @@ export default function TaskDetailPanel({
           </p>
         </fieldset>
 
-        <fieldset className="rounded-lg border border-slate-200 p-3">
-          <legend className="px-1 text-xs font-semibold text-slate-500">담당 · 기관</legend>
+        <fieldset className="rounded-lg border border-grey-200 p-3">
+          <legend className="px-1 text-xs font-semibold text-grey-500">담당 · 기관</legend>
 
           {memberOptions.length === 0 ? (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-grey-500">
               등록된 인력이 없습니다. [인력·기관] 화면에서 먼저 등록하세요.
             </p>
           ) : (
             <>
               <label className="block">
-                <span className="text-xs text-slate-500">담당자 (책임자 1명)</span>
+                <span className="text-xs text-grey-500">담당자 (책임자 1명)</span>
                 <select
                   value={form.ownerMemberId}
                   onChange={(e) => patch('ownerMemberId', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 focus:border-grey-500 focus:outline-none"
                 >
                   <option value="">미지정</option>
                   {memberOptions.map((option) => (
@@ -503,18 +503,18 @@ export default function TaskDetailPanel({
               </label>
 
               <div className="mt-3">
-                <p className="text-xs text-slate-500">참여 담당자</p>
+                <p className="text-xs text-grey-500">참여 담당자</p>
                 {/* 저장하면 task_members가 이 목록으로 전체 치환된다 (체크 해제 = 배정 해제) */}
-                <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-grey-200 p-2">
                   {memberOptions.map((option) => (
-                    <label key={option.id} className="flex items-center gap-2 text-xs text-slate-600">
+                    <label key={option.id} className="flex items-center gap-2 text-xs text-grey-600">
                       <input
                         type="checkbox"
                         checked={selectedMemberIds.has(option.id)}
                         onChange={(e) =>
                           patch('memberIds', toggleId(form.memberIds, option.id, e.target.checked))
                         }
-                        className="h-4 w-4 rounded border-slate-300"
+                        className="h-4 w-4 rounded border-grey-300"
                       />
                       {option.label}
                     </label>
@@ -525,12 +525,12 @@ export default function TaskDetailPanel({
           )}
 
           <label className="mt-3 block">
-            <span className="text-xs text-slate-500">수행 기관</span>
+            <span className="text-xs text-grey-500">수행 기관</span>
             <select
               value={form.orgId}
               onChange={(e) => patch('orgId', e.target.value)}
               disabled={orgOptions.length === 0}
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-slate-500 focus:outline-none disabled:bg-slate-50"
+              className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-2.5 py-1.5 focus:border-grey-500 focus:outline-none disabled:bg-grey-50"
             >
               <option value="">미지정</option>
               {orgOptions.map((option) => (
@@ -541,39 +541,39 @@ export default function TaskDetailPanel({
             </select>
           </label>
           {orgOptions.length === 0 && (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-grey-500">
               등록된 기관이 없습니다. [인력·기관] 화면에서 먼저 등록하세요.
             </p>
           )}
         </fieldset>
 
         <label className="block">
-          <span className="text-xs font-semibold text-slate-500">태그 (쉼표 구분)</span>
+          <span className="text-xs font-semibold text-grey-500">태그 (쉼표 구분)</span>
           <input
             value={form.tags}
             onChange={(e) => patch('tags', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-slate-500 focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-grey-300 px-2.5 py-1.5 focus:border-grey-500 focus:outline-none"
           />
         </label>
 
-        <fieldset className="rounded-lg border border-slate-200 p-3">
-          <legend className="px-1 text-xs font-semibold text-slate-500">목표 연계</legend>
+        <fieldset className="rounded-lg border border-grey-200 p-3">
+          <legend className="px-1 text-xs font-semibold text-grey-500">목표 연계</legend>
 
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-grey-500">
             {/* PR-3: 목표에 연계된 작업은 중요도 4를 제안받는다 — 이미 정한 중요도는 바뀌지 않는다 */}
             이 작업이 기여하는 목표를 고릅니다. 저장하면 선택한 목록으로 통째로 바뀝니다.
           </p>
 
           <div className="mt-2">
-            <p className="text-xs text-slate-500">성과목표</p>
+            <p className="text-xs text-grey-500">성과목표</p>
             {deliverableOptions.length === 0 ? (
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-grey-500">
                 등록된 성과목표가 없습니다. [목표 관리] 화면에서 먼저 등록하세요.
               </p>
             ) : (
-              <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+              <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-grey-200 p-2">
                 {deliverableOptions.map((option) => (
-                  <label key={option.id} className="flex items-start gap-2 text-xs text-slate-600">
+                  <label key={option.id} className="flex items-start gap-2 text-xs text-grey-600">
                     <input
                       type="checkbox"
                       checked={selectedDeliverableIds.has(option.id)}
@@ -583,7 +583,7 @@ export default function TaskDetailPanel({
                           toggleId(form.deliverableIds, option.id, e.target.checked)
                         )
                       }
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-grey-300"
                     />
                     <span>{option.label}</span>
                   </label>
@@ -593,15 +593,15 @@ export default function TaskDetailPanel({
           </div>
 
           <div className="mt-3">
-            <p className="text-xs text-slate-500">기술목표</p>
+            <p className="text-xs text-grey-500">기술목표</p>
             {techTargetOptions.length === 0 ? (
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-grey-500">
                 등록된 기술목표가 없습니다. [목표 관리] 화면에서 먼저 등록하세요.
               </p>
             ) : (
-              <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+              <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-grey-200 p-2">
                 {techTargetOptions.map((option) => (
-                  <label key={option.id} className="flex items-start gap-2 text-xs text-slate-600">
+                  <label key={option.id} className="flex items-start gap-2 text-xs text-grey-600">
                     <input
                       type="checkbox"
                       checked={selectedTechTargetIds.has(option.id)}
@@ -611,7 +611,7 @@ export default function TaskDetailPanel({
                           toggleId(form.techTargetIds, option.id, e.target.checked)
                         )
                       }
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-grey-300"
                     />
                     <span>{option.label}</span>
                   </label>
@@ -621,9 +621,9 @@ export default function TaskDetailPanel({
           </div>
         </fieldset>
 
-        <fieldset className="rounded-lg border border-slate-200 p-3">
+        <fieldset className="rounded-lg border border-grey-200 p-3">
           {/* §7.12 역참조. 연결은 Note.taskId 단방향이라 여기서는 보여주기만 한다 */}
-          <legend className="px-1 text-xs font-semibold text-slate-500">관련 노트</legend>
+          <legend className="px-1 text-xs font-semibold text-grey-500">관련 노트</legend>
           <LinkedNoteList
             notes={linkedNotes}
             projectId={task.projectId}
@@ -632,8 +632,8 @@ export default function TaskDetailPanel({
         </fieldset>
       </div>
 
-      <footer className="flex items-center justify-between gap-2 border-t border-slate-200 p-4">
-        <span className="text-xs text-slate-400" title="저장 시 조건으로 거는 version (O-1)">
+      <footer className="flex items-center justify-between gap-2 border-t border-grey-200 p-4">
+        <span className="text-xs text-grey-400" title="저장 시 조건으로 거는 version (O-1)">
           기준 v{baseline.version}
         </span>
         <div className="flex gap-2">

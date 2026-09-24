@@ -47,12 +47,12 @@ export default async function TodosPage() {
         <div>
           <h1 className="text-2xl font-bold">To-Do</h1>
           {/* §7.13 소유권: 팀 공유다. "나만 본다"로 오해하면 남의 할 일을 지운다 */}
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-grey-500">
             과제 계층에 매이지 않는 할 일 목록입니다. 승인된 팀원 모두가 함께 보고 고칩니다 —
             진척률·달성률 계산에는 포함되지 않습니다.
           </p>
         </div>
-        <Link href="/" className="shrink-0 text-sm text-slate-500 underline hover:text-slate-700">
+        <Link href="/" className="shrink-0 text-sm text-grey-500 underline hover:text-grey-700">
           홈으로
         </Link>
       </div>

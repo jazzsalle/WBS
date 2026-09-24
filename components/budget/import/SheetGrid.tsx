@@ -95,19 +95,19 @@ export default function SheetGrid({
   const columnCount = grid.totalColumns;
 
   return (
-    <div className="rounded-xl border border-slate-200">
-      <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-        <span className="font-semibold text-slate-700">{grid.sheetName}</span>
+    <div className="rounded-xl border border-grey-200">
+      <div className="flex flex-wrap items-center gap-3 border-b border-grey-200 bg-grey-50 px-3 py-2 text-xs text-grey-600">
+        <span className="font-semibold text-grey-700">{grid.sheetName}</span>
         <span>
           {grid.totalRows.toLocaleString()}행 × {grid.totalColumns}열
         </span>
-        {grid.truncated && <span className="text-slate-400">상위 {grid.rows.length}행만 표시</span>}
+        {grid.truncated && <span className="text-grey-400">상위 {grid.rows.length}행만 표시</span>}
         <span className="ml-auto flex items-center gap-2">
           <LegendSwatch className="bg-blue-100" label="헤더 행" />
-          <LegendSwatch className="bg-emerald-100" label="데이터 시작" />
-          <LegendSwatch className="bg-amber-50" label="라벨 열" />
-          <LegendSwatch className="bg-violet-50" label="연차 열" />
-          <LegendSwatch className="bg-slate-200" label="합계 열(제외)" />
+          <LegendSwatch className="bg-green-100" label="데이터 시작" />
+          <LegendSwatch className="bg-orange-50" label="라벨 열" />
+          <LegendSwatch className="bg-purple-50" label="연차 열" />
+          <LegendSwatch className="bg-grey-200" label="합계 열(제외)" />
         </span>
       </div>
 
@@ -115,20 +115,20 @@ export default function SheetGrid({
         <table className="w-max min-w-full border-collapse text-xs">
           <thead className="sticky top-0 z-10 bg-white">
             <tr>
-              <th className="sticky left-0 z-20 w-14 border border-slate-200 bg-slate-100 px-1 py-1 text-slate-500">
+              <th className="sticky left-0 z-20 w-14 border border-grey-200 bg-grey-100 px-1 py-1 text-grey-500">
                 행
               </th>
               {Array.from({ length: columnCount }, (_, c) => (
                 <th
                   key={c}
-                  className={`border border-slate-200 px-2 py-1 font-mono font-normal text-slate-500 ${
+                  className={`border border-grey-200 px-2 py-1 font-mono font-normal text-grey-500 ${
                     yearCols.has(c)
-                      ? 'bg-violet-100'
+                      ? 'bg-purple-100'
                       : labelCols.has(c)
-                        ? 'bg-amber-100'
+                        ? 'bg-orange-100'
                         : totalCols.has(c)
-                          ? 'bg-slate-200'
-                          : 'bg-slate-50'
+                          ? 'bg-grey-200'
+                          : 'bg-grey-50'
                   }`}
                 >
                   {columnLetter(c)}
@@ -148,13 +148,13 @@ export default function SheetGrid({
                     isHeader
                       ? 'bg-blue-50'
                       : isDataStart
-                        ? 'bg-emerald-50'
+                        ? 'bg-green-50'
                         : isSuggested
                           ? 'bg-blue-50/40'
                           : ''
                   }
                 >
-                  <th className="sticky left-0 z-10 border border-slate-200 bg-slate-100 p-0 text-slate-500">
+                  <th className="sticky left-0 z-10 border border-grey-200 bg-grey-100 p-0 text-grey-500">
                     <button
                       type="button"
                       disabled={disabled}
@@ -164,11 +164,11 @@ export default function SheetGrid({
                           ? `${r + 1}행을 헤더 행으로 지정`
                           : `${r + 1}행을 데이터 시작 행으로 지정`
                       }
-                      className="w-full px-1 py-1 text-center hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="w-full px-1 py-1 text-center hover:bg-grey-200 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {r + 1}
                       {isHeader && <span className="ml-0.5 text-blue-600">H</span>}
-                      {isDataStart && <span className="ml-0.5 text-emerald-600">D</span>}
+                      {isDataStart && <span className="ml-0.5 text-green-600">D</span>}
                       {isSuggested && <span className="ml-0.5 text-blue-300">h</span>}
                     </button>
                   </th>
@@ -182,15 +182,15 @@ export default function SheetGrid({
                         key={c}
                         rowSpan={span?.rowSpan}
                         colSpan={span?.colSpan}
-                        className={`max-w-[14rem] truncate border border-slate-200 px-2 py-1 align-top ${
+                        className={`max-w-[14rem] truncate border border-grey-200 px-2 py-1 align-top ${
                           cell?.isError
                             ? 'bg-red-50 font-semibold text-red-700'
                             : yearCols.has(c)
-                              ? 'bg-violet-50/60'
+                              ? 'bg-purple-50/60'
                               : labelCols.has(c)
-                                ? 'bg-amber-50/60'
+                                ? 'bg-orange-50/60'
                                 : totalCols.has(c)
-                                  ? 'bg-slate-100 text-slate-400'
+                                  ? 'bg-grey-100 text-grey-400'
                                   : ''
                         }`}
                         title={text}
@@ -212,7 +212,7 @@ export default function SheetGrid({
 function LegendSwatch({ className, label }: { className: string; label: string }) {
   return (
     <span className="inline-flex items-center gap-1">
-      <span className={`inline-block h-2.5 w-2.5 rounded-sm border border-slate-300 ${className}`} />
+      <span className={`inline-block h-2.5 w-2.5 rounded-sm border border-grey-300 ${className}`} />
       {label}
     </span>
   );

@@ -18,16 +18,16 @@ import type { MilestoneView } from './MilestoneTable';
 
 // Tailwind는 클래스명을 정적으로 스캔한다 — 토큰을 문자열로 조합하지 않고 완전한 형태로 나열한다.
 const MARKER_COLOR_CLASSES: Record<string, string> = {
-  'violet-600': 'bg-violet-600',
-  'sky-600': 'bg-sky-600',
+  'purple-600': 'bg-purple-600',
+  'blue-600': 'bg-blue-600',
   'teal-600': 'bg-teal-600',
-  'slate-600': 'bg-slate-600',
+  'grey-600': 'bg-grey-600',
 };
 
 // §6.5 지연·임박은 부록 A.3의 마감 색으로 테두리를 두른다 (색 정의의 원본은 DUE_COLORS)
 const DUE_RING_CLASSES: Record<string, string> = {
   'red-600': 'ring-2 ring-red-600',
-  'amber-500': 'ring-2 ring-amber-500',
+  'orange-500': 'ring-2 ring-orange-500',
 };
 
 // 같은 색을 쓰는 유형끼리 묶어 범례를 만든다 — 색 그룹의 근거는 A.3 하나뿐이다
@@ -123,12 +123,12 @@ export default function MilestoneTimeline({
     return (
       <section
         aria-labelledby="milestone-timeline-title"
-        className="rounded-xl border border-slate-200 bg-white p-4 print:hidden"
+        className="rounded-xl border border-grey-200 bg-white p-4 print:hidden"
       >
-        <h2 id="milestone-timeline-title" className="text-base font-bold text-slate-900">
+        <h2 id="milestone-timeline-title" className="text-base font-bold text-grey-900">
           타임라인
         </h2>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm text-grey-400">
           표시할 일정이 없습니다. 연차 기간을 입력하거나 마일스톤을 추가하면 여기에 그려집니다.
         </p>
       </section>
@@ -170,7 +170,7 @@ export default function MilestoneTimeline({
   const renderMarker = (marker: Marker, top: number) => {
     const m = marker.view.milestone;
     const yearName = m.yearId === null ? '연차 없음' : (yearNameById.get(m.yearId) ?? '(삭제된 연차)');
-    const colorClass = MARKER_COLOR_CLASSES[MILESTONE_TYPE_COLORS[m.type]] ?? 'bg-slate-600';
+    const colorClass = MARKER_COLOR_CLASSES[MILESTONE_TYPE_COLORS[m.type]] ?? 'bg-grey-600';
     const ringClass = marker.view.overdue
       ? (DUE_RING_CLASSES[DUE_COLORS.overdue] ?? '')
       : marker.view.upcoming
@@ -188,7 +188,7 @@ export default function MilestoneTimeline({
         aria-pressed={selectedId === m.id}
         className={`absolute h-3 w-3 -translate-x-1/2 rounded-full ${colorClass} ${ringClass} ${
           m.status === 'cancelled' ? 'opacity-40' : ''
-        } ${selectedId === m.id ? 'outline outline-2 outline-offset-2 outline-slate-900' : ''}`}
+        } ${selectedId === m.id ? 'outline outline-2 outline-offset-2 outline-grey-900' : ''}`}
         style={{ left: `${marker.pct}%`, top: `${top}px` }}
       />
     );
@@ -197,21 +197,21 @@ export default function MilestoneTimeline({
   return (
     <section
       aria-labelledby="milestone-timeline-title"
-      className="rounded-xl border border-slate-200 bg-white p-4 print:hidden"
+      className="rounded-xl border border-grey-200 bg-white p-4 print:hidden"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="milestone-timeline-title" className="text-base font-bold text-slate-900">
+        <h2 id="milestone-timeline-title" className="text-base font-bold text-grey-900">
           타임라인
-          <span className="ml-2 text-xs font-normal text-slate-500">
+          <span className="ml-2 text-xs font-normal text-grey-500">
             {rangeStart} ~ {rangeEnd}
           </span>
         </h2>
-        <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+        <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-grey-500">
           {LEGEND.map((group) => (
             <li key={group.token} className="flex items-center gap-1.5">
               <span
                 aria-hidden
-                className={`h-2.5 w-2.5 rounded-full ${MARKER_COLOR_CLASSES[group.token] ?? 'bg-slate-600'}`}
+                className={`h-2.5 w-2.5 rounded-full ${MARKER_COLOR_CLASSES[group.token] ?? 'bg-grey-600'}`}
               />
               {group.labels.join(' · ')}
             </li>
@@ -228,10 +228,10 @@ export default function MilestoneTimeline({
             {todayInRange && (
               <div
                 aria-hidden
-                className="pointer-events-none absolute inset-y-0 z-10 w-px bg-slate-900/70"
+                className="pointer-events-none absolute inset-y-0 z-10 w-px bg-grey-900/70"
                 style={{ left: `${todayPct}%` }}
               >
-                <span className="absolute left-1 top-0 rounded bg-slate-900 px-1 text-[10px] font-semibold leading-4 text-white">
+                <span className="absolute left-1 top-0 rounded bg-grey-900 px-1 text-[10px] font-semibold leading-4 text-white">
                   오늘
                 </span>
               </div>
@@ -243,7 +243,7 @@ export default function MilestoneTimeline({
             </div>
 
             {/* 연차 밴드 */}
-            <div className="relative mt-1 h-9 overflow-hidden rounded-lg bg-slate-50">
+            <div className="relative mt-1 h-9 overflow-hidden rounded-lg bg-grey-50">
               {bands.map((band, index) => {
                 const left = pctOf(band.startDate);
                 const width = Math.max(pctOf(band.endDate) - left, 0.4);
@@ -251,8 +251,8 @@ export default function MilestoneTimeline({
                   <div
                     key={band.year.id}
                     title={`${yearLabel(band.year)} ${band.startDate} ~ ${band.endDate}`}
-                    className={`absolute inset-y-0 flex items-center justify-center overflow-hidden border-x border-white px-1 text-xs font-medium text-slate-700 ${
-                      index % 2 === 0 ? 'bg-slate-200' : 'bg-slate-100'
+                    className={`absolute inset-y-0 flex items-center justify-center overflow-hidden border-x border-white px-1 text-xs font-medium text-grey-700 ${
+                      index % 2 === 0 ? 'bg-grey-200' : 'bg-grey-100'
                     }`}
                     style={{ left: `${left}%`, width: `${width}%` }}
                   >
@@ -261,7 +261,7 @@ export default function MilestoneTimeline({
                 );
               })}
               {bands.length === 0 && (
-                <span className="absolute inset-0 flex items-center justify-center text-xs text-slate-400">
+                <span className="absolute inset-0 flex items-center justify-center text-xs text-grey-400">
                   기간이 입력된 연차가 없습니다
                 </span>
               )}
@@ -275,7 +275,7 @@ export default function MilestoneTimeline({
             )}
           </div>
 
-          <div className="mt-1 flex justify-between text-[11px] tabular-nums text-slate-400">
+          <div className="mt-1 flex justify-between text-[11px] tabular-nums text-grey-400">
             <span>{rangeStart}</span>
             <span>{rangeEnd}</span>
           </div>
@@ -283,20 +283,20 @@ export default function MilestoneTimeline({
       </div>
 
       {looseMarkers.length > 0 && (
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-grey-500">
           아래 레인은 연차가 지정되지 않은 마일스톤 {looseMarkers.length}건입니다(과제 전체 이벤트
           또는 연차가 삭제된 항목).
         </p>
       )}
 
       {!todayInRange && (
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-grey-500">
           오늘({todayISO})은 표시 구간 밖이라 기준선을 그리지 않았습니다.
         </p>
       )}
 
       {unplottableYears.length > 0 && (
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-grey-500">
           기간이 없거나 시작일이 종료일보다 늦어 밴드를 그리지 못한 연차:{' '}
           {unplottableYears.map(yearLabel).join(', ')}
         </p>

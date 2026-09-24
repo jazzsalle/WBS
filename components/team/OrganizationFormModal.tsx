@@ -244,7 +244,7 @@ export default function OrganizationFormModal({
           )}
 
           {reloaded && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
               <p className="font-semibold">최신 내용을 다시 불러왔습니다.</p>
               {differences.length === 0 ? (
                 <p className="mt-1 text-xs">
@@ -262,13 +262,13 @@ export default function OrganizationFormModal({
                         key={field.key}
                         className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs"
                       >
-                        <span className="font-semibold text-slate-700">{field.label}</span>
-                        <span className="text-slate-500">내 입력: {displayValue(field, values)}</span>
-                        <span className="text-slate-500">최신: {displayValue(field, latest)}</span>
+                        <span className="font-semibold text-grey-700">{field.label}</span>
+                        <span className="text-grey-500">내 입력: {displayValue(field, values)}</span>
+                        <span className="text-grey-500">최신: {displayValue(field, latest)}</span>
                         <button
                           type="button"
                           onClick={() => setField(field.key, latest[field.key])}
-                          className="ml-auto rounded-md border border-amber-300 px-2 py-0.5 font-semibold text-amber-800"
+                          className="ml-auto rounded-md border border-orange-300 px-2 py-0.5 font-semibold text-orange-800"
                         >
                           최신 값 사용
                         </button>
@@ -282,7 +282,7 @@ export default function OrganizationFormModal({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-grey-700">
                 기관명 <span className="text-red-600">*</span>
               </span>
               <input
@@ -293,17 +293,17 @@ export default function OrganizationFormModal({
                 maxLength={200}
                 required
                 placeholder={fieldOf('name').placeholder}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">역할</span>
+              <span className="text-sm font-medium text-grey-700">역할</span>
               <select
                 value={values.role}
                 disabled={roleLocked}
                 onChange={(e) => setField('role', e.target.value as OrgRole)}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500"
+                className="mt-1 w-full rounded-lg border border-grey-300 bg-white px-3 py-2 text-sm focus:border-grey-500 focus:outline-none disabled:bg-grey-100 disabled:text-grey-500"
               >
                 {(Object.keys(ORG_ROLE_LABELS) as OrgRole[]).map((role) => (
                   <option key={role} value={role}>
@@ -312,70 +312,70 @@ export default function OrganizationFormModal({
                 ))}
               </select>
               {roleLocked && (
-                <span className="mt-1 block text-xs text-slate-500">{LEAD_ROLE_LOCKED}</span>
+                <span className="mt-1 block text-xs text-grey-500">{LEAD_ROLE_LOCKED}</span>
               )}
               {!roleLocked && values.role === 'lead' && (
-                <span className="mt-1 block text-xs text-slate-500">
+                <span className="mt-1 block text-xs text-grey-500">
                   저장하면 기존 주관기관은 공동으로 바뀝니다.
                 </span>
               )}
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">유형</span>
+              <span className="text-sm font-medium text-grey-700">유형</span>
               <input
                 type="text"
                 value={values.type}
                 onChange={(e) => setField('type', e.target.value)}
                 maxLength={50}
                 placeholder={fieldOf('type').placeholder}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">기관 책임자</span>
+              <span className="text-sm font-medium text-grey-700">기관 책임자</span>
               <input
                 type="text"
                 value={values.representative}
                 onChange={(e) => setField('representative', e.target.value)}
                 maxLength={100}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">연락처</span>
+              <span className="text-sm font-medium text-grey-700">연락처</span>
               <input
                 type="text"
                 value={values.contact}
                 onChange={(e) => setField('contact', e.target.value)}
                 maxLength={200}
                 placeholder={fieldOf('contact').placeholder}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label className="sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">담당 연구개발 내용</span>
+              <span className="text-sm font-medium text-grey-700">담당 연구개발 내용</span>
               <textarea
                 value={values.responsibility}
                 onChange={(e) => setField('responsibility', e.target.value)}
                 rows={3}
                 maxLength={10_000}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>
 
             <label>
-              <span className="text-sm font-medium text-slate-700">배분 연구개발비(원)</span>
+              <span className="text-sm font-medium text-grey-700">배분 연구개발비(원)</span>
               <input
                 type="text"
                 inputMode="numeric"
                 value={formatAmount(values.budget)}
                 onChange={(e) => setField('budget', toDigits(e.target.value))}
                 placeholder="0"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-right text-sm tabular-nums focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-right text-sm tabular-nums focus:border-grey-500 focus:outline-none"
               />
             </label>
           </div>

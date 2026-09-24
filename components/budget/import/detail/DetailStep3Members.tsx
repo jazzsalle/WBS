@@ -97,26 +97,26 @@ export default function DetailStep3Members({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-        <span className="text-slate-600">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-grey-200 bg-grey-50 px-3 py-2 text-xs">
+        <span className="text-grey-600">
           성명 <strong>{matches.length}</strong>명
         </span>
-        <span className={undecided > 0 ? 'font-semibold text-red-700' : 'text-slate-500'}>
+        <span className={undecided > 0 ? 'font-semibold text-red-700' : 'text-grey-500'}>
           미결정 <strong>{undecided}</strong>명
         </span>
         <span className="text-blue-700">
           새 인력 <strong>{willCreate}</strong>명
         </span>
-        <span className="text-slate-400">
+        <span className="text-grey-400">
           건너뜀 <strong>{willSkip}</strong>명
         </span>
-        <span className={salaryWarnings > 0 ? 'text-amber-700' : 'text-slate-400'}>
+        <span className={salaryWarnings > 0 ? 'text-orange-700' : 'text-grey-400'}>
           연봉 경고 <strong>{salaryWarnings}</strong>건
         </span>
       </div>
 
       {undecided > 0 && (
-        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+        <p className="rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-900">
           ⚠️ 아직 정하지 않은 성명 {undecided}명이 있습니다. 이대로 진행하면 그 행들은 Step 4에서
           오류로 표시되고 반영이 막힙니다 (D-11).
         </p>
@@ -137,14 +137,14 @@ export default function DetailStep3Members({
         </p>
       )}
 
-      <p className="text-[11px] text-slate-500">
+      <p className="text-[11px] text-grey-500">
         새 인력은 <strong>반영 버튼을 누를 때</strong> 산출근거와 같은 트랜잭션에서 만들어집니다 —
         지금 취소하면 명부에 아무것도 남지 않습니다 (D-12). 연봉은 파일 값으로 채워지고, 기존 인력의
         연봉은 임포트가 고치지 않습니다 (D-14).
       </p>
 
       {matches.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">
+        <p className="rounded-xl border border-dashed border-grey-300 p-6 text-center text-sm text-grey-400">
           인건비 행에서 성명을 찾지 못했습니다.
         </p>
       ) : (
@@ -220,16 +220,16 @@ function MemberCard({
   return (
     <section
       className={`rounded-xl border p-3 ${
-        undecided ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 bg-white'
+        undecided ? 'border-orange-300 bg-orange-50/60' : 'border-grey-200 bg-white'
       }`}
     >
       <header className="flex flex-wrap items-baseline gap-2 text-sm">
-        <span className="font-semibold text-slate-800">{match.fileName}</span>
+        <span className="font-semibold text-grey-800">{match.fileName}</span>
         <span className={`text-xs ${MAPPING_STATUS_CLASS[status.key]}`}>
           <span className="mr-1">{MAPPING_STATUS_ICON[status.key]}</span>
           {status.label}
         </span>
-        <span className="ml-auto text-[11px] text-slate-500">
+        <span className="ml-auto text-[11px] text-grey-500">
           이 성명의 행 {match.rowKeys.length}개 · 파일 직위 {match.filePosition || '—'} · 파일 연봉{' '}
           {match.fileSalary === null ? '—' : won(match.fileSalary)} ·{' '}
           {HIRE_TYPE_LABELS[match.hireType]}
@@ -239,7 +239,7 @@ function MemberCard({
 
       {/* D-14: 양쪽 값을 나란히. 명부는 고치지 않는다 */}
       {match.salaryMismatch !== null && (
-        <p className="mt-2 rounded-lg border border-amber-300 bg-amber-100 px-2 py-1.5 text-[11px] text-amber-900">
+        <p className="mt-2 rounded-lg border border-orange-300 bg-orange-100 px-2 py-1.5 text-[11px] text-orange-900">
           ⚠️ 파일 연봉 <strong>{won(match.salaryMismatch.file)}</strong> / 명부 연봉{' '}
           <strong>{won(match.salaryMismatch.roster ?? 0)}</strong> — 금액은{' '}
           <strong>명부 연봉</strong>으로 계산하고 차액은 조정액으로 흡수합니다 (D-8a). 임포트는 명부
@@ -250,7 +250,7 @@ function MemberCard({
 
       {/* D-8a: 명부 연봉이 비면 산식이 성립하지 않아 0원으로 들어간다 — 숫자로 밝히고 갈 곳을 준다 */}
       {match.issues.includes('roster-salary-missing') && (
-        <p className="mt-2 rounded-lg border border-amber-300 bg-amber-100 px-2 py-1.5 text-[11px] text-amber-900">
+        <p className="mt-2 rounded-lg border border-orange-300 bg-orange-100 px-2 py-1.5 text-[11px] text-orange-900">
           ⚠️ 명부에 연봉이 없습니다 —{' '}
           <strong>
             파일 {match.fileSalary === null ? '—' : won(match.fileSalary)} → 반영 0원 (연봉 미입력)
@@ -269,7 +269,7 @@ function MemberCard({
 
       {/* D-13: 같은 이름이 둘 이상이면 소속 기관·직위를 함께 보여 주고 자동 선택하지 않는다 */}
       {match.status === 'ambiguous' && (
-        <div className="mt-2 rounded-lg border border-amber-300 bg-amber-100 px-2 py-1.5 text-[11px] text-amber-900">
+        <div className="mt-2 rounded-lg border border-orange-300 bg-orange-100 px-2 py-1.5 text-[11px] text-orange-900">
           <p className="font-semibold">
             ⚠️ 명부에 같은 이름이 {match.candidates.length}명 있습니다. 자동으로 고르지 않으므로 직접
             지정하세요 (D-13).
@@ -292,13 +292,13 @@ function MemberCard({
             disabled={busy || roster.length === 0}
             onChange={() => select('existing')}
           />
-          <span className="font-medium text-slate-700">① 기존 인력 선택</span>
+          <span className="font-medium text-grey-700">① 기존 인력 선택</span>
           <select
             value={decision?.kind === 'existing' ? decision.memberId : ''}
             disabled={busy || kind !== 'existing'}
             aria-label={`${match.fileName}에 대응할 기존 인력`}
             onChange={(e) => onDecision(match.key, { kind: 'existing', memberId: e.target.value })}
-            className="min-w-[18rem] rounded-lg border border-slate-300 px-2 py-1 disabled:bg-slate-50 disabled:text-slate-400"
+            className="min-w-[18rem] rounded-lg border border-grey-300 px-2 py-1 disabled:bg-grey-50 disabled:text-grey-400"
           >
             <option value="" disabled>
               — 인력 선택 —
@@ -310,11 +310,11 @@ function MemberCard({
             ))}
           </select>
           {roster.length === 0 && (
-            <span className="text-slate-400">명부에 인력이 없어 고를 수 없습니다.</span>
+            <span className="text-grey-400">명부에 인력이 없어 고를 수 없습니다.</span>
           )}
         </label>
 
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+        <div className="rounded-lg border border-grey-200 bg-grey-50 p-2">
           <label className="flex flex-wrap items-center gap-2">
             <input
               type="radio"
@@ -323,16 +323,16 @@ function MemberCard({
               disabled={busy}
               onChange={() => select('create')}
             />
-            <span className="font-medium text-slate-700">② 새 인력으로 생성</span>
+            <span className="font-medium text-grey-700">② 새 인력으로 생성</span>
             <Badge tone="blue">파일에서 미리 채움</Badge>
-            <span className="text-slate-500">
+            <span className="text-grey-500">
               이름 {match.fileName} · 직위 {match.filePosition || '(없음)'} · 연봉{' '}
               {match.fileSalary === null ? '(없음)' : won(match.fileSalary)} · 채용구분{' '}
               {HIRE_TYPE_LABELS[match.hireType]}
             </span>
           </label>
           {kind === 'create' && (
-            <label className="mt-2 flex flex-wrap items-center gap-2 pl-6 text-slate-600">
+            <label className="mt-2 flex flex-wrap items-center gap-2 pl-6 text-grey-600">
               소속 기관 (선택)
               <select
                 value={decision?.kind === 'create' ? (decision.orgId ?? '') : ''}
@@ -344,7 +344,7 @@ function MemberCard({
                     orgId: e.target.value === '' ? null : e.target.value,
                   })
                 }
-                className="rounded-lg border border-slate-300 px-2 py-1"
+                className="rounded-lg border border-grey-300 px-2 py-1"
               >
                 <option value="">— 지정 안 함 —</option>
                 {organizations.map((org) => (
@@ -353,7 +353,7 @@ function MemberCard({
                   </option>
                 ))}
               </select>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-grey-400">
                 반영을 눌러야 만들어집니다. 나머지 항목(역할·분야·연락처)은 인력 화면에서 채우세요.
               </span>
             </label>
@@ -368,8 +368,8 @@ function MemberCard({
             disabled={busy}
             onChange={() => select('skip')}
           />
-          <span className="font-medium text-slate-700">③ 행 건너뛰기</span>
-          <span className="text-slate-500">
+          <span className="font-medium text-grey-700">③ 행 건너뛰기</span>
+          <span className="text-grey-500">
             이 성명의 행 {match.rowKeys.length}개가 반영에서 빠집니다.
           </span>
         </label>
@@ -379,7 +379,7 @@ function MemberCard({
             type="button"
             disabled={busy}
             onClick={() => onDecision(match.key, null)}
-            className="text-[11px] text-slate-500 underline"
+            className="text-[11px] text-grey-500 underline"
           >
             자동 제안으로 되돌리기
           </button>

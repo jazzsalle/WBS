@@ -20,16 +20,16 @@ export interface TimeAxisProps {
 export default function TimeAxis({ range, scale, ticks, todayX }: TimeAxisProps) {
   return (
     <div
-      className="relative border-b border-slate-300 bg-slate-50"
+      className="relative border-b border-grey-300 bg-grey-50"
       style={{ width: range.widthPx, height: AXIS_HEIGHT }}
     >
       {ticks.major.map((tick) => (
         <div
           key={`major-${tick.dateISO}`}
-          className="absolute top-0 border-l border-slate-300"
+          className="absolute top-0 border-l border-grey-300"
           style={{ left: tick.x, height: MAJOR_ROW_HEIGHT }}
         >
-          <span className="whitespace-nowrap pl-1 text-[11px] font-semibold text-slate-600">
+          <span className="whitespace-nowrap pl-1 text-[11px] font-semibold text-grey-600">
             {tick.label}
           </span>
         </div>
@@ -38,10 +38,10 @@ export default function TimeAxis({ range, scale, ticks, todayX }: TimeAxisProps)
       {ticks.minor.map((tick) => (
         <div
           key={`minor-${tick.dateISO}`}
-          className={`absolute border-l ${tick.monthStart ? 'border-slate-300' : 'border-slate-200'}`}
+          className={`absolute border-l ${tick.monthStart ? 'border-grey-300' : 'border-grey-200'}`}
           style={{ left: tick.x, top: MAJOR_ROW_HEIGHT, height: AXIS_HEIGHT - MAJOR_ROW_HEIGHT }}
         >
-          <span className="whitespace-nowrap pl-0.5 text-[10px] tabular-nums text-slate-400">
+          <span className="whitespace-nowrap pl-0.5 text-[10px] tabular-nums text-grey-400">
             {tick.label}
           </span>
         </div>
@@ -50,7 +50,7 @@ export default function TimeAxis({ range, scale, ticks, todayX }: TimeAxisProps)
       {/* 월 스케일은 하위 눈금이 없어 축 아래쪽이 비므로 범위를 적어 둔다 */}
       {scale === 'month' && (
         <span
-          className="absolute left-1 text-[10px] text-slate-400"
+          className="absolute left-1 text-[10px] text-grey-400"
           style={{ top: MAJOR_ROW_HEIGHT + 2 }}
         >
           {range.startDate} ~ {range.endDate}

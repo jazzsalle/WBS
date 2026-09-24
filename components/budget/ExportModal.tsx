@@ -163,7 +163,7 @@ export default function ExportModal({ projectId, years, currencyUnit, onClose }:
       }}
       footer={
         <>
-          <span className="mr-auto text-xs text-slate-500">
+          <span className="mr-auto text-xs text-grey-500">
             {exportBlocker !== null && <span className="text-red-600">{exportBlocker}</span>}
           </span>
           <Button variant="ghost" onClick={onClose} disabled={exporting}>
@@ -182,13 +182,13 @@ export default function ExportModal({ projectId, years, currencyUnit, onClose }:
     >
       <div className="space-y-4">
         {years.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">
+          <p className="rounded-xl border border-dashed border-grey-300 p-6 text-center text-sm text-grey-400">
             연차가 없어 내보낼 서식이 없습니다. 과제 개요에서 단계·연차를 먼저 만드세요.
           </p>
         ) : (
           <>
             <div className="flex flex-wrap items-end gap-4">
-              <label className="text-xs text-slate-600">
+              <label className="text-xs text-grey-600">
                 <span className="mb-1 block font-semibold">대상 연차</span>
                 <select
                   value={yearId}
@@ -197,7 +197,7 @@ export default function ExportModal({ projectId, years, currencyUnit, onClose }:
                     setYearId(e.target.value);
                     setPreview(null); // 연차가 바뀌면 이전 미리보기는 그 연차의 결과가 아니다
                   }}
-                  className="rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-slate-500 focus:outline-none disabled:bg-slate-50"
+                  className="rounded-md border border-grey-300 px-2 py-1.5 text-xs focus:border-grey-500 focus:outline-none disabled:bg-grey-50"
                 >
                   {years.map((year) => (
                     <option key={year.id} value={year.id}>
@@ -209,7 +209,7 @@ export default function ExportModal({ projectId, years, currencyUnit, onClose }:
 
               {/* X-3: 템플릿이 둘 이상일 때만 고른다. 하나뿐이면 묻지 않는다 */}
               {preview !== null && preview.templates.length > 1 && (
-                <label className="text-xs text-slate-600">
+                <label className="text-xs text-grey-600">
                   <span className="mb-1 block font-semibold">서식 템플릿</span>
                   <select
                     value={effectiveTemplateId}
@@ -218,7 +218,7 @@ export default function ExportModal({ projectId, years, currencyUnit, onClose }:
                       setTemplateId(e.target.value);
                       setPreview(null);
                     }}
-                    className="rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-slate-500 focus:outline-none disabled:bg-slate-50"
+                    className="rounded-md border border-grey-300 px-2 py-1.5 text-xs focus:border-grey-500 focus:outline-none disabled:bg-grey-50"
                   >
                     {preview.templates.map((template) => (
                       <option key={template.id} value={template.id}>
@@ -229,7 +229,7 @@ export default function ExportModal({ projectId, years, currencyUnit, onClose }:
                 </label>
               )}
 
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-grey-400">
                 산출근거 + 총괄표 두 시트가 함께 나갑니다 (X-9·X-10).
               </p>
             </div>
@@ -256,7 +256,7 @@ export default function ExportModal({ projectId, years, currencyUnit, onClose }:
             {done !== null && (
               <p
                 role="status"
-                className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900"
+                className="rounded-xl border border-green-300 bg-green-50 px-3 py-2 text-xs text-green-900"
               >
                 ✅ {done} 엑셀에서 열면 템플릿의 소계·합계 수식이 다시 계산됩니다 (X-4a).
               </p>
@@ -265,12 +265,12 @@ export default function ExportModal({ projectId, years, currencyUnit, onClose }:
             {preview !== null && (
               <>
                 {/* 내보내기 전 확인 (§7.9.4): 행 수 · 합계 금액 · 넘치는 세목 여부 */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-                  <span className="font-semibold text-slate-700">{preview.yearLabel}</span>
-                  <span className="text-slate-600">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-grey-200 bg-grey-50 px-3 py-2 text-xs">
+                  <span className="font-semibold text-grey-700">{preview.yearLabel}</span>
+                  <span className="text-grey-600">
                     반영될 행 <strong>{preview.rowCount}</strong>개
                   </span>
-                  <span className="text-slate-600">
+                  <span className="text-grey-600">
                     합계 <strong>{formatAmount(preview.totalAmount, currencyUnit)}</strong>
                   </span>
                   {blockers.length > 0 ? (
@@ -311,7 +311,7 @@ export default function ExportModal({ projectId, years, currencyUnit, onClose }:
                 {/* 경고는 막지 않는다 (§7.9.4) — 협의 중인 계획도 내보낼 수 있어야 한다.
                     접어 숨기지 않는다: 보지 않고 지나간 경고는 없는 경고와 같다 */}
                 {notices.length > 0 && (
-                  <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  <div className="rounded-xl border border-orange-300 bg-orange-50 px-3 py-2 text-xs text-orange-900">
                     <p className="font-semibold">
                       ⚠️ 확인할 내용 {notices.length}건이 있습니다. <strong>내보내기는 막지
                       않습니다</strong> — 이대로 파일에 반영됩니다.
@@ -320,7 +320,7 @@ export default function ExportModal({ projectId, years, currencyUnit, onClose }:
                       {notices.map((notice, index) => (
                         <li
                           key={`${notice.kind}:${notice.label}:${index}`}
-                          className="rounded bg-amber-100/60 px-2 py-1"
+                          className="rounded bg-orange-100/60 px-2 py-1"
                         >
                           <span className="font-semibold">
                             [{NOTICE_KIND_LABELS[notice.kind]}] {notice.label}
@@ -332,7 +332,7 @@ export default function ExportModal({ projectId, years, currencyUnit, onClose }:
                   </div>
                 )}
 
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-grey-400">
                   화면 금액은 표시 단위({currencyUnit})로 환산한 값이고, 파일에는 언제나 원 단위
                   정수가 들어갑니다 (X-6). 내보내기는 앱의 데이터를 바꾸지 않습니다 (X-11).
                 </p>

@@ -56,27 +56,27 @@ export default function Step3Columns({
       {/* 좌: 엑셀 열 목록 + 라벨 열 지정 */}
       <section className="space-y-2">
         <div className="flex items-baseline justify-between">
-          <h3 className="text-sm font-semibold text-slate-700">엑셀 열 · 라벨 열 지정 (S-3)</h3>
+          <h3 className="text-sm font-semibold text-grey-700">엑셀 열 · 라벨 열 지정 (S-3)</h3>
           <button
             type="button"
             disabled={busy || !labelColumnsTouched}
             onClick={onResetLabelColumns}
-            className="text-xs text-slate-500 underline disabled:cursor-not-allowed disabled:opacity-40"
+            className="text-xs text-grey-500 underline disabled:cursor-not-allowed disabled:opacity-40"
           >
             자동 추정으로 되돌리기
           </button>
         </div>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-grey-500">
           비목·세목·현금/현물 라벨이 들어 있는 열을 전부 고르세요. 판정은 오른쪽 열이 우선입니다
           (가장 구체적인 라벨).{' '}
-          <span className={labelColumnsTouched ? 'text-blue-600' : 'text-slate-400'}>
+          <span className={labelColumnsTouched ? 'text-blue-600' : 'text-grey-400'}>
             {labelColumnsTouched ? '사용자가 수정함' : '자동 추정 상태'}
           </span>
         </p>
 
-        <div className="max-h-[24rem] overflow-auto rounded-xl border border-slate-200">
+        <div className="max-h-[24rem] overflow-auto rounded-xl border border-grey-200">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-slate-50 text-slate-500">
+            <thead className="sticky top-0 bg-grey-50 text-grey-500">
               <tr>
                 <th className="w-16 px-2 py-1.5 text-left">라벨</th>
                 <th className="w-12 px-2 py-1.5 text-left">열</th>
@@ -90,8 +90,8 @@ export default function Step3Columns({
                 return (
                   <tr
                     key={column.column}
-                    className={`border-t border-slate-100 ${
-                      labelSet.has(column.column) ? 'bg-amber-50' : isYear ? 'bg-violet-50/60' : ''
+                    className={`border-t border-grey-100 ${
+                      labelSet.has(column.column) ? 'bg-orange-50' : isYear ? 'bg-purple-50/60' : ''
                     }`}
                   >
                     <td className="px-2 py-1.5">
@@ -103,15 +103,15 @@ export default function Step3Columns({
                         onChange={() => onToggleLabelColumn(column.column)}
                       />
                     </td>
-                    <td className="px-2 py-1.5 font-mono font-semibold text-slate-700">
+                    <td className="px-2 py-1.5 font-mono font-semibold text-grey-700">
                       {column.column}
-                      {isYear && <span className="ml-1 text-[10px] text-violet-600">연차</span>}
+                      {isYear && <span className="ml-1 text-[10px] text-purple-600">연차</span>}
                     </td>
-                    <td className="max-w-[10rem] truncate px-2 py-1.5 text-slate-700" title={column.headerText}>
-                      {column.headerText || <span className="text-slate-300">(비어 있음)</span>}
+                    <td className="max-w-[10rem] truncate px-2 py-1.5 text-grey-700" title={column.headerText}>
+                      {column.headerText || <span className="text-grey-300">(비어 있음)</span>}
                     </td>
-                    <td className="max-w-[14rem] truncate px-2 py-1.5 text-slate-500" title={column.samples.join(' / ')}>
-                      {column.samples.join(' / ') || <span className="text-slate-300">(없음)</span>}
+                    <td className="max-w-[14rem] truncate px-2 py-1.5 text-grey-500" title={column.samples.join(' / ')}>
+                      {column.samples.join(' / ') || <span className="text-grey-300">(없음)</span>}
                     </td>
                   </tr>
                 );
@@ -123,10 +123,10 @@ export default function Step3Columns({
 
       {/* 우: 연차 열 매핑 (S-5) */}
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold text-slate-700">연차 열 매핑 (S-5)</h3>
-        <p className="text-xs text-slate-500">
+        <h3 className="text-sm font-semibold text-grey-700">연차 열 매핑 (S-5)</h3>
+        <p className="text-xs text-grey-500">
           연차로 감지된 열마다 이 과제의 어느 연차인지 지정하세요.{' '}
-          <span className="text-slate-400">회색 = 자동 추정</span> ·{' '}
+          <span className="text-grey-400">회색 = 자동 추정</span> ·{' '}
           <span className="text-blue-600">파랑 = 사용자 지정</span>. 미지정 열이 하나라도 남으면 다음
           단계로 갈 수 없습니다.
         </p>
@@ -146,15 +146,15 @@ export default function Step3Columns({
                 <li
                   key={column.column}
                   className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-xs ${
-                    unresolved ? 'border-red-300 bg-red-50' : 'border-slate-200'
+                    unresolved ? 'border-red-300 bg-red-50' : 'border-grey-200'
                   }`}
                 >
-                  <span className="w-10 shrink-0 font-mono font-semibold text-slate-700">
+                  <span className="w-10 shrink-0 font-mono font-semibold text-grey-700">
                     {column.column}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-slate-600" title={column.label}>
+                  <span className="min-w-0 flex-1 truncate text-grey-600" title={column.label}>
                     {column.label}
-                    <span className="ml-1 text-slate-400">(추정 {column.yearOrder + 1}차년도)</span>
+                    <span className="ml-1 text-grey-400">(추정 {column.yearOrder + 1}차년도)</span>
                   </span>
                   <select
                     value={value}
@@ -164,7 +164,7 @@ export default function Step3Columns({
                     className={`rounded-lg border px-2 py-1 ${
                       touched
                         ? 'border-blue-400 font-semibold text-blue-700'
-                        : 'border-slate-300 text-slate-500'
+                        : 'border-grey-300 text-grey-500'
                     }`}
                   >
                     <option value="">— 미지정 —</option>

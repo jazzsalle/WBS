@@ -85,15 +85,15 @@ export default function Step2Sheet({
               }`}
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
                 selected
-                  ? 'border-slate-900 bg-slate-900 text-white'
+                  ? 'border-grey-900 bg-grey-900 text-white'
                   : recommended
-                    ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    ? 'border-green-400 bg-green-50 text-green-800'
+                    : 'border-grey-200 bg-white text-grey-600 hover:bg-grey-50'
               }`}
             >
               {sheet.name}
               {recommended && <span className="ml-1.5">★</span>}
-              <span className={`ml-1.5 ${selected ? 'text-slate-300' : 'text-slate-400'}`}>
+              <span className={`ml-1.5 ${selected ? 'text-grey-300' : 'text-grey-400'}`}>
                 {(sheet.score * 100).toFixed(0)}%
               </span>
             </button>
@@ -101,15 +101,15 @@ export default function Step2Sheet({
         })}
       </div>
       {inspect.recommendedSheet && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-grey-500">
           ★ <strong>{inspect.recommendedSheet}</strong> 시트가 비목 매칭 밀도(S-13)가 가장 높습니다.
           추천일 뿐이니 실제 총괄표 시트를 직접 확인하고 고르세요.
         </p>
       )}
 
       {/* 행 지정 대상 전환 */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-        <span className="font-semibold text-slate-700">그리드 행 클릭 시 지정할 대상</span>
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-grey-200 bg-grey-50 px-3 py-2 text-xs">
+        <span className="font-semibold text-grey-700">그리드 행 클릭 시 지정할 대상</span>
         {(
           [
             { value: 'header', label: '헤더 행' },
@@ -126,7 +126,7 @@ export default function Step2Sheet({
             {option.label}
           </label>
         ))}
-        <span className="ml-auto text-slate-500">
+        <span className="ml-auto text-grey-500">
           헤더 행을 바꾸면 연차 열·라벨 열을 다시 감지합니다.
         </span>
       </div>
@@ -145,16 +145,16 @@ export default function Step2Sheet({
           disabled={busy}
         />
       ) : (
-        <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">
+        <p className="rounded-xl border border-dashed border-grey-300 p-6 text-center text-sm text-grey-400">
           시트를 선택하면 원본 미리보기가 표시됩니다.
         </p>
       )}
 
       {/* 감지 결과 — 전부 제안이고 사용자가 확인·수정한다 (§6.8 대원칙) */}
       <section className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-3 rounded-xl border border-slate-200 p-3">
-          <h3 className="text-sm font-semibold text-slate-700">범위</h3>
-          <label className="flex items-center justify-between gap-2 text-xs text-slate-600">
+        <div className="space-y-3 rounded-xl border border-grey-200 p-3">
+          <h3 className="text-sm font-semibold text-grey-700">범위</h3>
+          <label className="flex items-center justify-between gap-2 text-xs text-grey-600">
             헤더 행 (1-based)
             <input
               type="number"
@@ -162,10 +162,10 @@ export default function Step2Sheet({
               value={headerRow + 1}
               disabled={busy}
               onChange={(e) => onHeaderRowChange(Math.max(0, Number(e.target.value) - 1))}
-              className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-right"
+              className="w-24 rounded-lg border border-grey-300 px-2 py-1 text-right"
             />
           </label>
-          <label className="flex items-center justify-between gap-2 text-xs text-slate-600">
+          <label className="flex items-center justify-between gap-2 text-xs text-grey-600">
             데이터 시작 행 (1-based)
             <input
               type="number"
@@ -173,10 +173,10 @@ export default function Step2Sheet({
               value={dataStartRow + 1}
               disabled={busy}
               onChange={(e) => onDataStartRowChange(Math.max(0, Number(e.target.value) - 1))}
-              className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-right"
+              className="w-24 rounded-lg border border-grey-300 px-2 py-1 text-right"
             />
           </label>
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-grey-400">
             데이터 끝 행은 지정하지 않습니다 — 시트 끝까지 읽고, 표 아래 잔여 행은
             <span className="mx-1 font-medium">건너뜀(라벨 없음)</span>으로 미리보기에 남습니다.
           </p>
@@ -185,15 +185,15 @@ export default function Step2Sheet({
           </Button>
         </div>
 
-        <div className="space-y-3 rounded-xl border border-slate-200 p-3">
-          <h3 className="text-sm font-semibold text-slate-700">감지 결과</h3>
-          <label className="flex items-center justify-between gap-2 text-xs text-slate-600">
+        <div className="space-y-3 rounded-xl border border-grey-200 p-3">
+          <h3 className="text-sm font-semibold text-grey-700">감지 결과</h3>
+          <label className="flex items-center justify-between gap-2 text-xs text-grey-600">
             방향 (비목 위치)
             <select
               value={orientation}
               disabled={busy}
               onChange={(e) => onOrientationChange(e.target.value as 'row' | 'column')}
-              className="rounded-lg border border-slate-300 px-2 py-1"
+              className="rounded-lg border border-grey-300 px-2 py-1"
             >
               <option value="row">비목이 행 (row)</option>
               <option value="column">비목이 열 (column)</option>
@@ -206,13 +206,13 @@ export default function Step2Sheet({
             </p>
           )}
 
-          <div className="text-xs text-slate-600">
+          <div className="text-xs text-grey-600">
             <p>
               라벨 열 범위:{' '}
               <span className="font-mono font-semibold">
                 {(structure?.labelColumns ?? []).join(', ') || '(감지되지 않음)'}
               </span>
-              <span className="ml-1 text-slate-400">— Step 3에서 수정</span>
+              <span className="ml-1 text-grey-400">— Step 3에서 수정</span>
             </p>
             <p className="mt-1">
               연차 열:{' '}
@@ -227,7 +227,7 @@ export default function Step2Sheet({
               )}
             </p>
             {(structure?.totalColumns ?? []).length > 0 && (
-              <p className="mt-1 text-slate-500">
+              <p className="mt-1 text-grey-500">
                 합계 열(자동 제외):{' '}
                 {(structure?.totalColumns ?? []).map((t) => `${t.column}(${t.label})`).join(', ')}
               </p>
@@ -241,14 +241,14 @@ export default function Step2Sheet({
           </div>
 
           {/* I-10: 자동 확정 금지 — 사용자가 반드시 확인한다 */}
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-2">
-            <label className="flex items-center justify-between gap-2 text-xs font-semibold text-amber-900">
+          <div className="rounded-lg border border-orange-200 bg-orange-50 p-2">
+            <label className="flex items-center justify-between gap-2 text-xs font-semibold text-orange-900">
               원본 금액 단위
               <select
                 value={amountUnit}
                 disabled={busy}
                 onChange={(e) => onAmountUnitChange(Number(e.target.value) as AmountUnit)}
-                className="rounded-lg border border-amber-300 bg-white px-2 py-1 font-normal"
+                className="rounded-lg border border-orange-300 bg-white px-2 py-1 font-normal"
               >
                 {AMOUNT_UNIT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -257,13 +257,13 @@ export default function Step2Sheet({
                 ))}
               </select>
             </label>
-            <p className="mt-1 text-[11px] text-amber-800">
+            <p className="mt-1 text-[11px] text-orange-800">
               {hint
                 ? `시트 ${hint.row + 1}행에서 "${hint.text}"를 찾아 ×${hint.unit.toLocaleString()}로 제안합니다.`
                 : '단위 표기를 찾지 못해 ×1(원)로 제안합니다.'}{' '}
               1000배 오류는 치명적이라 자동 확정하지 않습니다.
             </p>
-            <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs font-semibold text-amber-900">
+            <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs font-semibold text-orange-900">
               <input
                 type="checkbox"
                 checked={unitConfirmed}

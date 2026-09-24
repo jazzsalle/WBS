@@ -44,7 +44,7 @@ export default async function TeamPage({ params }: TeamPageProps) {
       <RealtimeRefresher tables={REALTIME_TABLES} selfUserId={me.data.id} />
 
       <h1 className="text-xl font-bold">인력·기관</h1>
-      <p className="mb-6 mt-1 text-sm text-slate-500">{project.name}</p>
+      <p className="mb-6 mt-1 text-sm text-grey-500">{project.name}</p>
 
       <TeamScreen
         projectId={projectId}

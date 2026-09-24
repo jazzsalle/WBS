@@ -16,19 +16,19 @@ import Badge, { type BadgeTone } from '@/components/ui/Badge';
 
 // Tailwind는 클래스명을 정적으로 스캔한다 — 토큰을 문자열로 조합하지 않고 완전한 형태로 나열한다.
 const MARKER_COLOR_CLASSES: Record<string, string> = {
-  'violet-600': 'bg-violet-600',
-  'sky-600': 'bg-sky-600',
+  'purple-600': 'bg-purple-600',
+  'blue-600': 'bg-blue-600',
   'teal-600': 'bg-teal-600',
-  'slate-600': 'bg-slate-600',
+  'grey-600': 'bg-grey-600',
 };
 
 // 색만으로는 구분이 어려운 환경(색각·흑백 인쇄)을 위해 모양도 함께 나눈다.
 // 평가(violet) = 마름모, 보고서(sky) = 문서, 그 밖 = 원.
 const MARKER_SHAPE_CLASSES: Record<string, string> = {
-  'violet-600': 'h-3 w-3 rotate-45',
-  'sky-600': 'h-3.5 w-2.5 rounded-[2px]',
+  'purple-600': 'h-3 w-3 rotate-45',
+  'blue-600': 'h-3.5 w-2.5 rounded-[2px]',
   'teal-600': 'h-3 w-3 rounded-full',
-  'slate-600': 'h-3 w-3 rounded-full',
+  'grey-600': 'h-3 w-3 rounded-full',
 };
 
 // 같은 색·모양을 쓰는 유형끼리 묶어 범례를 만든다 — 그룹의 근거는 A.3 하나뿐이다
@@ -48,7 +48,7 @@ function TypeMarker({ type }: { type: MilestoneType }) {
     <span
       aria-hidden
       className={`${MARKER_SHAPE_CLASSES[token] ?? 'h-3 w-3 rounded-full'} ${
-        MARKER_COLOR_CLASSES[token] ?? 'bg-slate-600'
+        MARKER_COLOR_CLASSES[token] ?? 'bg-grey-600'
       }`}
     />
   );
@@ -64,20 +64,20 @@ export default function UpcomingMilestones({ items, milestoneAlertDays }: Upcomi
   return (
     <section
       aria-labelledby="dashboard-milestones-title"
-      className="rounded-2xl border border-slate-200 bg-white p-5"
+      className="rounded-2xl border border-grey-200 bg-white p-5"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="dashboard-milestones-title" className="text-base font-bold text-slate-900">
+        <h2 id="dashboard-milestones-title" className="text-base font-bold text-grey-900">
           임박 마일스톤
-          <span className="ml-2 text-xs font-normal text-slate-500">향후 {milestoneAlertDays}일</span>
+          <span className="ml-2 text-xs font-normal text-grey-500">향후 {milestoneAlertDays}일</span>
         </h2>
-        <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+        <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-grey-500">
           {LEGEND.map((group) => (
             <li key={group.token} className="flex items-center gap-1.5">
               <span
                 aria-hidden
                 className={`${MARKER_SHAPE_CLASSES[group.token] ?? 'h-3 w-3 rounded-full'} ${
-                  MARKER_COLOR_CLASSES[group.token] ?? 'bg-slate-600'
+                  MARKER_COLOR_CLASSES[group.token] ?? 'bg-grey-600'
                 }`}
               />
               {group.labels.join(' · ')}
@@ -87,7 +87,7 @@ export default function UpcomingMilestones({ items, milestoneAlertDays }: Upcomi
       </div>
 
       {items.length === 0 ? (
-        <p className="mt-4 rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">
+        <p className="mt-4 rounded-xl border border-dashed border-grey-300 p-6 text-center text-xs text-grey-500">
           향후 {milestoneAlertDays}일 내 마일스톤이 없습니다.
         </p>
       ) : (
@@ -101,23 +101,23 @@ export default function UpcomingMilestones({ items, milestoneAlertDays }: Upcomi
                 {/* 세로 레일: 마지막 항목은 선을 잇지 않는다 */}
                 <div className="flex flex-col items-center pt-1.5">
                   <TypeMarker type={item.type} />
-                  {index < items.length - 1 && <span aria-hidden className="w-px flex-1 bg-slate-200" />}
+                  {index < items.length - 1 && <span aria-hidden className="w-px flex-1 bg-grey-200" />}
                 </div>
                 <div className="min-w-0 flex-1 pb-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs tabular-nums text-slate-500">{item.date}</span>
+                    <span className="text-xs tabular-nums text-grey-500">{item.date}</span>
                     <Badge tone={tone} className="tabular-nums">
                       {item.dday}
                     </Badge>
                     <Badge>{MILESTONE_TYPE_LABELS[item.type]}</Badge>
                     <Badge title="마일스톤 상태">{MILESTONE_STATUS_LABELS[item.status]}</Badge>
                   </div>
-                  <p className="mt-1 truncate text-sm font-medium text-slate-900" title={item.title}>
+                  <p className="mt-1 truncate text-sm font-medium text-grey-900" title={item.title}>
                     {item.title}
                   </p>
                   <Link
                     href={`/projects/${item.projectId}`}
-                    className="text-xs text-slate-500 hover:text-blue-600 hover:underline"
+                    className="text-xs text-grey-500 hover:text-blue-600 hover:underline"
                   >
                     {item.projectName || '(이름 없는 과제)'}
                   </Link>

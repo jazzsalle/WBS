@@ -222,9 +222,9 @@ export default function BackupPanel() {
       : { label: '꺼짐 — 백업 폴더가 지정되지 않았습니다.', warn: true };
 
   return (
-    <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6">
+    <section className="mt-8 rounded-2xl border border-grey-200 bg-white p-6">
       <h2 className="text-lg font-bold">백업·복원</h2>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-grey-500">
         무료 플랜에는 DB 백업이 없어 자체 백업이 유일한 안전망입니다 (SOT §8.7).
       </p>
 
@@ -234,7 +234,7 @@ export default function BackupPanel() {
           className={`mt-4 rounded-lg border p-3 text-sm ${
             message.kind === 'error'
               ? 'border-red-200 bg-red-50 text-red-700'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-green-200 bg-green-50 text-green-800'
           }`}
         >
           {message.text}
@@ -244,7 +244,7 @@ export default function BackupPanel() {
       {/* K-2 상태 표시 */}
       <dl className="mt-4 space-y-1 text-sm">
         <div className="flex gap-2">
-          <dt className="w-28 shrink-0 font-medium text-slate-500">마지막 백업</dt>
+          <dt className="w-28 shrink-0 font-medium text-grey-500">마지막 백업</dt>
           <dd>
             {config?.lastBackupAt
               ? new Date(config.lastBackupAt).toLocaleString('ko-KR')
@@ -252,8 +252,8 @@ export default function BackupPanel() {
           </dd>
         </div>
         <div className="flex gap-2">
-          <dt className="w-28 shrink-0 font-medium text-slate-500">자동 백업</dt>
-          <dd className={autoBackupStatus.warn ? 'text-amber-600' : 'text-slate-700'}>
+          <dt className="w-28 shrink-0 font-medium text-grey-500">자동 백업</dt>
+          <dd className={autoBackupStatus.warn ? 'text-orange-600' : 'text-grey-700'}>
             {autoBackupStatus.label}
           </dd>
         </div>
@@ -264,7 +264,7 @@ export default function BackupPanel() {
           type="button"
           onClick={handleExport}
           disabled={busy !== null}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50"
+          className="rounded-lg bg-grey-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-grey-700 disabled:opacity-50"
         >
           {busy === 'export' ? '내보내는 중…' : '지금 내보내기'}
         </button>
@@ -274,7 +274,7 @@ export default function BackupPanel() {
             type="button"
             onClick={handlePickFolder}
             disabled={busy !== null}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-lg border border-grey-300 px-4 py-2 text-sm font-semibold text-grey-700 transition hover:bg-grey-50 disabled:opacity-50"
           >
             {busy === 'folder' ? '선택 중…' : '백업 폴더 변경'}
           </button>
@@ -300,7 +300,7 @@ export default function BackupPanel() {
       {/* K-4 2단계 확인 모달 */}
       {candidate && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-grey-900/40 p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="restore-title"
@@ -310,21 +310,21 @@ export default function BackupPanel() {
               전체 복원 — {restoreStep === 1 ? '확인 1/2' : '확인 2/2'}
             </h3>
 
-            <dl className="mt-4 space-y-1 rounded-lg bg-slate-50 p-3 text-sm">
+            <dl className="mt-4 space-y-1 rounded-lg bg-grey-50 p-3 text-sm">
               <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-slate-500">파일</dt>
+                <dt className="w-24 shrink-0 text-grey-500">파일</dt>
                 <dd className="break-all">{candidate.sourceName}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-slate-500">내보낸 시각</dt>
+                <dt className="w-24 shrink-0 text-grey-500">내보낸 시각</dt>
                 <dd>{new Date(candidate.file.exportedAt).toLocaleString('ko-KR')}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-slate-500">내보낸 사람</dt>
+                <dt className="w-24 shrink-0 text-grey-500">내보낸 사람</dt>
                 <dd>{candidate.file.exportedBy.email}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-slate-500">스키마 버전</dt>
+                <dt className="w-24 shrink-0 text-grey-500">스키마 버전</dt>
                 <dd>{candidate.file.schemaVersion}</dd>
               </div>
             </dl>
@@ -335,7 +335,7 @@ export default function BackupPanel() {
                 {EXPECTED_SCHEMA_VERSION})과 달라 복원할 수 없습니다 (SOT §8.7 K-5).
               </p>
             ) : restoreStep === 1 ? (
-              <p className="mt-4 text-sm text-slate-600">
+              <p className="mt-4 text-sm text-grey-600">
                 복원하면 <strong className="text-red-600">현재 팀 데이터 전체가 이 파일 내용으로
                 대체</strong>되고 모든 사용자에게 즉시 반영됩니다. 복원 직전 상태는 자동으로
                 백업됩니다.
@@ -350,7 +350,7 @@ export default function BackupPanel() {
                   value={confirmText}
                   onChange={(e) => setConfirmText(e.target.value)}
                   placeholder="복원"
-                  className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none"
+                  className="mt-2 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none"
                 />
               </div>
             )}
@@ -360,7 +360,7 @@ export default function BackupPanel() {
                 type="button"
                 onClick={closeRestoreModal}
                 disabled={busy === 'restore'}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-lg border border-grey-300 px-4 py-2 text-sm font-semibold text-grey-700 hover:bg-grey-50 disabled:opacity-50"
               >
                 취소
               </button>

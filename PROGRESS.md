@@ -1,7 +1,7 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
-2026-09-24 (Phase 12 완료 + **Phase 13 SOT v4.4 작성·승인 완료 — 코드는 아직 없다. 다음: `/phase-run 13`**)
+2026-09-24 (Phase 12 완료 + TDS 디자인 토큰 이식(SOT v4.5) + **Phase 13 설계 승인 완료 — 코드 미착수. 다음: `/phase-run 13`**)
 
 ## Current goal
 **Phase 13 — 연구비 사용 규칙** (§13 17번 해소). 2026-09-24 사용자 지시 "규칙화 내용을 찾아서 반영해"로 착수. **SOT v4.4 작성 완료 + 아래 결정 8건 사용자 승인 완료(2026-09-24). 코드는 아직 없다.** 다음 세션에서 `/phase-run 13`으로 바로 시작한다 — planner 분해 단계에서 **Claude 주간 사용 한도(429)** 에 걸려 중단됐다(한도 리셋 후 재실행). 아래 결정 목록은 승인된 사실로 읽으면 된다.
@@ -228,6 +228,14 @@
   - §5.18 `BudgetRule`(규칙 = 데이터: code·enabled·value·base·severity·source·note, 출처 빈 문자열 금지) / §6.14 RL-1~RL-19(분모 정의를 문서에 고정) / §7.9 규칙 검증 패널 + §7.9.5 편집 패널 / §9 액션 4종 / §11 Phase 13 행 / 부록 B.9 검증 예시(B.7 실측 + 합성) / 부록 D 프리셋 2종(값마다 조문)
   - **발견한 불일치**: PL-13 간접비 분모가 고시보다 좁았다(6비목 현금 합 — promotion·other 누락). 과기부와 기후부의 수정직접비 정의가 서로 다르다(위탁·부담비 제외 여부) → `base`로 해결
   - 텍스트 추출 한계: 계산식·별표 6(간접비고시비율표)이 뽑히지 않았고, 기후부 제23조③ 현금 비율표의 원천/혁신제품 열 구분이 사라졌다. 부록 D 끝에 "사람이 원문으로 확인할 것"으로 적어 둠
+
+- **토스 디자인 시스템 토큰 이식 완료** (2026-09-24, 사용자 선택 A — 토큰 + 프리미티브 + 전 화면 색상 치환). SOT v4.4 → **v4.5**, 부록 E 신설:
+  - `@toss/tds-mobile`은 React 16~18 + emotion 요구(우리는 React 19), 라이선스 미표기 → **컴포넌트 라이브러리는 쓰지 않고 값만 이식**. `app/globals.css` `@theme`에 TDS 8스케일 × 10단계 + 시맨틱(screen·surface·hairline·dimmed) + 타이포 t1~t7 + 둥글기. **Tailwind 기본 팔레트 제거**(`--color-*: initial`) — 옛 이름이 남으면 색이 빠져 눈에 띈다
+  - 폰트 Pretendard Variable(OFL, npm `pretendard`) 번들 포함(Tauri 오프라인)
+  - 치환: `slate→grey`, `rose→red`, `emerald→green`, `amber→orange`, `sky→blue`, `indigo·violet→purple` — 117파일 2,273곳(app·components·lib·tests·SOT 부록 A.3). Badge의 tone 키 이름(`amber`·`violet`)은 API라 그대로 두고 클래스만 바꿈
+  - 프리미티브: Button(파란 주 버튼, 테두리 없는 회색 보조), Badge(rounded-md, t7), Modal(rounded-3xl, dimmed), ErrorBanner, ProgressBar. body `bg-screen font-sans`
+  - `tests/unit/design-tokens.test.ts`가 옛 팔레트 사용을 금지하고 globals.css 토큰을 고정. 단위 1,286건·tsc·build 통과
+  - **하지 않은 것**: 레이아웃·동작 변경 없음. 화면별 톤 다듬기(카드 여백·제목 위계 t-scale 적용)는 이후 Phase에서 손대는 화면마다. 다크 모드 없음
 
 ## In progress
 없음

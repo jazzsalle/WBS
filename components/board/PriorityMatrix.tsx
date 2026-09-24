@@ -85,7 +85,7 @@ export default function PriorityMatrix({
           onCellDrop={onCellDrop}
           dropTarget={dropCell}
           legend={
-            <div className="mt-2 space-y-1 text-[11px] text-slate-500">
+            <div className="mt-2 space-y-1 text-[11px] text-grey-500">
               <p>
                 긴급도는 마감일에서 자동 계산됩니다(§6.9.1). 드래그로 긴급도를 바꾸려면 먼저
                 목록에서 📌 고정을 켜세요 (PR-4).
@@ -98,13 +98,13 @@ export default function PriorityMatrix({
 
       <section aria-label="우선순위 정렬 목록" className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <h2 className="font-bold text-slate-900">우선순위 정렬 (점수 내림차순)</h2>
-          <label className="flex items-center gap-2 text-slate-700">
+          <h2 className="font-bold text-grey-900">우선순위 정렬 (점수 내림차순)</h2>
+          <label className="flex items-center gap-2 text-grey-700">
             <input
               type="checkbox"
               checked={showDone}
               onChange={(e) => onShowDoneChange(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-grey-300"
             />
             완료 항목 표시
           </label>
@@ -123,12 +123,12 @@ export default function PriorityMatrix({
               </button>
             </div>
           )}
-          <span className="text-xs text-slate-500">표시 {visible.length}건</span>
+          <span className="text-xs text-grey-500">표시 {visible.length}건</span>
         </div>
 
-        <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <div className="mt-2 overflow-x-auto rounded-xl border border-grey-200 bg-white">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-slate-500">
+            <thead className="bg-grey-50 text-xs text-grey-500">
               <tr>
                 <th scope="col" className="px-2 py-1.5 text-left font-semibold">
                   코드
@@ -153,7 +153,7 @@ export default function PriorityMatrix({
             <tbody>
               {visible.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-2 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={6} className="px-2 py-6 text-center text-sm text-grey-500">
                     표시할 작업이 없습니다.
                   </td>
                 </tr>
@@ -175,11 +175,11 @@ export default function PriorityMatrix({
                         onItemDragStart(item.id);
                       }}
                       onDragEnd={onItemDragEnd}
-                      className={`border-t border-slate-100 ${
-                        draggingId === item.id ? 'opacity-40' : 'hover:bg-slate-50'
-                      } ${done ? 'text-slate-400' : 'text-slate-700'}`}
+                      className={`border-t border-grey-100 ${
+                        draggingId === item.id ? 'opacity-40' : 'hover:bg-grey-50'
+                      } ${done ? 'text-grey-400' : 'text-grey-700'}`}
                     >
-                      <td className="px-2 py-1.5 font-mono text-xs text-slate-400">
+                      <td className="px-2 py-1.5 font-mono text-xs text-grey-400">
                         {item.wbsCode}
                       </td>
                       <td className="px-2 py-1.5">
@@ -195,7 +195,7 @@ export default function PriorityMatrix({
                         </span>
                       </td>
                       <td className="px-2 py-1.5 text-xs">
-                        {ownerName ?? <span className="text-slate-300">—</span>}
+                        {ownerName ?? <span className="text-grey-300">—</span>}
                       </td>
                       <td
                         className={`px-2 py-1.5 text-xs whitespace-nowrap ${
@@ -203,7 +203,7 @@ export default function PriorityMatrix({
                         }`}
                       >
                         {item.dueDate === null ? (
-                          <span className="text-slate-300">—</span>
+                          <span className="text-grey-300">—</span>
                         ) : (
                           <span title={item.overdue ? '마감일이 지났습니다' : undefined}>
                             {item.dueDate} ({item.dday})
@@ -229,8 +229,8 @@ export default function PriorityMatrix({
                           }
                           className={`rounded border px-1.5 py-0.5 text-[11px] ${
                             item.urgencyPinned
-                              ? 'border-amber-300 bg-amber-50 text-amber-700'
-                              : 'border-slate-200 text-slate-400 hover:bg-slate-100'
+                              ? 'border-orange-300 bg-orange-50 text-orange-700'
+                              : 'border-grey-200 text-grey-400 hover:bg-grey-100'
                           }`}
                         >
                           📌

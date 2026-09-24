@@ -35,8 +35,8 @@ import Button from '@/components/ui/Button';
 import { subcategoryOptions } from './detail-wizard-state';
 
 const ROW_STATUS_CLASS: Record<DetailPreviewRow['status'], string> = {
-  new: 'bg-emerald-50 text-emerald-800',
-  skipped: 'bg-slate-100 text-slate-500',
+  new: 'bg-green-50 text-green-800',
+  skipped: 'bg-grey-100 text-grey-500',
   error: 'bg-red-50 text-red-700',
 };
 
@@ -104,7 +104,7 @@ export default function DetailStep4Preview({
 
   if (preview === null) {
     return (
-      <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">
+      <p className="rounded-xl border border-dashed border-grey-300 p-6 text-center text-sm text-grey-400">
         미리보기를 불러오는 중입니다.
       </p>
     );
@@ -119,14 +119,14 @@ export default function DetailStep4Preview({
   return (
     <div className="space-y-4">
       {/* 상단 요약 6종 (§7.9.3 Step 4) */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-        <span className="text-emerald-700">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-grey-200 bg-grey-50 px-3 py-2 text-xs">
+        <span className="text-green-700">
           신규 <strong>{summary.new}</strong>행
         </span>
-        <span className="text-slate-500">
+        <span className="text-grey-500">
           건너뜀 <strong>{summary.skipped}</strong>행
         </span>
-        <span className={summary.error > 0 ? 'font-semibold text-red-700' : 'text-slate-500'}>
+        <span className={summary.error > 0 ? 'font-semibold text-red-700' : 'text-grey-500'}>
           오류 <strong>{summary.error}</strong>행
         </span>
         <span className="text-blue-700">
@@ -135,7 +135,7 @@ export default function DetailStep4Preview({
         <span className="text-blue-700">
           교체할 셀 <strong>{summary.replaceCells}</strong>개
         </span>
-        <span className="ml-auto font-semibold text-slate-700">
+        <span className="ml-auto font-semibold text-grey-700">
           합계 {won(summary.totalAmount)}
         </span>
       </div>
@@ -143,7 +143,7 @@ export default function DetailStep4Preview({
       {committed !== null && <CommitResult result={committed} />}
 
       {dirty && committed === null && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-orange-300 bg-orange-50 px-3 py-2 text-xs text-orange-900">
           <span>
             바꾼 내용(교체·행 포함·통화 확인)이 아직 이 미리보기에 반영되지 않았습니다. 확인하기 전에는
             반영할 수 없습니다.
@@ -176,7 +176,7 @@ export default function DetailStep4Preview({
 
       {/* D-10: 확인하지 않은 표는 반영 대상이 아니다. 여기서도 풀 수 있게 둔다 */}
       {unconfirmedCurrency.length > 0 && committed === null && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <div className="rounded-xl border border-orange-300 bg-orange-50 px-3 py-2 text-xs text-orange-900">
           <p className="font-semibold">
             ⚠️ 원화가 아닌 통화 기호가 감지된 표 {unconfirmedCurrency.length}개는 확인 전까지 반영되지
             않습니다 (D-10). 환율을 앱이 지어내지 않습니다.
@@ -203,7 +203,7 @@ export default function DetailStep4Preview({
 
       {/* D-18: 파일 소계와 우리 합계의 차이. 어느 쪽이 맞는지는 사람이 안다 — 반영을 막지 않는다 */}
       {mismatched.length > 0 && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+        <p className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-[11px] text-orange-900">
           소계가 어긋나는 표가 {mismatched.length}건 있습니다 (D-18). 파일의 소계가 수식 오류이거나
           손으로 덮어쓴 값일 수 있어 <strong>반영은 막지 않습니다</strong> — 아래 세목별 경고에서 양쪽
           값을 확인하세요.
@@ -226,13 +226,13 @@ export default function DetailStep4Preview({
           />
         ))}
         {groups.length === 0 && (
-          <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">
+          <p className="rounded-xl border border-dashed border-grey-300 p-6 text-center text-sm text-grey-400">
             반영 예정 내역이 없습니다.
           </p>
         )}
       </div>
 
-      <p className="text-[11px] text-slate-400">
+      <p className="text-[11px] text-grey-400">
         반영 직전의 계획액과 삭제되는 산출근거 행은 스냅샷으로 저장되어 설정 화면에서 되돌릴 수
         있습니다 (D-17). 파일: {preview.fileName} · 시트: {preview.sheetName}
       </p>
@@ -243,13 +243,13 @@ export default function DetailStep4Preview({
 /** 반영 결과. D-15a는 오류가 아니지만 **반드시 드러낸다** */
 function CommitResult({ result }: { result: CommitDetailImportResult }) {
   return (
-    <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+    <div className="rounded-xl border border-green-300 bg-green-50 px-3 py-2 text-xs text-green-900">
       <p className="font-semibold">
         ✅ 산출근거를 반영했습니다 — 신규 {result.inserted}행 · 삭제 {result.deleted}행 · 새 인력{' '}
         {result.membersCreated}명 · 총액 재계산 {result.cells}셀
       </p>
       {result.skippedLocked > 0 && (
-        <p className="mt-1 rounded-lg border border-amber-300 bg-amber-100 px-2 py-1.5 text-amber-900">
+        <p className="mt-1 rounded-lg border border-orange-300 bg-orange-100 px-2 py-1.5 text-orange-900">
           ⚠️ 건너뜀(반영 중 추가됨) <strong>{result.skippedLocked}셀</strong> — 미리보기 이후 그 셀에
           산출근거가 생겨 덮지 않고 건너뛰었습니다 (D-15a). 그 비목을 넣으려면 [기존 삭제 후 교체]를
           고른 뒤 다시 가져오세요.
@@ -372,27 +372,27 @@ function CategoryCard({
   return (
     <section
       className={`rounded-xl border ${
-        cell?.status === 'error' ? 'border-red-300' : 'border-slate-200'
+        cell?.status === 'error' ? 'border-red-300' : 'border-grey-200'
       }`}
     >
-      <header className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-        <span className="text-sm font-semibold text-slate-800">{group.label}</span>
+      <header className="flex flex-wrap items-center gap-2 border-b border-grey-200 bg-grey-50 px-3 py-2 text-xs">
+        <span className="text-sm font-semibold text-grey-800">{group.label}</span>
         {cell && <Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge>}
         {/* D-15: 기존 산출근거가 있는 셀은 기본 건너뜀이다 */}
         {cell !== null && cell.existingRows > 0 && (
           <Badge tone="amber">기존 {cell.existingRows}행 있음</Badge>
         )}
-        <span className="text-slate-500">
+        <span className="text-grey-500">
           표 {group.blocks.length}개 · 행 {rowCount}개
         </span>
-        <span className="ml-auto font-semibold text-slate-700">
+        <span className="ml-auto font-semibold text-grey-700">
           반영 {cell?.rowCount ?? 0}행 · {won(cell?.amount ?? 0)}
         </span>
       </header>
 
       {/* D-15: 조용히 덮지 않는다. 기본 꺼짐이며 켜야만 교체한다 */}
       {cell !== null && (cell.existingRows > 0 || replace) && (
-        <label className="flex cursor-pointer flex-wrap items-center gap-2 border-b border-slate-100 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <label className="flex cursor-pointer flex-wrap items-center gap-2 border-b border-grey-100 bg-orange-50 px-3 py-2 text-xs text-orange-900">
           <input
             type="checkbox"
             checked={replace}
@@ -409,15 +409,15 @@ function CategoryCard({
 
       {cell?.reason && (
         <p
-          className={`border-b border-slate-100 px-3 py-1.5 text-[11px] ${
-            cell.status === 'error' ? 'bg-red-50 font-semibold text-red-700' : 'text-slate-500'
+          className={`border-b border-grey-100 px-3 py-1.5 text-[11px] ${
+            cell.status === 'error' ? 'bg-red-50 font-semibold text-red-700' : 'text-grey-500'
           }`}
         >
           {cell.reason}
         </p>
       )}
 
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-grey-100">
         {group.blocks.map((block) => (
           <BlockSection
             key={block.key}
@@ -431,12 +431,12 @@ function CategoryCard({
           />
         ))}
         {group.blocks.length === 0 && (
-          <p className="px-3 py-3 text-xs text-slate-400">이 비목에서 반영할 행을 찾지 못했습니다.</p>
+          <p className="px-3 py-3 text-xs text-grey-400">이 비목에서 반영할 행을 찾지 못했습니다.</p>
         )}
       </div>
 
       {group.emptyBlocks.length > 0 && (
-        <p className="border-t border-slate-100 px-3 py-1.5 text-[11px] text-slate-400">
+        <p className="border-t border-grey-100 px-3 py-1.5 text-[11px] text-grey-400">
           데이터 행이 없는 표 {group.emptyBlocks.length}개:{' '}
           {group.emptyBlocks.map((block) => blockLabel(block)).join(', ')}
         </p>
@@ -469,11 +469,11 @@ function BlockSection({
   return (
     <div className="px-3 py-3">
       <div className="flex flex-wrap items-baseline gap-2 text-xs">
-        <span className="font-semibold text-slate-700">
+        <span className="font-semibold text-grey-700">
           {block === null ? '(표 정보 없음)' : blockLabel(block)}
         </span>
         {block?.needsConfirm && <Badge tone="amber">세목 확인 필요</Badge>}
-        <span className="ml-auto text-slate-500">
+        <span className="ml-auto text-grey-500">
           행 {group.rows.length}개 · 반영 금액 {won(group.amount)}
         </span>
       </div>
@@ -483,8 +483,8 @@ function BlockSection({
         <label
           className={`mt-2 flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 text-[11px] font-semibold ${
             confirmed
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border-amber-300 bg-amber-100 text-amber-900'
+              ? 'border-green-200 bg-green-50 text-green-800'
+              : 'border-orange-300 bg-orange-100 text-orange-900'
           }`}
         >
           <input
@@ -504,7 +504,7 @@ function BlockSection({
           {group.subtotals.map((check) => (
             <li
               key={`${check.row}:${check.column}:${check.axis}`}
-              className="rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-900"
+              className="rounded bg-orange-50 px-2 py-1 text-[11px] text-orange-900"
             >
               ⚠️ 소계 불일치 ({check.row + 1}행 {check.column}열 · {axisLabel(check.axis)}) — 파일{' '}
               <strong>{won(check.fileValue)}</strong> / 우리 합계{' '}
@@ -515,9 +515,9 @@ function BlockSection({
         </ul>
       )}
 
-      <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200">
+      <div className="mt-2 overflow-x-auto rounded-lg border border-grey-200">
         <table className="w-full text-[11px]">
-          <thead className="bg-slate-50 text-slate-500">
+          <thead className="bg-grey-50 text-grey-500">
             <tr>
               <th className="w-14 px-2 py-1.5 text-left">반영</th>
               <th className="w-16 px-2 py-1.5 text-left">상태</th>
@@ -571,7 +571,7 @@ function PreviewRow({
   const axisOverridden = axis !== row.axisAuto;
 
   return (
-    <tr className={`border-t border-slate-100 ${row.status === 'skipped' ? 'text-slate-400' : ''}`}>
+    <tr className={`border-t border-grey-100 ${row.status === 'skipped' ? 'text-grey-400' : ''}`}>
       <td className="px-2 py-1.5">
         <label className="flex cursor-pointer items-center gap-1.5">
           <input
@@ -589,22 +589,22 @@ function PreviewRow({
         </span>
       </td>
       <td className="max-w-[14rem] px-2 py-1.5">
-        <span className="block truncate text-slate-700" title={row.memberName ?? row.name}>
+        <span className="block truncate text-grey-700" title={row.memberName ?? row.name}>
           {row.memberName ?? (row.name || '(이름 없음)')}
         </span>
-        <span className="text-[10px] text-slate-400">원본 {row.sourceRow + 1}행</span>
+        <span className="text-[10px] text-grey-400">원본 {row.sourceRow + 1}행</span>
       </td>
-      <td className="max-w-[16rem] px-2 py-1.5 text-slate-600">
+      <td className="max-w-[16rem] px-2 py-1.5 text-grey-600">
         <span className="block truncate" title={`${evidence} ${row.spec}`.trim()}>
           {evidence || '—'}
         </span>
         {row.spec && (
-          <span className="block truncate text-[10px] text-slate-400" title={row.spec}>
+          <span className="block truncate text-[10px] text-grey-400" title={row.spec}>
             {row.spec}
           </span>
         )}
       </td>
-      <td className="px-2 py-1.5 text-slate-600">
+      <td className="px-2 py-1.5 text-grey-600">
         {/* D-9: 합계 열만 있는 행은 축이 **제안**이다 — 자동 확정하지 않고 사용자가 바꿀 수 있다.
             파일이 현금·현물을 명시해 행이 갈린 경우는 바꿀 대상이 아니라 라벨로만 둔다 */}
         {row.axisSuggested ? (
@@ -626,7 +626,7 @@ function PreviewRow({
             className={`rounded border px-1 py-0.5 ${
               axisOverridden
                 ? 'border-blue-400 font-semibold text-blue-700'
-                : 'border-slate-200 text-slate-500'
+                : 'border-grey-200 text-grey-500'
             }`}
           >
             {AXIS_OPTIONS.map(([value, label]) => (
@@ -641,11 +641,11 @@ function PreviewRow({
         )}
       </td>
       <td className="px-2 py-1.5 text-right tabular-nums">
-        <span className="font-medium text-slate-800">{won(row.amount)}</span>
+        <span className="font-medium text-grey-800">{won(row.amount)}</span>
         {/* D-8: 조정액으로 흡수했음을 드러낸다. 조용히 넣지 않는다 */}
         {row.absorbed && (
           <span
-            className="mt-0.5 block text-[10px] text-amber-700"
+            className="mt-0.5 block text-[10px] text-orange-700"
             title="파일의 합계 열이 진실이므로 산식과의 차액을 조정액으로 흡수했습니다 (D-8)"
           >
             계산 {row.formulaAmount.toLocaleString('ko-KR')} → 파일{' '}
@@ -655,14 +655,14 @@ function PreviewRow({
       </td>
       <td className="max-w-[20rem] px-2 py-1.5">
         {row.note && (
-          <span className="block truncate text-slate-500" title={row.note}>
+          <span className="block truncate text-grey-500" title={row.note}>
             {row.note}
           </span>
         )}
         {row.reason && (
           <span
             className={`block truncate ${
-              row.status === 'error' ? 'font-semibold text-red-700' : 'text-slate-500'
+              row.status === 'error' ? 'font-semibold text-red-700' : 'text-grey-500'
             }`}
             title={row.reason}
           >

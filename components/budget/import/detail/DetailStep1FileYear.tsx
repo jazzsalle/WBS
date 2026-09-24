@@ -78,23 +78,23 @@ export default function DetailStep1FileYear({
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
         className={`rounded-xl border-2 border-dashed p-8 text-center transition ${
-          dragging ? 'border-slate-900 bg-slate-50' : 'border-slate-300 bg-white'
+          dragging ? 'border-grey-900 bg-grey-50' : 'border-grey-300 bg-white'
         }`}
       >
-        <p className="text-sm font-semibold text-slate-700">
+        <p className="text-sm font-semibold text-grey-700">
           산출근거 시트가 든 엑셀 파일을 끌어다 놓거나 선택하세요
         </p>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-grey-500">
           {DETAIL_ACCEPTED_EXTENSIONS.join(' · ')} · 최대 10MB · 20,000행
         </p>
-        <p className="mt-1 text-[11px] text-slate-400">
+        <p className="mt-1 text-[11px] text-grey-400">
           총괄표(연차 × 비목 매트릭스)는 이 마법사가 아니라 [엑셀 가져오기]로 넣습니다.
         </p>
         <button
           type="button"
           disabled={busy}
           onClick={() => inputRef.current?.click()}
-          className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-4 rounded-lg bg-grey-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-grey-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           파일 선택
         </button>
@@ -110,9 +110,9 @@ export default function DetailStep1FileYear({
           }}
         />
         {file && (
-          <p className="mt-4 text-xs text-slate-600">
+          <p className="mt-4 text-xs text-grey-600">
             선택됨 · <span className="font-semibold">{file.name}</span> ({formatBytes(file.size)})
-            {inspect && <span className="ml-2 text-slate-400">시트 {inspect.sheets.length}개</span>}
+            {inspect && <span className="ml-2 text-grey-400">시트 {inspect.sheets.length}개</span>}
           </p>
         )}
       </div>
@@ -123,13 +123,13 @@ export default function DetailStep1FileYear({
 
       {/* D-19: 시트 하나 = 연차 하나. 제안은 초기값일 뿐이고 **확정은 사용자가 한다** */}
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold text-slate-700">대상 연차</h3>
-        <p className="text-xs text-slate-500">
+        <h3 className="text-sm font-semibold text-grey-700">대상 연차</h3>
+        <p className="text-xs text-grey-500">
           산출근거 시트는 한 연차만 담습니다. 반영된 내역은 여기서 고른 연차의 비목 셀에 들어갑니다.
         </p>
 
         {years.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-300 px-3 py-3 text-xs text-slate-400">
+          <p className="rounded-lg border border-dashed border-grey-300 px-3 py-3 text-xs text-grey-400">
             이 과제에 연차가 없습니다. 과제 개요에서 단계·연차를 먼저 만드세요.
           </p>
         ) : (
@@ -138,7 +138,7 @@ export default function DetailStep1FileYear({
               <label
                 key={year.id}
                 className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm ${
-                  yearId === year.id ? 'border-slate-900 bg-slate-50' : 'border-slate-200'
+                  yearId === year.id ? 'border-grey-900 bg-grey-50' : 'border-grey-200'
                 }`}
               >
                 <input
@@ -149,8 +149,8 @@ export default function DetailStep1FileYear({
                   onChange={() => onYearChange(year.id)}
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="font-medium text-slate-700">{year.order + 1}차년도</span>
-                  <span className="ml-2 text-xs text-slate-500">{year.name}</span>
+                  <span className="font-medium text-grey-700">{year.order + 1}차년도</span>
+                  <span className="ml-2 text-xs text-grey-500">{year.name}</span>
                 </span>
                 {suggestedYearId === year.id && <Badge tone="blue">시트명 제안</Badge>}
               </label>
@@ -159,13 +159,13 @@ export default function DetailStep1FileYear({
         )}
 
         {suggestedFromSheet !== null && suggestedYearId !== null ? (
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-grey-400">
             시트명 <span className="font-mono">{suggestedFromSheet}</span>에서 연차를 제안했습니다.
             제안일 뿐이니 실제 시트 내용을 보고 확정하세요 (D-19).
           </p>
         ) : (
           inspect !== null && (
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-grey-400">
               시트명에서 <span className="font-mono">N차년도</span> 표기를 찾지 못해 제안이 없습니다.
               대상 연차를 직접 고르세요.
             </p>

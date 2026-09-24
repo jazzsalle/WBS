@@ -114,7 +114,7 @@ export default function AppBootstrap() {
               className={`flex items-start justify-between gap-3 rounded-lg border p-3 text-sm shadow-lg ${
                 n.kind === 'error'
                   ? 'border-red-200 bg-red-50 text-red-700'
-                  : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : 'border-green-200 bg-green-50 text-green-800'
               }`}
             >
               <span className="break-all">{n.text}</span>
@@ -139,7 +139,7 @@ function SchemaGate({ verdict, dbVersion }: { verdict: SchemaVerdict; dbVersion:
   const behind = verdict === 'db-behind';
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-grey-900/60 p-4"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="schema-gate-title"
@@ -148,12 +148,12 @@ function SchemaGate({ verdict, dbVersion }: { verdict: SchemaVerdict; dbVersion:
         <h2 id="schema-gate-title" className="text-lg font-bold">
           {behind ? '데이터베이스 마이그레이션이 필요합니다' : '앱 업데이트가 필요합니다'}
         </h2>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-grey-600">
           {behind
             ? `데이터베이스 스키마 버전(${dbVersion})이 이 앱이 기대하는 버전(${EXPECTED_SCHEMA_VERSION})보다 낮습니다. 관리자가 supabase/migrations의 마이그레이션을 적용(npm run db:push)한 뒤 앱을 다시 시작하세요.`
             : `데이터베이스 스키마 버전(${dbVersion})이 이 앱이 기대하는 버전(${EXPECTED_SCHEMA_VERSION})보다 높습니다. 다른 PC에서 새 버전이 배포되었습니다 — 최신 버전 앱으로 업데이트한 뒤 다시 시작하세요.`}
         </p>
-        <p className="mt-3 text-xs text-slate-400">
+        <p className="mt-3 text-xs text-grey-400">
           데이터 손상을 막기 위해 버전이 맞을 때까지 진입을 차단합니다 (SOT §8.8).
         </p>
       </div>

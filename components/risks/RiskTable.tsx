@@ -33,7 +33,7 @@ const TH_CLASS = `px-3 py-2 font-medium ${PRINT_TH}`;
 const TD_CLASS = `px-3 py-2 align-top ${PRINT_TD}`;
 
 const SELECT_CLASS =
-  'w-full rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs font-medium focus:border-slate-500 focus:outline-none disabled:opacity-50';
+  'w-full rounded-md border border-grey-300 bg-white px-1.5 py-1 text-xs font-medium focus:border-grey-500 focus:outline-none disabled:opacity-50';
 
 export interface RiskTableProps {
   /** 정렬이 끝난 상태로 받는다 (§7.11 기본은 점수 내림차순) */
@@ -101,13 +101,13 @@ export default function RiskTable({
         </Button>
       </div>
 
-      <div className={`overflow-x-auto rounded-xl border border-slate-200 bg-white ${PRINT_TABLE_WRAP}`}>
+      <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-white ${PRINT_TABLE_WRAP}`}>
         <table className={`w-full min-w-[1100px] text-left text-sm ${PRINT_TABLE}`}>
-          <caption className="hidden px-3 py-2 text-left text-sm font-bold text-slate-900 print:table-caption">
+          <caption className="hidden px-3 py-2 text-left text-sm font-bold text-grey-900 print:table-caption">
             리스크 관리대장
           </caption>
-          <thead className="text-xs text-slate-500 print:text-black">
-            <tr className="border-b border-slate-100">
+          <thead className="text-xs text-grey-500 print:text-black">
+            <tr className="border-b border-grey-100">
               <th className={TH_CLASS}>등급(점수)</th>
               <th className={TH_CLASS}>리스크명</th>
               <th className={TH_CLASS}>유형</th>
@@ -120,10 +120,10 @@ export default function RiskTable({
               <th className={`${TH_CLASS} text-right print:hidden`}>동작</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-grey-100">
             {views.length === 0 && (
               <tr>
-                <td colSpan={COLUMN_COUNT} className="px-3 py-8 text-center text-sm text-slate-400">
+                <td colSpan={COLUMN_COUNT} className="px-3 py-8 text-center text-sm text-grey-400">
                   표시할 리스크가 없습니다.
                 </td>
               </tr>
@@ -137,14 +137,14 @@ export default function RiskTable({
   
               return (
                 <Fragment key={risk.id}>
-                  <tr className={expanded ? 'bg-slate-50' : undefined}>
+                  <tr className={expanded ? 'bg-grey-50' : undefined}>
                     <td className={TD_CLASS}>
                       <div className="flex flex-wrap items-center gap-1.5">
                         {/* §6.5: 해결·종료는 등급 판정 대상이 아니다 — 등급을 매기지 않고 점수만 남긴다 */}
                         {view.severity === null ? (
                           <span
                             title="해결·종료된 리스크는 등급 판정 대상이 아닙니다 (§6.5)."
-                            className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-400 print:bg-transparent print:text-black"
+                            className="inline-flex items-center rounded-full bg-grey-100 px-2 py-0.5 text-xs font-semibold text-grey-400 print:bg-transparent print:text-black"
                           >
                             판정 제외 {view.score}
                           </span>
@@ -154,7 +154,7 @@ export default function RiskTable({
                             // P-R5: 화면 뱃지는 색 배경 + 흰 글자다. 인쇄는 배경색을 버리는 것이
                             // 기본이라 그대로 두면 흰 글자만 남아 등급이 사라진다.
                             // 등급 이름('고위험')이 이미 글자로 있으므로 색만 흑백용으로 되돌린다.
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold tabular-nums print:border print:border-slate-500 print:bg-transparent print:text-black ${classes.badge}`}
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold tabular-nums print:border print:border-grey-500 print:bg-transparent print:text-black ${classes.badge}`}
                           >
                             {RISK_SEVERITY_LABELS[view.severity]} {view.score}
                           </span>
@@ -175,12 +175,12 @@ export default function RiskTable({
                           onClick={() => onToggleExpand(risk.id)}
                           aria-expanded={expanded}
                           aria-label={`${risk.title} 상세 ${expanded ? '접기' : '펼치기'}`}
-                          className="shrink-0 rounded-md border border-slate-200 px-1.5 text-xs text-slate-500 hover:bg-slate-100 print:hidden"
+                          className="shrink-0 rounded-md border border-grey-200 px-1.5 text-xs text-grey-500 hover:bg-grey-100 print:hidden"
                         >
                           {expanded ? '▾' : '▸'}
                         </button>
                         <span
-                          className={`font-medium ${view.active ? 'text-slate-900' : 'text-slate-400'}`}
+                          className={`font-medium ${view.active ? 'text-grey-900' : 'text-grey-400'}`}
                         >
                           {risk.title}
                         </span>
@@ -192,17 +192,17 @@ export default function RiskTable({
                       </div>
                     </td>
   
-                    <td className={`${TD_CLASS} text-slate-600`}>
+                    <td className={`${TD_CLASS} text-grey-600`}>
                       {RISK_CATEGORY_LABELS[risk.category]}
                     </td>
-                    <td className={`${TD_CLASS} tabular-nums text-slate-700`}>{risk.probability}</td>
-                    <td className={`${TD_CLASS} tabular-nums text-slate-700`}>{risk.impact}</td>
-                    <td className={`${TD_CLASS} text-slate-600`}>
+                    <td className={`${TD_CLASS} tabular-nums text-grey-700`}>{risk.probability}</td>
+                    <td className={`${TD_CLASS} tabular-nums text-grey-700`}>{risk.impact}</td>
+                    <td className={`${TD_CLASS} text-grey-600`}>
                       {RISK_STRATEGY_LABELS[risk.strategy]}
                     </td>
-                    <td className={`${TD_CLASS} text-slate-600`}>{memberLabel(risk.ownerMemberId)}</td>
-                    <td className={`${TD_CLASS} tabular-nums text-slate-600`}>
-                      {risk.dueDate ?? <span className="text-slate-400">미지정</span>}
+                    <td className={`${TD_CLASS} text-grey-600`}>{memberLabel(risk.ownerMemberId)}</td>
+                    <td className={`${TD_CLASS} tabular-nums text-grey-600`}>
+                      {risk.dueDate ?? <span className="text-grey-400">미지정</span>}
                     </td>
   
                     <td className={TD_CLASS}>
@@ -221,7 +221,7 @@ export default function RiskTable({
                         ))}
                       </select>
                       {/* 인쇄에는 드롭다운 대신 값만 남긴다 */}
-                      <span className="hidden text-slate-700 print:inline">
+                      <span className="hidden text-grey-700 print:inline">
                         {RISK_STATUS_LABELS[risk.status]}
                       </span>
                     </td>
@@ -264,34 +264,34 @@ export default function RiskTable({
                   </tr>
   
                   {expanded && (
-                    <tr className="bg-slate-50 print:hidden">
+                    <tr className="bg-grey-50 print:hidden">
                       <td colSpan={COLUMN_COUNT} className="px-4 py-4">
                         <div className="grid gap-4 lg:grid-cols-3">
                           <div className="min-w-0">
-                            <p className="text-xs font-semibold text-slate-600">리스크 내용</p>
-                            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
+                            <p className="text-xs font-semibold text-grey-600">리스크 내용</p>
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-grey-700">
                               {risk.description.trim() === '' ? (
-                                <span className="text-slate-400">등록된 내용이 없습니다.</span>
+                                <span className="text-grey-400">등록된 내용이 없습니다.</span>
                               ) : (
                                 risk.description
                               )}
                             </p>
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-semibold text-slate-600">대응 방안</p>
-                            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
+                            <p className="text-xs font-semibold text-grey-600">대응 방안</p>
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-grey-700">
                               {risk.response.trim() === '' ? (
-                                <span className="text-slate-400">등록된 대응 방안이 없습니다.</span>
+                                <span className="text-grey-400">등록된 대응 방안이 없습니다.</span>
                               ) : (
                                 risk.response
                               )}
                             </p>
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-semibold text-slate-600">비상 계획</p>
-                            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
+                            <p className="text-xs font-semibold text-grey-600">비상 계획</p>
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-grey-700">
                               {risk.contingency.trim() === '' ? (
-                                <span className="text-slate-400">등록된 비상 계획이 없습니다.</span>
+                                <span className="text-grey-400">등록된 비상 계획이 없습니다.</span>
                               ) : (
                                 risk.contingency
                               )}
@@ -299,12 +299,12 @@ export default function RiskTable({
                           </div>
                         </div>
   
-                        <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-slate-200 pt-3 text-xs text-slate-600">
+                        <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-grey-200 pt-3 text-xs text-grey-600">
                           <span>연차: {yearLabel(risk.yearId)}</span>
                           <span>
                             관련 작업:{' '}
                             {risk.taskId === null ? (
-                              <span className="text-slate-400">연결 없음</span>
+                              <span className="text-grey-400">연결 없음</span>
                             ) : task ? (
                               // WBS 화면은 연차 단위로 트리를 그린다 — 해당 연차를 열어준다 (§7.4)
                               <Link
@@ -314,7 +314,7 @@ export default function RiskTable({
                                 {task.title} · WBS에서 보기
                               </Link>
                             ) : (
-                              <span className="text-amber-700">(삭제된 작업)</span>
+                              <span className="text-orange-700">(삭제된 작업)</span>
                             )}
                           </span>
                         </div>

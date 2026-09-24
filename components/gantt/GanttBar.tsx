@@ -12,17 +12,17 @@ import type { BarGeometry } from '@/lib/gantt';
 
 // Tailwind 정적 스캔 — 토큰을 문자열로 조합하지 않는다 (부록 A.3)
 const STATUS_BG: Record<string, string> = {
-  'slate-400': 'bg-slate-400',
+  'grey-400': 'bg-grey-400',
   'blue-500': 'bg-blue-500',
-  'emerald-500': 'bg-emerald-500',
-  'rose-500': 'bg-rose-500',
+  'green-500': 'bg-green-500',
+  'red-500': 'bg-red-500',
 };
 
 const STATUS_FILL: Record<string, string> = {
-  'slate-400': 'bg-slate-600',
+  'grey-400': 'bg-grey-600',
   'blue-500': 'bg-blue-700',
-  'emerald-500': 'bg-emerald-700',
-  'rose-500': 'bg-rose-700',
+  'green-500': 'bg-green-700',
+  'red-500': 'bg-red-700',
 };
 
 export const BAR_HEIGHT = 14;
@@ -91,12 +91,12 @@ export default function GanttBar({
             }
           : undefined
       }
-      className={`absolute rounded-sm ${STATUS_BG[token] ?? 'bg-slate-400'} ${
+      className={`absolute rounded-sm ${STATUS_BG[token] ?? 'bg-grey-400'} ${
         summary ? 'opacity-90' : ''
       } ${overdue ? 'ring-1 ring-red-600' : ''} ${
-        unsaved ? 'ring-2 ring-amber-500' : ''
+        unsaved ? 'ring-2 ring-orange-500' : ''
       } ${dragging ? 'opacity-70 shadow-lg' : ''} ${
-        geometry.truncated ? 'outline-dotted outline-1 outline-slate-500' : ''
+        geometry.truncated ? 'outline-dotted outline-1 outline-grey-500' : ''
       } ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed'}`}
       style={{
         left: geometry.left,
@@ -108,7 +108,7 @@ export default function GanttBar({
       {/* 진척률 채움 — 막대 안쪽 (§7.5) */}
       <div
         aria-hidden
-        className={`h-full rounded-sm ${STATUS_FILL[token] ?? 'bg-slate-600'}`}
+        className={`h-full rounded-sm ${STATUS_FILL[token] ?? 'bg-grey-600'}`}
         style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
       />
 
@@ -117,12 +117,12 @@ export default function GanttBar({
         <>
           <span
             aria-hidden
-            className={`absolute -top-1 left-0 w-0.5 ${STATUS_FILL[token] ?? 'bg-slate-600'}`}
+            className={`absolute -top-1 left-0 w-0.5 ${STATUS_FILL[token] ?? 'bg-grey-600'}`}
             style={{ height: SUMMARY_HEIGHT + 4 }}
           />
           <span
             aria-hidden
-            className={`absolute -top-1 right-0 w-0.5 ${STATUS_FILL[token] ?? 'bg-slate-600'}`}
+            className={`absolute -top-1 right-0 w-0.5 ${STATUS_FILL[token] ?? 'bg-grey-600'}`}
             style={{ height: SUMMARY_HEIGHT + 4 }}
           />
         </>

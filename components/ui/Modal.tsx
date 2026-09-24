@@ -55,7 +55,7 @@ export default function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-dimmed p-4"
       onMouseDown={(e) => {
         if (closeOnBackdrop && e.target === e.currentTarget) onClose();
       }}
@@ -64,20 +64,20 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`w-full ${SIZE_CLASSES[size]} rounded-2xl bg-white p-6 shadow-xl`}
+        className={`w-full ${SIZE_CLASSES[size]} rounded-3xl bg-white p-6 shadow-xl`}
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 id={titleId} className="text-lg font-bold">
+            <h2 id={titleId} className="text-t4 font-bold text-grey-900">
               {title}
             </h2>
-            {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+            {description && <p className="mt-1 text-sm text-grey-500">{description}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="닫기"
-            className="shrink-0 text-xl leading-none text-slate-400 hover:text-slate-600"
+            className="shrink-0 text-xl leading-none text-grey-400 hover:text-grey-600"
           >
             ×
           </button>
