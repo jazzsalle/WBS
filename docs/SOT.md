@@ -2,10 +2,18 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v4.5** |
-| 최종 수정 | 2026-09-24 |
+| 문서 버전 | **v4.6** |
+| 최종 수정 | 2026-09-25 |
 | 상태 | 확정 (Phase 0 착수 가능) |
 | 목적 | 이 문서는 구현의 유일한 기준점이다. 코드와 문서가 다르면 **문서가 옳다**. |
+
+### v4.5 → v4.6 변경 요약 — Phase 14 도움말 + 따라하기 튜토리얼 (사용자 지시 2026-09-25)
+
+개발 범위(Phase 0~13)가 끝난 뒤 사용자가 **"도움말을 달아 사용법을 알려주고, 따라하기 튜토리얼을 넣자"**고 지시했다. 방식은 사용자가 골랐다: **예제 과제 + 단계 체크리스트**(화면 위 오버레이가 아니다 — 앵커가 레이아웃 변경마다 깨진다).
+
+- **§7.16 신설 — 도움말(`/help`)**: 화면별 사용법 15편 + 계산 방식 + 자주 묻는 것. 본문은 `content/help/*.md`를 서버가 읽어 **`lib/notes.ts` AST → `MarkdownViewer`**로 그린다(HTML 문자열 없음 — 노트와 같은 경로). 각 화면 헤더의 `?`가 해당 절로 간다. **도움말은 SOT §6·§7의 사용자용 번역이며 SOT와 어긋나면 SOT가 옳다**(HP-3).
+- **§7.17 신설 — 따라하기(`TutorialPanel`)**: 우측 드로어, 9단계(과제 → 단계·연차 → 인력 → WBS → 목표 → 마일스톤 → 연구비·규칙 → 내보내기 → 백업). `[예제 과제 만들기]`가 `[예제]` 접두 과제를 실제 DB에 만든다(팀 전원에게 보인다 — TU-3). 단계 완료는 **데이터가 생기면 자동 판정**(`getTutorialStatus`), 감지할 수 없는 두 단계(내보내기·백업)만 수동 체크. 진행 상태는 §5.16 `LocalConfig.tutorial`(PC별).
+- §5.16 `LocalConfig.tutorial` 추가, §9 액션 3종(`createSampleProject`·`getTutorialStatus`·`getHelpDocument`), §10 `content/help/`·`components/help/`·`components/tutorial/`, `next.config.ts` `outputFileTracingIncludes`에 `./content/**`(templates와 같은 이유), §11 Phase 14 행. **스키마 변경 없음.**
 
 ### v4.4 → v4.5 변경 요약 — 토스 디자인 시스템(TDS) 토큰 도입 (사용자 결정 2026-09-24)
 
@@ -849,8 +857,17 @@ interface LocalConfig {
   lastBackupAt: string | null;
   lastOpenedProjectId: string | null;
   ganttScale: 'day' | 'week' | 'month';   // 개인 화면 취향
+  // ─ Phase 14 따라하기 (§7.17) — PC별 진행 상태. 팀 공유 아님 ─
+  tutorial: {
+    sampleProjectId: string | null;   // [예제 과제 만들기]로 만든 과제. 삭제되면 getTutorialStatus가 null로 되돌린다
+    manualDone: TutorialStepId[];     // 자동 감지가 안 되는 단계(export·backup)의 수동 체크
+    dismissed: boolean;               // 드로어 "다시 보지 않기"
+  };
 }
+type TutorialStepId = 'project' | 'years' | 'team' | 'wbs' | 'goals' | 'milestones' | 'budget' | 'export' | 'backup';
 ```
+
+> `tutorial`은 Zod `.catch(기본값)`으로 읽는다(기존 필드와 같은 방식) — 구 설정 파일에 키가 없어도 앱이 죽지 않는다.
 
 > 표시 이름·이메일은 `app_users` 테이블(§14.2)에 있다. `Settings`는 팀 전체가 공유하는 업무 규칙만 담는다.
 
@@ -2043,6 +2060,35 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 
 ---
 
+### 7.16 도움말 (`/help`, Phase 14)
+
+**목적은 "이 화면에서 무엇을 어떻게 하는가"를 그 화면에서 한 번의 클릭으로 보는 것이다.** 규칙의 *근거*는 SOT에 있고, 도움말은 그것을 사용자 말로 옮긴 것이다.
+
+| # | 규칙 |
+|---|---|
+| HP-1 | **본문은 `content/help/<slug>.md`** 파일이다(저장소에 커밋). slug = 화면 키 15개(`dashboard`·`projects`·`project`·`wbs`·`gantt`·`board`·`goals`·`milestones`·`budget`·`budget-rules`·`team`·`risks`·`notes`·`todos`·`settings`) + `calculations`(진척률·달성률·집행률·산출근거·규칙 판정의 계산 방식) + `faq`(자주 묻는 것 — 백업·충돌·오프라인·키체인). 서버 컴포넌트가 `fs`로 읽는다. `next.config.ts` `outputFileTracingIncludes`에 `./content/**`를 넣는다 — 템플릿(X-1)과 같은 이유로, 빠지면 standalone 산출물에서 도움말이 통째로 사라진다. |
+| HP-2 | **렌더 경로는 노트와 같다** — `lib/notes.ts` `parseMarkdown` → `MarkdownViewer`(React 엘리먼트). `dangerouslySetInnerHTML`·외부 마크다운 라이브러리를 쓰지 않는다. 우리가 쓴 문서라도 경로를 둘로 만들지 않는다 — 노트 파서의 부분집합만 쓰고, 파서가 모르는 문법은 **원문 그대로 보이므로** 도움말 파일은 그 부분집합(제목 `#`~`###`, 목록, 굵게, 인라인 코드, 링크, 인용, 표는 파서가 지원할 때만)으로만 쓴다. |
+| HP-3 | **SOT가 옳다.** 도움말의 설명·수치가 SOT §6·§7·부록과 다르면 도움말이 틀린 것이다. 수치(연구수당 20%, 간접비 10% 등)는 출처(부록 D의 고시·조문)를 함께 적는다. 도움말을 고칠 때 SOT를 먼저 본다. |
+| HP-4 | **화면마다 `?`** — 대시보드·과제 목록·과제 헤더(탭별로 slug가 바뀐다: `/projects/[id]/wbs` → `wbs`)·To-Do·설정 헤더에 `HelpLink`(`?` 아이콘 + "도움말" 툴팁) → `/help#<slug>`. 도움말 페이지는 좌측 목차 + 우측 본문, 해시로 절 이동·강조. `print:hidden`. |
+| HP-5 | `/help`는 **인증 뒤**에만(미들웨어 예외 없음). 도움말에 데이터가 없으므로 Realtime·DB 조회 없음. |
+| HP-6 | 도움말 파일마다 첫 줄에 `# <화면 이름>`, 둘째 줄에 `> 언제 쓰나: …` 한 문장. 그 뒤 "할 수 있는 것" 목록 → "자주 하는 실수" → "관련 계산"(있으면 `calculations`로 링크). 길이는 한 화면당 A4 한 쪽 이내. |
+
+### 7.17 따라하기 (`TutorialPanel`, Phase 14)
+
+**예제 과제 하나를 만들고, 실제 화면을 9단계로 따라가며 데이터를 넣어 보게 한다.** 오버레이가 아니라 드로어다 — 화면 요소에 앵커를 달지 않으므로 레이아웃이 바뀌어도 깨지지 않는다.
+
+| # | 규칙 |
+|---|---|
+| TU-1 | **입구**: 대시보드와 과제 화면(`/projects/[id]/*`) 오른쪽 아래 고정 버튼 `[따라하기]`. 누르면 우측 드로어. `dismissed`면 버튼이 작은 아이콘으로 줄어들고 설정(§7.14)에서 "따라하기 다시 열기"로 되돌린다. `print:hidden`. |
+| TU-2 | **9단계**(`TutorialStepId` 순서): ① 과제 만들기 ② 단계·연차 확인 ③ 인력·기관 등록(사내 명부 포함) ④ WBS 작업 쌓기(드래그·Tab) ⑤ 성과·기술목표 ⑥ 마일스톤 자동 생성 ⑦ 연구비 제안 모드 — 산출근거 한 행 + 규칙 프리셋 ⑧ 제출 서식 내보내기 ⑨ 백업 폴더 지정·지금 내보내기. 단계마다 **할 일 한 문장 · 버튼이 어디 있는지 · `[이 화면으로]` 링크 · 완료 표시**. 현재 화면에 해당하는 단계를 자동으로 펼친다. |
+| TU-3 | **`[예제 과제 만들기]`**(`createSampleProject`)는 **실제 DB에 쓴다** — 팀 전원에게 보인다. 이름은 `[예제] ` 접두, 설명 첫 줄 "따라하기 예제 — 지워도 됩니다". 과제 목록 카드에 `예제` 배지. 내용: 단계 1 · 연차 2, 기관 2(주관 기업 `lead` + 공동 대학 `joint`), 인력 4(PM 포함, 기존 3·신규 1, 연봉 입력), WBS 작업 8(깊이 3), 성과목표 2·기술목표 1, 기본 마일스톤 자동 생성, 1차년도 산출근거 6행(인건비 4 + 회의비 1 + 간접비 1 — 부록 B.7 규모의 1/10 수준 합성값), 규칙 프리셋 `moe_energy_sme` 적용. **한 트랜잭션이 아니다**(기존 액션·리포지토리를 순서대로 부른다) — 중간 실패 시 만들어진 과제 id를 돌려주고 "일부만 만들어졌습니다 → 삭제 후 다시" 안내(조용히 넘기지 않는다). 이미 `sampleProjectId`가 있고 그 과제가 존재하면 다시 만들지 않고 그리로 이동한다. |
+| TU-4 | **완료 판정은 서버가 데이터로 한다** — `getTutorialStatus(projectId)`: ① 과제 존재 ② 연차 ≥ 1 ③ 인력 ≥ 1 ④ 작업 ≥ 1 ⑤ 성과목표 또는 기술목표 ≥ 1 ⑥ 마일스톤 ≥ 1 ⑦ 산출근거 ≥ 1 **그리고** 규칙 ≥ 1. ⑧ 내보내기·⑨ 백업은 감지할 수 없다(내보내기는 DB를 바꾸지 않고(X-11), 백업 시각은 PC마다 다르다) → `manualDone` 수동 체크. 백업은 `LocalConfig.lastBackupAt`이 있으면 자동으로도 완료 취급. **예제 과제가 아니어도 된다** — 드로어의 과제 선택으로 자기 과제를 따라가도 판정은 같다. |
+| TU-5 | 예제 과제 삭제는 **기존 `deleteProject`**(과제 개요의 삭제 — 2단계 확인)로 한다. 드로어의 `[예제 과제 지우기]`는 그 화면으로 보내는 링크일 뿐, 별도 삭제 경로를 만들지 않는다. 삭제 뒤 `getTutorialStatus`가 과제 없음을 돌려주면 `sampleProjectId`를 null로 되돌린다. |
+| TU-6 | 드로어 상태(열림·펼친 단계)는 세션 메모리, `manualDone`·`dismissed`·`sampleProjectId`는 `LocalConfig`(§5.16). **DB에 튜토리얼 상태를 두지 않는다** — 사람마다 다르고 팀 데이터가 아니다. |
+| TU-7 | 도움말(§7.16)과 연결: 각 단계에 "자세히 → 도움말" 링크(`/help#<slug>`). 튜토리얼 본문도 `content/tutorial/<step>.md`로 두고 같은 렌더 경로(HP-2)를 쓴다. |
+
+---
+
 ## 8. 데이터 레이어 설계
 
 ### 8.1 요구사항
@@ -2325,6 +2371,14 @@ createMembersFromHr(projectId, drafts) // name·position·email만 채운 Member
 >
 > **인증 헤더는 `X-API-Key: <키>` 하나다** (HR 가이드 §4, 2026-09-24 실호출로 확인). 가이드 본문은 발급 키가 있어야 열린다(`/api/external/guide?t=<키>`). 실패 코드는 `401 INVALID_API_KEY` / `403 IP_NOT_ALLOWED` / `503 NOT_CONFIGURED`(서버에 키 미설정) / `429`(15분당 300회, `/api/external/*`+`/api/auth` 합산). **HR 호출 타임아웃은 15초** — 없으면 HR이 응답을 안 줄 때 버튼이 영원히 "불러오는 중"이 된다.
 
+**Help · Tutorial** (Phase 14 — §7.16, §7.17)
+```
+getHelpDocument(slug)                 // content/help/<slug>.md → { title, blocks: MdBlock[] } (lib/notes.ts 파싱). 없는 slug는 실패
+getTutorialStatus(projectId | null)   // TU-4: 단계별 완료 여부 + 과제 존재 여부. 조회만
+createSampleProject()                 // TU-3: [예제] 과제 + 데이터 세트. 기존 액션·리포지토리를 순서대로. 부분 실패 시 만든 id와 함께 실패 반환
+```
+- `createSampleProject`는 새 RPC를 만들지 않는다. `create_project_with_defaults`·`createOrganization`·`createMember`·`createTask`·목표·마일스톤·산출근거·`applyRulePreset`의 **기존 경로**를 그대로 탄다 — 예제가 실제 사용 경로와 다르면 튜토리얼이 거짓말을 한다.
+
 **Budget Rules** (Phase 13 — §5.18, §6.14)
 ```
 listBudgetRules(projectId)
@@ -2562,6 +2616,8 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 │   │   │              BudgetPlanSummary(§7.9 하단 요약 — Phase 9의 한도 배지는 Phase 13에서 규칙 검증 패널로 대체·제거)
 │   │   ├── rules/     RuleFindingsPanel(§7.9 규칙 검증 패널), RulesEditor(§7.9.5 모달), PresetPicker(D.1·D.2 적용),
 │   │   │              AdvisoryList(D.3 읽기 전용), RuleRow(규칙 표 한 행·O-3 비교), rule-form.ts(draft↔행 변환·patch 순수 함수)
+│   ├── help/          HelpLink(`?`, HP-4), HelpPage(목차+본문, §7.16)
+│   ├── tutorial/      TutorialButton, TutorialPanel(드로어, §7.17), StepItem
 │   │   ├── plan/      DetailPanel(§7.9.2), SubcategorySection, PersonnelRow,
 │   │   │              QuantityRow, FactorInputs
 │   │   ├── import/    ImportWizard(모달+단계 상태기계), wizard-state.ts(공용 타입·헬퍼),
@@ -2621,6 +2677,8 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 
 ---
 
+> **`content/`** (Phase 14): `content/help/<slug>.md` 17편 + `content/tutorial/<step>.md` 9편. 서버가 fs로 읽으며 `next.config.ts` `outputFileTracingIncludes`에 포함한다(HP-1).
+
 ## 11. 구현 순서
 
 | Phase | 범위 | 완료 기준 |
@@ -2645,6 +2703,10 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 | **12. 사내 명부 연동** (선택적) | `lib/hr.ts`(HR-4·HR-8·HR-9·HR-14·HR-16), `actions/team.ts` 2종, §7.10.1 `[사내 명부에서 추가]`, §7.14 API 키 섹션 | 설정에 키를 넣고 인력 화면에서 사내 명부를 열면 실제 직원 목록이 뜨고, 고른 사람이 **이름·직위·이메일만 채워진** Member로 생성된다. **연봉이 비어 있다는 사실이 화면에 남는다**(HR-2). 키를 지우면 다시 안내 문구로 돌아간다 |
 
 | **13. 연구비 사용 규칙** | `budget_rules` 테이블 + RLS + 한도 컬럼 이관 마이그레이션(`schema_version` 3), `lib/rules.ts`(RL-3~RL-19) + `lib/rules-presets.ts`(부록 D), `actions/budget-rules.ts` 4종, §7.9 규칙 검증 패널, §7.9.5 규칙 편집 패널 | 부록 B.7 실측 1차년도에 `moe_energy_sme` 프리셋을 적용하면 부록 B.9의 판정이 그대로 나온다. 규칙 값을 바꾸면 판정이 따라 바뀌고, 행을 끄면 그 검사가 사라진다. Phase 9의 연구수당·간접비 비율(0.00% / 0.9622%)이 이관 후에도 같다 |
+
+| **14. 도움말 + 따라하기** | `content/help/*.md` 17편·`content/tutorial/*.md` 9편, `actions/help.ts`(`getHelpDocument`·`getTutorialStatus`·`createSampleProject`), `/help` 페이지 + `HelpLink`, `TutorialPanel` 드로어, `LocalConfig.tutorial` | 새 사용자가 `[따라하기]` → `[예제 과제 만들기]` → 9단계를 순서대로 눌러 가면 단계가 스스로 체크되고, 마지막에 예제 과제를 지우면 처음 상태로 돌아온다. 아무 화면에서 `?`를 누르면 그 화면의 도움말 절이 열린다 |
+
+> **Phase 14는 새 데이터 모델·스키마가 없다.** 도움말은 SOT의 번역이고(HP-3), 예제 과제는 기존 경로로만 만든다(TU-3). 튜토리얼 상태는 PC 로컬이다(TU-6).
 
 > **Phase 13은 계상(계획) 단계 규칙만 다룬다.** 집행 단계의 회수 산식(연구수당 지급비율 − 직접비 사용비율 20%p, 간접비 사용비율)은 §13 후보다. 기관 유형·기업 규모 필드를 만들지 않는다 — 프리셋 선택이 그 선택이다.
 

@@ -304,3 +304,31 @@ evaluator는 이 체크리스트로 PASS/FAIL을 판정한다. 모든 항목은 
 - [ ] `npm test`·`tsc`·`build` 통과. Phase 9~11 기존 테스트(B.7 0.9622%·B.8·왕복) 전부 통과
 - [ ] 절대 규칙 2·3. 파생 값(findings) 미저장
 
+## Phase 14 — 도움말 + 따라하기 (SOT v4.6)
+
+> 스키마 변경 없음. 도움말은 SOT의 번역(HP-3)이고 예제 과제는 기존 경로로만 만든다(TU-3). 이 둘을 어기면 **FAIL**.
+
+**도움말 (§7.16)**
+- [ ] `content/help/` 17편(화면 15 + `calculations` + `faq`), 각 파일 첫 줄 `# 제목`·둘째 줄 `> 언제 쓰나:` (HP-6). 빠진 slug가 있으면 FAIL
+- [ ] 렌더가 `lib/notes.ts` `parseMarkdown` → `MarkdownViewer`다. `dangerouslySetInnerHTML`·외부 마크다운 라이브러리 0건 (grep)
+- [ ] 도움말 수치가 SOT와 일치한다 — 샘플 대조: 연구수당 20%(제26조①)·간접비 영리 10%·진척률 4단계 가중·집행률 B-1~B-3·마감 판정 Asia/Seoul. 출처가 붙어 있다
+- [ ] `next.config.ts` `outputFileTracingIncludes`에 `./content/**`. standalone 빌드 산출물에 `content/help`가 있는지 확인(`.next/standalone` 검사 또는 테스트)
+- [ ] `HelpLink`가 대시보드·과제 목록·과제 헤더(탭별 slug)·To-Do·설정에 있고 `/help#<slug>`로 간다. `print:hidden`
+- [ ] `/help` 좌측 목차·해시 이동·강조. 인증 뒤에만
+- [ ] 도움말 파일 존재·첫 줄 규칙·slug 목록 일치를 **단위 테스트**로 고정
+
+**따라하기 (§7.17)**
+- [ ] `LocalConfig.tutorial`이 Zod `.catch` 기본값으로 읽힌다 — 구 설정 파일(키 없음)로 단위 테스트
+- [ ] `getTutorialStatus`가 TU-4 7단계를 **데이터로** 판정한다 — 통합 테스트: 빈 과제 → 전부 false, 데이터를 하나씩 넣을 때마다 그 단계만 true, ⑦은 산출근거와 규칙 둘 다 있어야 true, 과제 삭제 → 과제 없음
+- [ ] `createSampleProject`가 TU-3 내용을 **기존 액션·리포지토리 경로**로 만든다(새 RPC·supabase 직접 호출 0건). 만든 과제로 `getTutorialStatus` ①~⑦ 전부 true. 이름 `[예제] ` 접두·설명 첫 줄. 통합 테스트 + 정리
+- [ ] 부분 실패 시 만든 과제 id와 함께 실패 반환(조용히 성공 처리 금지) — 중간 단계를 실패시키는 테스트
+- [ ] `sampleProjectId`가 살아 있으면 다시 만들지 않는다
+- [ ] 삭제는 기존 `deleteProject` 경로만. 드로어에 별도 삭제 액션 없음
+- [ ] 드로어: 9단계·할 일·버튼 위치·`[이 화면으로]`·완료 표시·현재 화면 단계 자동 펼침·과제 선택·"다시 보지 않기"(설정에서 복귀). 수동 체크는 ⑧⑨만
+- [ ] 튜토리얼 상태를 DB에 쓰지 않는다 (마이그레이션 없음, `app_settings` 변경 없음)
+- [ ] 과제 목록 카드에 `예제` 배지
+
+**회귀·위생**
+- [ ] `npm test`·`tsc`·`build` 통과. 디자인 토큰 테스트 통과(옛 팔레트 0건)
+- [ ] 절대 규칙 3(리포지토리 경유), 5(실패를 삼키지 않음)
+

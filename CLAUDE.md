@@ -79,6 +79,7 @@ SOT §11을 따른다. 순서를 건너뛰지 않는다. Phase 실행은 `/phase
 | 8 | To-Do + 설정 + 마감 | To-Do, 설정 화면, 인쇄 레이아웃, 비기능 검증 | §7.13~7.15, §12 |
 | 9~12 | 예산 제안 · 산출근거 임포트 · 서식 내보내기 · 사내 명부 | (완료 — PROGRESS.md 참고) | §6.10~6.13 |
 | 13 | 연구비 사용 규칙 | `budget_rules`+RLS+한도 컬럼 이관, `lib/rules.ts`·`lib/rules-presets.ts`(부록 D), 규칙 검증·편집 패널 | §5.18, §6.14, §7.9.5, 부록 B.9·D |
+| 14 | 도움말 + 따라하기 | `content/help·tutorial/*.md`, `/help`+`HelpLink`, `TutorialPanel` 드로어, `createSampleProject`·`getTutorialStatus` | §7.16, §7.17, §5.16 |
 
 Phase 0.5의 백업(§8.7)을 미루지 않는다. 무료 플랜에는 DB 백업이 없어서 이게 유일한 안전망이다.
 
