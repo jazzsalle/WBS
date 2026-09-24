@@ -1,6 +1,7 @@
 // 서버 액션 인증 가드 (SOT §9 SA-1, §14.2 A-2, §7.0)
 // 모든 서버 액션은 시작 시 여기를 거친다 — RLS만 믿지 않는다 (SA-1, RLS-3).
 
+import { cache } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppUser } from '@/types';
 import { createServerClient } from '@/lib/db/client';
@@ -49,7 +50,15 @@ export async function requireSession(): Promise<AuthContext> {
   if (!accessToken) {
     throw new AuthError('로그인이 필요합니다.');
   }
+  return resolveSession(accessToken);
+}
 
+// §12 성능: 한 페이지를 그릴 때 페이지 컴포넌트와 그 안의 조회 액션들이 저마다 requireSession을
+// 부른다(WBS 화면은 6번). 매번 Auth 서버 왕복 + app_users 조회가 반복되어 화면 전환의 절반이
+// 세션 확인이었다. React cache()는 **같은 서버 요청 안에서만** 결과를 재사용하고 요청이 끝나면
+// 버린다 — 토큰이 폐기되면 다음 요청에서 다시 검증되므로 SA-1의 뜻은 그대로다.
+// 요청 컨텍스트 밖(vitest)에서는 cache()가 메모하지 않고 그냥 호출한다.
+const resolveSession = cache(async (accessToken: string): Promise<AuthContext> => {
   const client = createServerClient(accessToken);
   // SA-1: 토큰 검증 + 프로필 조회 + lastSeenAt 하루 1회 갱신은 리포지토리가 수행한다
   const user = await appUsers.getCurrentUser(client, accessToken);
@@ -60,7 +69,7 @@ export async function requireSession(): Promise<AuthContext> {
   }
 
   return { user, client, accessToken };
-}
+});
 
 // SA-1: 세션 + app_users.active 확인. 데이터 접근 액션의 표준 진입점.
 export async function requireApprovedUser(): Promise<AuthContext> {
