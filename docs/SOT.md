@@ -2,10 +2,21 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v4.6** |
+| 문서 버전 | **v4.7** |
 | 최종 수정 | 2026-09-25 |
 | 상태 | 확정 (Phase 0 착수 가능) |
 | 목적 | 이 문서는 구현의 유일한 기준점이다. 코드와 문서가 다르면 **문서가 옳다**. |
+
+### v4.6 → v4.7 변경 요약 — Phase 15 성능 · Phase 16 조직원·인건비·참여율 · Phase 17 사업비 입력 양식 · Phase 18 다크 모드 (사용자 지시 2026-09-25)
+
+사용자 리뷰 중 지시 5건: ① 화면 전환이 느리다 ② 사업비를 입력할 엑셀 양식을 내려받게 ③ 인건비를 **월급 × 참여율 × 참여기간**으로 계상하는 세부 페이지 + 직원 연봉/월급 입력 페이지(**퇴직금·4대보험 포함 여부**를 기록해 어느 과제에서든 같은 기준이 보이게) + **회사 조직원 전체 참여율** 관리 페이지 ④ 같은 산식의 엑셀 양식 ⑤ 다크 모드. 사용자 결정: 참여율 합산은 **연단위 평균부터**, 급여 변경은 **과제별 [급여 반영]을 누를 때만** 반영.
+
+- **Phase 15 — 성능(§12)**: 원인은 개발 서버 컴파일(첫 진입 3~8초)과 **요청당 세션 확인 반복**(페이지 + 조회 액션이 저마다 Auth 검증 — WBS 화면 6회). `requireSession`을 React `cache()`로 요청 범위 메모, 화면마다 `loading.tsx` 스켈레톤.
+- **§5.19 Staff·§5.20 StaffSalary 신설, §5.11 Member에 `staffId`·급여 기준 스냅샷** — 조직원 마스터(이메일 키, 사내 명부와 연결)와 **적용일 기준 급여 이력**(연봉 또는 월급 + 퇴직금 포함·4대보험 포함 플래그). 과제 Member는 조직원에 연결되고 `[급여 반영]`으로 값과 기준을 **복사**한다(PL-10b 확인 경유). 산식 PL-1은 그대로다 — `월급 × 참여율 × 개월`은 `연봉 × 참여율/100 × 개월/12`와 같은 식이며 기후부고시 별표 5 `(급여총액) × (월별 계상률 합 ÷ 12)`와 일치한다.
+- **§6.15 참여율 합산(PS-1~PS-6)** — 조직원별 **연단위 평균 계상률** = Σ(참여율 × 참여개월)/12(전 과제, 연차 시작일이 속한 달력 연도 기준) ≤ 100 경고. §13 23번 해소(연단위). 월 단위는 후속(§13 24).
+- **§7.18 조직원(`/staff`)** 목록·급여 이력·참여율 매트릭스, **§7.9.6 인건비 세부**(제안 모드 탭 — 조직원 × 월급 × 참여율 × 개월), §7.10 인력 연결·`[급여 반영]`. `schema_version` 3 → **4**.
+- **Phase 17 — §7.9.7 사업비 입력 양식**: 과제의 연차·세목·인력을 채운 **우리 양식** xlsx 내려받기 → 금액·참여율을 적어 올리면 산출근거 생성(고정 좌표라 헤더 추측 없음, §6.16 IN-1~IN-8). 인건비 시트는 같은 산식.
+- **Phase 18 — 다크 모드(§7.19, 부록 E.5)**: TDS 다크 스케일(`darkTheme*`)로 `--color-*`를 `[data-theme=dark]`에서 재정의. 설정 시스템/밝게/어둡게(`LocalConfig.theme`). 카드 배경 `bg-white`는 시맨틱 `bg-surface`로 치환.
 
 ### v4.5 → v4.6 변경 요약 — Phase 14 도움말 + 따라하기 튜토리얼 (사용자 지시 2026-09-25)
 
@@ -646,8 +657,16 @@ interface Member extends BaseEntity {
   // ─ Phase 9(예산 제안) 추가 — 인건비 산출근거의 단가 원본 (§6.10.1) ─
   annualSalary: number | null;  // 실지급액(연봉), 원 단위 정수. 미입력이면 null
   hireType: HireType;           // 기본 'existing'
+
+  // ─ Phase 16 추가 — 조직원 연결과 급여 기준 스냅샷 (§5.19, §5.20, §7.10) ─
+  staffId: string | null;                 // 연결된 조직원. on delete set null
+  salaryIncludesRetirement: boolean | null; // 이 과제의 annualSalary가 퇴직급여충당금을 포함하는가. null = 기록 없음(수동 입력)
+  salaryIncludesInsurance: boolean | null;  // 4대보험 회사부담분 포함 여부. null = 기록 없음
+  salaryAppliedFrom: string | null;       // [급여 반영] 시 어느 급여 이력(effectiveFrom)을 썼는지. 수동 입력이면 null
 }
 ```
+
+> **급여 기준 3필드는 스냅샷이다.** `[급여 반영]`(§7.10)이 조직원 급여 이력에서 **복사**하고, 그 뒤 조직원 쪽이 바뀌어도 이 과제는 움직이지 않는다(사용자 결정 2026-09-25 — 협의 끝난 예산이 인사 변동으로 흔들리면 안 된다, HR-5와 같은 판단). 어느 과제를 열어도 "이 인건비가 퇴직금·4대보험을 포함한 값인가"가 보이는 것이 목적이다.
 
 > **참여율(%)은 Member의 필드가 아니다.** §13 미결정 1번은 Phase 9에서 **`BudgetDetail`에 두는 것으로 해소**했다. 참여율은 사람의 속성이 아니라 **(연차 × 인력)의 속성**이고, 한 사람이 한 연차 안에서 참여율을 바꿔 두 구간으로 나뉘는 서식이 실존한다(행안부 실측: 한봄희 4개월 10% + 8개월 53%). Member에 단일 필드로 두면 이 사례가 표현되지 않고, 연차가 늘어날 때마다 값이 덮어써진다.
 
@@ -858,6 +877,7 @@ interface LocalConfig {
   lastOpenedProjectId: string | null;
   ganttScale: 'day' | 'week' | 'month';   // 개인 화면 취향
   // ─ Phase 14 따라하기 (§7.17) — PC별 진행 상태. 팀 공유 아님 ─
+  theme: 'system' | 'light' | 'dark';   // Phase 18 §7.19. 기본 'system'
   tutorial: {
     sampleProjectId: string | null;   // [예제 과제 만들기]로 만든 과제. 삭제되면 getTutorialStatus가 null로 되돌린다
     manualDone: TutorialStepId[];     // 자동 감지가 안 되는 단계(export·backup)의 수동 체크
@@ -1007,6 +1027,54 @@ interface BudgetRule extends BaseEntity {
 | RL-D7 | `project_id`는 `on delete cascade`. 과제가 사라지면 규칙도 사라진다. 백업(§8.7)에 포함된다 — `schema_version` 3. |
 
 > **`Project.allowanceRateLimit`·`indirectRateLimit`(Phase 9)는 이 테이블로 이관된다.** 마이그레이션이 값이 있던 과제마다 `allowance_max`(`source='과기부고시 제2026-38호 제26조①'`)·`indirect_max`(`base='direct_cash_excl_intl_consign_burden'`, `source='(Phase 9 입력값 이관)'`) 행을 만들고 두 컬럼을 삭제한다. 값이 null이던 과제는 행을 만들지 않는다(= 검사 안 함, 같은 뜻).
+
+---
+
+### 5.19 Staff (조직원 마스터, Phase 16)
+
+**회사 직원의 마스터.** 과제 `Member`(§5.11)는 "이 과제의 참여자"이고 `Staff`는 "우리 회사 사람"이다. 한 사람이 여러 과제의 Member로 등록되며, 그 Member들이 같은 `Staff`를 가리켜야 **전 과제 참여율 합산**(§6.15)과 **급여 기준 공유**(§5.20)가 성립한다. 외부 기관 인력은 Staff가 아니다(Member만).
+
+```ts
+interface Staff extends BaseEntity {
+  name: string;                 // 필수
+  email: string;                // 필수·유일(소문자 정규화). 사내 명부(§6.13)와 과제 Member를 잇는 키(HR-9)
+  position: string;             // 직위
+  employed: boolean;            // 재직 여부. false = 퇴사 — 과제 Member.active와 다르다(HR-5)
+  note: string;
+  order: number;
+}
+```
+
+| # | 규칙 |
+|---|---|
+| ST-1 | `email`은 **유일**하다(대소문자·공백 정규화 후). 같은 이메일로 둘을 만들 수 없다 — 사내 명부·과제 Member와 잇는 키이기 때문이다. |
+| ST-2 | 조직원 삭제는 **급여 이력이 함께 지워지고**(cascade) 연결된 Member의 `staffId`는 null이 된다(set null). Member의 `annualSalary`·기준 스냅샷은 남는다 — 과제 예산은 조직원 마스터에 종속되지 않는다. |
+| ST-3 | 사내 명부(§6.13)에서 조직원을 만들 수 있다 — `parseHrUsers`·`markSelectable`을 **조직원 이메일 집합**에 대해 그대로 쓴다. 채우는 것은 이름·직위·이메일뿐(HR-4). `employed`는 HR `user_is_active`로 **초기값만** 잡고 이후 동기화하지 않는다(HR-7). |
+| ST-4 | 부서·본부는 저장하지 않는다(HR-6과 같은 이유). |
+
+### 5.20 StaffSalary (급여 이력, Phase 16)
+
+```ts
+type SalaryBasis = 'annual' | 'monthly';
+
+interface StaffSalary extends BaseEntity {
+  staffId: string;
+  effectiveFrom: string;        // 'YYYY-MM-DD'. 이 날부터 적용. (staffId, effectiveFrom) 유일
+  basis: SalaryBasis;           // 입력한 단위. 화면은 둘 다 보여 준다
+  amount: number;               // basis 단위의 금액. 원 단위 정수 (절대 규칙 4)
+  includesRetirement: boolean;  // 퇴직급여충당금 포함
+  includesInsurance: boolean;   // 4대보험 회사부담분 포함
+  note: string;                 // 예: "2026 연봉계약", "성과급 제외"
+}
+```
+
+| # | 규칙 |
+|---|---|
+| SL-1 | **연봉 환산은 `basis`로 정해진다**: `annual`이면 `annualSalary = amount`, `monthly`이면 `annualSalary = amount × 12`. 월급 표시는 `annualSalary / 12`이며 **표시에서만 반올림**한다(PL-2 — 산식에는 반올림된 월액을 넣지 않는다). |
+| SL-2 | 어느 시점의 급여인지는 `effectiveFrom`으로 고른다: 기준일 이하인 이력 중 **가장 늦은 것**. 기준일은 `[급여 반영]`을 누른 연차의 시작일(§7.10). 이력이 없으면 반영할 수 없다(빈 값으로 채우지 않는다). |
+| SL-3 | 이력은 **덮어쓰지 않고 쌓는다.** 급여가 바뀌면 새 `effectiveFrom`으로 행을 추가한다. 잘못 넣은 행은 고치거나 지운다(O-1 `version`). 과거 과제가 그 이력을 스냅샷으로 가지고 있어도 무관하다(§5.11 스냅샷). |
+| SL-4 | `includesRetirement`·`includesInsurance`는 **급여 이력의 속성**이다. 같은 사람이라도 계약이 바뀌면 포함 여부가 달라질 수 있다. `[급여 반영]`은 두 플래그를 Member 스냅샷으로 복사한다 — 입력자가 바뀌어도 어느 과제에서든 "이 값은 퇴직금 포함"이 보인다(사용자 요구). |
+| SL-5 | 급여를 고쳐도 **과제 인건비는 자동으로 바뀌지 않는다.** 반영은 과제별 `[급여 반영]`(§7.10)뿐이다(사용자 결정). |
 
 ---
 
@@ -1682,6 +1750,36 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 
 ---
 
+### 6.15 조직원 참여율 합산 (Phase 16)
+
+> 근거: 과기부고시 제65조⑦(영리기관 참여연구자 총인건비계상률 월 100% 이내), 기후부고시 별표 5(다른 국가연구개발사업 포함 100% 초과 불가). 우리 데이터는 연차 × 인력의 **참여율·참여개월**이지 월별 배정이 아니므로 **연단위 평균**으로 판정한다(사용자 결정 2026-09-25). 월 단위는 §13 24.
+
+| # | 규칙 |
+|---|---|
+| PS-1 | **대상 행** = `formula='personnel'`인 `BudgetDetail` 중 `memberId`의 Member가 `staffId`를 가진 것. `student_personnel`은 제외. 연결되지 않은 Member의 행은 합산에 들어가지 않으며 **"연결 안 된 인건비 행 N건"으로 표시**한다(조용히 빼지 않는다). |
+| PS-2 | **연차별 계상률** = `참여율(%) × 참여개월 / 12`(PL-3의 인자 읽기 그대로 — `personnelParticipation`). 같은 Member의 행이 한 연차에 여럿이면 합산(RL-16과 같다). |
+| PS-3 | **달력 연도 배정**: 연차의 `startDate`가 속한 연도에 그 연차의 계상률 전체를 넣는다. 연차가 연도를 걸치는 경우(예: 2026-04 ~ 2027-03)는 **비례 배분하지 않는다** — 단순화이며 화면에 "연차 시작 연도 기준"이라고 적는다. `startDate`가 없는 연차의 행은 "연도 미정"으로 따로 센다. |
+| PS-4 | **조직원 × 연도 합계** = 전 과제(아카이브 제외, `Member.active` 무관 — 예산에 남아 있으면 계상된 것)의 PS-2 합. **100 초과면 경고**(`error` 톤). 90 초과 100 이하는 `warn`(여유 없음). 판정은 원값, 표시는 소수 1자리. |
+| PS-5 | 계산은 `lib/participation.ts` 순수 함수. 입력은 벌크 조회(전 과제 인건비 행 + Member + 연차 + Staff)이며 **1000행 페이징**(§12)을 지킨다. 결과를 저장하지 않는다. |
+| PS-6 | 과제 안 규칙 엔진(§6.14)에는 넣지 않는다 — 판정 범위가 과제 밖이다. 대신 인건비 세부(§7.9.6)에서 그 조직원의 **다른 과제 합계**를 참고로 보여 준다. |
+
+---
+
+### 6.16 사업비 입력 양식 (Phase 17)
+
+| # | 규칙 |
+|---|---|
+| IN-1 | **좌표 맵이 데이터다**(X-3과 같은 원칙): `lib/input-form/layout.ts`가 시트 이름·헤더 행·열 순서·시작 행을 정한다. 파서와 생성기는 같은 맵을 쓴다 — 둘이 어긋날 수 없다. |
+| IN-2 | 숨김 시트 `_meta`: `formVersion`·`projectId`·`yearId`·세목 코드 목록·인력 `memberId` 목록·생성 시각. 올린 파일의 `_meta`가 없거나 `projectId`가 다르면 **거부**한다("이 과제의 양식이 아닙니다"). `formVersion`이 다르면 거부하고 다시 내려받으라고 안내한다. |
+| IN-3 | **인건비 시트**: 행마다 `memberId`(숨김 열)로 인력을 잇는다 — 이름 매칭 없음(D-11~D-14를 쓰지 않는다). 양식에 없던 인력 행은 무시하지 않고 "알 수 없는 행"으로 미리보기에 남긴다. 참여율 0~100, 개월 0~12(연차 개월 초과는 경고), 축은 `현금`/`현물`. 금액 열은 **읽지 않는다**(수식 결과이며 PL-D7 — 서버가 다시 계산). |
+| IN-4 | **사업비 시트**: 행마다 세목 코드(숨김 열)로 잇는다. 품명이 비고 단가·인자·조정액이 전부 비면 **빈 행**(무시). 단가·조정액은 원 단위 정수, 인자는 소수 허용. 세목 코드가 부록 A.5에 없으면 "알 수 없는 세목". |
+| IN-5 | 반영은 **그 연차의 산출근거 전체 교체**다(D-15와 같다) — 양식에 있는 행이 진실. 반영 전 미리보기가 "추가 N · 변경 M · 삭제 K"와 합계·규칙 findings를 보여 주고, 스냅샷(I-17)을 남긴다. |
+| IN-6 | 미리보기와 반영은 **같은 파싱 함수**를 탄다(§9 I-13과 같은 원칙). `fileHash` 대조. |
+| IN-7 | 생성기는 인건비 금액 열에 **엑셀 수식**(`=ROUND(월급열×참여율/100×개월,0)`이 아니라 `=ROUND(연봉×참여율/100×개월/12,0)` — PL-2 중간 반올림 금지)을 넣어 사용자가 엑셀에서도 같은 값을 본다. 연봉이 없는 인력은 수식 대신 빈 칸 + 비고 "연봉 미입력". |
+| IN-8 | 양식은 `xlsx`만. SheetJS는 어댑터(`lib/input-form-adapter.ts`, `server-only`)에서만(I-13). |
+
+---
+
 ## 7. 화면 정의
 
 ### 7.1 라우팅
@@ -1967,6 +2065,25 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 - 규칙을 지우면 그 검사가 사라진다는 것을 행 삭제 확인에 적는다
 - 한도 2종을 편집하던 Phase 9의 `RateLimitBadges` 입력은 이 패널로 옮기고 제거한다
 
+#### 7.9.6 인건비 세부 (제안 모드, Phase 16)
+
+제안 모드에 **[인건비]** 탭(매트릭스 옆). `personnel`·`student_personnel` 비목의 산출근거를 **사람 중심**으로 본다 — 사용자가 요구한 "월급 × 참여율 × 참여기간" 표다.
+
+- 표: 연차 선택 → 행 = 인건비 산출근거 행(§5.17). 열: **조직원**(연결 배지 / 미연결) · 인력명·직위 · 채용구분 · **월급**(= `annualSalary / 12`, 표시 반올림) · 연봉 · **참여율(%)** · **참여개월** · 축(현금/현물) · **금액**(PL-1 결과, 서버 값) · **급여 기준**(퇴직금 포함 / 4대보험 포함 / 기록 없음 — §5.11 스냅샷) · 적용 이력(`salaryAppliedFrom`)
+- 참여율·참여개월·축·조정액은 이 표에서 **인라인 편집**(기존 `updateBudgetDetail` 경유, PL-10 재계산). 금액은 편집 불가(PL-D7)
+- **[급여 반영]**(행 단위): §7.10과 같은 동작 — 연결된 조직원의 급여 이력에서 이 연차 시작일 기준 급여를 골라(SL-2) `previewSalaryChange` → 전후 금액 확인 → 반영. 연결 안 된 인력이면 버튼 대신 "조직원 연결" 링크(§7.10)
+- 하단: 연차 인건비 합계(현금/현물) · **수정인건비 E1**(PL-11) · 참고: 각 조직원의 **다른 과제 포함 연도 계상률**(§6.15 PS-6, `/staff` 링크)
+- 인쇄: 표 그대로(P-R1~R5)
+
+#### 7.9.7 사업비 입력 양식 (제안 모드 툴바 [입력 양식 내려받기] · [입력 양식 올리기], Phase 17)
+
+**우리 양식**이다 — 부처 서식(§6.8·§6.11 임포트, §6.12 내보내기)과 다르다. 부처 서식은 헤더를 추측해 읽어야 하지만 이 양식은 우리가 만들었으므로 **고정 좌표**로 읽는다(§6.16).
+
+- **[입력 양식 내려받기]**: 연차 선택 → xlsx. 시트 ① `인건비`: 행 = 그 과제의 인력(조직원 연결·연봉·월급·급여 기준을 채워서), 열 = 참여율(%)·참여개월·현금/현물·조정액·(계산 열: 금액 = 월급 × 참여율 × 개월 — **수식으로** 넣어 엑셀에서도 같은 값이 보이게, PL-1) ② `사업비`: 행 = 부록 A.5 세목 전부(비목 순), 열 = 품명·규격·단가·인자1·인자2·인자3·조정액·현금/현물·비고 — 기존 산출근거가 있으면 채워서. 숨김 시트 `_meta`에 과제 id·연차 id·양식 버전·세목 코드·인력 id를 적는다(IN-2)
+- **[입력 양식 올리기]**: 파일 → `_meta` 검증 → 미리보기(행 수·합계·경고 — 규칙 findings 포함) → 반영. 반영은 **연차 단위 교체**(§6.11 D-15와 같은 태도)이며 스냅샷(I-17)을 남긴다
+- 인건비 시트의 인력은 **양식에 있던 인력만** 받는다(`_meta`의 id) — 이름으로 매칭하지 않는다. 새 인력은 앱에서 먼저 만든다
+- 경고는 막지 않는다(PL-15·RL-1)
+
 ### 7.10 인력·기관 (`/projects/[id]/team`)
 
 - **기관 섹션**: 카드 목록. 역할 뱃지(주관/공동/위탁), 기관명, 유형, 책임자, 담당 연구개발 내용, 배분 연구개발비. 주관기관은 최상단 고정.
@@ -1975,6 +2092,9 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 - 인력 행 클릭 → 배정된 작업 목록 사이드 패널
 - **`hireType='new'`는 `채용예정` 배지**로 구분한다 (§5.11 — 아직 사람이 정해지지 않은 자리도 Member로 등록한다)
 - **참여율(%) 입력 필드를 여기에 두지 않는다.** 참여율은 (연차 × 인력)의 속성이라 연구비 화면의 산출근거가 갖는다 (§5.11, §5.17)
+- **조직원 연결**(Phase 16): 인력 행에 `조직원` 열 — 연결됨(이름·재직 여부) / `[연결]`(이메일이 같은 조직원을 자동 제안, 없으면 목록에서 고르거나 `[조직원으로 등록]`으로 §5.19에 새로 만든다). 연결은 `Member.staffId`만 바꾸고 연봉은 건드리지 않는다
+- **[급여 반영]**(Phase 16, SL-2·SL-5): 연결된 인력에만. 기준일(연차 시작일 — 여러 연차면 사용자가 고른다)의 급여 이력을 골라 연봉 환산(SL-1) → **PL-10b 확인**(영향 산출근거 건수·연차별 전후 금액) → `annualSalary` + 기준 3필드 스냅샷 갱신. 이력이 없으면 "급여 이력이 없습니다 → /staff" 안내. 자동 반영 없음
+- 인력 테이블의 연봉 칸에 **급여 기준 배지**(퇴직금 포함 / 4대보험 포함 / 기록 없음) — 어느 과제에서든 이 값이 무엇을 포함한 값인지 보인다(SL-4)
 - **연봉 변경은 확인을 거친다 (PL-10b)**: 저장을 누르면 먼저 `previewSalaryChange`로 영향받는 산출근거 건수와 **연차별 전후 금액**을 보여주고, 사용자가 확인해야 저장·재계산한다. 영향 건수가 0이면 확인 없이 바로 저장한다
 - **삭제 차단 (H-9a)**: 인건비 산출근거가 걸린 인력은 삭제할 수 없다. 삭제 대화상자가 참조 건수를 항목별로 보여줄 때 산출근거를 **별도 줄**로 세고 `[연구비로 이동]` 링크를 준다. `active=false`는 그대로 가능하다
 
@@ -2091,6 +2211,22 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 | TU-7 | 도움말(§7.16)과 연결: 각 단계에 "자세히 → 도움말" 링크(`/help#<slug>`). 튜토리얼 본문도 `content/tutorial/<step>.md`로 두고 같은 렌더 경로(HP-2)를 쓴다. **본문 형식 고정**: 1행 `# <단계명>`, 2행 `> 할 일: <한 문장>`, `## 버튼은 어디에`, `## 완료되면`. **링크는 본문에 쓰지 않는다** — `lib/notes.ts`가 상대 URL(`/help#x`)을 링크로 만들지 않는다(노트 보안 경계, 완화하지 않음). `[이 화면으로]`·도움말 링크는 `lib/tutorial.ts` 레지스트리(`screenPath`·`helpSlug`)로 UI가 그린다. |
 
 ---
+
+### 7.18 조직원 (`/staff`, Phase 16)
+
+대시보드 상단 링크에 `조직원` 추가. 팀 공유 데이터다(§5.19).
+
+- **목록**: 이름 · 직위 · 이메일 · 재직 · **현재 급여**(오늘 기준 SL-2 — 연봉과 월급 둘 다, 기준 배지) · 연결된 과제 수. 검색. `[조직원 추가]`(수동) · `[사내 명부에서 추가]`(ST-3 — §7.10.1 모달을 조직원 이메일 집합으로 재사용) · 퇴사자 표시 토글
+- **상세 패널**(행 클릭): 급여 이력 표(적용일 · 단위 · 금액 · 연봉 환산 · 월급 환산 · 퇴직금 포함 · 4대보험 포함 · 메모) + `[이력 추가]`(SL-3) · 편집(O-1) · 삭제. 연결된 과제 Member 목록(과제명·연차 없음·연봉 스냅샷·기준 — 조직원 급여와 **다르면 표시**, 반영은 과제 화면에서)
+- **참여율 탭**(§6.15): 연도 선택 → 표: 행 = 조직원, 열 = 과제(연차 시작 연도가 그 해인 연차들) + **합계**. 셀 = PS-2 값, 합계 > 100 빨강 / > 90 주황. 상단에 "연차 시작 연도 기준 · 연단위 평균"(PS-3) · "연결 안 된 인건비 행 N건"(PS-1) · "연도 미정 N건". 인쇄 가능
+- 조직원 삭제: 참조(연결 Member 수·급여 이력 수)를 보여 주고 2단계 확인(ST-2)
+
+### 7.19 다크 모드 (설정 → 화면, Phase 18)
+
+- 설정(§7.14) 팀 설정 아래 **개인 설정** "화면 모드: 시스템 / 밝게 / 어둡게"(`LocalConfig.theme`, PC별). 기본 `system`
+- 적용: `<html data-theme="light|dark">` (system이면 `prefers-color-scheme`). 부록 E.5의 다크 팔레트가 `--color-*`를 재정의하므로 컴포넌트 클래스는 바뀌지 않는다
+- 카드·패널 배경은 `bg-white`가 아니라 시맨틱 **`bg-surface`**(밝게 #fff, 어둡게 #202027). `text-white`(버튼 글자)는 그대로. 인쇄는 항상 밝은 팔레트(P-R5)
+- 마운트 전 깜빡임 방지: `layout.tsx`의 인라인 스크립트가 LocalConfig 저장소(브라우저 localStorage / Tauri config 파일은 시작 시 주입)에서 읽어 `data-theme`을 먼저 세팅
 
 ## 8. 데이터 레이어 설계
 
@@ -2257,7 +2393,7 @@ interface BackupFile {
 - 마이그레이션 파일은 Git에 커밋한다. 이게 스키마의 진실 공급원이다.
 - 앱은 시작 시 `app_settings.schema_version`을 확인한다. 코드 기대값(`lib/constants.ts`의 `EXPECTED_SCHEMA_VERSION`)보다 **낮으면** 마이그레이션 안내를, **높으면** 앱 업데이트 안내를 띄우고 진입을 막는다.
 - **`schema_version`을 올리는 기준은 "백업 파일 형식이 바뀌는가"다.** 테이블 추가·삭제가 여기 해당한다(§8.7 `BACKUP_TABLES`가 바뀐다). 컬럼 추가나 RPC 변경만으로는 올리지 않는다 — 기존 백업 파일이 그대로 복원되기 때문이다. <br>이 기준이 없으면 K-5의 버전 게이트가 "호환"이라 판정한 파일을 `parseBackupFile`의 테이블 목록 검사가 거부해, 사용자가 **"테이블 데이터가 없습니다"라는 엉뚱한 메시지**를 본다. 올릴 때는 마이그레이션의 `update app_settings set schema_version`과 `EXPECTED_SCHEMA_VERSION`을 **같은 커밋에서** 함께 고친다.
-- 이력: `1` = Phase 0 최초 스키마. **`2` = Phase 9 (`budget_details` 신설 — Phase 0 이후 첫 테이블 추가).** **`3` = Phase 13 (`budget_rules` 신설 + `projects`의 한도 컬럼 2종 삭제).**
+- 이력: `1` = Phase 0 최초 스키마. **`2` = Phase 9 (`budget_details` 신설 — Phase 0 이후 첫 테이블 추가).** **`3` = Phase 13 (`budget_rules` 신설 + `projects`의 한도 컬럼 2종 삭제).** **`4` = Phase 16 (`staff`·`staff_salaries` 신설 + `members` 컬럼 4종 추가).**
 
 ---
 
@@ -2345,6 +2481,28 @@ setTechTargetYearTargets(id, targetByYear)
 addTechRecord(techTargetId, input)
 updateTechRecord(techTargetId, recordId, patch)
 deleteTechRecord(techTargetId, recordId)
+```
+
+**Staff** (Phase 16 — §5.19, §5.20, §6.15)
+```
+listStaff(includeRetired?)                         // 목록 + 오늘 기준 현재 급여(SL-2) + 연결 과제 수
+createStaff(input) / updateStaff(id, patch, expectedVersion?) / deleteStaff(id)   // ST-1 이메일 유일, ST-2 참조 안내
+createStaffFromHr(apiKey, drafts)                  // ST-3: §6.13 경로 재사용. 이름·직위·이메일만
+addStaffSalary(staffId, input) / updateStaffSalary(id, patch, expectedVersion?) / deleteStaffSalary(id)   // SL-3
+getStaffDetail(staffId)                            // 급여 이력 + 연결 Member(과제명·스냅샷)
+getStaffParticipation(year)                        // §6.15 PS-1~PS-5. 저장 없음
+linkMemberToStaff(memberId, staffId | null)        // §7.10. 연봉은 건드리지 않는다
+previewStaffSalaryApply(memberId, asOfDate)        // SL-2로 고른 이력 + PL-10b 미리보기(previewSalaryChange 재사용)
+applyStaffSalary(memberId, asOfDate, expectedVersion?)   // annualSalary + 기준 3필드 스냅샷 갱신 → PL-10b 재계산
+```
+- `applyStaffSalary`는 새 계산을 만들지 않는다 — `updateMember`의 PL-10b 경로(`applySalaryChange` RPC)를 그대로 타고 스냅샷 3필드를 함께 쓴다.
+- 조직원 삭제는 급여 이력 cascade, Member는 `staff_id` set null(ST-2). 별도 RPC 없음(FK 규칙).
+
+**Budget Input Form** (Phase 17 — §7.9.7, §6.16)
+```
+buildInputForm(projectId, yearId)                  // xlsx 생성(서버, 어댑터). _meta 포함
+previewInputForm(projectId, file)                  // IN-3~IN-6 검증 + 미리보기(행·합계·규칙 findings)
+commitInputForm(projectId, file, fileHash)         // 연차 단위 교체 + 스냅샷. 미리보기와 같은 파싱 경로
 ```
 
 **Organization / Member**
@@ -2621,6 +2779,9 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 │   │   │              AdvisoryList(D.3 읽기 전용), RuleRow(규칙 표 한 행·O-3 비교), rule-form.ts(draft↔행 변환·patch 순수 함수)
 │   ├── help/          HelpLink(`?`, HP-4), HelpPage(목차+본문, §7.16)
 │   ├── tutorial/      TutorialButton, TutorialPanel(드로어, §7.17), StepItem
+│   ├── staff/         StaffList, StaffDetailPanel(급여 이력), ParticipationMatrix(§7.18), StaffLinkPicker(§7.10)
+│   ├── budget/personnel/  PersonnelTab(§7.9.6), SalaryApplyDialog(PL-10b)
+│   ├── budget/input-form/ InputFormDownload, InputFormUpload(§7.9.7)
 │   │   ├── plan/      DetailPanel(§7.9.2), SubcategorySection, PersonnelRow,
 │   │   │              QuantityRow, FactorInputs
 │   │   ├── import/    ImportWizard(모달+단계 상태기계), wizard-state.ts(공용 타입·헬퍼),
@@ -2643,6 +2804,10 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 │   ├── budget-plan.ts                  §6.10 산출근거 금액·집계·지침 검증 (PL-1~PL-14)
 │   ├── rules.ts                        §6.14 연구비 사용 규칙 판정 (RL-1~RL-19). 집계는 budget-plan.ts에서 받는다
 │   ├── rules-presets.ts                부록 D 규칙 프리셋 (값마다 조문 출처)
+│   ├── help.ts / content.ts / tutorial.ts   §7.16·§7.17 도움말 레지스트리·서버 fs 로더·튜토리얼 단계 (Phase 14)
+│   ├── participation.ts                §6.15 조직원 참여율 합산 (PS-1~PS-5)
+│   ├── salary.ts                       §5.20 SL-1·SL-2 (연봉 환산·적용 이력 선택)
+│   ├── input-form/                     §6.16 입력 양식 좌표·검증·파싱 (xlsx 무의존)
 │   ├── import/                         ★ 전부 순수 함수 — SheetJS를 import하지 않는다.
 │   │   │                                 워크북 → RawSheet 변환은 어댑터(actions 쪽)의 몫이다.
 │   │   ├── types.ts                    어댑터 경계(RawCell·MergeRange·RawSheet), 판정·금액 타입
@@ -2710,6 +2875,14 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 | **14. 도움말 + 따라하기** | `content/help/*.md` 17편·`content/tutorial/*.md` 9편, `actions/help.ts`(`getHelpDocument`·`getTutorialStatus`·`createSampleProject`), `/help` 페이지 + `HelpLink`, `TutorialPanel` 드로어, `LocalConfig.tutorial` | 새 사용자가 `[따라하기]` → `[예제 과제 만들기]` → 9단계를 순서대로 눌러 가면 단계가 스스로 체크되고, 마지막에 예제 과제를 지우면 처음 상태로 돌아온다. 아무 화면에서 `?`를 누르면 그 화면의 도움말 절이 열린다 |
 
 > **Phase 14는 새 데이터 모델·스키마가 없다.** 도움말은 SOT의 번역이고(HP-3), 예제 과제는 기존 경로로만 만든다(TU-3). 튜토리얼 상태는 PC 로컬이다(TU-6).
+
+| **15. 성능** | `requireSession` 요청 범위 메모(React `cache`), 화면별 `loading.tsx` 스켈레톤(§12) | 탭 클릭 즉시 스켈레톤이 뜨고, 한 페이지 렌더에 Auth 검증이 1회다(통합 테스트로 호출 횟수 고정) |
+
+| **16. 조직원 · 인건비 · 참여율** | `staff`·`staff_salaries` + `members` 컬럼 4종(`schema_version` 4), `lib/salary.ts`(SL-1·SL-2)·`lib/participation.ts`(PS-1~PS-5) + 단위 테스트, `actions/staff.ts`, `/staff`(§7.18), 제안 모드 [인건비] 탭(§7.9.6), §7.10 연결·[급여 반영] | 조직원에 급여 이력(월급 3,000,000, 퇴직금 포함)을 넣고 과제 인력에 연결해 [급여 반영]을 누르면 PL-10b 확인 뒤 연봉 36,000,000과 "퇴직금 포함" 배지가 과제에 남는다. 두 과제에 참여율 60%·12개월 / 50%·12개월로 잡으면 `/staff` 참여율 탭에 110%가 빨갛게 뜬다 |
+
+| **17. 사업비 입력 양식** | `lib/input-form/`(IN-1~IN-8) + 어댑터, `actions/input-form.ts` 3종, §7.9.7 툴바 | 내려받은 양식의 인건비 시트에 참여율 30·개월 12를 적어 올리면 산출근거 행이 그대로 생기고 금액이 PL-1과 일치한다(엑셀 수식 값 = 앱 값). 다시 내려받으면 적은 값이 채워져 있다(왕복) |
+
+| **18. 다크 모드** | 부록 E.5 다크 팔레트, `LocalConfig.theme`, 설정 화면 모드, `bg-white → bg-surface` 치환, 깜빡임 방지 스크립트 | 어둡게로 바꾸면 전 화면이 TDS 다크 팔레트로 그려지고 흰 카드가 남지 않는다. 인쇄는 밝은 팔레트 |
 
 > **Phase 13은 계상(계획) 단계 규칙만 다룬다.** 집행 단계의 회수 산식(연구수당 지급비율 − 직접비 사용비율 20%p, 간접비 사용비율)은 §13 후보다. 기관 유형·기업 규모 필드를 만들지 않는다 — 프리셋 선택이 그 선택이다.
 
@@ -2810,7 +2983,10 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 | 20 | 집행 단계 규칙 | 계상이 아니라 **사용** 기준: 연구수당 지급비율 − 직접비 사용비율 > 20%p 회수 산식(과기부고시 제26조⑦2·기후부고시 별표 6 연구수당-8), 직접비 사용비율 ≤ 50%인 과제의 간접비 사용비율 초과 회수(기후부고시 별표 6 간접비-6), 수정인건비 감액 시 실사용 인건비 20%(별표 6 연구수당-4). `budget_executions`로 두 비율을 낼 수 있어 **판정 가능**하나 수행 모드 화면이라 Phase 13(제안 모드) 밖에 뒀다 |
 | 21 | 연구혁신비·보안수당 세목 | 과기부고시 제25조의2(연구혁신비 ≤ 재료비+활동비 10%·연차 평균 5천만 원, 2026-06-11 시행)·제26조의2(보안수당 ≤ 개인 인건비 3%)는 우리 12비목에 자리가 없다. 실무 서식에 행이 나타나면 부록 A.5에 세목을 추가하고 RL을 얹는다 |
 | 22 | 과제 유형(원천기술형/혁신제품형)·기업 규모 필드 | `gov_share_max`(RL-8)·`own_cash_min`(RL-9)의 값이 유형·규모로 갈린다. 지금은 프리셋이 값을 제안하고 사용자가 고른다. 과제가 늘어 매번 고르는 것이 번거로워지면 `Project`에 두 필드를 추가하고 프리셋이 자동 선택한다 |
-| 23 | 과제 간 참여율 합산(총인건비계상률 100%) | 과기부고시 제65조⑦·기후부고시 별표 5: 같은 사람의 전 과제 참여율 합 ≤ 100%. Member가 과제별이라 동일인 식별이 없다 — Phase 12의 이메일(HR-9 매칭 키)로 앱 안 과제끼리는 합산할 수 있다. 앱 밖 과제는 모른다는 한계를 화면에 적어야 한다 |
+| ~~23~~ | ~~과제 간 참여율 합산(총인건비계상률 100%)~~ | **해소 (v4.7 / Phase 16, 연단위 평균)** — §6.15. 아래는 결정 당시 메모. |
+| 24 | 참여율 **월 단위** 관리 | §6.15는 연단위 평균이다. 월 단위로 가려면 인건비 산출 행에 **참여 시작월**이 필요하고 임포트·내보내기·양식 전부에 그 열이 들어간다. 연단위로 부족함이 드러나면 그때 |
+| 25 | 조직원 부서·본부 | ST-4로 저장하지 않는다(HR-6과 같은 이유). 부서별 인건비 집계가 필요해지면 그때 |
+| 23-메모 | (원문) | 과기부고시 제65조⑦·기후부고시 별표 5: 같은 사람의 전 과제 참여율 합 ≤ 100%. Member가 과제별이라 동일인 식별이 없다 — Phase 12의 이메일(HR-9 매칭 키)로 앱 안 과제끼리는 합산할 수 있다. 앱 밖 과제는 모른다는 한계를 화면에 적어야 한다 |
 
 ---
 
@@ -3724,3 +3900,20 @@ export const SUBCATEGORY_ALIASES: Record<BudgetCategory, Record<string, string>>
 | ErrorBanner | `bg-red-50 border-red-100 text-red-700` |
 | ProgressBar | 트랙 `grey-200`, 채움 `blue-500`(완료 `green-500`) |
 | 입력 | `rounded-md border-grey-300 focus:border-blue-500 focus:ring-blue-100` |
+
+### E.5 다크 팔레트 (Phase 18, §7.19)
+
+`@toss/tds-colors@0.1.0`의 `darkTheme*` 값. `[data-theme="dark"]`에서 같은 이름의 `--color-*`를 재정의한다 — TDS의 adaptive 색과 같은 원리로 **grey 스케일이 뒤집힌다**(어두울수록 작은 번호). 컴포넌트 클래스는 그대로다.
+
+| 스케일 | 50 | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `grey` | #202027 | #2c2c35 | #3c3c47 | #4d4d59 | #62626d | #7e7e87 | #9e9ea4 | #c3c3c6 | #e4e4e5 | #ffffff |
+| `blue` | #202c4d | #23386a | #25478c | #265ab3 | #2970d9 | #3485fa | #449bff | #61b0ff | #8fcdff | #c8e7ff |
+| `red` | #3c2020 | #562025 | #7a242d | #9e2733 | #ca2f3d | #f04251 | #fa616d | #fe818b | #ffa8ad | #ffd1d3 |
+| `green` | #153729 | #135338 | #136d47 | #138a59 | #13a065 | #16bb76 | #26cf88 | #4ee4a6 | #82f6c5 | #ccffea |
+| `orange` | #3d2500 | #563200 | #804600 | #a85f00 | #cf7200 | #f18600 | #fd9528 | #ffa861 | #ffc39e | #ffe4d6 |
+| `yellow` | #3d2d1a | #724c1e | #b56f1d | #eb8b1e | #ffa126 | #ffb134 | #ffc259 | #ffd68a | #ffe5b2 | #fff1d4 |
+| `teal` | #203537 | #224e51 | #226368 | #247e85 | #26939a | #2eaab2 | #43bec7 | #65d4dc | #9be8ee | #d6fcff |
+| `purple` | #3f2447 | #522361 | #66247b | #7b2595 | #962fb5 | #ae3dd1 | #c353e5 | #d77cf2 | #eaacfc | #f6d9ff |
+
+시맨틱(다크): `screen` #17171c(`darkThemeBackground`) · `surface` #202027(`darkThemeBackgroundLevel01`) · `surface-grey` #2c2c35 · `hairline` #3c3c47(`darkThemeHairlineBorder`) · `dimmed` rgba(0,0,0,0.56). `white`·`black`은 바뀌지 않는다(버튼 글자·인쇄). 인쇄(`@media print`)는 항상 밝은 팔레트.

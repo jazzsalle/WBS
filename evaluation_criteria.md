@@ -332,3 +332,30 @@ evaluator는 이 체크리스트로 PASS/FAIL을 판정한다. 모든 항목은 
 - [ ] `npm test`·`tsc`·`build` 통과. 디자인 토큰 테스트 통과(옛 팔레트 0건)
 - [ ] 절대 규칙 3(리포지토리 경유), 5(실패를 삼키지 않음)
 
+## Phase 15 — 성능 (SOT v4.7 §12)
+
+- [ ] `requireSession`이 React `cache()`로 요청 범위 메모된다. 한 페이지 렌더에서 Auth 검증(`auth.getUser`)이 **1회** — 통합 테스트로 호출 횟수 고정(요청 컨텍스트 밖에서는 메모하지 않는 것도 확인)
+- [ ] `loading.tsx`가 `/`·`/projects`·`/projects/[id]`(탭 공통)·`/todos`·`/settings`·`/help`에 있고 스켈레톤이 숫자를 지어내지 않는다(회색 블록만)
+- [ ] 과제 탭 전환 시 헤더·탭이 유지된 채 본문만 스켈레톤이다
+- [ ] `npm test`·`tsc`·`build` 통과
+
+## Phase 16 — 조직원 · 인건비 · 참여율 (SOT v4.7)
+
+> 급여 변경은 **자동 반영되지 않는다**(SL-5). 자동으로 과제 인건비를 다시 계산하는 경로가 있으면 **FAIL**. 산식은 PL-1 그대로다 — 새 산식을 만들면 FAIL.
+
+**스키마 (schema_version 4)**
+- [ ] `staff`(email 유일·소문자 정규화 ST-1), `staff_salaries`((staff_id, effective_from) 유일, `basis` enum, `amount` 정수 ≥ 0, 플래그 2종), `members` 4컬럼(`staff_id` FK set null, 스냅샷 3종). RLS 같은 마이그레이션. `restore_backup`·`BACKUP_TABLES` 갱신, `EXPECTED_SCHEMA_VERSION` 4
+- [ ] 조직원 삭제 → 급여 이력 cascade, Member `staff_id` null·연봉·스냅샷 유지(ST-2) — 통합 테스트
+
+**순수 함수**
+- [ ] `lib/salary.ts`: SL-1(`monthly` × 12, `annual` 그대로), 월급 표시만 반올림, SL-2 기준일 이하 최신 이력(경계일 포함·없으면 null). 단위 테스트
+- [ ] `lib/participation.ts`: PS-1(연결 안 된 행 별도 집계·student 제외) · PS-2(참여율 × 개월 / 12, 같은 Member 합산) · PS-3(연차 시작 연도 배정·startDate 없으면 "연도 미정") · PS-4(100 초과 error·90 초과 warn·원값 비교). 두 과제 60%·12개월 + 50%·12개월 → 110 error 테스트
+
+**액션·화면**
+- [ ] `/staff` 목록(현재 급여 SL-2·기준 배지·연결 과제 수)·상세(급여 이력 CRUD, O-1)·참여율 탭(연도별 매트릭스, 상단 안내 3종)·`[사내 명부에서 추가]`(§6.13 함수 재사용, 이름·직위·이메일만)·삭제 2단계
+- [ ] §7.10 인력 행 `조직원` 열·`[연결]`(이메일 자동 제안)·`[급여 반영]` → `previewSalaryChange` 확인 → `annualSalary` + 스냅샷 3필드. 이력 없으면 안내. 연봉 칸 기준 배지
+- [ ] §7.9.6 [인건비] 탭: 조직원·월급·연봉·참여율·개월·축·금액(서버 값)·기준·적용 이력, 인라인 편집(참여율·개월·축·조정액 — `updateBudgetDetail`), [급여 반영], E1, 다른 과제 합계 참고(PS-6)
+- [ ] `applyStaffSalary`가 기존 PL-10b 경로(`applySalaryChange` RPC)를 탄다 — 통합 테스트: 월급 3,000,000 퇴직금 포함 → 반영 후 `annualSalary` 36,000,000·`salaryIncludesRetirement` true·산출근거 재계산
+- [ ] 이메일 유일 위반·이력 없음·연결 안 된 인력 [급여 반영] → 명시적 실패(절대 규칙 5)
+- [ ] 부록 E 팔레트만. `npm test`·`tsc`·`build` 통과
+

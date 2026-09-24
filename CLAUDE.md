@@ -49,6 +49,9 @@
 | `lib/board.ts` | 칸반 컬럼·우선순위 5×5 셀 집계 | §7.6 |
 | `lib/todos.ts` | To-Do 필터(T-D1~T-D9)·정렬·지연 판정 | §7.13 |
 | `lib/rules.ts` | 연구비 사용 규칙 판정(RL-3~RL-19), 수정직접비 분모 | §6.14, 부록 B.9 |
+| `lib/salary.ts` | 급여 연봉 환산(SL-1), 적용 이력 선택(SL-2) | §5.20 |
+| `lib/participation.ts` | 조직원 연단위 참여율 합산(PS-1~PS-5) | §6.15 |
+| `lib/input-form/` | 사업비 입력 양식 좌표·검증·파싱(IN-1~IN-8) | §6.16 |
 
 비목 별칭 사전·스킵 패턴·축 라벨은 SOT **부록 C**가 원본이고 `lib/constants.ts`에 정의한다. 임포트 관련 수정 시 부록 C를 먼저 본다.
 
@@ -80,6 +83,10 @@ SOT §11을 따른다. 순서를 건너뛰지 않는다. Phase 실행은 `/phase
 | 9~12 | 예산 제안 · 산출근거 임포트 · 서식 내보내기 · 사내 명부 | (완료 — PROGRESS.md 참고) | §6.10~6.13 |
 | 13 | 연구비 사용 규칙 | `budget_rules`+RLS+한도 컬럼 이관, `lib/rules.ts`·`lib/rules-presets.ts`(부록 D), 규칙 검증·편집 패널 | §5.18, §6.14, §7.9.5, 부록 B.9·D |
 | 14 | 도움말 + 따라하기 | `content/help·tutorial/*.md`, `/help`+`HelpLink`, `TutorialPanel` 드로어, `createSampleProject`·`getTutorialStatus` | §7.16, §7.17, §5.16 |
+| 15 | 성능 | 요청당 세션 확인 1회(React cache), `loading.tsx` 스켈레톤 | §12 |
+| 16 | 조직원·인건비·참여율 | `staff`·`staff_salaries`(schema 4), `lib/salary.ts`·`lib/participation.ts`, `/staff`, 제안 모드 [인건비] 탭, 인력 연결·[급여 반영] | §5.19~5.20, §6.15, §7.9.6, §7.10, §7.18 |
+| 17 | 사업비 입력 양식 | `lib/input-form/`+어댑터, 내려받기·올리기 액션, §7.9.7 툴바 | §6.16, §7.9.7 |
+| 18 | 다크 모드 | 부록 E.5 팔레트, `LocalConfig.theme`, 설정 화면 모드, `bg-surface` 치환 | §7.19, 부록 E.5 |
 
 Phase 0.5의 백업(§8.7)을 미루지 않는다. 무료 플랜에는 DB 백업이 없어서 이게 유일한 안전망이다.
 
