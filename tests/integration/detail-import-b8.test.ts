@@ -210,7 +210,7 @@ const B7_INDIRECT_CASH = 2_000_000;
 const B73 = {
   modifiedPersonnel: 269_490_000, // PL-11 E1 = 인건비 + 학생인건비(0)
   allowanceRate: '0.00', // PL-12 = 0 / 269,490,000
-  indirectBase: 207_860_000, // PL-13 = 인건비현금 180,840,000 + 활동비현금 27,020,000
+  modifiedDirectCost: 207_860_000, // PL-13 = 인건비현금 180,840,000 + 활동비현금 27,020,000
   indirectRate: '0.9622', // PL-13 = 2,000,000 / 207,860,000 (서식 셀과 소수 4자리 일치)
   directTotal: 296_510_000,
   grandTotal: 298_510_000, // ⚠️ 실측 총액. 다른 값이 나오면 구현이 틀린 것이다
@@ -682,9 +682,9 @@ describe.skipIf(sanjaFile === null)('④ 부록 B.7 ↔ B.8 등가', () => {
     expect(importRules.allowanceRate).not.toBeNull();
     expect(importRules.allowanceRate!.toFixed(2)).toBe(B73.allowanceRate);
 
-    // PL-13: 기준액은 직접비 6비목의 **현금** 합계다 (간접비 자신은 빠진다)
+    // PL-13: 수정직접비는 직접비 11비목의 **현금** 합계다 (간접비 자신은 빠진다)
     expect(importRules.indirectTotal).toBe(B7_INDIRECT_CASH);
-    expect(importRules.indirectBase).toBe(B73.indirectBase);
+    expect(importRules.modifiedDirectCost).toBe(B73.modifiedDirectCost);
     // 서식의 `* 간접비 비율4)` 셀과 소수 4자리까지 일치해야 한다
     expect(importRules.indirectRate).not.toBeNull();
     expect(importRules.indirectRate!.toFixed(4)).toBe(B73.indirectRate);

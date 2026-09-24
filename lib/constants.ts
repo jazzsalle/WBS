@@ -11,6 +11,7 @@ import type {
   DetailFormula,
   Direction,
   HireType,
+  IndirectBase,
   MeasureMethod,
   MemberRole,
   MilestoneStatus,
@@ -34,7 +35,8 @@ export const MAX_TASK_DEPTH = 10;
 // 코드가 기대하는 app_settings.schema_version. 불일치 시 앱 진입을 막는다 (§8.8)
 // 2 = Phase 9(budget_details 신설). 백업 파일 형식이 바뀌므로 올렸다 —
 // 구 백업(v1)은 budget_details 키가 없어 복원할 수 없고, K-5가 그 사실을 정확히 알린다
-export const EXPECTED_SCHEMA_VERSION = 2;
+// 3 = Phase 13(budget_rules 신설 + projects 한도 컬럼 2종 삭제, §5.18 RL-D7) — 같은 이유
+export const EXPECTED_SCHEMA_VERSION = 3;
 
 // ─── 부록 A.1 비목 라벨 ──────────────────────────────────────
 
@@ -74,6 +76,15 @@ export const BUDGET_CATEGORY_LABELS: Record<BudgetCategory, string> = {
 };
 
 // 직접비/간접비 구분. 'other'는 A.1에서 '—' — 어느 쪽도 아니므로 null
+/**
+ * §5.18 IndirectBase(RL-3 수정직접비 분모)의 한국어 이름. 정의 자체는 lib/budget-plan.ts modifiedDirectCost
+ * 한 곳이고 여기는 이름뿐이다 — 검증 패널·규칙 편집·내보내기가 같은 문구를 써야 사용자가 같은 분모로 읽는다
+ */
+export const INDIRECT_BASE_LABELS: Record<IndirectBase, string> = {
+  direct_cash_excl_intl_consign_burden: '직접비 현금 − 위탁·국제공동·부담비 (과기부고시 제2조 9호)',
+  direct_cash_excl_intl: '직접비 현금 − 국제공동 (기후부고시 별표 5)',
+};
+
 export const BUDGET_CATEGORY_GROUPS: Record<BudgetCategory, '직접비' | '간접비' | null> = {
   personnel: '직접비',
   student_personnel: '직접비',

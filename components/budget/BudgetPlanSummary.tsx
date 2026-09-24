@@ -1,29 +1,26 @@
-// 제안 모드 하단 요약 — 연차별 합계 · 현금/현물 비중 · 지침 검증 배지 (SOT §7.9 모드 표,
-// §6.10.3 PL-11~PL-15, §5.12·S-4)
+// 제안 모드 하단 요약 — 연차별 합계 · 현금/현물 비중 · 지침 검증 **값** (SOT §7.9 모드 표,
+// §6.10.3 PL-11~PL-13, §5.12·S-4)
 //
-// **이 파일에는 나눗셈이 없다.** 비율·기준액·위반 여부는 전부 서버가 evaluateBudgetRules·
-// computeAxisSplit으로 계산해 내려준 값(yearRules·yearAxisSplits)이고 여기서는 표시만 한다 —
-// 같은 규칙이 두 곳에 생기면 반드시 어긋난다(O-4). 반올림도 표시 시점에만 한다 (§6.1 P-8).
+// **이 파일에는 나눗셈이 없다.** E1·수정직접비·축 합계는 전부 서버가 evaluateBudgetRules·computeAxisSplit으로
+// 계산해 내려준 값(yearRules·yearAxisSplits)이고 여기서는 표시만 한다 — 같은 규칙이 두 곳에 생기면 반드시
+// 어긋난다(O-4).
 //
-//  - PL-12 연구수당 비율 = 연구수당 / 수정인건비(E1). E1이 0이면 비율이 null이고 '—'로 적는다
-//  - PL-13 간접비 비율 = 간접비 / 직접비 현금 기준액
-//  - PL-15 한도(allowanceLimit·indirectLimit)가 null이면 **비율만 적고 배지는 없다.**
-//    한도는 과제 개요(§7.3 BudgetRateLimitCard)에서 넣는다 — 이 화면은 판정에만 쓴다
+//  - 한도 판정·비율 표는 여기 없다. Phase 13부터 §6.14 규칙 행이 한도를 갖고, 비율·위반·판정 못 함은
+//    아래 규칙 검증 패널(rules/RuleFindingsPanel)이 보여 준다. 이 표는 그 비율의 **재료**(E1·수정직접비·총액)만
+//    적어 "왜 그 비율인가"를 옆에서 읽게 한다
 //  - §7.9 현금/현물 비중: `cashAmount`·`inKindAmount`는 §5.12·S-4상 null(미입력)일 수 있다.
 //    미입력을 0으로 눙쳐 합산하면 사용자가 입력한 적 없는 '현물 0원'이 만들어지므로,
 //    축이 없는 금액(`unspecified`)이 0이 아니면 **비중 대신 그 금액을 적는다.**
 //  - PL-5 음수 행·연봉 미입력·PL-10 합계 불일치는 배너로 드러낸다. 특히 합계 불일치는
 //    트랜잭션 불변식이 깨진 것이라 조용히 넘길 수 없다 (절대 규칙 5)
 //
-// 인쇄(§12 P-R1~P-R5): 매트릭스와 함께 가로로 나간다. 편집 안내·링크만 print:hidden이고
-// 숫자와 배지 글자는 종이에 남는다 — 배지 색이 흑백에서 사라져도 '초과'가 글자로 읽힌다.
+// 인쇄(§12 P-R1~P-R5): 매트릭스와 함께 가로로 나간다. 편집 안내·링크만 print:hidden이고 숫자는 종이에 남는다.
 
 import Link from 'next/link';
 import type { Settings } from '@/types';
 import type { BudgetPlanYearAxisView, BudgetPlanYearView } from '@/actions/budget-plan';
 import type { YearAxisSplit } from '@/lib/budget-plan';
 import { formatAmount } from '@/lib/currency';
-import Badge from '@/components/ui/Badge';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import { PRINT_TABLE, PRINT_TABLE_WRAP, PRINT_TD, PRINT_TH } from '@/components/print/tokens';
 
@@ -34,7 +31,7 @@ export interface BudgetPlanSummaryProps {
   /** §7.9 현금/현물 비중. yearRules와 같은 연차 집합이다 (서버가 같은 소스로 만든다) */
   yearAxisSplits: readonly BudgetPlanYearAxisView[];
   currencyUnit: Settings['currencyUnit'];
-  /** 한도 미입력 안내가 거는 과제 개요 링크 (PL-14 입력 자리는 §7.3이다) */
+  /** 연봉 미입력 안내가 거는 인력 화면 링크 (§7.9.2) */
   projectId: string;
   /** PL-5 음수 행 수 (과제 전체) */
   negativeCount: number;
@@ -45,57 +42,12 @@ export interface BudgetPlanSummaryProps {
 }
 
 /**
- * 비율 표시. 소수 둘째 자리까지 적는다 — 간접비 고시율은 소수점이 있는 값이고(부록 B.7.3의
- * 0.9622%), 한 자리로 줄이면 한도 근처에서 배지와 숫자가 서로 다른 말을 하는 것처럼 보인다.
- * **위반 판정은 이 반올림값이 아니라 서버의 over 플래그를 쓴다.**
+ * 현금/현물 비중 표시. 소수 둘째 자리 — 비중은 한도 판정과 무관한 안내값이라 4자리(부록 B.9.1)까지 필요 없다.
+ * 규칙 비율은 RuleFindingsPanel이 4자리로 적는다.
  */
 function formatPercent(rate: number | null): string {
   if (rate === null) return '—';
   return `${(Math.round(rate * 100) / 100 + 0).toFixed(2)}%`; // +0: -0 이 '-0.00%'로 보이는 것을 막는다
-}
-
-/** 반올림 전 값. 20.004%가 '20.00%'로 보일 때 배지의 근거를 title에서 확인할 수 있어야 한다 */
-function rateTitle(rate: number | null, limit: number | null): string {
-  const measured = rate === null ? '비율을 낼 수 없습니다(기준액 0).' : `계산값 ${rate}%`;
-  return limit === null ? `${measured} 한도 미입력이라 위반 판정을 하지 않습니다 (PL-15).` : `${measured} 한도 ${limit}%`;
-}
-
-/** 서버가 준 비율·한도·위반 여부 한 벌 (PL-12 또는 PL-13) */
-interface RateValue {
-  rate: number | null;
-  limit: number | null;
-  over: boolean;
-}
-
-interface RateCellProps extends RateValue {
-  /** 기준액이 0이라 비율이 없을 때 그 이유를 밝힌다 (PL-12·PL-13) */
-  zeroBaseReason: string;
-}
-
-function RateCell({ rate, limit, over, zeroBaseReason }: RateCellProps) {
-  return (
-    <span className="block">
-      <span
-        className={`block font-semibold tabular-nums ${over ? 'text-red-600 print:text-black' : 'text-grey-800'}`}
-        title={rate === null ? zeroBaseReason : rateTitle(rate, limit)}
-      >
-        {formatPercent(rate)}
-      </span>
-      {/* PL-15: 한도가 null이면 비율만 적고 배지를 띄우지 않는다 */}
-      {limit !== null && (
-        <span className="mt-0.5 block">
-          {over ? (
-            // P-R5: 흑백 출력에서도 읽히도록 '초과'를 글자로 남긴다
-            <Badge tone="red" title="협의 중인 계획이 한도를 넘을 수 있습니다. 저장은 막지 않습니다 (PL-15)">
-              한도 {limit}% 초과
-            </Badge>
-          ) : (
-            <span className="text-[11px] text-grey-400 print:text-black">한도 {limit}%</span>
-          )}
-        </span>
-      )}
-    </span>
-  );
 }
 
 /**
@@ -178,12 +130,10 @@ function SummaryCell({
       <MissingCell label="검증 없음" title="이 연차의 지침 검증 결과가 조회 결과에 없습니다." />
     );
   }
-  return row.kind === 'amount' ? (
+  return (
     <span className="tabular-nums text-grey-800 print:text-black">
       {formatAmount(row.amount(rules), currencyUnit)}
     </span>
-  ) : (
-    <RateCell {...row.rate(rules)} zeroBaseReason={row.zeroBaseReason} />
   );
 }
 
@@ -206,12 +156,6 @@ export default function BudgetPlanSummary({
   const rows = hasUnspecified
     ? SUMMARY_ROWS
     : SUMMARY_ROWS.filter((row) => row.key !== 'axisUnspecified');
-
-  // 한도가 하나라도 비어 있으면 그 검사는 돌지 않는다 — 어디서 넣는지 알려 준다 (PL-14)
-  const missingLimits = columns.some((column) => {
-    const rules = rulesByYear.get(column.yearId);
-    return rules !== undefined && (rules.allowanceLimit === null || rules.indirectLimit === null);
-  });
 
   return (
     <section aria-label="제안 모드 요약" className="space-y-3">
@@ -252,9 +196,9 @@ export default function BudgetPlanSummary({
       <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-white ${PRINT_TABLE_WRAP}`}>
         <table className={`w-full text-left text-xs ${PRINT_TABLE}`}>
           <caption className="px-3 pt-2 text-left text-xs font-semibold text-grey-700 print:text-black">
-            연차별 합계 · 현금/현물 비중 · 지침 검증
+            연차별 합계 · 현금/현물 비중 · 지침 검증 값
             <span className="ml-2 font-normal text-grey-400 print:text-black">
-              지침 검증은 경고일 뿐 저장·반영을 막지 않습니다 (PL-15)
+              비율·한도 판정은 아래 규칙 검증 패널에 있습니다 (§6.14)
             </span>
           </caption>
           <thead className="text-grey-500 print:text-black">
@@ -300,19 +244,6 @@ export default function BudgetPlanSummary({
         </table>
       </div>
 
-      {missingLimits && (
-        <p className="text-[11px] text-grey-500 print:hidden">
-          한도가 비어 있는 검사는 비율만 표시하고 위반 판정을 하지 않습니다 (PL-15). 한도는{' '}
-          <Link
-            href={`/projects/${projectId}`}
-            className="font-semibold underline underline-offset-2"
-          >
-            과제 개요 &gt; 지침 한도
-          </Link>
-          에서 넣습니다. 부처·기관 유형마다 고시율이 다르므로 도구가 기본값을 지어내지 않습니다
-          (PL-16).
-        </p>
-      )}
     </section>
   );
 }
@@ -323,14 +254,6 @@ type Rules = BudgetPlanYearView['rules'];
 
 type SummaryRow =
   | { key: string; label: string; hint: string; kind: 'amount'; amount: (rules: Rules) => number }
-  | {
-      key: string;
-      label: string;
-      hint: string;
-      kind: 'rate';
-      zeroBaseReason: string;
-      rate: (rules: Rules) => RateValue;
-    }
   // §7.9 현금/현물 비중은 yearRules가 아니라 yearAxisSplits에서 읽는다 —
   // 지침 검증(기준액이 규정별로 다르다)과 축 합계는 다른 질문이라 한 값에 섞지 않는다
   | { key: string; label: string; hint: string; kind: 'axisAmount'; amount: (axis: YearAxisSplit) => number }
@@ -410,34 +333,11 @@ const SUMMARY_ROWS: readonly SummaryRow[] = [
     amount: (rules) => rules.allowanceTotal,
   },
   {
-    key: 'allowanceRate',
-    label: '연구수당 비율 (PL-12)',
-    hint: '연구수당 ÷ 수정인건비(E1) × 100.',
-    kind: 'rate',
-    zeroBaseReason: '수정인건비(E1)가 0이라 비율을 내지 않습니다 (PL-12).',
-    rate: (rules) => ({
-      rate: rules.allowanceRate,
-      limit: rules.allowanceLimit,
-      over: rules.allowanceOver,
-    }),
-  },
-  {
-    key: 'indirectBase',
-    label: '간접비 기준액 (직접비 현금)',
-    hint: '인건비·학생인건비·연구시설장비비·재료비·연구활동비·연구수당의 현금 합계입니다 (PL-13). 연구지원인력인건비는 여기에 포함됩니다.',
+    key: 'modifiedDirectCost',
+    label: '수정직접비 (간접비 기준액)',
+    // PL-13: 어느 비목을 빼는지는 규칙 indirect_max의 base가 정한다 — 분모 이름은 규칙 검증 패널이 적는다
+    hint: '직접비 전 비목의 현금 합계에서 규칙 indirect_max의 분모 정의(base)에 따라 위탁·국제공동·부담비 등을 뺀 값입니다 (PL-13, RL-3). 어느 분모인지는 아래 규칙 검증 패널의 간접비 상한 행에 있습니다.',
     kind: 'amount',
-    amount: (rules) => rules.indirectBase,
-  },
-  {
-    key: 'indirectRate',
-    label: '간접비 비율 (PL-13)',
-    hint: '간접비 ÷ 직접비 현금 기준액 × 100.',
-    kind: 'rate',
-    zeroBaseReason: '직접비 현금 기준액이 0이라 비율을 내지 않습니다 (PL-13).',
-    rate: (rules) => ({
-      rate: rules.indirectRate,
-      limit: rules.indirectLimit,
-      over: rules.indirectOver,
-    }),
+    amount: (rules) => rules.modifiedDirectCost,
   },
 ] as const;

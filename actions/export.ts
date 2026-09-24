@@ -16,14 +16,33 @@
 // supabase 직접 호출 금지 — 반드시 lib/db/ 리포지토리를 거친다 (절대 규칙 3, §8.6).
 
 import { z } from 'zod';
-import type { ActionResult, Member, Project, Year } from '@/types';
+import type {
+  ActionResult,
+  BudgetDetail,
+  IndirectBase,
+  Member,
+  Project,
+  RuleCode,
+  RuleSeverity,
+  Year,
+} from '@/types';
 import { requireApprovedUser } from '@/lib/auth/guard';
 import { RuleViolationError, ValidationError, toActionFailure } from '@/lib/db/errors';
 import * as budgetDetailsRepo from '@/lib/db/budget-details';
+import * as budgetRulesRepo from '@/lib/db/budget-rules';
 import * as membersRepo from '@/lib/db/members';
 import * as projectsRepo from '@/lib/db/projects';
 import * as yearsRepo from '@/lib/db/years';
-import { aggregateDetails, buildYearTotals, evaluateBudgetRules } from '@/lib/budget-plan';
+import { aggregateDetails, buildYearTotals } from '@/lib/budget-plan';
+import type { DetailAggregate } from '@/lib/budget-plan';
+import {
+  DEFAULT_INDIRECT_BASE,
+  RULE_SPECS,
+  evaluateRules,
+  type RuleFinding,
+  type RuleRowInput,
+  type RuleYearInput,
+} from '@/lib/rules';
 import { todayISO } from '@/lib/dates';
 import { DEFAULT_TEMPLATE_ID, TEMPLATE_REGISTRY, findTemplate, validateLayout } from '@/lib/export/layouts';
 import { buildDetailWrites, checkCapacity, exportFileName } from '@/lib/export/detail-sheet';
@@ -58,15 +77,27 @@ export interface ExportBlocker {
 /**
  * 막지는 않지만 **알려야 하는** 것 (§7.9.4).
  *
- * 협의 중인 계획도 내보낼 수 있어야 한다 — 음수 금액(PL-5)·연봉 미입력(D-8a)·지침 한도
- * 초과(PL-12·PL-13)는 계획이 아직 확정되지 않았다는 뜻이지 파일을 못 만든다는 뜻이 아니다
- * (PL-15와 같은 태도).
+ * 협의 중인 계획도 내보낼 수 있어야 한다 — 음수 금액(PL-5)·연봉 미입력(D-8a)·연구비 사용 규칙
+ * 위반(§6.14)은 계획이 아직 확정되지 않았다는 뜻이지 파일을 못 만든다는 뜻이 아니다
+ * (PL-15와 같은 태도). **규칙 finding은 severity가 `error`여도 여기다** — blockers에 넣는 코드는
+ * RL-1 위반이다.
  */
-export interface ExportNotice {
-  kind: 'skipped-row' | 'negative-amount' | 'missing-salary' | 'rule-violation' | 'truncated-factor';
-  label: string;
-  detail: string;
-}
+export type ExportNotice =
+  | {
+      kind: 'skipped-row' | 'negative-amount' | 'missing-salary' | 'truncated-factor';
+      label: string;
+      detail: string;
+    }
+  | {
+      /** §6.14.6 RuleFinding 한 건. 화면이 severity 색과 "근사" 표기를 그린다 */
+      kind: 'rule-finding';
+      label: string;
+      detail: string;
+      code: RuleCode;
+      severity: RuleSeverity;
+      /** RL-7·RL-9처럼 가정이 들어간 판정 */
+      approximate: boolean;
+    };
 
 export interface ExportPreview {
   /** X-3: 하나뿐이면 화면이 묻지 않는다 */
@@ -79,6 +110,8 @@ export interface ExportPreview {
   /** 비어 있어야 내보낼 수 있다 */
   blockers: ExportBlocker[];
   notices: ExportNotice[];
+  /** 총괄표 간접비 비율 행(X-10c)의 수정직접비 정의 — 과제 `indirect_max` 규칙 행의 base (RL-3) */
+  indirectBase: IndirectBase;
 }
 
 // ─── 입력 검증 ────────────────────────────────────────────────────────────────
@@ -195,6 +228,80 @@ function summarySkipNotice(skip: SummarySkip): ExportNotice {
   };
 }
 
+/**
+ * §6.14 판정의 재료. getBudgetPlanData(actions/budget-plan.ts)와 같은 모양으로 조립하되
+ * **산출근거만** 본다 — 파일에 나가는 숫자가 전부 산출근거에서 나오므로(X-10, PL-D7) 경고도
+ * 그 숫자에 대한 것이어야 한다. budget_items만 있는 셀은 파일에 없으니 여기서도 보지 않는다.
+ * ('use server' 파일은 async 함수만 export할 수 있어 저쪽의 조립을 그대로 가져다 쓸 수 없다.)
+ *
+ * `details`는 리포지토리 행 그대로다 — 행 단위 finding이 `id`를 가리키는데 ExportDetailRow에는 없다.
+ */
+function buildRuleYears(
+  details: readonly BudgetDetail[],
+  plan: ExportPlanData,
+  aggregate: DetailAggregate
+): RuleYearInput[] {
+  const memberById = new Map(plan.members.map((member) => [member.id, member]));
+  const rowsByYear = new Map<string, RuleRowInput[]>();
+  details.forEach((detail, index) => {
+    const computed = aggregate.rows[index];
+    // 집계는 입력과 같은 순서·길이를 보장한다. 어긋나면 금액이 다른 행에 붙는다는 뜻이다
+    if (!computed) throw new ValidationError('산출근거 금액을 계산하지 못했습니다.');
+    const member = detail.memberId === null ? null : (memberById.get(detail.memberId) ?? null);
+    const rows = rowsByYear.get(detail.yearId) ?? [];
+    rows.push({
+      detail,
+      amount: computed.amount,
+      member: member === null ? null : { id: member.id, hireType: member.hireType },
+    });
+    rowsByYear.set(detail.yearId, rows);
+  });
+  return plan.years.map((year) => ({
+    yearId: year.id,
+    // 총괄표의 X-10c 비율 행과 같은 재료다 — 파일의 비율과 경고의 비율이 갈리면 안 된다
+    totals: buildYearTotals(aggregate.cells.filter((cell) => cell.yearId === year.id)),
+    rows: rowsByYear.get(year.id) ?? [],
+  }));
+}
+
+/** 경고에 붙일 연차 이름. 이름은 사용자 입력이라 비어 있을 수 있어 번호를 앞에 둔다 */
+function yearLabelOf(plan: ExportPlanData, yearId: string): string {
+  const year = plan.years.find((candidate) => candidate.id === yearId);
+  if (!year) return '(알 수 없는 연차)';
+  return year.name === '' ? `${year.order + 1}차년도` : `${year.order + 1}차년도 ${year.name}`;
+}
+
+/**
+ * RuleFinding → notice. **blockers가 아니다** — severity가 error여도 내보내기는 진행된다 (RL-1·PL-15).
+ * 협의 중인 계획은 한도를 넘나드는 것이 정상이고, 막으면 사용자가 엑셀로 나간다.
+ */
+function ruleFindingNotice(
+  finding: RuleFinding,
+  details: readonly BudgetDetail[],
+  plan: ExportPlanData
+): ExportNotice {
+  const spec = RULE_SPECS[finding.code];
+  let where: string;
+  if (finding.scope.kind === 'project') {
+    where = '과제 전체';
+  } else if (finding.scope.kind === 'year') {
+    where = yearLabelOf(plan, finding.scope.yearId);
+  } else {
+    const detailId = finding.scope.detailId;
+    const row = details.find((candidate) => candidate.id === detailId);
+    const rowName = row ? rowLabel(row, plan.members) : '(알 수 없는 행)';
+    where = `${yearLabelOf(plan, finding.scope.yearId)} · ${rowName}`;
+  }
+  return {
+    kind: 'rule-finding',
+    label: `${spec.label} · ${where}`,
+    detail: finding.message,
+    code: finding.code,
+    severity: finding.severity,
+    approximate: finding.approximate,
+  };
+}
+
 // ─── 준비 (미리보기·내보내기가 같은 경로를 쓴다) ──────────────────────────────
 
 interface ExportBundle {
@@ -233,11 +340,12 @@ async function collectExport(
   }
 
   // 하나라도 실패하면 실패를 그대로 올린다 — 빈 배열 폴백은 예산이 사라진 것을 감춘다 (절대 규칙 5)
-  const [project, years, details, members] = await Promise.all([
+  const [project, years, details, members, rules] = await Promise.all([
     projectsRepo.getProjectById(client, pid),
     yearsRepo.listYears(client, pid),
     budgetDetailsRepo.listByProject(client, pid),
     membersRepo.listMembers(client, pid),
+    budgetRulesRepo.listByProject(client, pid),
   ]);
 
   // N-13: 이 연차가 그 과제 소속인지 확인한다. 아니면 다른 과제의 예산이 파일로 나간다
@@ -256,6 +364,9 @@ async function collectExport(
       order: candidate.order,
       name: candidate.name,
     })),
+    // RL-3: 수정직접비 분모는 과제의 indirect_max 행이 고른다. 꺼진 행의 base도 그대로 쓴다 —
+    // actions/budget-plan.ts·lib/rules.ts와 같은 규칙이어야 화면·파일·경고의 비율이 한 값이다
+    indirectBase: rules.find((rule) => rule.code === 'indirect_max')?.base ?? DEFAULT_INDIRECT_BASE,
   };
 
   const template = readTemplate(templatePath(entry.file));
@@ -309,21 +420,22 @@ async function collectExport(
     });
   }
 
-  // PL-12·PL-13: 한도는 과제별 사용자 입력이다. null이면 비율만 있고 위반 판정은 없다 (PL-15)
-  const rules = evaluateBudgetRules(buildYearTotals(aggregate.cells), project);
-  if (rules.allowanceOver && rules.allowanceRate !== null) {
-    notices.push({
-      kind: 'rule-violation',
-      label: '연구수당 한도 초과',
-      detail: `연구수당 비율 ${rules.allowanceRate.toFixed(2)}%가 한도 ${rules.allowanceLimit}%를 넘습니다 (PL-12). 막지 않습니다.`,
-    });
-  }
-  if (rules.indirectOver && rules.indirectRate !== null) {
-    notices.push({
-      kind: 'rule-violation',
-      label: '간접비 한도 초과',
-      detail: `간접비 비율 ${rules.indirectRate.toFixed(2)}%가 한도 ${rules.indirectLimit}%를 넘습니다 (PL-13). 막지 않습니다.`,
-    });
+  // §6.14 연구비 사용 규칙. 규칙 0건이면 findings도 0건이라 규칙 notice가 없다 (PL-14).
+  // 전 연차를 판정한다 — 총괄표에 전 연차의 비율이 나가고(X-10c) 과제 단위 규칙(RL-8·RL-9)도 있다.
+  // 다만 **행 단위(detail) finding은 내보내는 연차만** 싣는다: 다른 연차의 산출 행은 이 파일에
+  // 없어(X-9) 사용자가 이 파일에서 고칠 수 있는 것이 아니다.
+  // severity 순서는 evaluateRules가 이미 정했다(error > warn > info) — 여기서 다시 섞지 않는다.
+  const ruleEvaluation = evaluateRules(rules, {
+    years: buildRuleYears(details, plan, aggregateDetails(details, plan.members)),
+    project: {
+      govBudget: project.govBudget,
+      ownBudget: project.ownBudget,
+      totalBudget: project.totalBudget,
+    },
+  });
+  for (const finding of ruleEvaluation.findings) {
+    if (finding.scope.kind === 'detail' && finding.scope.yearId !== yid) continue;
+    notices.push(ruleFindingNotice(finding, details, plan));
   }
 
   // 좌표 맵이 깨진 상태에서 총괄표 쓰기를 만들면 판정할 수 없는 행에서 던진다 —
@@ -347,6 +459,7 @@ async function collectExport(
       totalAmount: aggregate.total.plannedAmount,
       blockers,
       notices,
+      indirectBase: plan.indirectBase,
     },
   };
 }

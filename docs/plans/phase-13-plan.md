@@ -53,7 +53,7 @@ SOT v4.4(§5.18·§6.14·§7.9.5·부록 B.9·D)와 evaluation_criteria.md Phase
 
 **의존 그래프**: T1 → {T2, T4}; T4 → T3; {T2, T3} → T5; T5 → {T6, T7, T8}; {T7, T8} → T9. 병렬 구간: T2‖T4, T6‖T7‖T8.
 
-## 사용자 확인 필요 (SOT에 없는 결정 — 재개 시 먼저 정한다)
+## 확인 4건 — 2026-09-24 제안값으로 확정, SOT에 반영됨 (§6.10.4·§7.9·§9)
 1. `indirect_max` 행이 없을 때 비율 표시용 분모 — 제안: `DEFAULT_INDIRECT_BASE = 'direct_cash_excl_intl_consign_burden'`(이관 마이그레이션과 동일), 화면에 어느 분모인지 표기
 2. `overwrite`가 프리셋에 없는 코드의 기존 행을 지우는가 — 제안: 프리셋에 있는 코드만 덮고 나머지는 "유지"(삭제 안 함)
 3. SOT §6.10.4 시그니처 `evaluateBudgetRules(yearTotals, project)` → `(yearTotals, indirectBase)`로 정정(T3이 코드보다 먼저)

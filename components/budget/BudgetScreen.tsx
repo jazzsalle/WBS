@@ -4,7 +4,8 @@
 // 데이터는 전부 서버(page.tsx)가 조회해 내려준다. 비율·합계·잔액을 여기서 다시 계산하지 않는다 —
 // 규칙이 두 곳에 생기면 반드시 어긋난다(§6.4는 lib/budget.ts 한 곳이 원본, O-4).
 // 이 컴포넌트가 소유하는 것: 선택된 셀, 진행 중(busy), 실패 배너, STALE 충돌 다이얼로그(O-3),
-// 저장 성공 후 router.refresh() 한 번.
+// 저장 성공 후 router.refresh() 한 번, 그리고 §7.9 규칙 검증 패널의 "클릭 → 이동" 상태
+// (강조 중인 연차 열 · 강조할 산출 행).
 // 쓰기는 전부 actions/budget.ts를 거친다. supabase를 직접 부르지 않는다 (§8.2 C-2).
 //
 // **모드 토글 `[제안 | 수행]`** (§7.9): 같은 매트릭스를 두 관점으로 본다. 기본은 `수행`이고,
@@ -21,7 +22,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { ActionResult, BudgetItem, ImportProfile } from '@/types';
+import type { ActionResult, BudgetCategory, BudgetItem, ImportProfile, RuleCode } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import type { BudgetMatrixData } from '@/actions/budget';
 import type { BudgetPlanCellView, BudgetPlanData } from '@/actions/budget-plan';
@@ -34,6 +35,8 @@ import BudgetMatrixTable, { type BudgetMode, type CellRef, cellKey } from './Bud
 import BudgetDetailPanel, { type BudgetActionCallbacks } from './BudgetDetailPanel';
 import BudgetPlanPanel from './BudgetPlanPanel';
 import BudgetPlanSummary from './BudgetPlanSummary';
+import RuleFindingsPanel from './rules/RuleFindingsPanel';
+import RulesEditor from './rules/RulesEditor';
 import ImportWizard from './import/ImportWizard';
 import DetailImportWizard from './import/detail/DetailImportWizard';
 import ExportModal from './ExportModal';
@@ -81,7 +84,13 @@ export default function BudgetScreen({
   const [importOpen, setImportOpen] = useState(false);
   const [detailImportOpen, setDetailImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  // §7.9.5 [연구비 규칙] 모달. 제안 모드의 것이라 모드를 바꾸면 닫는다
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
+  // §7.9 규칙 검증 패널의 "클릭 → 이동". 연차 finding은 매트릭스 열 강조, 행 finding은 셀 패널 + 행 강조.
+  // 둘 다 화면 로컬 상태다 — URL·DB에 남기지 않고 모드를 바꾸면 버린다 (모드 토글과 같은 결정)
+  const [highlightYearId, setHighlightYearId] = useState<string | null>(null);
+  const [highlightDetailId, setHighlightDetailId] = useState<string | null>(null);
 
   // 이 화면이 보는 유일한 스냅샷. 여기서 한 번 고르고 아래에서는 섞지 않는다 (파일 머리말 C5).
   // 제안 조회가 실패하면(plan === null) 매트릭스를 아예 그리지 않으므로(아래 분기) 섞일 표가
@@ -166,6 +175,26 @@ export default function BudgetScreen({
           ?.cells.find((c) => c.yearId === selected.yearId) ?? null;
   const selectedItems = selected === null ? [] : itemsByCell.get(cellKey(selected.yearId, selected.category)) ?? [];
 
+  // 사용자가 직접 고른 셀에는 규칙 검증의 행 강조가 따라가면 안 된다 — 다른 셀의 행 id가 남아
+  // "찾지 못했습니다" 안내가 엉뚱한 셀에 뜬다
+  const selectCell = (cell: CellRef | null): void => {
+    setSelected(cell);
+    setHighlightDetailId(null);
+  };
+
+  // 연차 finding 클릭: 같은 연차를 다시 누르면 해제 (토글)
+  const handleSelectYear = (yearId: string): void => {
+    setHighlightYearId((prev) => (prev === yearId ? null : yearId));
+  };
+
+  // 행 finding 클릭: 셀 좌표는 판정기가 scope에 실어 준 (연차, 비목)이다(§6.14.6) — 여기서 코드로 비목을
+  // 추측하지 않는다. 패널이 그 행을 찾지 못하면(그 사이 삭제 등) 패널 안에서 알린다 (plan-panel-contract.ts)
+  const handleSelectDetail = (target: { code: RuleCode; yearId: string; detailId: string; category: BudgetCategory }): void => {
+    setSelected({ yearId: target.yearId, category: target.category });
+    setHighlightDetailId(target.detailId);
+    setHighlightYearId(target.yearId);
+  };
+
   return (
     <div className="space-y-4">
       {/* 툴바 (§7.9). P-R4: 인쇄에서는 [엑셀 가져오기]와 입력 안내를 뺀다 —
@@ -189,7 +218,9 @@ export default function BudgetScreen({
                     if (active) return;
                     setMode(item.value);
                     // 두 모드의 패널은 서로 다른 것을 편집한다 — 선택을 넘기지 않는다
-                    setSelected(null);
+                    selectCell(null);
+                    setHighlightYearId(null);
+                    setRulesOpen(false);
                     setFailure(null);
                   }}
                   className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 ${
@@ -220,6 +251,23 @@ export default function BudgetScreen({
               onClick={() => setDetailImportOpen(true)}
             >
               산출근거 가져오기
+            </Button>
+          )}
+          {/* §7.9.5: [연구비 규칙]도 **제안 모드에만** 둔다 — 계상 규칙은 제안의 것이다(수행 모드에는 없다).
+              편집할 규칙은 제안 스냅샷(plan.rules)이라 plan이 없으면 열 수 없다 */}
+          {mode === 'plan' && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy || plan === null}
+              title={
+                plan === null
+                  ? '제안 모드 데이터를 불러오지 못해 규칙을 편집할 수 없습니다'
+                  : '이 과제의 연구비 사용 규칙(프리셋·한도·안내)을 편집합니다 (§7.9.5)'
+              }
+              onClick={() => setRulesOpen(true)}
+            >
+              연구비 규칙
             </Button>
           )}
           {/* §7.9.4: [제출 서식 내보내기]도 **제안 모드에만** 둔다 — 제안의 산출물이다.
@@ -310,7 +358,7 @@ export default function BudgetScreen({
             itemsByCell={itemsByCell}
             selected={selected}
             busy={busy}
-            onSelect={setSelected}
+            onSelect={selectCell}
             onInlineSave={handleInlineSave}
           />
 
@@ -323,7 +371,7 @@ export default function BudgetScreen({
               categoryLabel={BUDGET_CATEGORY_LABELS[selected.category]}
               items={selectedItems}
               currencyUnit={data.currencyUnit}
-              onClose={() => setSelected(null)}
+              onClose={() => selectCell(null)}
               {...callbacks}
             />
           ) : (
@@ -360,12 +408,13 @@ export default function BudgetScreen({
             yearBudgetChecks={plan.yearBudgetChecks}
             itemsByCell={itemsByCell}
             selected={selected}
+            highlightedYearId={highlightYearId}
             busy={busy}
-            onSelect={setSelected}
+            onSelect={selectCell}
             onInlineSave={handleInlineSave}
           />
 
-          {/* 하단 요약 (§7.9): 연차별 합계 · 현금/현물 비중 · 지침 검증 배지. 매트릭스 바로
+          {/* 하단 요약 (§7.9): 연차별 합계 · 현금/현물 비중 · 지침 검증 값. 매트릭스 바로
               아래에 고정해 패널이 열려도 표와 떨어지지 않게 한다. 인쇄에도 함께 나간다 (§7.9.2) */}
           <BudgetPlanSummary
             columns={plan.matrix.columns}
@@ -376,6 +425,19 @@ export default function BudgetScreen({
             negativeCount={plan.negativeCount}
             missingSalaryCount={plan.missingSalaryCount}
             mismatchCount={plan.mismatchCount}
+          />
+
+          {/* §7.9 규칙 검증 패널 (Phase 13, §6.14) — 제안 모드 하단에만 있다. 수행 모드 분기에는 없다.
+              규칙·판정은 표를 그린 plan 스냅샷의 것이다 (C5). 0건 안내의 [연구비 규칙]은 툴바 버튼과 같은
+              모달(§7.9.5)을 연다 */}
+          <RuleFindingsPanel
+            columns={plan.matrix.columns}
+            rules={plan.rules}
+            evaluation={plan.ruleEvaluation}
+            highlightedYearId={highlightYearId}
+            onSelectYear={handleSelectYear}
+            onSelectDetail={handleSelectDetail}
+            onOpenRules={() => setRulesOpen(true)}
           />
 
           <div ref={planPanelRef}>
@@ -389,6 +451,7 @@ export default function BudgetScreen({
                 yearName={selectedColumn.name}
                 categoryLabel={BUDGET_CATEGORY_LABELS[selected.category]}
                 currencyUnit={plan.currencyUnit}
+                highlightDetailId={highlightDetailId}
                 // 패널은 실패 배너·ConflictDialog·R-4 보류를 스스로 다룬다 (plan-panel-contract.ts).
                 // 부모가 알아야 하는 것은 "합계가 바뀌었다"와 "닫아 달라" 둘뿐이다
                 onSaved={() => {
@@ -396,7 +459,7 @@ export default function BudgetScreen({
                   router.refresh();
                 }}
                 onBusyChange={setBusy}
-                onClose={() => setSelected(null)}
+                onClose={() => selectCell(null)}
               />
             ) : (
               <p className="rounded-xl border border-dashed border-grey-300 bg-white p-6 text-center text-sm text-grey-400 print:hidden">
@@ -440,6 +503,22 @@ export default function BudgetScreen({
           years={source.years}
           currencyUnit={source.currencyUnit}
           onClose={() => setExportOpen(false)}
+        />
+      )}
+
+      {/* §7.9.5 규칙 편집 모달. 항상 마운트하고 open으로 여닫는다 — 열릴 때 plan.rules를 받아들이고, 저장·적용·
+          삭제 뒤 onChanged → router.refresh()로 검증 패널과 이 모달의 행이 같은 조회를 보게 한다.
+          제안 스냅샷이 없으면(plan === null) 편집할 행도 없으므로 그리지 않는다 */}
+      {plan !== null && (
+        <RulesEditor
+          projectId={plan.projectId}
+          rules={plan.rules}
+          open={mode === 'plan' && rulesOpen}
+          onClose={() => setRulesOpen(false)}
+          onChanged={() => {
+            setFailure(null);
+            router.refresh();
+          }}
         />
       )}
 

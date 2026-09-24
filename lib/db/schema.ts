@@ -61,8 +61,7 @@ export const projectRowSchema = z.object({
   own_budget: z.number().nullable(),
   pm_member_id: z.uuid().nullable(),
   lead_org_id: z.uuid().nullable(),
-  allowance_rate_limit: z.number().nullable(), // % (PL-14). null이면 경고를 띄우지 않는다
-  indirect_rate_limit: z.number().nullable(),
+  // allowance_rate_limit·indirect_rate_limit는 Phase 13에서 budget_rules로 이관·삭제됐다 (§5.18)
   archived: z.boolean(),
   sort_order: z.number(),
 });
@@ -313,6 +312,33 @@ export const budgetDetailRowSchema = z.object({
   amount: z.number(),             // 서버가 lib/budget-plan.ts로 계산해 넣은 값 (PL-D7)
 });
 
+// ─── §5.18 budget_rules ──────────────────────────────────────
+// 코드×값 조합(RL-D2·D3)은 DB check가 최종 방어선이고 액션 Zod가 RULE_SPECS로 먼저 막는다.
+// 여기서는 드리프트 감지(컬럼·enum)만 한다.
+
+export const ruleCodeSchema = z.enum([
+  'allowance_max', 'allowance_min', 'indirect_max', 'consignment_max',
+  'external_tech_max', 'gov_share_max', 'own_cash_min',
+  'indirect_cash_only', 'no_personnel_support', 'no_student_personnel',
+  'no_burden', 'existing_personnel_cash', 'existing_cash_le_new',
+  'min_participation',
+  'equipment_review_threshold', 'material_notice_threshold', 'outsourcing_notice_threshold',
+]);
+export const ruleSeveritySchema = z.enum(['error', 'warn', 'info']);
+export const indirectBaseSchema = z.enum(['direct_cash_excl_intl_consign_burden', 'direct_cash_excl_intl']);
+
+export const budgetRuleRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  code: ruleCodeSchema,
+  enabled: z.boolean(),
+  value: z.number().nullable(),   // numeric — PostgREST가 JSON 숫자로 준다. 비율(%) 또는 원 단위 정수
+  base: indirectBaseSchema.nullable(),
+  severity: ruleSeveritySchema,
+  source: z.string(),
+  note: z.string(),
+});
+
 // ─── §5.13 risks ─────────────────────────────────────────────
 
 export const riskCategorySchema = z.enum(['technical', 'schedule', 'budget', 'resource', 'external', 'other']);
@@ -507,6 +533,7 @@ export type MemberRow = z.infer<typeof memberRowSchema>;
 export type BudgetItemRow = z.infer<typeof budgetItemRowSchema>;
 export type BudgetExecutionRow = z.infer<typeof budgetExecutionRowSchema>;
 export type BudgetDetailRow = z.infer<typeof budgetDetailRowSchema>;
+export type BudgetRuleRow = z.infer<typeof budgetRuleRowSchema>;
 export type RiskRow = z.infer<typeof riskRowSchema>;
 export type NoteRow = z.infer<typeof noteRowSchema>;
 export type TodoRow = z.infer<typeof todoRowSchema>;

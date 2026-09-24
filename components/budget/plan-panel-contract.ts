@@ -28,6 +28,11 @@ export interface BudgetPlanPanelProps {
   /** 표시 단위 (§5.16). 입력은 언제나 원 단위 정수다 (절대 규칙 4) */
   currencyUnit: Settings['currencyUnit'];
   /**
+   * §7.9 규칙 검증 패널의 행 단위 finding에서 열렸을 때 강조할 산출 행. 그 행이 이 셀에 없으면
+   * 패널이 그 사실을 화면에 남긴다 — 판정과 목록의 시점이 다를 수 있다 (절대 규칙 5)
+   */
+  highlightDetailId?: string | null;
+  /**
    * 행이 추가·수정·삭제·정렬되어 (연차 × 비목) 셀 합계가 바뀌었다 (PL-7·PL-10).
    * 부모는 router.refresh()로 매트릭스·지침 검증 줄을 다시 그린다.
    */

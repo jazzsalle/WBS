@@ -1,4 +1,5 @@
-// 예산 제안 — 산출근거 금액·집계·지침 검증 (SOT §6.10 PL-1~PL-15, §5.17).
+// 예산 제안 — 산출근거 금액·집계·지침 검증값 (SOT §6.10 PL-1~PL-13, §5.17).
+// 한도 판정(PL-14·PL-15, §6.14)은 lib/rules.ts다 — 여기는 값만 낸다.
 // 부수효과 없는 순수 함수다 — DB·네트워크·현재 시각을 쓰지 않는다.
 //
 // lib/budget.ts(§6.4 집행률)와 합치지 않는다 (§6.10.4). 방향이 반대이기 때문이다:
@@ -10,9 +11,9 @@
 // 단위 테스트: tests/unit/budget-plan.test.ts
 
 import { BUDGET_CATEGORY_ORDER, SUBCATEGORY_PRESETS } from './constants';
-import type { BudgetCategory, BudgetDetail, DetailAxis, DetailFactor, Member, Project } from '@/types';
+import type { BudgetCategory, BudgetDetail, DetailAxis, DetailFactor, IndirectBase, Member } from '@/types';
 
-// ─── 입력 (BudgetDetail·Member·Project를 그대로 대입할 수 있는 최소 형태) ─
+// ─── 입력 (BudgetDetail·Member를 그대로 대입할 수 있는 최소 형태) ─
 
 export type BudgetDetailInput = Pick<
   BudgetDetail,
@@ -24,8 +25,6 @@ export type BudgetDetailInput = Pick<
 
 /** 인건비 행의 단가 원본은 Member.annualSalary 하나뿐이다 (§5.11, §6.10.1) */
 export type MemberSalaryInput = Pick<Member, 'id' | 'annualSalary'>;
-
-export type BudgetRuleProject = Pick<Project, 'allowanceRateLimit' | 'indirectRateLimit'>;
 
 // ─── 출력 ────────────────────────────────────────────────────
 
@@ -252,7 +251,10 @@ export function aggregateDetails(
   return { rows, cells: orderedCells, total, negativeCount, missingSalaryCount };
 }
 
-// ─── §6.10.3 지침 검증 (PL-11~PL-15) ─────────────────────────
+// ─── §6.10.3 지침 검증 (PL-11~PL-13) ─────────────────────────
+//
+// 여기는 **값**만 낸다 — E1·비율·수정직접비. 한도와 비교해 위반을 가리는 일은 lib/rules.ts
+// (§6.14)가 한다. 한도가 Project 컬럼에서 과제별 규칙 행(§5.18)으로 옮겨졌기 때문이다(v4.5).
 
 /** 부록 A.5 `personnel` 비목의 연구지원인력인건비 세목 코드. 서식의 C열이다 */
 export const PERSONNEL_SUPPORT_SUBCATEGORY = 'personnel_support';
@@ -313,49 +315,36 @@ export function buildYearTotals(sources: readonly YearTotalSource[]): YearCatego
   return { byCategory, personnelSupportTotal };
 }
 
-export interface BudgetRuleEvaluation {
-  /** PL-11 수정인건비 E1 = (인건비 − 연구지원인력인건비) + 학생인건비. 현금 + 현물 */
-  modifiedPersonnel: number;
-  /** E1에서 빠진 연구지원인력인건비(C). 화면이 "왜 인건비 합계와 다른가"를 설명할 수 있어야 한다 */
-  personnelSupportTotal: number;
-  /** 연구수당 비목 합계 */
-  allowanceTotal: number;
-  /** PL-12: E1이 0이면 null — 0으로 나누지 않는다. 화면은 '—' */
-  allowanceRate: number | null;
-  allowanceLimit: number | null;
-  /** PL-14·PL-15: 한도가 null이면 비율만 내고 위반 판정은 하지 않는다 */
-  allowanceOver: boolean;
-  /** 간접비 비목 합계 */
-  indirectTotal: number;
-  /** PL-13 기준액 = 직접비 6비목의 현금 합계 */
-  indirectBase: number;
-  indirectRate: number | null;
-  indirectLimit: number | null;
-  indirectOver: boolean;
-  /** 직접비 소계 = 총액 − 간접비 */
-  directTotal: number;
-  /** 연구개발비 총액 = 전 비목 합계 */
-  grandTotal: number;
-}
-
-// PL-11: E1의 비목 쪽 재료. 여기서 personnel_support 세목 소계를 뺀 것이 E1이다
-const MODIFIED_PERSONNEL_CATEGORIES: readonly BudgetCategory[] = ['personnel', 'student_personnel'];
-
-// PL-13: 서식의 `* 간접비 비율4) (L/(N+O+P+D+R+S+T+U))`을 그대로 옮긴 것이다.
-// 국제공동연구개발비·위탁연구개발비·연구개발부담비·연구과제추진비·기타는 기준액에서 빠진다.
-//
-// ⚠ PL-11과의 비대칭은 의도된 것이다: 여기 `personnel`은 연구지원인력인건비(C)를 **포함한 채로**
-// 들어간다. 서식의 분모 `N+O+P+D+…`에서 P가 바로 C의 현금이기 때문이다.
-// E1은 C를 빼고 간접비 기준액은 C를 넣는다 — 규정이 실제로 다르다.
-// "일관성"을 이유로 한쪽에 맞추지 마라. 맞추는 순간 둘 중 하나는 서식과 어긋난다.
-const INDIRECT_BASE_CATEGORIES: readonly BudgetCategory[] = [
+/**
+ * 직접비 비목 — `indirect`를 뺀 11비목 전부 (§6.14 RL-3).
+ *
+ * Phase 9는 `personnel`·`student_personnel`·`facility_equipment`·`material`·`activity`·`allowance`
+ * 6비목만 더해 `promotion`·`other`의 현금이 간접비 분모에서 빠졌다. 과기부고시 제2조 9호의
+ * 수정직접비는 "직접비 중 현물·위탁·국제공동·부담비를 제외한 금액"이라 **전 직접비**가 출발점이다
+ * (PL-13 정정, v4.5). 부록 B.7은 두 비목이 0이라 0.9622%가 그대로다.
+ */
+export const DIRECT_CATEGORIES: readonly BudgetCategory[] = [
   'personnel',
   'student_personnel',
   'facility_equipment',
   'material',
   'activity',
   'allowance',
+  'international',
+  'consignment',
+  'burden',
+  'promotion',
+  'other',
 ];
+
+// PL-11: E1의 비목 쪽 재료. 여기서 personnel_support 세목 소계를 뺀 것이 E1이다
+const MODIFIED_PERSONNEL_CATEGORIES: readonly BudgetCategory[] = ['personnel', 'student_personnel'];
+
+// RL-3: base별로 직접비 현금 합에서 빼는 비목
+const EXCLUDED_BY_BASE: Record<IndirectBase, readonly BudgetCategory[]> = {
+  direct_cash_excl_intl_consign_burden: ['international', 'consignment', 'burden'],
+  direct_cash_excl_intl: ['international'],
+};
 
 function sumPlanned(totals: YearCategoryTotals, categories: readonly BudgetCategory[]): number {
   let sum = 0;
@@ -370,52 +359,104 @@ function sumCash(totals: YearCategoryTotals, categories: readonly BudgetCategory
 }
 
 /**
- * 지침 검증 (PL-11~PL-15). 계산이 아니라 **경고**이며 저장을 막지 않는다 (PL-15).
+ * PL-11 수정인건비 E1 = (인건비 − 연구지원인력인건비) + 학생인건비. 현금 + 현물.
  *
- * E1(PL-11)은 **세목 단위로** 연구지원인력인건비(C)를 뺀다:
- * `(personnel − personnel_support) + student_personnel`. 서식의 `수정인건비2) (E1=A+B+D)` 그대로다.
+ * **세목 단위로** 연구지원인력인건비(C)를 뺀다 — 서식의 `수정인건비2) (E1=A+B+D)` 그대로다.
  * 비목 단위로 더하면 C가 섞여 E1이 커지고, 분모가 커진 만큼 **연구수당 비율이 실제보다 작게 나와
  * 한도 초과를 놓친다.** 실측 서식은 C가 0이라 부록 B.7로는 드러나지 않는 오류다 —
  * 그래서 C > 0 회귀 테스트를 따로 둔다.
+ */
+export function modifiedPersonnel(yearTotals: YearCategoryTotals): number {
+  return sumPlanned(yearTotals, MODIFIED_PERSONNEL_CATEGORIES) - yearTotals.personnelSupportTotal;
+}
+
+/**
+ * PL-13·RL-3 수정직접비 = 직접비 11비목의 **현금** 합 − base별 제외 비목의 현금.
+ * 정의는 여기 한 곳뿐이다 — lib/rules.ts는 이 함수를 그대로 가져다 쓴다.
  *
- * 반대로 간접비 기준액(PL-13)은 C를 **뺀 적이 없다**(INDIRECT_BASE_CATEGORIES 주석 참고).
+ * ⚠ PL-11과의 비대칭은 의도된 것이다: `personnel`은 연구지원인력인건비(C)를 **포함한 채로** 들어간다.
+ * 서식의 분모 `N+O+P+D+…`에서 P가 바로 C의 현금이기 때문이다. E1은 C를 빼고 수정직접비는 C를 넣는다 —
+ * 규정이 실제로 다르다. "일관성"을 이유로 한쪽에 맞추지 마라. 맞추는 순간 둘 중 하나는 서식과 어긋난다.
+ */
+export function modifiedDirectCost(yearTotals: YearCategoryTotals, base: IndirectBase): number {
+  return sumCash(yearTotals, DIRECT_CATEGORIES) - sumCash(yearTotals, EXCLUDED_BY_BASE[base]);
+}
+
+/** 참여율 라벨. 부록 A.5 personnel 세목 5종의 기본 인자 이름이다 */
+export const PARTICIPATION_FACTOR_LABEL = '참여율(%)';
+
+/**
+ * 인건비 행의 참여율(%). §6.14 RL-16이 인자 의미를 다시 정하지 않도록 여기서 한 번만 읽는다.
+ *
+ * 라벨이 '참여율(%)'인 `isPercent` 인자를 우선하고, 없으면 첫 `isPercent` 인자를 쓴다 —
+ * multiplyFactors가 라벨이 아니라 `isPercent`로 참여율을 고르기 때문에(PL-1) 금액 계산과 같은
+ * 인자를 봐야 한다. 백분율 인자가 하나도 없으면 100이다: PL-1에서 인자가 없는 행은 연봉 전액
+ * (= 참여율 100%)이므로, 금액이 말하는 것과 같은 값을 돌려준다.
+ */
+export function personnelParticipation(detail: { factors: readonly DetailFactor[] }): number {
+  const labelled = detail.factors.find((f) => f.isPercent && f.label === PARTICIPATION_FACTOR_LABEL);
+  const factor = labelled ?? detail.factors.find((f) => f.isPercent);
+  return factor ? factor.value : 100;
+}
+
+export interface BudgetRuleEvaluation {
+  /** PL-11 수정인건비 E1 = (인건비 − 연구지원인력인건비) + 학생인건비. 현금 + 현물 */
+  modifiedPersonnel: number;
+  /** E1에서 빠진 연구지원인력인건비(C). 화면이 "왜 인건비 합계와 다른가"를 설명할 수 있어야 한다 */
+  personnelSupportTotal: number;
+  /** 연구수당 비목 합계 */
+  allowanceTotal: number;
+  /** PL-12: E1이 0이면 null — 0으로 나누지 않는다. 화면은 '—' */
+  allowanceRate: number | null;
+  /** 간접비 비목 합계 */
+  indirectTotal: number;
+  /** 어느 정의로 수정직접비를 냈는가 (RL-3). 화면이 분모 이름을 함께 보여 준다 */
+  indirectBase: IndirectBase;
+  /** PL-13 수정직접비(금액) = 직접비 11비목 현금 합 − base별 제외 */
+  modifiedDirectCost: number;
+  /** PL-13: 수정직접비가 0이면 null */
+  indirectRate: number | null;
+  /** 직접비 소계 = 총액 − 간접비 */
+  directTotal: number;
+  /** 연구개발비 총액 = 전 비목 합계 */
+  grandTotal: number;
+}
+
+/**
+ * 지침 검증의 **값** (PL-11~PL-13). 한도 판정은 하지 않는다 — lib/rules.ts `evaluateRules`가
+ * 규칙 행(§5.18)을 받아서 한다. 여기서 한도를 알면 Project 컬럼 시절처럼 산식과 규제값이 한 곳에
+ * 섞인다.
+ *
+ * @param indirectBase 수정직접비 정의. 과제의 `indirect_max` 규칙 행이 고르고, 행이 없으면 호출부가
+ *   `DEFAULT_INDIRECT_BASE`(lib/rules.ts)를 넘긴다 — 비율은 규칙이 없어도 보여 준다(§6.14.6).
  */
 export function evaluateBudgetRules(
   yearTotals: YearCategoryTotals,
-  project: BudgetRuleProject
+  indirectBase: IndirectBase
 ): BudgetRuleEvaluation {
-  // PL-11: 비목 합계에서 personnel_support 세목 소계(C)를 뺀다
   const personnelSupportTotal = yearTotals.personnelSupportTotal;
-  const modifiedPersonnel =
-    sumPlanned(yearTotals, MODIFIED_PERSONNEL_CATEGORIES) - personnelSupportTotal;
+  const e1 = modifiedPersonnel(yearTotals);
 
   const allowanceTotal = yearTotals.byCategory.allowance?.plannedAmount ?? 0;
   const indirectTotal = yearTotals.byCategory.indirect?.plannedAmount ?? 0;
-  // PL-13: 여기서는 C를 빼지 않는다 (서식 분모의 P가 C의 현금이다)
-  const indirectBase = sumCash(yearTotals, INDIRECT_BASE_CATEGORIES);
+  const directCost = modifiedDirectCost(yearTotals, indirectBase);
 
   // P-8: 비율은 여기서 반올림하지 않는다. 부록 B.7.3의 0.9622%는 표시 시점의 반올림 결과다
-  const allowanceRate = modifiedPersonnel === 0 ? null : (allowanceTotal / modifiedPersonnel) * 100;
-  const indirectRate = indirectBase === 0 ? null : (indirectTotal / indirectBase) * 100;
-
-  const allowanceLimit = project.allowanceRateLimit;
-  const indirectLimit = project.indirectRateLimit;
+  const allowanceRate = e1 === 0 ? null : (allowanceTotal / e1) * 100;
+  const indirectRate = directCost === 0 ? null : (indirectTotal / directCost) * 100;
 
   let grandTotal = 0;
   for (const amounts of Object.values(yearTotals.byCategory)) grandTotal += amounts.plannedAmount;
 
   return {
-    modifiedPersonnel,
+    modifiedPersonnel: e1,
     personnelSupportTotal,
     allowanceTotal,
     allowanceRate,
-    allowanceLimit,
-    allowanceOver: allowanceLimit !== null && allowanceRate !== null && allowanceRate > allowanceLimit,
     indirectTotal,
     indirectBase,
+    modifiedDirectCost: directCost,
     indirectRate,
-    indirectLimit,
-    indirectOver: indirectLimit !== null && indirectRate !== null && indirectRate > indirectLimit,
     directTotal: grandTotal - indirectTotal,
     grandTotal,
   };

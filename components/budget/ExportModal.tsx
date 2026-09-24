@@ -6,21 +6,23 @@
 //  - 템플릿은 둘 이상일 때만 고른다. 하나뿐이면 묻지 않는다 (X-3)
 //  - **blockers가 있으면 내보내기를 막고** 무엇이 몇 행 넘쳤는지 그대로 보여 준다 (X-5).
 //    조용히 자르면 잘린 예산이 그대로 제출된다
-//  - **notices는 막지 않는다**: 음수 금액(PL-5)·연봉 미입력(D-8a)·지침 한도 초과(PL-12·PL-13)가
-//    있어도 내보낼 수 있어야 한다 — 협의 중인 계획을 내보내는 것이 정상 사용이다(PL-15와 같은 태도).
-//    그래서 **접어 숨기지 않는다.** 보지 않고 지나간 경고는 없는 경고와 같다
+//  - **notices는 막지 않는다**: 음수 금액(PL-5)·연봉 미입력(D-8a)·연구비 사용 규칙 위반(§6.14)이
+//    있어도 내보낼 수 있어야 한다 — 협의 중인 계획을 내보내는 것이 정상 사용이다(RL-1·PL-15).
+//    규칙 finding은 severity가 error여도 경고다. 그래서 **접어 숨기지 않는다.** 보지 않고 지나간
+//    경고는 없는 경고와 같다
 //  - 내보내기는 읽기 전용이다 (X-11) — 앱 데이터를 한 줄도 바꾸지 않고 스냅샷도 남기지 않는다
 //
 // 판정(넘침·경고·행 수·합계·파일명)은 전부 서버(actions/export → lib/export)가 내린 값이다.
 // 화면이 다시 계산하지 않는다 — 같은 규칙이 두 곳에 생기면 반드시 어긋난다 (O-4).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Settings, Year } from '@/types';
+import type { RuleSeverity, Settings, Year } from '@/types';
+import { INDIRECT_BASE_LABELS } from '@/lib/constants';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import type { ExportBlocker, ExportNotice, ExportPreview } from '@/actions/export';
 import { exportSubmissionWorkbook, previewSubmissionExport } from '@/actions/export';
 import { formatAmount } from '@/lib/currency';
-import Badge from '@/components/ui/Badge';
+import Badge, { type BadgeTone } from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import Modal from '@/components/ui/Modal';
@@ -37,9 +39,13 @@ const NOTICE_KIND_LABELS: Record<ExportNotice['kind'], string> = {
   'skipped-row': '건너뛴 행',
   'negative-amount': '음수 금액',
   'missing-salary': '연봉 미입력',
-  'rule-violation': '지침 한도 초과',
+  'rule-finding': '연구비 사용 규칙',
   'truncated-factor': '인자 잘림',
 };
+
+// RL-1: severity는 색만 정한다. 부록 E 시맨틱 — error red · warn orange(amber 톤) · info blue
+const SEVERITY_TONES: Record<RuleSeverity, BadgeTone> = { error: 'red', warn: 'amber', info: 'blue' };
+const SEVERITY_LABELS: Record<RuleSeverity, string> = { error: '위반', warn: '주의', info: '권고' };
 
 interface Failure {
   message: string;
@@ -325,6 +331,22 @@ export default function ExportModal({ projectId, years, currencyUnit, onClose }:
                           <span className="font-semibold">
                             [{NOTICE_KIND_LABELS[notice.kind]}] {notice.label}
                           </span>
+                          {notice.kind === 'rule-finding' && (
+                            <>
+                              <Badge tone={SEVERITY_TONES[notice.severity]} className="ml-1">
+                                {SEVERITY_LABELS[notice.severity]}
+                              </Badge>
+                              {notice.approximate && (
+                                <Badge
+                                  tone="neutral"
+                                  className="ml-1"
+                                  title="가정이 들어간 판정입니다 (RL-7·RL-9)"
+                                >
+                                  근사
+                                </Badge>
+                              )}
+                            </>
+                          )}
                           <span className="ml-1">— {notice.detail}</span>
                         </li>
                       ))}
@@ -334,7 +356,8 @@ export default function ExportModal({ projectId, years, currencyUnit, onClose }:
 
                 <p className="text-[11px] text-grey-400">
                   화면 금액은 표시 단위({currencyUnit})로 환산한 값이고, 파일에는 언제나 원 단위
-                  정수가 들어갑니다 (X-6). 내보내기는 앱의 데이터를 바꾸지 않습니다 (X-11).
+                  정수가 들어갑니다 (X-6). 총괄표의 간접비 비율은 수정직접비 = {INDIRECT_BASE_LABELS[preview.indirectBase]}
+                  기준입니다 (PL-13). 내보내기는 앱의 데이터를 바꾸지 않습니다 (X-11).
                 </p>
               </>
             )}

@@ -40,6 +40,7 @@ import { aggregateDetails } from '@/lib/budget-plan';
 import { detectBlocks, detectSections, parseDetailRows } from '@/lib/import/detail-sheet';
 import type { DetailDraftRow, FileSubtotal } from '@/lib/import/detail-sheet';
 import type { DetailAxis } from '@/types';
+import { DEFAULT_INDIRECT_BASE } from '@/lib/rules';
 
 const entry = findTemplate(DEFAULT_TEMPLATE_ID);
 if (!entry) throw new Error('표준 템플릿을 찾지 못했다');
@@ -197,6 +198,7 @@ const plan: ExportPlanData = {
   details: [...PERSONNEL.map((row, index) => personnelRow(row, index)), ...QUANTITY],
   members: MEMBERS,
   years: [{ id: YEAR_1, order: 0, name: '1차년도' }],
+  indirectBase: DEFAULT_INDIRECT_BASE,
 };
 
 // ─── 앱 → 파일 (한 번만 만든다) ───────────────────────────────────────────────

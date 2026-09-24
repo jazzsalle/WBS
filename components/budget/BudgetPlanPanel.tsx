@@ -75,6 +75,7 @@ export default function BudgetPlanPanel({
   yearName,
   categoryLabel,
   currencyUnit,
+  highlightDetailId = null,
   onSaved,
   onBusyChange,
   onClose,
@@ -244,6 +245,13 @@ export default function BudgetPlanPanel({
 
   const total = data?.total ?? null;
 
+  // 규칙 검증 패널이 가리킨 행이 목록에 없다 — 판정(getBudgetPlanData)과 이 목록(getBudgetDetails)은
+  // 다른 조회라 사이에 행이 지워졌거나 비목이 달랐을 수 있다. 강조 없이 조용히 열지 않는다
+  const highlightMissing =
+    highlightDetailId !== null &&
+    data !== null &&
+    !data.rows.some((row) => row.detail.id === highlightDetailId);
+
   return (
     <aside
       aria-label={`${yearName} ${categoryLabel} 산출근거`}
@@ -306,6 +314,16 @@ export default function BudgetPlanPanel({
             </div>
           )}
 
+          {highlightMissing && (
+            <p
+              role="status"
+              className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800"
+            >
+              규칙 검증에서 가리킨 산출 행을 이 셀에서 찾지 못했습니다. 행이 지워졌거나 판정 결과가 옛
+              데이터일 수 있습니다 — 화면을 새로고침하면 판정이 다시 계산됩니다.
+            </p>
+          )}
+
           {unknownCodes.length > 0 && (
             <ErrorBanner
               code="RULE"
@@ -326,6 +344,7 @@ export default function BudgetPlanPanel({
                 busy={busy}
                 drag={drag}
                 dropTarget={dropTarget}
+                highlightDetailId={highlightDetailId}
                 onAdd={(memberId) => handleAdd(def, memberId)}
                 onSaveRow={handleSaveRow}
                 onDeleteRow={setDeleting}
@@ -355,6 +374,7 @@ export default function BudgetPlanPanel({
                   busy={busy}
                   drag={drag}
                   dropTarget={dropTarget}
+                  highlightDetailId={highlightDetailId}
                   // 프리셋에 없는 세목에 행을 더 만들 수는 없다 (PL-D4가 서버에서 거부한다)
                   onAdd={null}
                   onSaveRow={handleSaveRow}
@@ -466,6 +486,8 @@ interface SubcategorySectionProps {
   busy: boolean;
   drag: DragState | null;
   dropTarget: { id: string; position: DropPosition } | null;
+  /** 규칙 검증 패널에서 넘어온 강조 행 (plan-panel-contract.ts) */
+  highlightDetailId: string | null;
   /** null이면 행을 추가할 수 없는 세목이다 (프리셋 밖) */
   onAdd: ((memberId: string | null) => void) | null;
   onSaveRow: (detail: BudgetDetail, patch: DetailRowPatch, expectedVersion: number) => void;
@@ -486,6 +508,7 @@ function SubcategorySection({
   busy,
   drag,
   dropTarget,
+  highlightDetailId,
   onAdd,
   onSaveRow,
   onDeleteRow,
@@ -559,6 +582,7 @@ function SubcategorySection({
                   busy={busy}
                   dragEnabled={rows.length > 1 && !busy}
                   dragging={drag?.id === row.detail.id}
+                  highlighted={row.detail.id === highlightDetailId}
                   dropPosition={
                     dragInSection && dropTarget?.id === row.detail.id ? dropTarget.position : null
                   }

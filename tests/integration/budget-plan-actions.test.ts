@@ -14,6 +14,8 @@
 //  5. PL-9        — 잠긴 셀의 계획액 직접 편집은 RULE로 거부되고, 마지막 행을 지우면
 //                   잠금만 풀리고 직전 합계가 남는다.
 //  6. O-1         — 낡은 expectedVersion은 STALE + "OO님이 먼저 수정했습니다"(O-3).
+//  7. §6.14       — 한도는 과제별 규칙 행(actions/budget-rules.ts)이 갖고, getBudgetPlanData가
+//                   읽을 때 판정한다. 규칙 행을 끄면 검사는 사라지고 비율은 남는다.
 //
 // 자기가 만든 과제·사용자만 지운다 — 파괴적 테스트가 아니다.
 
@@ -35,6 +37,7 @@ vi.mock('next/cache', () => ({ revalidatePath: () => undefined }));
 
 const plan = await import('@/actions/budget-plan');
 const budget = await import('@/actions/budget');
+const rules = await import('@/actions/budget-rules');
 
 let sql: Sql;
 let user: TestUser;
@@ -651,14 +654,18 @@ describe('getBudgetDetails (§7.9.2 산출근거 패널)', () => {
   });
 });
 
-describe('지침 검증 (PL-11~PL-14) + setBudgetRateLimits', () => {
+describe('지침 검증 값 (PL-11~PL-13) + 규칙 판정 (§6.14, PL-14·PL-15)', () => {
   const createdIds: string[] = [];
+  // RL-D5: 출처 없는 한도는 받지 않는다 — 테스트 한도에도 출처를 적는다
+  const SOURCE = '공고 2026-01 (액션 테스트)';
 
   afterAll(async () => {
     for (const id of createdIds) unwrap(await plan.deleteBudgetDetail(id));
+    // 규칙은 과제 cascade로 지워지지만, 뒤 describe의 조회가 이 판정에 물들지 않게 여기서 지운다
+    unwrap(await rules.deleteBudgetRule(projectId, 'allowance_max'));
   });
 
-  it('E1은 연구지원인력인건비(C)를 세목 단위로 빼고, 간접비 기준액은 넣는다', async () => {
+  it('E1은 연구지원인력인건비(C)를 세목 단위로 빼고, 수정직접비는 넣는다 — 한도는 규칙 행이 판정한다', async () => {
     // 2차년도에만 편성해 1차년도 테스트와 섞이지 않게 한다
     for (const [subcategory, member, rate] of [
       ['personnel_internal', memberId, 100],
@@ -678,48 +685,82 @@ describe('지침 검증 (PL-11~PL-14) + setBudgetRateLimits', () => {
 
     // 연구수당은 산출근거 없이 직접 편성한다 — 잠기지 않은 셀이므로 PL-9에 걸리지 않는다
     unwrap(await budget.updateBudgetPlan(year2Id, 'allowance', 20_000_000, 20_000_000, 0));
-    unwrap(await plan.setBudgetRateLimits(projectId, { allowanceRateLimit: 20 }));
+    // PL-14: 한도는 과제별 규칙 행이다 (§5.18). 행이 없으면 insert, 있으면 update
+    const rule = unwrap(
+      await rules.upsertBudgetRule(projectId, 'allowance_max', {
+        value: 20,
+        severity: 'error',
+        source: SOURCE,
+      })
+    );
+    expect(rule).toMatchObject({ projectId, code: 'allowance_max', enabled: true, value: 20, note: '', version: 1 });
 
     const data = unwrap(await plan.getBudgetPlanData(projectId));
-    const rules = data.yearRules.find((y) => y.yearId === year2Id)?.rules;
-    if (!rules) throw new Error('2차년도 지침 검증 결과가 없습니다.');
+    const values = data.yearRules.find((y) => y.yearId === year2Id)?.rules;
+    if (!values) throw new Error('2차년도 지침 검증 결과가 없습니다.');
 
     // PL-11: E1 = (79,000,000 − 5,000,000) + 0 = 74,000,000
-    expect(rules.personnelSupportTotal).toBe(5_000_000);
-    expect(rules.modifiedPersonnel).toBe(74_000_000);
-    // PL-12: 20,000,000 / 74,000,000 × 100 ≈ 27.03% > 20% → 경고
-    expect(rules.allowanceRate).toBeCloseTo(27.027, 3);
-    expect(rules.allowanceLimit).toBe(20);
-    expect(rules.allowanceOver).toBe(true);
-    // PL-13: 기준액은 C를 포함한다 — 79,000,000 + 20,000,000 = 99,000,000
-    expect(rules.indirectBase).toBe(99_000_000);
-    expect(rules.indirectTotal).toBe(0);
-    expect(rules.indirectRate).toBe(0);
-    // PL-14·PL-15: 한도가 null이면 비율만 내고 위반 판정은 하지 않는다
-    expect(rules.indirectLimit).toBeNull();
-    expect(rules.indirectOver).toBe(false);
-    expect(data.allowanceRateLimit).toBe(20);
-    expect(data.indirectRateLimit).toBeNull();
+    expect(values.personnelSupportTotal).toBe(5_000_000);
+    expect(values.modifiedPersonnel).toBe(74_000_000);
+    // PL-12: 20,000,000 / 74,000,000 × 100 ≈ 27.03%
+    expect(values.allowanceRate).toBeCloseTo(27.027, 3);
+    // PL-13: 수정직접비는 C를 포함한 직접비 현금 합 — 79,000,000 + 20,000,000 = 99,000,000.
+    // indirect_max 행이 없으므로 기본 분모(과기부 공통)로 낸다 (§7.9)
+    expect(values.indirectBase).toBe('direct_cash_excl_intl_consign_burden');
+    expect(values.modifiedDirectCost).toBe(99_000_000);
+    expect(values.indirectTotal).toBe(0);
+    expect(values.indirectRate).toBe(0);
+
+    // §6.14 RL-4: 27.03% > 20 → 연차 단위 error finding. 메시지 끝에 출처가 붙는다
+    const finding = data.ruleEvaluation.findings.find(
+      (f) => f.code === 'allowance_max' && f.scope.kind === 'year' && f.scope.yearId === year2Id
+    );
+    if (!finding) throw new Error('allowance_max 판정이 없습니다.');
+    expect(finding).toMatchObject({ severity: 'error', limit: 20, approximate: false });
+    expect(finding.actual).toBeCloseTo(27.027, 3);
+    expect(finding.message).toContain(SOURCE);
+
+    // ratios는 통과 여부와 무관하게 실린다. indirect_max는 행이 없어 enabled=false·limit=null이지만 비율은 있다
+    expect(data.ruleEvaluation.ratios.allowance_max.find((r) => r.yearId === year2Id)).toMatchObject({
+      limit: 20,
+      enabled: true,
+      numerator: 20_000_000,
+      denominator: 74_000_000,
+    });
+    expect(data.ruleEvaluation.ratios.indirect_max.find((r) => r.yearId === year2Id)).toMatchObject({
+      actual: 0,
+      limit: null,
+      enabled: false,
+      denominator: 99_000_000,
+    });
+    expect(data.ruleEvaluation.findings.some((f) => f.code === 'indirect_max')).toBe(false);
+    expect(data.rules.map((r) => r.code)).toEqual(['allowance_max']);
   });
 
-  it('한도율은 0~100 백분율만 받는다 (PL-14)', async () => {
-    expectCode(await plan.setBudgetRateLimits(projectId, { indirectRateLimit: -1 }), 'VALIDATION');
-    expectCode(await plan.setBudgetRateLimits(projectId, { indirectRateLimit: 101 }), 'VALIDATION');
+  it('값은 0~100 백분율만 받고(RL-D2), 행을 끄면 검사가 사라지되 비율은 남는다 (PL-14·PL-15)', async () => {
+    expectCode(await rules.upsertBudgetRule(projectId, 'allowance_max', { value: -1 }), 'VALIDATION');
+    expectCode(await rules.upsertBudgetRule(projectId, 'allowance_max', { value: 101 }), 'VALIDATION');
 
-    const project = unwrap(await plan.setBudgetRateLimits(projectId, { indirectRateLimit: 17.5 }));
-    expect(project.indirectRateLimit).toBe(17.5);
+    const current = unwrap(await rules.listBudgetRules(projectId)).find((r) => r.code === 'allowance_max');
+    if (!current) throw new Error('allowance_max 행이 없습니다.');
+    expect(current.value).toBe(20); // 거부된 값은 저장되지 않았다
 
-    // O-1: 낡은 expectedVersion은 STALE
-    expectCode(
-      await plan.setBudgetRateLimits(projectId, { indirectRateLimit: 20 }, project.version - 1),
+    // O-1: 낡은 expectedVersion은 STALE + "OO님이 먼저 수정했습니다" (O-3)
+    const stale = expectCode(
+      await rules.upsertBudgetRule(projectId, 'allowance_max', { enabled: false }, current.version - 1),
       'STALE'
     );
+    expect(stale).toContain('먼저 수정했습니다');
 
-    // null은 "검사하지 않는다"는 뜻이라 0과 구분해 저장된다 (PL-15)
-    const cleared = unwrap(
-      await plan.setBudgetRateLimits(projectId, { indirectRateLimit: null }, project.version)
-    );
-    expect(cleared.indirectRateLimit).toBeNull();
+    unwrap(await rules.upsertBudgetRule(projectId, 'allowance_max', { enabled: false }, current.version));
+
+    const data = unwrap(await plan.getBudgetPlanData(projectId));
+    expect(data.ruleEvaluation.findings.some((f) => f.code === 'allowance_max')).toBe(false);
+    const ratio = data.ruleEvaluation.ratios.allowance_max.find((r) => r.yearId === year2Id);
+    expect(ratio).toMatchObject({ enabled: false, limit: 20 });
+    expect(ratio?.actual).toBeCloseTo(27.027, 3);
+    // 지침 검증 값은 규칙과 무관하다 — 끈다고 비율이 사라지지 않는다
+    expect(data.yearRules.find((y) => y.yearId === year2Id)?.rules.allowanceRate).toBeCloseTo(27.027, 3);
   });
 });
 

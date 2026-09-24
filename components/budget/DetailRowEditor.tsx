@@ -14,7 +14,7 @@
 //
 // 쓰기는 부모(BudgetPlanPanel)가 actions/budget-plan.ts로 보낸다. 여기서는 값만 만든다.
 
-import { useEffect, useState, type DragEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import Link from 'next/link';
 import type { BudgetDetail, DetailAxis, DetailFactor, Member, Settings } from '@/types';
 import type { DetailAmountResult } from '@/lib/budget-plan';
@@ -127,6 +127,8 @@ export interface DetailRowEditorProps {
   dragEnabled: boolean;
   dragging: boolean;
   dropPosition: DropPosition | null;
+  /** §7.9 규칙 검증 패널의 행 단위 finding에서 넘어온 행. 열릴 때 한 번 끌어오고 파란 띠를 건다 */
+  highlighted?: boolean;
   onSave: (patch: DetailRowPatch, expectedVersion: number) => void;
   onDelete: () => void;
   onDragStart: () => void;
@@ -157,6 +159,7 @@ export default function DetailRowEditor({
   dragEnabled,
   dragging,
   dropPosition,
+  highlighted = false,
   onSave,
   onDelete,
   onDragStart,
@@ -165,6 +168,13 @@ export default function DetailRowEditor({
   onDropRow,
 }: DetailRowEditorProps) {
   const isPersonnel = detail.formula === 'personnel';
+
+  // 규칙 검증 패널에서 넘어오면 세목 표가 화면 밖에 있을 수 있다 — 강조가 시작될 때 한 번 끌어온다
+  const rowRef = useRef<HTMLTableRowElement | null>(null);
+  useEffect(() => {
+    if (!highlighted) return;
+    rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlighted]);
 
   const [axis, setAxis] = useState<DetailAxis>(detail.axis);
   const [memberId, setMemberId] = useState(detail.memberId ?? '');
@@ -332,13 +342,16 @@ export default function DetailRowEditor({
   };
 
   const disabled = busy;
+  // 음수(PL-5)가 강조보다 우선한다 — 규칙이 가리킨 행이 동시에 음수면 음수가 더 급한 문제다
   const rowTone = computed.negative
     ? 'bg-red-50'
     : dragging
       ? 'opacity-40'
-      : dirty
-        ? 'bg-orange-50/60'
-        : '';
+      : highlighted
+        ? 'bg-blue-50 shadow-[inset_3px_0_0_0_#3182f6]'
+        : dirty
+          ? 'bg-orange-50/60'
+          : '';
 
   const messages: { tone: 'red' | 'amber'; text: string }[] = [];
   if (!built.ok) messages.push({ tone: 'red', text: built.message });
@@ -359,6 +372,7 @@ export default function DetailRowEditor({
   return (
     <>
       <tr
+        ref={rowRef}
         // 세목을 넘는 이동은 없다 (§7.9.2) — 어느 세목의 드래그인지는 부모가 판정한다
         onDragOver={(e) => {
           if (!dragEnabled) return;

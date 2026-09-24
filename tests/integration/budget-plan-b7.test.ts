@@ -17,6 +17,9 @@
 //              있다는 설계가 실제로 성립하는지 본다.
 //  5. 부록 B.6 등가 — 같은 연차를 총괄표 임포트로 넣어도 총액 298,510,000과 지침 검증 결과가
 //              같다. 두 경로가 어긋나면 어느 한쪽이 틀린 것이다(부록 B.7 말미).
+//  6. Phase 13 — 같은 시드에 `moe_energy_sme` 프리셋을 적용하면 부록 B.9.1의 판정이 나오고
+//              (allowance_min info · indirect_max 0.9622%), 행을 끄면 검사는 사라지되 비율은 남는다.
+//              규칙이 0건일 때 Phase 9의 비율(0.00% / 0.9622%)이 그대로인 것도 여기서 고정한다.
 //
 // 서버 액션은 쿠키 세션(requireApprovedUser)에서 토큰을 읽으므로 next/headers를 실제 세션
 // 토큰을 돌려주는 스텁으로 바꾼다 (budget-plan-actions.test.ts와 같은 방식).
@@ -35,6 +38,8 @@ import * as budgetDetailsRepo from '@/lib/db/budget-details';
 import * as importSnapshots from '@/lib/db/import-snapshots';
 import type { ImportCommitRow } from '@/lib/db/import-snapshots';
 import { aggregateDetails } from '@/lib/budget-plan';
+import { DEFAULT_INDIRECT_BASE, RATIO_CODES } from '@/lib/rules';
+import { RULE_PRESETS } from '@/lib/rules-presets';
 
 const session = vi.hoisted(() => ({ accessToken: '' }));
 
@@ -44,6 +49,7 @@ vi.mock('next/headers', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: () => undefined }));
 
 const plan = await import('@/actions/budget-plan');
+const rulesActions = await import('@/actions/budget-rules');
 
 // ─── 부록 B.7.1 인건비 (기존인력 18행 + 신규채용1) ────────────
 //
@@ -180,7 +186,7 @@ const B72_INDIRECT_CASH = 2_000_000;
 const B73 = {
   modifiedPersonnel: 269_490_000, // PL-11 E1 = 인건비 + 학생인건비(0)
   allowanceRate: '0.00', // PL-12 = 0 / 269,490,000
-  indirectBase: 207_860_000, // PL-13 = 인건비현금 180,840,000 + 활동비현금 27,020,000
+  modifiedDirectCost: 207_860_000, // PL-13 = 인건비현금 180,840,000 + 활동비현금 27,020,000
   indirectRate: '0.9622', // PL-13 = 2,000,000 / 207,860,000 (서식 셀과 소수 4자리 일치)
   directTotal: 296_510_000,
   grandTotal: 298_510_000,
@@ -494,9 +500,10 @@ describe('부록 B.7.3 — 지침 검증 (PL-11~PL-13)', () => {
     expect(rules.allowanceRate).not.toBeNull();
     expect(rules.allowanceRate!.toFixed(2)).toBe(B73.allowanceRate);
 
-    // PL-13: 기준액은 직접비 6비목의 **현금** 합계다 (간접비 자신은 빠진다)
+    // PL-13: 수정직접비는 직접비 11비목의 **현금** 합계다 (간접비 자신은 빠진다). 이 서식은
+    // promotion·other·위탁·국제공동·부담비가 0이라 어느 base로 계산해도 같은 값이다
     expect(rules.indirectTotal).toBe(B72_INDIRECT_CASH);
-    expect(rules.indirectBase).toBe(B73.indirectBase);
+    expect(rules.modifiedDirectCost).toBe(B73.modifiedDirectCost);
     // 서식의 `* 간접비 비율4)` 셀과 소수 4자리까지 일치해야 한다
     expect(rules.indirectRate).not.toBeNull();
     expect(rules.indirectRate!.toFixed(4)).toBe(B73.indirectRate);
@@ -505,14 +512,8 @@ describe('부록 B.7.3 — 지침 검증 (PL-11~PL-13)', () => {
     expect(rules.grandTotal).toBe(B73.grandTotal);
   });
 
-  it('한도가 없으면 비율만 내고 위반 판정은 하지 않는다 (PL-14·PL-15)', async () => {
-    const rules = await yearRules(planYearId);
-    // 간접비 고시율은 부처·기관 유형마다 달라 기본값을 두지 않는다 (PL-16)
-    expect(rules.indirectLimit).toBeNull();
-    expect(rules.indirectOver).toBe(false);
-    // 연구수당 20%는 혁신법 공통이라 기본값이 있고, 0.00%는 그 아래다
-    expect(rules.allowanceOver).toBe(false);
-  });
+  // 한도 판정(PL-14·PL-15)은 Phase 13에서 lib/rules.ts로 옮겨졌다 — 같은 B.7 수치에 프리셋을 적용한
+  // 판정은 tests/unit/rules.test.ts(부록 B.9.1)가 고정한다
 });
 
 // ─── 4) PL-10a — TS 산식과 DB 저장값의 등가 ──────────────────
@@ -605,5 +606,122 @@ describe('부록 B.6 등가 — 임포트로 넣든 산출근거로 쌓든 같�
     // 총괄표의 간접비 행에는 현금/현물 구분이 없다 — 0으로 때우지 않고 비중을 막는다
     expect(importAxis.unspecified).toBe(B72_INDIRECT_CASH);
     expect(importAxis.shareBlockedBy).toBe('unspecified');
+  });
+});
+
+// ─── 6) Phase 13 — 규칙 판정 (§6.14, 부록 B.9.1) ─────────────
+//
+// 부록 B.7.1의 hireType이 실제 값이므로(기존인력 18명 중 현금 15행, 신규채용 1행) RL-14·RL-15도
+// 여기서 결정적으로 나온다. 과제 총액 3종은 비워 두어 RL-8·RL-9는 skipped로 남는다(B.9.4).
+
+const B71_EXISTING_CASH_ROWS = B71_ROWS.filter((r) => r.hireType === 'existing' && r.axis === 'cash').length;
+const B71_NEW_TOTAL = B71_ROWS.filter((r) => r.hireType === 'new').reduce((acc, r) => acc + r.expected, 0);
+
+describe('Phase 13 — 부록 B.7 시드에 moe_energy_sme 프리셋 적용 (§6.14, 부록 B.9.1)', () => {
+  // 순서가 있다: 규칙 0건 → 프리셋 적용 → 값 조정 → 끄기. it 블록은 파일 순서대로 돈다
+
+  it('규칙 0건: findings·skipped 없음, ratios 7종은 실리고, Phase 9 비율(0.00% / 0.9622%)은 그대로다', async () => {
+    const data = unwrap(await plan.getBudgetPlanData(projectId));
+    expect(data.rules).toEqual([]);
+    expect(data.ruleEvaluation.findings).toEqual([]);
+    expect(data.ruleEvaluation.skipped).toEqual([]);
+    expect(Object.keys(data.ruleEvaluation.ratios).sort()).toEqual([...RATIO_CODES].sort());
+
+    // 행이 없어도 비율은 기본 분모(과기부 공통)로 나온다 — enabled=false는 "판정 안 함"이지 0이 아니다
+    const indirect = data.ruleEvaluation.ratios.indirect_max.find((r) => r.yearId === planYearId);
+    expect(indirect).toMatchObject({ enabled: false, limit: null, numerator: 2_000_000, denominator: B73.modifiedDirectCost });
+    expect(indirect?.actual?.toFixed(4)).toBe(B73.indirectRate);
+
+    const values = await yearRules(planYearId);
+    expect(values.indirectBase).toBe(DEFAULT_INDIRECT_BASE);
+    expect(values.allowanceRate?.toFixed(2)).toBe(B73.allowanceRate);
+    expect(values.indirectRate?.toFixed(4)).toBe(B73.indirectRate);
+  });
+
+  it('프리셋 적용 → allowance_min info 1건(연차당), indirect_max 0.9622% (base=direct_cash_excl_intl), RL-14·15는 실측대로', async () => {
+    const preset = RULE_PRESETS.moe_energy_sme;
+    expect(unwrap(await rulesActions.applyRulePreset(projectId, 'moe_energy_sme', 'fill'))).toEqual({
+      added: preset.rules.length,
+      updated: 0,
+      kept: 0,
+    });
+
+    const data = unwrap(await plan.getBudgetPlanData(projectId));
+    expect(data.rules).toHaveLength(preset.rules.length);
+    const { findings, ratios, skipped } = data.ruleEvaluation;
+
+    // RL-5: 연구수당 0 / E1 → 권고 하한 미만 info. 산출근거 연차·임포트 연차 각각 1건(연차 단위, RL-2)
+    const allowanceMin = findings.filter((f) => f.code === 'allowance_min');
+    expect(allowanceMin.filter((f) => f.scope.kind === 'year' && f.scope.yearId === planYearId)).toHaveLength(1);
+    expect(allowanceMin).toHaveLength(2);
+    expect(allowanceMin[0]).toMatchObject({ severity: 'info', actual: 0, limit: 10, approximate: false });
+
+    // RL-3: 기후부 분모(직접비 현금 − 국제공동)라도 이 서식에서는 같은 207,860,000 — 0.9622% 통과
+    const indirect = ratios.indirect_max.find((r) => r.yearId === planYearId);
+    expect(indirect).toMatchObject({ enabled: true, limit: 10, numerator: 2_000_000, denominator: B73.modifiedDirectCost });
+    expect(indirect?.actual?.toFixed(4)).toBe(B73.indirectRate);
+    expect(findings.some((f) => f.code === 'indirect_max')).toBe(false);
+    const values = await yearRules(planYearId);
+    expect(values.indirectBase).toBe('direct_cash_excl_intl');
+    expect(values.indirectRate?.toFixed(4)).toBe(B73.indirectRate);
+
+    // RL-4·6·7 통과 (0%)
+    for (const code of ['allowance_max', 'consignment_max', 'external_tech_max'] as const) {
+      expect(findings.some((f) => f.code === code)).toBe(false);
+      expect(ratios[code].find((r) => r.yearId === planYearId)?.actual).toBe(0);
+    }
+
+    // RL-14: 기존인력 현금 행마다 1건 (산출근거 연차만 — 임포트 연차에는 행이 없다)
+    const existingCash = findings.filter((f) => f.code === 'existing_personnel_cash');
+    expect(existingCash).toHaveLength(B71_EXISTING_CASH_ROWS);
+    expect(existingCash.every((f) => f.scope.kind === 'detail' && f.scope.yearId === planYearId)).toBe(true);
+    // RL-15: 기존 현금 146,840,000 > 신규 34,000,000 → error
+    const balance = findings.filter((f) => f.code === 'existing_cash_le_new');
+    expect(balance).toHaveLength(1);
+    expect(balance[0]).toMatchObject({ severity: 'error', actual: B71_EXISTING_CASH, limit: B71_NEW_TOTAL });
+    // RL-16: 최소 참여율 10% — B.7.1의 최소는 10.0이라 통과(경계 포함)
+    expect(findings.some((f) => f.code === 'min_participation')).toBe(false);
+    // RL-10~13·17~19 통과
+    for (const code of [
+      'indirect_cash_only', 'no_personnel_support', 'no_student_personnel', 'no_burden',
+      'equipment_review_threshold', 'material_notice_threshold', 'outsourcing_notice_threshold',
+    ] as const) {
+      expect(findings.some((f) => f.code === code)).toBe(false);
+    }
+
+    // B.9.4: 과제 총액이 비어 있으면 RL-8·RL-9는 findings가 아니라 skipped에 사유와 함께 남는다
+    expect(skipped.map((s) => s.code).sort()).toEqual(['gov_share_max', 'own_cash_min']);
+    expect(skipped.every((s) => s.yearId === null && s.reason.length > 0)).toBe(true);
+
+    // severity 순 정렬 (error > warn > info)
+    const order = { error: 0, warn: 1, info: 2 } as const;
+    for (let i = 1; i < findings.length; i += 1) {
+      expect(order[findings[i - 1]!.severity]).toBeLessThanOrEqual(order[findings[i]!.severity]);
+    }
+  });
+
+  it('indirect_max 값을 0.5로 낮추면 error, 끄면 findings에서 사라지고 ratios에는 enabled:false로 남는다', async () => {
+    const current = unwrap(await rulesActions.listBudgetRules(projectId)).find((r) => r.code === 'indirect_max');
+    if (!current) throw new Error('indirect_max 행이 없습니다.');
+
+    unwrap(await rulesActions.upsertBudgetRule(projectId, 'indirect_max', { value: 0.5 }, current.version));
+    let data = unwrap(await plan.getBudgetPlanData(projectId));
+    const over = data.ruleEvaluation.findings.find(
+      (f) => f.code === 'indirect_max' && f.scope.kind === 'year' && f.scope.yearId === planYearId
+    );
+    if (!over) throw new Error('indirect_max 위반이 없습니다.');
+    expect(over).toMatchObject({ severity: 'error', limit: 0.5 });
+    expect(over.actual?.toFixed(4)).toBe(B73.indirectRate);
+
+    unwrap(await rulesActions.upsertBudgetRule(projectId, 'indirect_max', { enabled: false }));
+    data = unwrap(await plan.getBudgetPlanData(projectId));
+    expect(data.ruleEvaluation.findings.some((f) => f.code === 'indirect_max')).toBe(false);
+    const ratio = data.ruleEvaluation.ratios.indirect_max.find((r) => r.yearId === planYearId);
+    expect(ratio).toMatchObject({ enabled: false, limit: 0.5 });
+    expect(ratio?.actual?.toFixed(4)).toBe(B73.indirectRate);
+    // 꺼진 행의 분모 정의는 그대로 쓴다 — 지침 검증 값도 같은 분모를 본다
+    const values = await yearRules(planYearId);
+    expect(values.indirectBase).toBe('direct_cash_excl_intl');
+    expect(values.indirectRate?.toFixed(4)).toBe(B73.indirectRate);
   });
 });

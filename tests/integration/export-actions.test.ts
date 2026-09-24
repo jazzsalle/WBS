@@ -41,6 +41,8 @@ import type {
   PreviewDetailImportResult,
 } from '@/types';
 import { todayISO } from '@/lib/dates';
+import { DEFAULT_INDIRECT_BASE } from '@/lib/rules';
+import { RULE_PRESETS } from '@/lib/rules-presets';
 import * as projectsRepo from '@/lib/db/projects';
 import * as yearsRepo from '@/lib/db/years';
 import * as membersRepo from '@/lib/db/members';
@@ -53,6 +55,7 @@ vi.mock('next/headers', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: () => undefined }));
 
 const plan = await import('@/actions/budget-plan');
+const rulesActions = await import('@/actions/budget-rules');
 const { exportSubmissionWorkbook, previewSubmissionExport } = await import('@/actions/export');
 const { commitDetailImport, inspectDetailSheet, previewDetailImport } = await import(
   '@/actions/detail-import'
@@ -538,6 +541,10 @@ describe('previewSubmissionExport — 내보내기 전 확인 (§7.9.4)', () => 
     // 협의 중인 계획이 아니다 — 음수·연봉 미입력 경고가 뜨면 원본 구성이 틀린 것이다
     expect(preview.notices.filter((n) => n.kind === 'negative-amount')).toEqual([]);
     expect(preview.notices.filter((n) => n.kind === 'missing-salary')).toEqual([]);
+    // §6.14 PL-14: 규칙 행이 0건이면 검사를 하지 않는다 — 모르는 값을 0으로 취급해 경고를 띄우지 않는다
+    expect(preview.notices.filter((n) => n.kind === 'rule-finding')).toEqual([]);
+    // RL-3: indirect_max 행이 없으면 총괄표 비율 행의 분모는 과기부 공통 정의다
+    expect(preview.indirectBase).toBe(DEFAULT_INDIRECT_BASE);
   });
 
   it('② 다른 과제의 연차를 넘기면 거부한다 (N-13)', async () => {
@@ -783,5 +790,78 @@ describe('⑤ 왕복 — 내보낸 파일 → §6.11 임포트 → budget_detail
 
     const total = Object.values(restored).reduce((sum, row) => sum + row.planned, 0);
     expect(total).toBe(B7_GRAND_TOTAL);
+  });
+});
+
+// ─── Phase 13 — §6.14 규칙 findings는 경고이지 blocker가 아니다 (RL-1·PL-15, §7.9.4) ─────────
+//
+// 파일 맨 뒤에 둔다: 프리셋 적용은 budget_rules를 쓰므로 X-11 footprint 검사 뒤여야 하고,
+// 왕복(⑤)은 규칙과 무관하게 같은 파일로 이미 끝났다. 원본 과제는 부록 B.7 그대로다.
+
+describe('Phase 13 — 규칙 findings가 경고로 실리고 내보내기를 막지 않는다 (RL-1)', () => {
+  it('moe_energy_sme 적용 + indirect_max 한도 초과: rule-finding notice는 있고 blockers는 비며 내보내기가 성공한다', async () => {
+    const preset = RULE_PRESETS.moe_energy_sme;
+    expect(unwrap(await rulesActions.applyRulePreset(originProjectId, 'moe_energy_sme', 'fill'))).toEqual({
+      added: preset.rules.length,
+      updated: 0,
+      kept: 0,
+    });
+    // 부록 B.7의 간접비 비율 0.9622%가 넘도록 상한을 0.5%로 낮춘다 — "협의 중 한도 초과" 상태
+    const indirectRule = unwrap(await rulesActions.listBudgetRules(originProjectId)).find(
+      (rule) => rule.code === 'indirect_max'
+    );
+    if (!indirectRule) throw new Error('프리셋이 indirect_max 행을 만들지 않았습니다.');
+    unwrap(
+      await rulesActions.upsertBudgetRule(originProjectId, 'indirect_max', { value: 0.5 }, indirectRule.version)
+    );
+
+    const preview = unwrap(await previewSubmissionExport(originProjectId, originYearId));
+
+    // RL-3: 프리셋의 indirect_max base(기후부 정의)가 총괄표 비율 행의 분모다
+    expect(preset.rules.find((rule) => rule.code === 'indirect_max')?.base).toBe('direct_cash_excl_intl');
+    expect(preview.indirectBase).toBe('direct_cash_excl_intl');
+
+    const findings = preview.notices.filter((n) => n.kind === 'rule-finding');
+    expect(findings.length).toBeGreaterThan(0);
+    // 한도 초과(error)가 실린다 — 연차 이름이 비어 있으므로 라벨은 "1차년도"로 나온다
+    const over = findings.find((n) => n.kind === 'rule-finding' && n.code === 'indirect_max');
+    expect(over).toMatchObject({ kind: 'rule-finding', severity: 'error', approximate: false });
+    expect(over?.label).toContain('1차년도');
+    expect(over?.detail).toContain('0.5%');
+    // RL-15(error)·RL-14(warn, 기존인력 현금 행마다)·RL-5(info)도 같은 목록에 있다
+    expect(findings.some((n) => n.kind === 'rule-finding' && n.code === 'existing_cash_le_new' && n.severity === 'error')).toBe(true);
+    expect(findings.filter((n) => n.kind === 'rule-finding' && n.code === 'existing_personnel_cash')).toHaveLength(
+      B71_ROWS.filter((r) => r.hireType === 'existing' && r.axis === 'cash').length
+    );
+    expect(findings.some((n) => n.kind === 'rule-finding' && n.code === 'allowance_min' && n.severity === 'info')).toBe(true);
+    // 행 단위 finding에는 성명이 붙는다 — 어느 줄인지 알 수 없는 경고는 고칠 수 없다
+    const personnel = findings.find((n) => n.kind === 'rule-finding' && n.code === 'existing_personnel_cash');
+    expect(B71_ROWS.some((r) => personnel?.label.includes(r.name))).toBe(true);
+
+    // severity 순(error > warn > info) — evaluateRules의 순서를 notice가 그대로 보존한다
+    const order = { error: 0, warn: 1, info: 2 } as const;
+    for (let i = 1; i < findings.length; i += 1) {
+      const prev = findings[i - 1]!;
+      const next = findings[i]!;
+      if (prev.kind !== 'rule-finding' || next.kind !== 'rule-finding') throw new Error('unreachable');
+      expect(order[prev.severity]).toBeLessThanOrEqual(order[next.severity]);
+    }
+
+    // RL-1·PL-15: error finding이 있어도 **막지 않는다** — blockers는 비고 파일이 만들어진다
+    expect(preview.blockers).toEqual([]);
+    expect(preview.rowCount).toBe(ROW_COUNT);
+    expect(preview.totalAmount).toBe(B7_GRAND_TOTAL);
+    const exported = unwrap(await exportSubmissionWorkbook(originProjectId, originYearId));
+    const bytes = Buffer.from(exported.contentBase64, 'base64');
+    expect(bytes.subarray(0, 2).toString('latin1')).toBe('PK');
+  }, 60_000);
+
+  it('규칙을 끄면 그 finding만 사라진다 — 비율 검사 자체가 "안 함"이 된다 (PL-14)', async () => {
+    unwrap(await rulesActions.upsertBudgetRule(originProjectId, 'indirect_max', { enabled: false }));
+    const preview = unwrap(await previewSubmissionExport(originProjectId, originYearId));
+    expect(preview.notices.some((n) => n.kind === 'rule-finding' && n.code === 'indirect_max')).toBe(false);
+    // 꺼진 행의 base는 그대로 분모다 — 화면(getBudgetPlanData)과 같은 규칙
+    expect(preview.indirectBase).toBe('direct_cash_excl_intl');
+    expect(preview.blockers).toEqual([]);
   });
 });

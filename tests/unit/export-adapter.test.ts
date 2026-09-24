@@ -21,6 +21,7 @@ import { DEFAULT_TEMPLATE_ID, findTemplate, validateLayout } from '@/lib/export/
 import { buildDetailWrites } from '@/lib/export/detail-sheet';
 import { buildSummaryWrites } from '@/lib/export/summary-sheet';
 import type { CellWrite, ExportPlanData, TemplateLayout } from '@/lib/export/types';
+import { DEFAULT_INDIRECT_BASE } from '@/lib/rules';
 
 const entry = findTemplate(DEFAULT_TEMPLATE_ID);
 if (!entry) throw new Error('표준 템플릿을 찾지 못했다');
@@ -237,6 +238,7 @@ describe('applyWrites 거부', () => {
 describe('맵이 만든 쓰기 전량을 실제 템플릿에 적용한다', () => {
   const YEAR_1 = 'year-1';
   const plan: ExportPlanData = {
+    indirectBase: DEFAULT_INDIRECT_BASE,
     years: [
       { id: YEAR_1, order: 0, name: '1차년도' },
       { id: 'year-2', order: 1, name: '2차년도' },

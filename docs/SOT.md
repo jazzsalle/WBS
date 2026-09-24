@@ -1351,7 +1351,7 @@ priorityScore = importance × urgency        # 1 ~ 25
 ```
 computeDetailAmount(detail, member?)        → PL-1~PL-5
 aggregateDetails(details, members)          → PL-6~PL-8 (세목 소계 · 셀 합계 · 축별 분리)
-evaluateBudgetRules(yearTotals, project)    → PL-11~PL-14 (비율 · 위반 여부)
+evaluateBudgetRules(yearTotals, indirectBase) → PL-11~PL-13 (E1 · 비율 · 수정직접비). 한도 판정은 §6.14 lib/rules.ts (v4.5: project 인자 삭제 — 한도가 규칙 행으로 옮겨졌다)
 ```
 
 `yearTotals`는 비목별 금액에 더해 **`personnelSupportTotal`**(그 연차 `personnel_support` 세목의 현금+현물 소계)을 함께 싣는다. PL-11이 E1에서 그것만 빼야 하는데 비목 단위 합계만으로는 뺄 수 없기 때문이다. 간접비 기준액(PL-13)은 이 값을 빼지 **않는다**.
@@ -1635,8 +1635,11 @@ formatHrError(status, body)              → 사람이 읽는 문장            
 interface RuleFinding {
   code: RuleCode;
   severity: RuleSeverity;
-  scope: { kind: 'project' } | { kind: 'year'; yearId: string } | { kind: 'detail'; yearId: string; detailId: string };
-  actual: number | null;   // 실제 비율(%) 또는 금액. 분모 0이면 null
+  scope:
+    | { kind: 'project' }
+    | { kind: 'year'; yearId: string }
+    | { kind: 'detail'; yearId: string; detailId: string; category: BudgetCategory }; // category = 그 행의 비목. 화면이 코드에서 비목을 추측하지 않도록 판정기가 싣는다
+  actual: number | null;   // 실제 비율(%) 또는 금액. 분모 0이면 null. **원값** — 반올림은 표시할 때만(PL-8)
   limit: number | null;    // 규칙 value
   message: string;         // 사람이 읽는 한 문장. 출처(조문)를 끝에 붙인다
   approximate: boolean;    // RL-7·RL-9처럼 가정이 들어간 판정
@@ -1644,7 +1647,7 @@ interface RuleFinding {
 interface RuleEvaluation {
   findings: RuleFinding[];          // 위반·알림만. 통과한 규칙은 넣지 않는다
   ratios: Record<string, YearRatio[]>; // 비율 규칙의 연차별 실제값 — 통과해도 화면에 보여 준다(Phase 9 지침 검증 줄 계승)
-  skipped: { code: RuleCode; reason: string }[]; // 분모 0·필드 null 등으로 판정하지 못한 규칙. 조용히 빼지 않는다
+  skipped: { code: RuleCode; reason: string; yearId: string | null }[]; // 분모 0·필드 null 등으로 판정하지 못한 규칙. 조용히 빼지 않는다. yearId null = 과제 단위
 }
 ```
 
@@ -1827,7 +1830,7 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 - 표시 단위는 `settings.currencyUnit` 적용 (기본 천원)
 - 집행률 100% 초과 셀은 빨강, 예산 외 집행은 경고 아이콘
 - 툴바에 **[엑셀 가져오기]** 버튼 → §7.9.1 마법사 (예산계획 전용). 잠긴 셀은 S-14로 반영에서 빠진다
-- 제안 모드 하단에 **규칙 검증 패널**(Phase 13, §6.14 — Phase 9의 "지침 검증 줄"을 대체): ① 비율 규칙(RL-3~RL-9)의 연차별 실제값 표 — 규칙이 꺼져 있어도 비율은 보여 준다(Phase 9 계승) ② `findings`를 severity 순으로 — 연차·행 단위 항목은 클릭하면 그 셀/행으로 이동 ③ `skipped`를 "판정 못 함: 사유"로 접힌 목록에 — 조용히 빼지 않는다 ④ 근사 판정(`approximate`)에는 "근사" 표식. 규칙 행이 하나도 없으면 "규칙이 없습니다 → [연구비 규칙]" 안내
+- 제안 모드 하단에 **규칙 검증 패널**(Phase 13, §6.14 — Phase 9의 "지침 검증 줄"을 대체): ① 비율 규칙(RL-3~RL-9)의 연차별 실제값 표 — 규칙이 꺼져 있어도 비율은 보여 준다(Phase 9 계승). `indirect_max` 행이 없으면 **기본 분모 `direct_cash_excl_intl_consign_burden`**(과기부 공통, 이관 마이그레이션과 동일)로 계산하고 어느 분모인지 표기한다 ② `findings`를 severity 순으로 — 연차·행 단위 항목은 클릭하면 그 셀/행으로 이동 ③ `skipped`를 "판정 못 함: 사유"로 접힌 목록에 — 조용히 빼지 않는다 ④ 근사 판정(`approximate`)에는 "근사" 표식. 규칙 행이 하나도 없으면 "규칙이 없습니다 → [연구비 규칙]" 안내
 
 #### 7.9.2 산출근거 패널 (제안 모드, 셀 클릭)
 
@@ -2331,6 +2334,8 @@ applyRulePreset(projectId, presetId, mode)   // mode: 'fill' | 'overwrite'. 부�
 ```
 - 판정(`evaluateRules`)은 쓰기 액션이 아니라 `getBudgetPlanData`가 읽을 때 계산한다 — 파생 값은 저장하지 않는다.
 - `applyRulePreset`의 `overwrite`는 사용자가 고친 행을 되돌린다. 화면이 2단계 확인을 받는다(§7.9.5).
+- `overwrite`는 **프리셋에 있는 코드만** 덮는다. 프리셋에 없는 기존 행(사용자가 직접 넣은 규칙)은 지우지 않는다.
+- `budget_rules`는 §8.5 Realtime 구독표에 넣지 않는다 — 다른 PC의 규칙 변경은 새로고침으로 반영된다.
 
 **Budget**
 ```
@@ -2554,9 +2559,11 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 │   ├── goals/         DeliverableTable, TechTargetTable, AchievementForm
 │   ├── milestones/    MilestoneTimeline, MilestoneTable
 │   ├── budget/        BudgetMatrix, ExecutionPanel, ModeToggle(§7.9 [제안|수행])
-│   │   └── rules/     RuleFindingsPanel(§7.9 규칙 검증 패널), RulesEditor(§7.9.5), PresetPicker, AdvisoryList(D.3)
+│   │   │              BudgetPlanSummary(§7.9 하단 요약 — Phase 9의 한도 배지는 Phase 13에서 규칙 검증 패널로 대체·제거)
+│   │   ├── rules/     RuleFindingsPanel(§7.9 규칙 검증 패널), RulesEditor(§7.9.5 모달), PresetPicker(D.1·D.2 적용),
+│   │   │              AdvisoryList(D.3 읽기 전용), RuleRow(규칙 표 한 행·O-3 비교), rule-form.ts(draft↔행 변환·patch 순수 함수)
 │   │   ├── plan/      DetailPanel(§7.9.2), SubcategorySection, PersonnelRow,
-│   │   │              QuantityRow, FactorInputs, RateLimitBadges(PL-12·PL-13)
+│   │   │              QuantityRow, FactorInputs
 │   │   ├── import/    ImportWizard(모달+단계 상태기계), wizard-state.ts(공용 타입·헬퍼),
 │   │   │              Step1File ~ Step5Preview, SheetGrid(원본 그리드·병합 렌더),
 │   │   │              CategoryMapper, ImportPreviewTable

@@ -192,15 +192,13 @@ export function buildSummaryWrites(plan: ExportPlanData, layout: TemplateLayout)
   );
   const yearIdByIndex = new Map(plan.years.map((year) => [year.order + 1, year.id]));
 
-  // 연차마다 PL-11~PL-13을 한 번 돌린다. 한도는 null로 넘긴다 — 여기서 필요한 것은 값이지
-  // 위반 판정이 아니고, 한도 초과 경고는 내보내기 전 확인 화면의 몫이다 (§7.9.4)
+  // 연차마다 PL-11~PL-13을 한 번 돌린다. 여기서 필요한 것은 값이지 위반 판정이 아니고,
+  // 한도 초과 경고는 내보내기 전 확인 화면의 몫이다 (§7.9.4). 수정직접비 분모는 과제의
+  // indirect_max 규칙 행이 고른 것(plan.indirectBase)이다 — 화면의 비율과 다른 분모로 내면 안 된다
   const rulesByYear = new Map<string, BudgetRuleEvaluation>();
   for (const year of plan.years) {
     const sources = aggregate.cells.filter((cell) => cell.yearId === year.id);
-    rulesByYear.set(
-      year.id,
-      evaluateBudgetRules(buildYearTotals(sources), { allowanceRateLimit: null, indirectRateLimit: null })
-    );
+    rulesByYear.set(year.id, evaluateBudgetRules(buildYearTotals(sources), plan.indirectBase));
   }
 
   // 같은 자리를 가리키는 행이 둘 이상이면 어느 줄이 어느 축인지 서식이 말해 주지 않는다는 뜻이다

@@ -30,7 +30,6 @@ import Badge, { type BadgeTone } from '@/components/ui/Badge';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import ProgressBar from '@/components/ui/ProgressBar';
 import RealtimeRefresher from '@/components/RealtimeRefresher';
-import BudgetRateLimitCard from '@/components/project/BudgetRateLimitCard';
 import StageYearPanel from '@/components/project/StageYearPanel';
 
 // R-1 §8.5 구독표의 "과제 개요" 행 그대로. 다른 테이블은 구독하지 않는다.
@@ -477,12 +476,6 @@ export default async function ProjectOverviewPage({
           <InfoRow label="주관기관" value={leadOrgName} warn={!teamRes.ok} />
         </dl>
       </section>
-
-      {/* PL-14 한도 2종은 협약 정보와 같은 과제 단위 상수라 바로 아래에 둔다.
-          project는 이미 위에서 읽은 값이다 — 같은 화면에서 과제를 두 번 조회하지 않는다. */}
-      <div className="mt-6">
-        <BudgetRateLimitCard projectId={project.id} project={project} />
-      </div>
 
       <div className="mt-6">
         <StageYearPanel

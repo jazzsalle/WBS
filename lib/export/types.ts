@@ -4,7 +4,7 @@
 // 워크북을 열고 쓰는 것은 어댑터의 몫이고, 여기는 **어느 값을 어느 셀에 쓸까**만 다룬다.
 // 그래야 좌표 규칙 전부가 워크북 없이 단위 테스트로 고정된다.
 
-import type { BudgetCategory, HireType } from '@/types';
+import type { BudgetCategory, HireType, IndirectBase } from '@/types';
 import type { BudgetDetailInput, MemberSalaryInput } from '@/lib/budget-plan';
 import type { DetailColumnRole } from '@/lib/import';
 
@@ -47,6 +47,12 @@ export interface ExportPlanData {
   details: readonly ExportDetailRow[];
   members: readonly ExportMember[];
   years: readonly ExportYear[];
+  /**
+   * 총괄표 간접비 비율 행(X-10c, PL-13)의 수정직접비 정의. 과제의 `indirect_max` 규칙 행이 고르고
+   * (§6.14 RL-3), 행이 없으면 호출부가 `DEFAULT_INDIRECT_BASE`를 넣는다 — 파일의 비율과 화면의
+   * 비율이 같은 분모를 보아야 한다.
+   */
+  indirectBase: IndirectBase;
 }
 
 // ─── 쓰기 지시 ───────────────────────────────────────────────

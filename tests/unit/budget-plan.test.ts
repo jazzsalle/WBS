@@ -1,4 +1,5 @@
-// 예산 제안 산출근거 테스트 (SOT §6.10 PL-1~PL-15, §5.17, 부록 A.5, 부록 B.7)
+// 예산 제안 산출근거 테스트 (SOT §6.10 PL-1~PL-13, §5.17, 부록 A.5, 부록 B.7)
+// 한도 판정(PL-14·PL-15)은 Phase 13에서 lib/rules.ts로 옮겨졌다 — tests/unit/rules.test.ts
 // 부록 B.7의 숫자는 실측 워크북 `1차년도_250520` 시트가 담고 있는 값이다 —
 // 구현이 다른 값을 내면 구현이 틀린 것이다.
 // PL-2(중간 반올림 금지)는 §6.1 P-8·§6.2 D-5·§6.4 B-1과 같은 계열의 함정이라
@@ -6,17 +7,20 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  DIRECT_CATEGORIES,
   aggregateDetails,
   buildYearTotals,
   computeAxisSplit,
   computeDetailAmount,
   evaluateBudgetRules,
+  modifiedDirectCost,
+  modifiedPersonnel,
+  personnelParticipation,
   type BudgetDetailInput,
-  type BudgetRuleProject,
   type MemberSalaryInput,
 } from '@/lib/budget-plan';
 import { SUBCATEGORY_PRESETS } from '@/lib/constants';
-import type { BudgetCategory, BudgetDetail, DetailAxis, DetailFactor } from '@/types';
+import type { BudgetCategory, BudgetDetail, DetailAxis, DetailFactor, IndirectBase } from '@/types';
 
 // ─── 픽스처 헬퍼 ─────────────────────────────────────────────
 
@@ -585,10 +589,11 @@ describe('§6.10.2 PL-6·PL-7 축별 분리', () => {
 });
 
 // ─── 부록 B.7.3 집계와 지침 검증 ─────────────────────────────
+//
+// 한도와의 비교(allowance_max·indirect_max 위반 여부)는 Phase 13에서 lib/rules.ts로 옮겨졌다 —
+// 그 단언은 tests/unit/rules.test.ts에 있다. 여기는 값(E1·비율·수정직접비)만 고정한다.
 
 describe('부록 B.7.3 지침 검증 (1차년도)', () => {
-  const project: BudgetRuleProject = { allowanceRateLimit: 20, indirectRateLimit: null };
-
   // 인건비 19행 + 연구활동비 5행 + 간접비(연구실 안전관리비 2,000,000 × 1)
   const details: BudgetDetailInput[] = [
     ...personnelDetails(),
@@ -603,24 +608,27 @@ describe('부록 B.7.3 지침 검증 (1차년도)', () => {
   ];
 
   const yearTotals = buildYearTotals(aggregateDetails(details, PERSONNEL_MEMBERS).cells);
-  const evaluation = evaluateBudgetRules(yearTotals, project);
+  const evaluation = evaluateBudgetRules(yearTotals, 'direct_cash_excl_intl_consign_burden');
 
   it('PL-11 수정인건비 E1 = 269,490,000 (인건비 + 학생인건비 0)', () => {
     // 실측 서식은 연구지원인력인건비(C)가 0이라 뺄 것이 없다 — 그래서 이 표만으로는
     // 세목 단위 제외 여부를 구분할 수 없다. 구분은 아래 'C > 0' describe가 한다
     expect(evaluation.personnelSupportTotal).toBe(0);
     expect(evaluation.modifiedPersonnel).toBe(269_490_000);
+    expect(modifiedPersonnel(yearTotals)).toBe(269_490_000);
   });
 
   it('PL-12 연구수당 비율 = 0.00% (연구수당 0)', () => {
     expect(evaluation.allowanceTotal).toBe(0);
     expect(evaluation.allowanceRate).toBe(0);
-    expect(evaluation.allowanceOver).toBe(false);
   });
 
-  it('PL-13 간접비 기준액 = 207,860,000 (인건비 현금 + 활동비 현금)', () => {
-    expect(evaluation.indirectBase).toBe(180_840_000 + 27_020_000);
-    expect(evaluation.indirectBase).toBe(207_860_000);
+  it('PL-13 수정직접비 = 207,860,000 (인건비 현금 + 활동비 현금) — 두 base 모두 같다', () => {
+    expect(evaluation.modifiedDirectCost).toBe(180_840_000 + 27_020_000);
+    expect(evaluation.modifiedDirectCost).toBe(207_860_000);
+    // promotion·other·위탁·국제공동·부담비가 전부 0이라 정의가 달라도 값이 같다 (PL-13 주석)
+    expect(modifiedDirectCost(yearTotals, 'direct_cash_excl_intl')).toBe(207_860_000);
+    expect(evaluation.indirectBase).toBe('direct_cash_excl_intl_consign_burden');
   });
 
   it('PL-13 간접비 비율 = 0.9622% (소수 4자리 일치)', () => {
@@ -682,10 +690,7 @@ describe('§6.10.3 PL-11 연구지원인력인건비(C) — 세목 단위로 뺀
   ];
 
   const yearTotals = buildYearTotals(aggregateDetails(details, members).cells);
-  const evaluation = evaluateBudgetRules(yearTotals, {
-    allowanceRateLimit: 20,
-    indirectRateLimit: null,
-  });
+  const evaluation = evaluateBudgetRules(yearTotals, 'direct_cash_excl_intl_consign_burden');
 
   it('buildYearTotals가 personnel_support 세목 소계를 현금+현물로 뽑는다', () => {
     expect(yearTotals.byCategory.personnel).toEqual({
@@ -710,32 +715,31 @@ describe('§6.10.3 PL-11 연구지원인력인건비(C) — 세목 단위로 뺀
 
     expect(evaluation.modifiedPersonnel).not.toBe(wrongE1);
     expect(evaluation.allowanceRate).not.toBeCloseTo(wrongRate, 6);
-    // 올바른 비율 = 30,000,000 / 120,000,000 = 25% → 한도 20% 초과
+    // 올바른 비율 = 30,000,000 / 120,000,000 = 25% → allowance_max 20을 넘는다 (판정은 rules.test.ts)
     expect(evaluation.allowanceRate).toBe(25);
-    expect(evaluation.allowanceOver).toBe(true);
   });
 
-  it('PL-13 간접비 기준액에는 C가 그대로 들어간다 — E1과 규정이 다르다', () => {
-    // 기준액 = 인건비 현금 150,000,000(C 현금 50,000,000 포함) + 학생 20,000,000 + 연구수당 30,000,000
-    expect(evaluation.indirectBase).toBe(200_000_000);
+  it('PL-13 수정직접비에는 C가 그대로 들어간다 — E1과 규정이 다르다', () => {
+    // 수정직접비 = 인건비 현금 150,000,000(C 현금 50,000,000 포함) + 학생 20,000,000 + 연구수당 30,000,000
+    expect(evaluation.modifiedDirectCost).toBe(200_000_000);
     // C를 빼면 150,000,000이 된다. 그 값이면 PL-11을 PL-13에 잘못 옮긴 것이다
-    expect(evaluation.indirectBase).not.toBe(150_000_000);
-    expect(evaluation.indirectBase - evaluation.personnelSupportTotal).toBe(140_000_000);
-    // 현물 C 10,000,000은 기준액이 현금 기준이라 애초에 빠져 있다
+    expect(evaluation.modifiedDirectCost).not.toBe(150_000_000);
+    expect(evaluation.modifiedDirectCost - evaluation.personnelSupportTotal).toBe(140_000_000);
+    // 현물 C 10,000,000은 수정직접비가 현금 기준이라 애초에 빠져 있다
     expect(evaluation.indirectRate).toBe(0.5); // 1,000,000 / 200,000,000
   });
 
   it('두 규칙이 같은 입력에서 서로 다른 답을 낸다는 사실 자체를 고정한다', () => {
-    // E1은 C를 빼고(120,000,000), 간접비 기준액은 C를 넣는다(200,000,000).
+    // E1은 C를 빼고(120,000,000), 수정직접비는 C를 넣는다(200,000,000).
     // 한쪽에 맞추려는 "일관성" 리팩터링이 들어오면 이 테스트가 깨져야 한다
     expect(evaluation.modifiedPersonnel).toBe(120_000_000);
-    expect(evaluation.indirectBase).toBe(200_000_000);
+    expect(evaluation.modifiedDirectCost).toBe(200_000_000);
   });
 });
 
-// ─── PL-11~PL-15 규칙 경계 ───────────────────────────────────
+// ─── PL-11~PL-13 경계 ────────────────────────────────────────
 
-describe('§6.10.3 PL-11~PL-15 경계', () => {
+describe('§6.10.3 PL-11~PL-13 경계', () => {
   function totals(
     spec: Partial<Record<BudgetCategory, [number, number]>>,
     personnelSupportTotal = 0
@@ -749,11 +753,13 @@ describe('§6.10.3 PL-11~PL-15 경계', () => {
     });
     return buildYearTotals(sources);
   }
+  const MSIT: IndirectBase = 'direct_cash_excl_intl_consign_burden';
+  const MOE: IndirectBase = 'direct_cash_excl_intl';
 
   it('PL-11: E1은 현금 + 현물이다 (학생인건비 포함)', () => {
     const evaluation = evaluateBudgetRules(
       totals({ personnel: [100_000_000, 50_000_000], student_personnel: [20_000_000, 0] }),
-      { allowanceRateLimit: 20, indirectRateLimit: null }
+      MSIT
     );
     expect(evaluation.modifiedPersonnel).toBe(170_000_000);
   });
@@ -761,99 +767,81 @@ describe('§6.10.3 PL-11~PL-15 경계', () => {
   it('PL-11: 비목 합계만 아는 경로는 C를 호출부가 명시한다 — 0은 "C가 없다"는 진술이다', () => {
     const declared = evaluateBudgetRules(
       totals({ personnel: [100_000_000, 0], student_personnel: [20_000_000, 0] }, 30_000_000),
-      { allowanceRateLimit: 20, indirectRateLimit: null }
+      MSIT
     );
     expect(declared.modifiedPersonnel).toBe(90_000_000);
-    expect(declared.indirectBase).toBe(120_000_000); // 기준액은 그대로 C 포함
+    expect(declared.modifiedDirectCost).toBe(120_000_000); // 수정직접비는 그대로 C 포함
   });
 
   it('PL-12: E1이 0이면 비율은 null이다 — 0으로 나누지 않는다', () => {
-    const evaluation = evaluateBudgetRules(totals({ allowance: [5_000_000, 0] }), {
-      allowanceRateLimit: 20,
-      indirectRateLimit: null,
-    });
+    const evaluation = evaluateBudgetRules(totals({ allowance: [5_000_000, 0] }), MSIT);
     expect(evaluation.modifiedPersonnel).toBe(0);
     expect(evaluation.allowanceRate).toBeNull();
-    expect(evaluation.allowanceOver).toBe(false); // 비율이 없으면 위반도 없다
   });
 
-  it('PL-12: 한도 초과는 경고로만 나온다. 경계값(정확히 20%)은 초과가 아니다', () => {
-    const exact = evaluateBudgetRules(
-      totals({ personnel: [100_000_000, 0], allowance: [20_000_000, 0] }),
-      { allowanceRateLimit: 20, indirectRateLimit: null }
-    );
-    expect(exact.allowanceRate).toBe(20);
-    expect(exact.allowanceOver).toBe(false);
-
-    const over = evaluateBudgetRules(
-      totals({ personnel: [100_000_000, 0], allowance: [20_000_001, 0] }),
-      { allowanceRateLimit: 20, indirectRateLimit: null }
-    );
-    expect(over.allowanceOver).toBe(true);
-  });
-
-  it('PL-13: 기준액은 현금만 센다 — 현물은 빠진다', () => {
+  it('PL-13: 수정직접비는 현금만 센다 — 현물은 빠진다', () => {
     const evaluation = evaluateBudgetRules(
       totals({ personnel: [100_000_000, 80_000_000], indirect: [5_000_000, 0] }),
-      { allowanceRateLimit: 20, indirectRateLimit: 10 }
+      MSIT
     );
-    expect(evaluation.indirectBase).toBe(100_000_000);
+    expect(evaluation.modifiedDirectCost).toBe(100_000_000);
     expect(evaluation.indirectRate).toBe(5);
-    expect(evaluation.indirectOver).toBe(false);
   });
 
-  it('PL-13: 국제공동·위탁·부담비·추진비·기타는 기준액에서 빠진다', () => {
-    const evaluation = evaluateBudgetRules(
-      totals({
-        personnel: [100_000_000, 0],
-        student_personnel: [10_000_000, 0],
-        facility_equipment: [10_000_000, 0],
-        material: [10_000_000, 0],
-        activity: [10_000_000, 0],
-        allowance: [10_000_000, 0],
-        international: [50_000_000, 0],
-        consignment: [50_000_000, 0],
-        burden: [50_000_000, 0],
-        promotion: [50_000_000, 0],
-        other: [50_000_000, 0],
-        indirect: [15_000_000, 0],
-      }),
-      { allowanceRateLimit: 20, indirectRateLimit: 10 }
-    );
-    expect(evaluation.indirectBase).toBe(150_000_000);
-    expect(evaluation.indirectRate).toBe(10);
-    expect(evaluation.indirectOver).toBe(false); // 경계값은 초과가 아니다
-    expect(evaluation.grandTotal).toBe(415_000_000);
-    expect(evaluation.directTotal).toBe(400_000_000);
-  });
-
-  it('PL-13: 기준액이 0이면 비율은 null이다', () => {
-    const evaluation = evaluateBudgetRules(totals({ indirect: [1_000_000, 0] }), {
-      allowanceRateLimit: 20,
-      indirectRateLimit: 10,
+  it('PL-13 정정: 직접비 11비목 전부가 출발점이다 — promotion·other 현금이 들어간다', () => {
+    const yearTotals = totals({
+      personnel: [100_000_000, 0],
+      student_personnel: [10_000_000, 0],
+      facility_equipment: [10_000_000, 0],
+      material: [10_000_000, 0],
+      activity: [10_000_000, 0],
+      allowance: [10_000_000, 0],
+      promotion: [1_000_000, 0],
+      other: [2_000_000, 0],
+      indirect: [15_000_000, 0],
     });
-    expect(evaluation.indirectRate).toBeNull();
-    expect(evaluation.indirectOver).toBe(false);
+    const evaluation = evaluateBudgetRules(yearTotals, MSIT);
+    // Phase 9의 6비목 합 150,000,000이 나오면 promotion·other가 빠진 옛 정의다
+    const phase9Denominator = 150_000_000;
+    expect(evaluation.modifiedDirectCost).toBe(153_000_000);
+    expect(evaluation.modifiedDirectCost).not.toBe(phase9Denominator);
+    expect(evaluation.indirectRate).toBeCloseTo((15_000_000 / 153_000_000) * 100, 9);
+    expect(DIRECT_CATEGORIES).toHaveLength(11);
+    expect(DIRECT_CATEGORIES).not.toContain('indirect');
   });
 
-  it('PL-14: 한도가 null이면 비율은 내되 위반 판정은 하지 않는다', () => {
-    const evaluation = evaluateBudgetRules(
-      totals({ personnel: [100_000_000, 0], allowance: [50_000_000, 0], indirect: [90_000_000, 0] }),
-      { allowanceRateLimit: null, indirectRateLimit: null }
+  it('PL-13·RL-3: 과기부 base는 위탁·국제공동·부담비를, 기후부 base는 국제공동만 뺀다', () => {
+    const yearTotals = totals({
+      personnel: [100_000_000, 0],
+      international: [50_000_000, 0],
+      consignment: [40_000_000, 0],
+      burden: [30_000_000, 0],
+      indirect: [10_000_000, 0],
+    });
+    expect(modifiedDirectCost(yearTotals, MSIT)).toBe(100_000_000);
+    expect(modifiedDirectCost(yearTotals, MOE)).toBe(100_000_000 + 40_000_000 + 30_000_000);
+    // 위탁이 있는 연차에서는 같은 간접비로 두 정의의 비율이 다르다 (부록 D 주석)
+    expect(evaluateBudgetRules(yearTotals, MSIT).indirectRate).toBe(10);
+    expect(evaluateBudgetRules(yearTotals, MOE).indirectRate).toBeCloseTo(
+      (10_000_000 / 170_000_000) * 100,
+      9
     );
-    expect(evaluation.allowanceRate).toBe(50); // 50,000,000 / E1 100,000,000
-    expect(evaluation.allowanceOver).toBe(false);
-    // 기준액 = 인건비 현금 100,000,000 + 연구수당 현금 50,000,000 (연구수당은 기준액에 든다)
-    expect(evaluation.indirectRate).toBe(60); // 90,000,000 / 150,000,000
-    expect(evaluation.indirectOver).toBe(false);
-    expect(evaluation.allowanceLimit).toBeNull();
-    expect(evaluation.indirectLimit).toBeNull();
+    expect(evaluateBudgetRules(yearTotals, MOE).indirectBase).toBe(MOE);
+    // 총액·직접비 소계는 base와 무관하다
+    expect(evaluateBudgetRules(yearTotals, MSIT).grandTotal).toBe(230_000_000);
+    expect(evaluateBudgetRules(yearTotals, MSIT).directTotal).toBe(220_000_000);
+  });
+
+  it('PL-13: 수정직접비가 0이면 비율은 null이다', () => {
+    const evaluation = evaluateBudgetRules(totals({ indirect: [1_000_000, 0] }), MSIT);
+    expect(evaluation.modifiedDirectCost).toBe(0);
+    expect(evaluation.indirectRate).toBeNull();
   });
 
   it('P-8: 비율은 여기서 반올림하지 않는다', () => {
     const evaluation = evaluateBudgetRules(
       totals({ personnel: [300_000_000, 0], allowance: [100_000_000, 0] }),
-      { allowanceRateLimit: 20, indirectRateLimit: null }
+      MSIT
     );
     expect(evaluation.allowanceRate).toBeCloseTo(33.3333333, 6);
     expect(evaluation.allowanceRate).not.toBe(33.3);
@@ -869,6 +857,30 @@ describe('§6.10.3 PL-11~PL-15 경계', () => {
       cashAmount: 1_000_000,
       inKindAmount: 0,
     });
+  });
+});
+
+// ─── personnelParticipation — RL-16이 읽는 참여율 인자 ───────
+
+describe('personnelParticipation — 참여율 인자 (PL-3 · RL-16)', () => {
+  it("라벨 '참여율(%)'인 isPercent 인자를 읽는다", () => {
+    expect(personnelParticipation({ factors: personnelFactors(30, 9) })).toBe(30);
+  });
+
+  it('라벨이 달라도 isPercent 인자가 하나뿐이면 그것이다 — 금액 계산(multiplyFactors)과 같은 인자', () => {
+    expect(
+      personnelParticipation({
+        factors: [
+          { label: '참여기간(월)', value: 9, isPercent: false },
+          { label: '비율', value: 12.5, isPercent: true },
+        ],
+      })
+    ).toBe(12.5);
+  });
+
+  it('백분율 인자가 없으면 100 — PL-1에서 인자 없는 행은 연봉 전액이다', () => {
+    expect(personnelParticipation({ factors: [] })).toBe(100);
+    expect(personnelParticipation({ factors: [{ label: '참여기간(월)', value: 6, isPercent: false }] })).toBe(100);
   });
 });
 

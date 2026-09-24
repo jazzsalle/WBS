@@ -56,10 +56,7 @@ export interface Project extends BaseEntity {
   pmMemberId: string | null;         // 총괄책임자(PM)
   leadOrgId: string | null;          // 주관연구개발기관
 
-  // ─ Phase 9(예산 제안) 추가 — 지침 한도 (§6.10.3 PL-14) ─
-  // null이면 그 검사를 수행하지 않는다 — 모르는 값을 0으로 취급해 전 과제에 경고를 띄우는 것이 더 나쁘다
-  allowanceRateLimit: number | null; // 연구수당 한도율 (%). 기본 20 (혁신법 공통)
-  indirectRateLimit: number | null;  // 간접비 한도율 (%). 부처·기관 유형별 고시율이라 기본값 없음
+  // Phase 9의 한도 2종(연구수당·간접비 비율 상한)은 Phase 13에서 BudgetRule 행(allowance_max·indirect_max)으로 이관됐다 (§5.18)
 
   archived: boolean;
   order: number;
@@ -865,6 +862,54 @@ export interface BudgetDetail extends BaseEntity {
   order: number;               // 세목 안에서의 표시 순서
 
   amount: number;              // 계산된 금액 (원 단위 정수). 사람이 입력하지 않는다 (PL-D7, PL-10a)
+}
+
+// ─── §5.18 BudgetRule (연구비 사용 규칙, Phase 13) ──────────────
+// 규칙을 데이터로 담는다 — 규칙의 의미(무엇을 무엇으로 나누는가)는 code에 고정되어
+// lib/rules.ts가 알고, 값(비율·금액·켜짐·출처)만 행이 갖는다.
+
+export type RuleCode =
+  // ── 비율 상한·하한 (§6.14.2) ──
+  | 'allowance_max'        // 연구수당 ≤ 수정인건비 E1 × value%
+  | 'allowance_min'        // 연구수당 ≥ 수정인건비 E1 × value%  (권고)
+  | 'indirect_max'         // 간접비 ≤ 수정직접비(base) × value%
+  | 'consignment_max'      // 위탁연구개발비 ≤ (직접비 − 위탁 − 국제공동 − 부담비) × value%
+  | 'external_tech_max'    // 외부 전문기술 활용비 ≤ 직접비 × value%  (세목 근사, RL-5)
+  | 'gov_share_max'        // 정부지원연구개발비 ≤ (총 연구개발비 − 국제공동) × value%
+  | 'own_cash_min'         // 기관부담 현금 ≥ 기관부담연구개발비 × value%
+  // ── 계상 금지 · 현금/현물 (§6.14.3) ──
+  | 'indirect_cash_only'   // 간접비 현물 = 0
+  | 'no_personnel_support' // 연구지원인력인건비(직접비 세목) 계상 금지
+  | 'no_student_personnel' // 학생인건비 계상 금지
+  | 'no_burden'            // 연구개발부담비 계상 금지
+  | 'existing_personnel_cash' // 기존인력(hireType=existing)의 인건비를 현금으로 계상하면 경고
+  | 'existing_cash_le_new' // 기존인력 현금 인건비 ≤ 신규채용 인건비
+  // ── 인력 (§6.14.4) ──
+  | 'min_participation'    // 참여연구자 참여율 ≥ value%
+  // ── 건별 금액 알림 (§6.14.5) ──
+  | 'equipment_review_threshold'   // 장비 산출 행 금액 ≥ value원 → 전문기관 심의 대상
+  | 'material_notice_threshold'    // 재료 산출 행 금액 ≥ value원 → 계획서에 필요성·수량 명시
+  | 'outsourcing_notice_threshold'; // 외주 산출 행 금액 ≥ value원 → 계획서에 내역·금액 명시
+
+export type RuleSeverity = 'error' | 'warn' | 'info';
+// error — 고시가 "초과하여서는 아니 된다"고 한 것. 정산에서 불인정·회수 대상
+// warn  — 사전승인·계획서 명시·심의가 필요한 것
+// info  — 권고
+
+/** 간접비 분모. 고시마다 정의가 달라 규칙 행이 고른다 (§6.14 RL-3) */
+export type IndirectBase =
+  | 'direct_cash_excl_intl_consign_burden' // 과기부고시 제2조 9호: 직접비 현금 − 위탁 − 국제공동 − 부담비
+  | 'direct_cash_excl_intl';               // 기후부고시 별표 5: 직접비 현금 총액 − 국제공동
+
+export interface BudgetRule extends BaseEntity {
+  projectId: string;
+  code: RuleCode;            // (projectId, code) 유일 (RL-D1)
+  enabled: boolean;          // false면 판정하지 않는다 (Phase 9의 null 한도와 같은 뜻)
+  value: number | null;      // 비율(%) 또는 원 단위 정수. 값을 쓰지 않는 코드는 null (RL-D2)
+  base: IndirectBase | null; // indirect_max 전용. 나머지 코드는 null (RL-D3)
+  severity: RuleSeverity;
+  source: string;            // 출처. '과기부고시 제2026-38호 제26조①' 처럼 고시명·조문. 빈 문자열 금지 (RL-D5)
+  note: string;              // 사용자 메모 (공고에서 달리 정한 사유 등)
 }
 
 // ─── §14.2 AppUser ───────────────────────────────────────────

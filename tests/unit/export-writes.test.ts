@@ -29,6 +29,7 @@ import type {
 import { detectBlocks, detectSections, parseDetailRows } from '@/lib/import/detail-sheet';
 import type { RawCell, RawSheet } from '@/lib/import/types';
 import type { DetailAxis, DetailFactor } from '@/types';
+import { DEFAULT_INDIRECT_BASE } from '@/lib/rules';
 
 const template = findTemplate(DEFAULT_TEMPLATE_ID);
 if (!template) throw new Error('표준 템플릿을 찾지 못했다');
@@ -185,6 +186,7 @@ function planOf(details: readonly ExportDetailRow[]): ExportPlanData {
       { id: YEAR_1, order: 0, name: '1차년도' },
       { id: YEAR_2, order: 1, name: '2차년도' },
     ],
+    indirectBase: DEFAULT_INDIRECT_BASE,
   };
 }
 

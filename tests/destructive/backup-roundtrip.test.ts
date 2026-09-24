@@ -1,7 +1,7 @@
 // 백업 왕복 통합 테스트 — §8.7 K-1·K-5·K-7·K-8
 //
 // ⚠️ 파괴적 테스트다. `npm test`에 포함되지 않고 `npm run test:destructive`로만 돌린다.
-//    K-7 복원이 대상 26종 테이블의 전 행을 지우고 백업 시점 행으로 되돌리기 때문에,
+//    K-7 복원이 대상 27종 테이블의 전 행을 지우고 백업 시점 행으로 되돌리기 때문에,
 //    실데이터가 있는 dev DB에서 돌리면 export 이후 다른 PC에서 추가된 변경분이 사라진다.
 //    시작 전 assertNoForeignData가 테스트 소유가 아닌 데이터를 발견하면 실행을 거부한다.
 //
@@ -88,7 +88,7 @@ afterAll(async () => {
 });
 
 describe('K-1: exportAll — BackupFile 인터페이스 정확 일치', () => {
-  it('최상위 키 4개, tables는 26종 전부, JSON 직렬화 왕복 후에도 parseBackupFile을 통과한다', async () => {
+  it('최상위 키 4개, tables는 27종 전부, JSON 직렬화 왕복 후에도 parseBackupFile을 통과한다', async () => {
     const file = await backup.exportAll(user.client, exportedBy(user));
 
     expect(Object.keys(file).sort()).toEqual(
@@ -98,7 +98,7 @@ describe('K-1: exportAll — BackupFile 인터페이스 정확 일치', () => {
     expect(Number.isNaN(Date.parse(file.exportedAt))).toBe(false);
     expect(file.exportedBy).toEqual({ id: user.id, email: user.email });
     expect(Object.keys(file.tables).sort()).toEqual([...backup.BACKUP_TABLES].sort());
-    expect(backup.BACKUP_TABLES).toHaveLength(26);
+    expect(backup.BACKUP_TABLES).toHaveLength(27);
 
     // 행은 DB snake_case 원본 그대로 (매퍼 미경유) — 시드 과제 행으로 확인
     const seedProject = file.tables['projects']!.find(
@@ -243,7 +243,7 @@ describe('parseBackupFile — importAll 액션의 구조 검증 (Zod)', () => {
     ).toThrow(ValidationError);
   });
 
-  it('tables 값이 배열이 아니거나 26종 중 하나라도 빠지면 ValidationError', async () => {
+  it('tables 값이 배열이 아니거나 27종 중 하나라도 빠지면 ValidationError', async () => {
     const current = await backup.exportAll(user.client, exportedBy(user));
 
     const notArray = jsonRoundtrip(current) as unknown as {

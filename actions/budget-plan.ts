@@ -23,9 +23,9 @@ import type {
   BudgetCategory,
   BudgetDetail,
   BudgetItem,
+  BudgetRule,
   DetailFormula,
   Member,
-  Project,
   Settings,
   Year,
 } from '@/types';
@@ -33,6 +33,7 @@ import { requireApprovedUser } from '@/lib/auth/guard';
 import * as appUsers from '@/lib/db/app-users';
 import * as budgetDetailsRepo from '@/lib/db/budget-details';
 import * as budgetItemsRepo from '@/lib/db/budget-items';
+import * as budgetRulesRepo from '@/lib/db/budget-rules';
 import * as membersRepo from '@/lib/db/members';
 import * as projectsRepo from '@/lib/db/projects';
 import * as settingsRepo from '@/lib/db/settings';
@@ -60,6 +61,13 @@ import {
   type YearAxisSplit,
   type YearTotalSource,
 } from '@/lib/budget-plan';
+import {
+  DEFAULT_INDIRECT_BASE,
+  evaluateRules,
+  type RuleEvaluation,
+  type RuleRowInput,
+  type RuleYearInput,
+} from '@/lib/rules';
 import { todayISO } from '@/lib/dates';
 
 // ─── 조회 모델 (§9 getBudgetPlanData / getBudgetDetails, §7.9·§7.9.2) ─────────
@@ -95,7 +103,10 @@ export interface BudgetPlanCellView {
   subcategories: SubcategoryTotal[];
 }
 
-/** PL-11~PL-13 지침 검증 줄 (연차별). 한도가 null이면 비율만 나오고 배지는 없다 (PL-15) */
+/**
+ * PL-11~PL-13 지침 검증 **값**(연차별) — E1·수정직접비·비율. 한도 판정은 여기 없다:
+ * `BudgetPlanData.ruleEvaluation`(§6.14)이 과제 규칙 행으로 한다
+ */
 export interface BudgetPlanYearView {
   yearId: string;
   rules: BudgetRuleEvaluation;
@@ -148,10 +159,13 @@ export interface BudgetPlanData {
   missingSalaryCount: number;
   /** 0이 아니면 PL-10 불변식이 깨진 셀이 있다는 뜻이다 */
   mismatchCount: number;
-  /** PL-14 한도. setBudgetRateLimits의 O-1 잠금에 projectVersion을 쓴다 */
-  allowanceRateLimit: number | null;
-  indirectRateLimit: number | null;
-  projectVersion: number;
+  /** §5.18 과제 규칙 행 전부, code 순. 규칙 편집 패널(§7.9.5)의 원본이자 아래 판정의 입력이다 */
+  rules: BudgetRule[];
+  /**
+   * §6.14 판정 결과 — 위 rules를 **이 조회의** 집계·산출 행에 적용한 것. 저장하지 않는다(파생 값).
+   * 규칙이 0건이어도 ratios 7종은 실린다(비율은 규칙 없이도 보여 준다, §7.9)
+   */
+  ruleEvaluation: RuleEvaluation;
   currencyUnit: Settings['currencyUnit'];
 }
 
@@ -230,21 +244,6 @@ const detailCreateSchema = detailFieldsSchema.partial().extend({
 // 세목·연차·비목은 patch에 없다: 세목을 넘는 이동은 없고(§7.9.2), 셀 이동은 제안 화면의
 // 조작이 아니다. order도 없다 — 순서는 reorderBudgetDetails가 소유한다 (X-3)
 const detailPatchSchema = detailFieldsSchema.partial();
-
-// PL-14: 백분율 한도값. null은 "검사하지 않는다"는 뜻이라 0과 구분해 그대로 저장한다
-const rateLimitSchema = z
-  .number()
-  .finite('한도율이 올바르지 않습니다.')
-  .min(0, '한도율은 0 이상이어야 합니다.')
-  .max(100, '한도율은 100 이하여야 합니다.')
-  .nullable();
-
-const rateLimitsSchema = z
-  .object({
-    allowanceRateLimit: rateLimitSchema,
-    indirectRateLimit: rateLimitSchema,
-  })
-  .partial();
 
 function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, fallback: string): T {
   const parsed = schema.safeParse(value);
@@ -559,36 +558,7 @@ export async function reorderBudgetDetails(
   }
 }
 
-/**
- * PL-14: 지침 한도는 과제별 사용자 입력이다. 부처 고시율 표를 코드에 넣지 않는다 (PL-16).
- * O-1: 두 값을 한 폼에서 한 번에 바꾸므로 expectedVersion을 받는다.
- */
-export async function setBudgetRateLimits(
-  projectId: string,
-  input: unknown,
-  expectedVersion?: number
-): Promise<ActionResult<Project>> {
-  let client: SupabaseClient | undefined;
-  try {
-    const pid = parseOrThrow(uuidSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
-    const limits = parseOrThrow(rateLimitsSchema, input, '한도율이 올바르지 않습니다.');
-
-    const ctx = await requireApprovedUser();
-    client = ctx.client;
-
-    const updated = await projectsRepo.updateProject(
-      client,
-      pid,
-      { ...limits, updatedBy: ctx.user.id },
-      expectedVersion
-    );
-
-    revalidateBudget(pid);
-    return { ok: true, data: updated };
-  } catch (e) {
-    return toFailure(e, client);
-  }
-}
+// 지침 한도(PL-14)는 Phase 13에서 과제별 규칙 행(§5.18)으로 옮겨졌다 — actions/budget-rules.ts
 
 // ─── 조회 (§9 조회 목록 — 서버 컴포넌트에서 직접 호출) ────────────────────────
 
@@ -616,8 +586,8 @@ function itemSource(item: BudgetItem): YearTotalSource {
 }
 
 /**
- * 제안 모드 화면 한 벌 (§7.9·§7.9.2). 매트릭스 + 셀별 산출근거 요약 + 연차별 지침 검증.
- * 금액·비율은 전부 서버에서 계산해 내린다 — 화면이 산식을 다시 구현하지 않는다 (O-4).
+ * 제안 모드 화면 한 벌 (§7.9·§7.9.2). 매트릭스 + 셀별 산출근거 요약 + 연차별 지침 검증 값 +
+ * §6.14 규칙 판정. 금액·비율·판정은 전부 서버에서 계산해 내린다 — 화면이 산식을 다시 구현하지 않는다 (O-4).
  */
 export async function getBudgetPlanData(projectId: string): Promise<ActionResult<BudgetPlanData>> {
   try {
@@ -626,18 +596,41 @@ export async function getBudgetPlanData(projectId: string): Promise<ActionResult
 
     // 하나라도 실패하면 실패를 그대로 올린다 — 빈 배열 폴백은 데이터 손상을 감춘다 (절대 규칙 5).
     // 산출근거가 부분 조회되면 셀 합계가 조용히 작아져 지침 검증까지 틀린 값이 된다
-    const [project, years, items, details, members, settings] = await Promise.all([
+    const [project, years, items, details, members, settings, rules] = await Promise.all([
       projectsRepo.getProjectById(client, pid),
       yearsRepo.listYears(client, pid),
       budgetItemsRepo.listBudgetItemsByProject(client, pid),
       budgetDetailsRepo.listByProject(client, pid),
       membersRepo.listMembers(client, pid),
       settingsRepo.getSettings(client),
+      budgetRulesRepo.listByProject(client, pid),
     ]);
 
     const matrix = buildBudgetMatrix(years, items);
     // 산출 행 금액·세목 소계·셀 합계는 lib/budget-plan.ts가 전담한다 (PL-1~PL-8)
     const aggregate = aggregateDetails(details, members);
+
+    // RL-3 분모는 과제의 indirect_max 행이 고른다. 행이 없으면 과기부 공통 정의로 비율만 보여 준다(§7.9).
+    // 꺼진 행의 base도 그대로 쓴다 — evaluateRules와 같은 규칙이어야 두 비율이 어긋나지 않는다
+    const indirectBase =
+      rules.find((rule) => rule.code === 'indirect_max')?.base ?? DEFAULT_INDIRECT_BASE;
+
+    // §6.14 인력 판정(RL-14~RL-16)의 재료 — 행 금액은 위 집계(PL-D7)에서, hireType은 Member에서.
+    // 집계는 입력과 같은 순서·길이를 보장한다. 어긋나면 금액이 다른 행에 붙는다는 뜻이다
+    const memberById = new Map(members.map((member) => [member.id, member]));
+    const ruleRowsByYear = new Map<string, RuleRowInput[]>();
+    details.forEach((detail, index) => {
+      const computed = aggregate.rows[index];
+      if (!computed) throw new ValidationError('산출근거 금액을 계산하지 못했습니다.');
+      const member = detail.memberId === null ? null : (memberById.get(detail.memberId) ?? null);
+      const rows = ruleRowsByYear.get(detail.yearId) ?? [];
+      rows.push({
+        detail,
+        amount: computed.amount,
+        member: member === null ? null : { id: member.id, hireType: member.hireType },
+      });
+      ruleRowsByYear.set(detail.yearId, rows);
+    });
 
     const yearById = new Map(years.map((year) => [year.id, year]));
     const orderedYears = matrix.columns
@@ -708,6 +701,7 @@ export async function getBudgetPlanData(projectId: string): Promise<ActionResult
     // 하단 요약의 총액과 축 합계가 어긋난 채 나란히 놓인다
     const yearRules: BudgetPlanYearView[] = [];
     const yearAxisSplits: BudgetPlanYearAxisView[] = [];
+    const ruleYears: RuleYearInput[] = [];
     for (const column of matrix.columns) {
       const sources: YearTotalSource[] = [];
       for (const category of BUDGET_CATEGORY_ORDER) {
@@ -720,12 +714,29 @@ export async function getBudgetPlanData(projectId: string): Promise<ActionResult
         const item = itemByCell.get(key);
         if (item) sources.push(itemSource(item));
       }
+      // 지침 검증 값과 §6.14 규칙 판정이 **같은 연차 합계**를 본다 — 두 표의 E1·분모가 갈리면 안 된다
+      const totals = buildYearTotals(sources);
       yearRules.push({
         yearId: column.yearId,
-        rules: evaluateBudgetRules(buildYearTotals(sources), project),
+        rules: evaluateBudgetRules(totals, indirectBase),
       });
       yearAxisSplits.push({ yearId: column.yearId, axis: computeAxisSplit(sources) });
+      ruleYears.push({
+        yearId: column.yearId,
+        totals,
+        rows: ruleRowsByYear.get(column.yearId) ?? [],
+      });
     }
+
+    // 판정은 읽을 때 한다 — 저장하지 않는다 (§9 Budget Rules). 규칙이 0건이어도 ratios는 나온다
+    const ruleEvaluation = evaluateRules(rules, {
+      years: ruleYears,
+      project: {
+        govBudget: project.govBudget,
+        ownBudget: project.ownBudget,
+        totalBudget: project.totalBudget,
+      },
+    });
 
     return {
       ok: true,
@@ -745,9 +756,8 @@ export async function getBudgetPlanData(projectId: string): Promise<ActionResult
         negativeCount: aggregate.negativeCount,
         missingSalaryCount: aggregate.missingSalaryCount,
         mismatchCount,
-        allowanceRateLimit: project.allowanceRateLimit,
-        indirectRateLimit: project.indirectRateLimit,
-        projectVersion: project.version,
+        rules,
+        ruleEvaluation,
         currencyUnit: settings.currencyUnit,
       },
     };

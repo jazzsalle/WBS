@@ -76,8 +76,6 @@ function project(spec: {
     ownBudget: null,
     pmMemberId: null,
     leadOrgId: null,
-    allowanceRateLimit: null,
-    indirectRateLimit: null,
     archived: spec.archived ?? false,
     order: spec.order ?? 0,
   };

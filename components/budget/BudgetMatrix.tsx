@@ -62,6 +62,11 @@ interface BudgetMatrixBaseProps {
   /** 셀별 원본 행 — 현금/현물 분리 여부로 총액 인라인 편집 가능 여부가 갈린다 */
   itemsByCell: Map<string, BudgetItem[]>;
   selected: CellRef | null;
+  /**
+   * §7.9 규칙 검증 패널의 연차 단위 finding이 가리킨 열. 머리·셀 배경으로 강조한다 — 선택(ring)과
+   * 겹칠 수 있어 다른 표시를 쓴다. 조작 흔적이라 인쇄에서는 지운다 (P-R4)
+   */
+  highlightedYearId?: string | null;
   busy: boolean;
   onSelect: (cell: CellRef) => void;
   onInlineSave: (cell: CellRef, plannedAmount: number) => void;
@@ -380,6 +385,7 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
     yearBudgetChecks,
     itemsByCell,
     selected,
+    highlightedYearId = null,
     busy,
     mode,
     onSelect,
@@ -447,7 +453,9 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
                   <th
                     key={column.yearId}
                     scope="col"
-                    className={`px-3 py-2 text-right font-medium ${PRINT_TH}`}
+                    className={`px-3 py-2 text-right font-medium print:bg-transparent ${PRINT_TH} ${
+                      column.yearId === highlightedYearId ? 'bg-blue-50' : ''
+                    }`}
                   >
                     <span className="block text-grey-700 print:text-black">{column.name}</span>
                     <span className="block text-[11px] font-normal tabular-nums text-grey-400 print:text-black">
@@ -515,9 +523,9 @@ export default function BudgetMatrixTable(props: BudgetMatrixTableProps) {
                         key={cell.yearId}
                         // B-2 초과 강조는 수행 모드에서만 건다 — 제안 모드 셀에는 집행 숫자가
                         // 없어 빨간 칸의 이유를 셀 안에서 읽을 수 없다 (P-R5와 같은 취지)
-                        className={`px-3 py-2 text-right ${PRINT_TD} ${
+                        className={`px-3 py-2 text-right print:bg-transparent ${PRINT_TD} ${
                           cell.over && mode === 'execution' ? 'bg-red-50' : ''
-                        } ${
+                        } ${cell.yearId === highlightedYearId ? 'bg-blue-50' : ''} ${
                           // 선택 표시는 조작 흔적이라 인쇄에서 지운다 (P-R4)
                           isSelected ? 'ring-2 ring-inset ring-grey-900 print:ring-0' : ''
                         }`}
