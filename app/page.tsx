@@ -74,6 +74,13 @@ export default async function DashboardPage() {
           >
             To-Do
           </Link>
+          {/* §7.18: 조직원은 과제 밖 마스터라 여기서만 들어간다 */}
+          <Link
+            href="/staff"
+            className="text-sm text-grey-500 underline hover:text-grey-700"
+          >
+            조직원
+          </Link>
           <Link
             href="/settings"
             className="text-sm text-grey-500 underline hover:text-grey-700"

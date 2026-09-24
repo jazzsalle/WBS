@@ -201,6 +201,23 @@ export async function listByMember(
   return toDetails(rows);
 }
 
+/**
+ * PS-5 — 전 과제의 인건비(formula='personnel') 산출근거 전량. 참여율 합산(§6.15)의 입력이다.
+ * student_personnel 제외·연결 안 된 Member 분리(PS-1)는 lib/participation.ts가 판정한다 —
+ * 여기서 걸러 버리면 "연결 안 된 인건비 행 N건"을 셀 수 없다. 과제 경계를 넘으므로 페이징한다 (§12).
+ */
+export async function listPersonnelDetailsAll(client: SupabaseClient): Promise<BudgetDetail[]> {
+  const rows = await fetchAllRows((from, to) =>
+    client
+      .from(TABLE)
+      .select('*')
+      .eq('formula', 'personnel')
+      .order('id', { ascending: true })
+      .range(from, to)
+  );
+  return toDetails(rows);
+}
+
 // ─── detailCount 집계 (§5.12, PL-9) ──────────────────────────
 
 /** (연차, 비목) 셀 하나의 키. Map의 키로만 쓴다 — 저장되거나 화면에 나가지 않는다 */

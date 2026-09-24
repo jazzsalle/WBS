@@ -14,6 +14,10 @@
 // **같은 숫자**를 다루기 때문이다: 화면을 나누면 같은 값이 두 곳에 나타난다.
 // 인쇄(§12 P-R1)도 현재 모드를 따른다 — 모드가 DOM을 정하고 인쇄는 그 DOM을 그대로 뽑는다.
 //
+// **보기 토글 `[매트릭스 | 인건비]`** (§7.9.6, Phase 16): 제안 모드 안의 두 번째 축이다. `인건비`는 같은 산출근거를
+// 사람 중심(조직원 × 월급 × 참여율 × 개월)으로 보는 표라 매트릭스·산출근거 패널·규칙 패널 **대신** 그린다.
+// 모드와 같은 화면 로컬 상태이고, 수행 모드에는 없다(모드를 바꾸면 `매트릭스`로 돌아온다). 인쇄는 현재 보기.
+//
 // **한 화면은 한 스냅샷만 본다** (C5). page.tsx는 getBudgetMatrix(수행)와 getBudgetPlanData(제안)를
 // Promise.all로 함께 내리지만 **두 조회는 트랜잭션이 아니다.** 그 사이에 누가 저장하면 두 결과는
 // 서로 다른 시점을 본다 — 섞어 쓰면 한 표가 옛 금액에 새 잠금을 거는 식이 된다.
@@ -40,6 +44,15 @@ import RulesEditor from './rules/RulesEditor';
 import ImportWizard from './import/ImportWizard';
 import DetailImportWizard from './import/detail/DetailImportWizard';
 import ExportModal from './ExportModal';
+import PersonnelTab from './personnel/PersonnelTab';
+
+// §7.9.6 제안 모드의 보기. `matrix`가 기본이고 `personnel`은 [인건비] 탭이다
+type PlanView = 'matrix' | 'personnel';
+
+const PLAN_VIEWS: readonly { value: PlanView; label: string; hint: string }[] = [
+  { value: 'matrix', label: '매트릭스', hint: '비목 × 연차 매트릭스와 산출근거 패널 (§7.9)' },
+  { value: 'personnel', label: '인건비', hint: '인건비·학생인건비 산출근거를 조직원 × 월급 × 참여율 × 참여개월로 봅니다 (§7.9.6)' },
+];
 
 // §7.9 표의 순서대로 `[제안 | 수행]`. 기본 선택은 `수행`이다
 const MODES: readonly { value: BudgetMode; label: string; hint: string }[] = [
@@ -77,6 +90,8 @@ export default function BudgetScreen({
   const router = useRouter();
   // §7.9.2: 화면 로컬 상태. 기본은 `수행`이고 새로고침하면 되돌아온다
   const [mode, setMode] = useState<BudgetMode>('execution');
+  // §7.9.6: 제안 모드의 보기. 모드처럼 화면 로컬 상태다 — 모드를 바꾸면 `매트릭스`로 되돌린다
+  const [planView, setPlanView] = useState<PlanView>('matrix');
   const [selected, setSelected] = useState<CellRef | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<{ message: string; code?: ActionErrorCode } | null>(null);
@@ -221,6 +236,7 @@ export default function BudgetScreen({
                     selectCell(null);
                     setHighlightYearId(null);
                     setRulesOpen(false);
+                    setPlanView('matrix');
                     setFailure(null);
                   }}
                   className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 ${
@@ -234,6 +250,41 @@ export default function BudgetScreen({
               );
             })}
           </div>
+          {/* §7.9.6 보기 토글 — 제안 모드에서만. 제안 스냅샷이 없으면 인건비 탭도 그릴 연차가 없다 */}
+          {mode === 'plan' && plan !== null && (
+            <div className="inline-flex items-center gap-1" role="tablist" aria-label="제안 모드 보기">
+              {PLAN_VIEWS.map((item) => {
+                const active = item.value === planView;
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    title={item.hint}
+                    // 저장이 도는 동안 보기를 바꾸면 패널이 언마운트되며 진행 중인 편집이 사라진다
+                    disabled={busy}
+                    onClick={() => {
+                      if (active) return;
+                      setPlanView(item.value);
+                      // 산출근거 패널·규칙 강조는 매트릭스 보기의 것이다 — 인건비 보기로 넘기지 않는다
+                      selectCell(null);
+                      setHighlightYearId(null);
+                      setRulesOpen(false);
+                      setFailure(null);
+                    }}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 ${
+                      active
+                        ? 'bg-blue-500 text-white'
+                        : 'border border-grey-300 bg-white text-grey-700 hover:bg-grey-50'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <p className="text-xs text-grey-500">
             표시 단위 <span className="font-semibold text-grey-700">{source.currencyUnit}</span>
             <span className="ml-2">· 입력은 언제나 원 단위 정수입니다 (B-4)</span>
@@ -388,6 +439,19 @@ export default function BudgetScreen({
           제안 모드 데이터를 불러오지 못해 매트릭스를 표시하지 않습니다. 수행 모드로 돌아가면 예산·집행은
           그대로 볼 수 있습니다.
         </p>
+      ) : planView === 'personnel' ? (
+        // §7.9.6 [인건비] 탭 — 매트릭스·하단 요약·규칙 패널·산출근거 패널 **대신** 그린다. 탭은 자기 조회
+        // (getPersonnelTabData)를 스스로 받고, 저장 뒤 onSaved → router.refresh()로 plan 스냅샷도 다시 받는다.
+        // 연차 목록만 제안 스냅샷(plan.years)에서 준다 — 셀렉트가 매트릭스 열과 같은 연차를 보여야 한다
+        <PersonnelTab
+          projectId={plan.projectId}
+          years={plan.years.map((y) => ({ id: y.id, name: y.name }))}
+          onSaved={() => {
+            setFailure(null);
+            router.refresh();
+          }}
+          onBusyChange={setBusy}
+        />
       ) : (
         // 제안 모드는 **1열**이다. 산출근거 패널의 행 표는 최소 52rem이라 24rem 사이드바에 넣으면
         // 가로 스크롤이 상시 생기고, 매트릭스도 연차 수만큼 넓어져 둘 다 좁아진다.
@@ -513,7 +577,7 @@ export default function BudgetScreen({
         <RulesEditor
           projectId={plan.projectId}
           rules={plan.rules}
-          open={mode === 'plan' && rulesOpen}
+          open={mode === 'plan' && planView === 'matrix' && rulesOpen}
           onClose={() => setRulesOpen(false)}
           onChanged={() => {
             setFailure(null);

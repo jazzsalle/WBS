@@ -58,8 +58,9 @@ interface FactorDraft {
  * 행마다 다를 수 있다(부록 A.5 주의 2). 첫 %가 참여율, 첫 비%가 참여기간(월)이고, 그 밖에 남는
  * 인자는 `extra`로 **그대로 보존한다.** 화면에 칸이 없다는 이유로 저장된 인자를 지우면
  * 사용자가 만진 적 없는 금액이 조용히 바뀐다.
+ * [인건비] 탭(§7.9.6 PersonnelRow)도 이 함수를 쓴다 — 두 표가 같은 행을 다르게 쪼개면 안 된다.
  */
-function splitPersonnelFactors(factors: readonly DetailFactor[]): {
+export function splitPersonnelFactors(factors: readonly DetailFactor[]): {
   percent: DetailFactor | null;
   count: DetailFactor | null;
   extra: DetailFactor[];

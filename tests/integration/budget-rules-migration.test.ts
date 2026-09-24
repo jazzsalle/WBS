@@ -91,11 +91,13 @@ afterAll(async () => {
 
 // ─── (d) 스키마 상태 ─────────────────────────────────────────
 
-describe('(d) 스키마 상태 — schema_version 3, 한도 컬럼 삭제, RLS', () => {
-  it('app_settings.schema_version = 3', async () => {
-    const rows = await sql<{ v: string }[]>`select schema_version::text as v from public.app_settings`;
+describe('(d) 스키마 상태 — schema_version ≥ 3, 한도 컬럼 삭제, RLS', () => {
+  // 이 마이그레이션은 3으로 올렸고 이후 Phase가 더 올린다(4 = Phase 16). 현재 값의 정확한 검증은
+  // 최신 마이그레이션 테스트가 맡고, 여기서는 "이 마이그레이션이 적용됐다"는 하한만 본다
+  it('app_settings.schema_version >= 3', async () => {
+    const rows = await sql<{ v: number }[]>`select schema_version::int as v from public.app_settings`;
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.v).toBe('3');
+    expect(rows[0]!.v).toBeGreaterThanOrEqual(3);
   });
 
   it('projects의 allowance_rate_limit·indirect_rate_limit 컬럼이 없다', async () => {

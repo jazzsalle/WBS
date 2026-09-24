@@ -249,6 +249,11 @@ export const memberRowSchema = z.object({
   sort_order: z.number(),
   annual_salary: z.number().nullable(), // 실지급액(연봉), 원 단위 정수 (§6.10.1 PL-1의 단가)
   hire_type: hireTypeSchema,
+  // Phase 16 — 조직원 연결 + 급여 기준 스냅샷 3필드 (§5.11). 스냅샷이라 staff 삭제(set null) 뒤에도 남는다(ST-2)
+  staff_id: z.uuid().nullable(),
+  salary_includes_retirement: z.boolean().nullable(),
+  salary_includes_insurance: z.boolean().nullable(),
+  salary_applied_from: isoDate.nullable(),
 });
 
 // ─── §5.12 budget_items / budget_executions ──────────────────
@@ -336,6 +341,32 @@ export const budgetRuleRowSchema = z.object({
   base: indirectBaseSchema.nullable(),
   severity: ruleSeveritySchema,
   source: z.string(),
+  note: z.string(),
+});
+
+// ─── §5.19 staff / §5.20 staff_salaries (Phase 16) ───────────
+// 이메일 유일(ST-1)·(staff_id, effective_from) 유일(SL-2)은 DB unique가 최종 방어선이다. 여기서는 드리프트 감지만 한다.
+
+export const staffRowSchema = z.object({
+  ...baseRow,
+  name: z.string(),
+  email: z.string(),
+  position: z.string(),
+  employed: z.boolean(),
+  note: z.string(),
+  sort_order: z.number(),
+});
+
+export const salaryBasisSchema = z.enum(['annual', 'monthly']);
+
+export const staffSalaryRowSchema = z.object({
+  ...baseRow,
+  staff_id: z.uuid(),
+  effective_from: isoDate,
+  basis: salaryBasisSchema,
+  amount: z.number().int().min(0), // basis 단위의 금액. 원 단위 정수 — 절대 규칙 4. DB check(≥0)와 같은 조건
+  includes_retirement: z.boolean(),
+  includes_insurance: z.boolean(),
   note: z.string(),
 });
 
@@ -534,6 +565,8 @@ export type BudgetItemRow = z.infer<typeof budgetItemRowSchema>;
 export type BudgetExecutionRow = z.infer<typeof budgetExecutionRowSchema>;
 export type BudgetDetailRow = z.infer<typeof budgetDetailRowSchema>;
 export type BudgetRuleRow = z.infer<typeof budgetRuleRowSchema>;
+export type StaffRow = z.infer<typeof staffRowSchema>;
+export type StaffSalaryRow = z.infer<typeof staffSalaryRowSchema>;
 export type RiskRow = z.infer<typeof riskRowSchema>;
 export type NoteRow = z.infer<typeof noteRowSchema>;
 export type TodoRow = z.infer<typeof todoRowSchema>;

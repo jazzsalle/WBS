@@ -21,12 +21,15 @@ function raiseDbError(error: PostgrestError): never {
   throw new Error(error.message);
 }
 
-// K-7 정순(FK 의존 순서) 복원 대상 25종 — restore_backup RPC의 c_tables와 반드시 일치해야 한다.
+// K-7 정순(FK 의존 순서) 복원 대상 27종 — restore_backup RPC의 c_tables와 반드시 일치해야 한다.
 // 여기가 어긋나면 내보낸 파일이 복원 시 "테이블 데이터 없음"으로 거부된다.
+// staff·staff_salaries(§5.19·§5.20)는 맨 앞이다 — members.staff_id가 staff를 참조하므로
+// 정순 INSERT에서 members보다 먼저 있어야 한다. staff는 다른 테이블을 참조하지 않는다 (ST-2).
 // budget_details(§5.17)는 members·years·budget_items 뒤에 온다 — 정순 INSERT의 FK 충족과,
 // 역순 DELETE에서 member_id의 on delete restrict(H-9a)가 members 삭제를 막지 않기 위해서다.
 // budget_rules(§5.18)는 projects만 참조하므로 budget_details 바로 뒤에 둔다 (RL-D7).
 export const RESTORE_TABLES = [
+  'staff', 'staff_salaries',
   'projects', 'organizations', 'members', 'stages', 'years', 'tasks', 'milestones',
   'deliverables', 'deliverable_achievements', 'tech_targets', 'tech_target_records',
   'budget_items', 'budget_executions', 'budget_details', 'budget_rules', 'risks', 'notes', 'todos',
@@ -59,7 +62,7 @@ async function dumpTable(client: SupabaseClient, table: string): Promise<unknown
   return rows;
 }
 
-// K-1: 전 테이블(27종) JSON 덤프. schemaVersion은 함께 덤프한 app_settings 행에서 얻는다 —
+// K-1: 전 테이블(29종) JSON 덤프. schemaVersion은 함께 덤프한 app_settings 행에서 얻는다 —
 // BackupFile 헤더와 tables.app_settings가 서로 다른 시점을 가리키지 않게 하기 위해서다.
 export async function exportAll(
   client: SupabaseClient,
@@ -89,7 +92,7 @@ export async function exportAll(
 
 // K-5 "내보내기 JSON 형식을 지킨다" — 복원 전 구조 검증.
 // 대상 테이블 키가 하나라도 빠지면 "삭제만 되고 삽입은 0건"인 무음 데이터 파괴가 되므로
-// RPC와 별개로 여기서도 27종 전부를 요구한다.
+// RPC와 별개로 여기서도 29종 전부를 요구한다.
 const backupFileSchema = z.object({
   schemaVersion: z.number().int(),
   exportedAt: z.string(),

@@ -1,10 +1,13 @@
 'use client';
 
-// 사내 명부에서 인력 추가 모달 (SOT §7.10.1, §6.13 HR-2·HR-5~HR-9·HR-12·HR-16·HR-17)
-// 이 컴포넌트는 HR을 부르지 않는다. 명부는 부모(MemberSection)가 [사내 명부에서 추가] 클릭
-// 핸들러에서 서버 액션 fetchHrDirectory로 받아 state로 내려준다(HR-7·HR-13) — 여기에 마운트 시
+// 사내 명부에서 인력 추가 모달 (SOT §7.10.1, §6.13 HR-2·HR-5~HR-9·HR-12·HR-16·HR-17, §7.18 ST-3)
+// 이 컴포넌트는 HR을 부르지 않는다. 명부는 부모(MemberSection·StaffScreen)가 [사내 명부에서 추가] 클릭
+// 핸들러에서 서버 액션 fetchHrDirectory(ForStaff)로 받아 state로 내려준다(HR-7·HR-13) — 여기에 마운트 시
 // 자동 호출을 두면 "사용자가 여는 조작"이라는 원칙이 깨진다. 모달이 닫히면 부모가 state를
 // null로 돌려 명부가 버려진다(HR-17). 선택 상태도 이 컴포넌트와 함께 사라진다.
+// 저장 대상은 둘이다(ST-3): 기본은 과제 Member(createMembersFromHr), `submit`을 주면 그쪽으로 보낸다
+// (조직원 화면 → createStaffFromHr). 판정(이미 등록됨 등)은 부모가 받은 명부에 이미 들어 있으므로
+// 이 컴포넌트는 대상이 무엇이든 같은 표를 그린다.
 // 표시 규칙:
 //  - 선택 불가 행(이미 등록됨·이메일 없음·읽을 수 없음)은 목록에서 빼지 않고 회색+사유로 남긴다
 //    (HR-8·HR-9·HR-16). 검색은 필터일 뿐이다.
@@ -13,9 +16,9 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { HrImportResult } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
-import type { HrDirectory, HrDirectoryEntry } from '@/lib/hr';
+import type { ActionResult, HrImportResult } from '@/types';
+import type { HrDirectory, HrDirectoryEntry, HrMemberDraft } from '@/lib/hr';
 import { createMembersFromHr } from '@/actions/team';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
@@ -29,13 +32,43 @@ export type HrDirectoryState =
   | { phase: 'ready'; directory: HrDirectory }
   | { phase: 'error'; message: string; code?: ActionErrorCode };
 
-export interface HrDirectoryModalProps {
-  state: HrDirectoryState;
-  projectId: string;
-  onClose: () => void;
-  /** 저장 성공 시 — 부모가 HR-2 문구를 남기고 목록을 새로고침한다 */
-  onAdded: (result: HrImportResult) => void;
+/** 커스텀 submit의 저장 결과. created 엔티티 종류(Member·Staff)에 매이지 않는 요약이다 */
+export interface HrImportSummary {
+  createdCount: number;
+  rejected: { name: string; email: string; reason: string }[];
 }
+
+/** 커스텀 submit에 넘기는 초안. `retired`는 HR user_is_active의 초기값 반영용이다(ST-3·HR-7) */
+export type HrSubmitDraft = HrMemberDraft & { retired: boolean };
+
+interface HrDirectoryModalBaseProps {
+  state: HrDirectoryState;
+  onClose: () => void;
+  /** 기본 "사내 명부에서 추가" */
+  title?: string;
+  /** 기본은 Member용 HR-2·HR-4 문구. 저장 대상이 다르면 무엇이 채워지는지도 달라진다 */
+  description?: string;
+}
+
+/**
+ * 저장 대상은 둘 중 하나다. `submit`이 없으면 과제 Member(createMembersFromHr — projectId 필수),
+ * 있으면 그 함수로 보낸다. 두 경로의 onAdded 인자 모양이 달라 유니온으로 나눈다 —
+ * 기존 호출부(MemberSection)는 첫 번째 모양 그대로다.
+ */
+export type HrDirectoryModalProps = HrDirectoryModalBaseProps &
+  (
+    | {
+        projectId: string;
+        submit?: undefined;
+        /** 저장 성공 시 — 부모가 HR-2 문구를 남기고 목록을 새로고침한다 */
+        onAdded: (result: HrImportResult) => void;
+      }
+    | {
+        projectId?: undefined;
+        submit: (drafts: HrSubmitDraft[]) => Promise<ActionResult<HrImportSummary>>;
+        onAdded: (result: HrImportSummary) => void;
+      }
+  );
 
 const BLOCK_LABELS = {
   'already-registered': '이미 등록됨',
@@ -49,12 +82,11 @@ function matchesQuery(entry: HrDirectoryEntry, query: string): boolean {
   return name.toLowerCase().includes(query) || email.toLowerCase().includes(query);
 }
 
-export default function HrDirectoryModal({
-  state,
-  projectId,
-  onClose,
-  onAdded,
-}: HrDirectoryModalProps) {
+const DEFAULT_DESCRIPTION =
+  '이름·직위·이메일만 채워집니다. 연봉·채용구분·분야·연락처·소속 기관은 비어 있으므로 나중에 채우세요.';
+
+export default function HrDirectoryModal(props: HrDirectoryModalProps) {
+  const { state, onClose, title = '사내 명부에서 추가', description = DEFAULT_DESCRIPTION } = props;
   const [query, setQuery] = useState('');
   // 키는 entries 배열 위치. 명부는 모달이 열려 있는 동안 바뀌지 않으므로 안정적이고,
   // HR의 user_id를 식별자로 쓰지 않는다(HR-9 — 우리 쪽에 남길 이유를 만들지 않는다)
@@ -99,21 +131,34 @@ export default function HrDirectoryModal({
 
   const submit = async (): Promise<void> => {
     if (state.phase !== 'ready') return;
-    // HR-4·HR-6: draft 그대로 보낸다. division/team을 얹으면 서버의 strict 스키마가 거부한다
-    const drafts = state.directory.entries.flatMap((entry, index) =>
-      entry.kind === 'user' && entry.selectable && selected.has(index) ? [entry.draft] : []
+    // HR-4·HR-6: draft 그대로 보낸다. division/team을 얹으면 서버의 strict 스키마가 거부한다.
+    // retired는 커스텀 submit(조직원)에만 얹는다 — createMembersFromHr의 strict 스키마는 그 키도 거부한다
+    const chosen = state.directory.entries.flatMap((entry, index) =>
+      entry.kind === 'user' && entry.selectable && selected.has(index) ? [entry] : []
     );
-    if (drafts.length === 0) return;
+    if (chosen.length === 0) return;
     setSubmitting(true);
     setFailure(null);
     try {
-      const res = await createMembersFromHr(projectId, drafts);
+      if (props.submit) {
+        const res = await props.submit(chosen.map((e) => ({ ...e.draft, retired: e.retired })));
+        if (!res.ok) {
+          // 모달을 닫지 않는다 — 선택을 유지한 채 다시 시도할 수 있어야 한다
+          setFailure({ message: res.error, code: res.code });
+          return;
+        }
+        props.onAdded(res.data);
+        return;
+      }
+      const res = await createMembersFromHr(
+        props.projectId,
+        chosen.map((e) => e.draft)
+      );
       if (!res.ok) {
-        // 모달을 닫지 않는다 — 선택을 유지한 채 다시 시도할 수 있어야 한다
         setFailure({ message: res.error, code: res.code });
         return;
       }
-      onAdded(res.data);
+      props.onAdded(res.data);
     } finally {
       setSubmitting(false);
     }
@@ -125,8 +170,8 @@ export default function HrDirectoryModal({
   return (
     <Modal
       open
-      title="사내 명부에서 추가"
-      description="이름·직위·이메일만 채워집니다. 연봉·채용구분·분야·연락처·소속 기관은 비어 있으므로 나중에 채우세요."
+      title={title}
+      description={description}
       onClose={onClose}
       closeOnBackdrop={false}
       size="xl"

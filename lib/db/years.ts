@@ -89,6 +89,35 @@ export async function listYears(client: SupabaseClient, projectId: string): Prom
   return data.map(parseYearRow);
 }
 
+// PostgREST 응답 상한(max-rows 1000) — §12 규모(연차 150개)로는 넘지 않지만 전 과제 조회는
+// 상한을 전제하지 않는다. budget-details.ts fetchAllRows와 같은 전략으로 이어 읽는다.
+const PAGE_SIZE = 1000;
+
+/**
+ * PS-5 — 전 과제의 연차 전량. 참여율 합산(§6.15 PS-3)이 연차 startDate로 달력 연도를 배정한다.
+ * sort_order는 과제 안에서만 의미가 있으므로(H-10) id 순으로 페이징해 읽고, 순서는 (과제, sort_order)로 맞춘다.
+ */
+export async function listAllYears(client: SupabaseClient): Promise<Year[]> {
+  const rows: unknown[] = [];
+  for (let from = 0; ; ) {
+    const { data, error } = await client
+      .from('years')
+      .select('*')
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) raiseDbError(error);
+    const page = data ?? [];
+    if (page.length === 0) break;
+    rows.push(...page);
+    from += page.length;
+  }
+  return rows.map(parseYearRow).sort((a, b) => {
+    if (a.projectId !== b.projectId) return a.projectId < b.projectId ? -1 : 1;
+    if (a.order !== b.order) return a.order - b.order;
+    return a.id < b.id ? -1 : 1;
+  });
+}
+
 export async function getYearById(client: SupabaseClient, id: string): Promise<Year> {
   const { data, error } = await client.from('years').select('*').eq('id', id).maybeSingle();
   if (error) raiseDbError(error);

@@ -27,6 +27,7 @@ import type {
   DetailFormula,
   Member,
   Settings,
+  Staff,
   Year,
 } from '@/types';
 import { requireApprovedUser } from '@/lib/auth/guard';
@@ -37,6 +38,7 @@ import * as budgetRulesRepo from '@/lib/db/budget-rules';
 import * as membersRepo from '@/lib/db/members';
 import * as projectsRepo from '@/lib/db/projects';
 import * as settingsRepo from '@/lib/db/settings';
+import * as staffRepo from '@/lib/db/staff';
 import * as yearsRepo from '@/lib/db/years';
 import {
   RuleViolationError,
@@ -53,6 +55,8 @@ import {
   computeAxisSplit,
   computeDetailAmount,
   evaluateBudgetRules,
+  modifiedPersonnel,
+  personnelParticipation,
   type BudgetRuleEvaluation,
   type CellTotal,
   type DetailAmountResult,
@@ -69,6 +73,12 @@ import {
   type RuleYearInput,
 } from '@/lib/rules';
 import { todayISO } from '@/lib/dates';
+import { monthlyDisplay, salaryBasisBadge, type SalaryBasisBadge } from '@/lib/salary';
+import {
+  computeStaffParticipation,
+  personnelMonths,
+  type ParticipationTone,
+} from '@/lib/participation';
 
 // ─── 조회 모델 (§9 getBudgetPlanData / getBudgetDetails, §7.9·§7.9.2) ─────────
 
@@ -811,6 +821,233 @@ export async function getBudgetDetails(
         negativeCount: aggregate.negativeCount,
         missingSalaryCount: aggregate.missingSalaryCount,
         members,
+      },
+    };
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
+// ─── §7.9.6 [인건비] 탭 조회 (Phase 16) ──────────────────────────────────────
+
+/** [인건비] 탭의 행 하나 — 인건비 산출근거 + 그 인력 + 연결 조직원. 화면은 표시·편집만 한다 */
+export interface PersonnelTabRow {
+  detail: BudgetDetail;
+  /**
+   * 이 행이 가리키는 인력. PL-D1상 null일 수 없지만, 데이터가 어긋난 경우를 감추지 않기 위해
+   * null을 허용한다 — 화면은 "인력을 찾지 못함"으로 드러낸다 (절대 규칙 5)
+   */
+  member: Member | null;
+  /** 연결된 조직원. Member.staffId가 null이거나 조직원이 지워졌으면 null */
+  staff: Staff | null;
+  /** PL-1~PL-5 서버 집계값 (PL-D7). 저장된 detail.amount가 아니라 근거로 다시 계산한 값이다 */
+  amount: number;
+  /** 연봉 미입력으로 0원 처리된 행 — 화면은 금액 대신 경고를 쓴다 (§7.9.2) */
+  missingSalary: boolean;
+  negative: boolean;
+  /** 월급 **표시** 값 (SL-1). 산식에 들어가지 않는다 (PL-2). 연봉이 null이면 null */
+  monthlyDisplay: number | null;
+  /** 참여율(%) — PL-1이 읽는 것과 같은 인자 (personnelParticipation) */
+  participation: number;
+  /** 참여개월 — lib/participation.ts와 같은 규칙(첫 비% 인자, 없으면 12) */
+  months: number;
+  /** §5.11 스냅샷 3필드로 만든 급여 기준 배지. member가 없으면 '기록 없음' */
+  basisBadge: SalaryBasisBadge;
+  /** [급여 반영]이 쓴 급여 이력의 effectiveFrom. 수동 입력이면 null */
+  appliedFrom: string | null;
+}
+
+/** PS-6 참고값 — 그 조직원의 **전 과제 포함** 연도 계상률. 판정(tone)은 서버(PS-4)가 한다 */
+export interface StaffYearRate {
+  total: number;
+  tone: ParticipationTone;
+}
+
+export interface PersonnelTabData {
+  projectId: string;
+  /** 인쇄 머리말(P-R3) */
+  projectName: string;
+  todayISO: string;
+  year: Year;
+  /** SalaryApplyDialog와 연차 셀렉트의 원본. order 순 */
+  years: { id: string; name: string; startDate: string | null }[];
+  /** `personnel`·`student_personnel` 비목 행만. 비목 순 → 세목 순 → order 순 */
+  rows: PersonnelTabRow[];
+  /**
+   * 연차 인건비 합계(현금/현물)와 수정인건비 E1(PL-11). 제안 모드 하단 요약(getBudgetPlanData)과
+   * **같은 재료**(산출근거가 있는 셀은 CellTotal, 없는 셀은 저장된 비목 총액)로 만든다 —
+   * 두 화면의 E1이 갈리면 어느 쪽을 믿어야 할지 알 수 없다
+   */
+  totals: { cash: number; inKind: number; e1: number };
+  /** 산출근거 없이 저장된 총액만 있는 인건비 비목. 표에는 행이 없는데 합계에는 들어가므로 화면이 그 사실을 적는다 */
+  itemOnlyCategories: BudgetCategory[];
+  /**
+   * PS-6: 이 과제의 연결 조직원별 "다른 과제 포함 {연도} 계상률". 연도는 이 연차 startDate의 달력 연도(PS-3).
+   * startDate가 없으면 어느 해에도 넣을 수 없으므로 null — 0%로 보이면 안 된다
+   */
+  otherProjectsRate: Record<string, StaffYearRate> | null;
+  /** otherProjectsRate의 기준 연도. startDate가 없으면 null */
+  rateYear: number | null;
+  currencyUnit: Settings['currencyUnit'];
+}
+
+// 이 탭이 다루는 비목. 순서는 BUDGET_CATEGORY_ORDER와 같다 (personnel → student_personnel)
+const PERSONNEL_TAB_CATEGORIES: readonly BudgetCategory[] = BUDGET_CATEGORY_ORDER.filter((c) =>
+  PERSONNEL_CATEGORIES.includes(c)
+);
+
+function subcategoryRank(category: BudgetCategory, subcategory: string): number {
+  const index = SUBCATEGORY_PRESETS[category].findIndex((def) => def.code === subcategory);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
+// 'YYYY-MM-DD'의 앞 네 자리 — lib/participation.ts와 같은 이유로 Date 객체를 쓰지 않는다(타임존)
+function calendarYear(date: string): number {
+  return Number(date.slice(0, 4));
+}
+
+/**
+ * §7.9.6 [인건비] 탭 한 벌 — 연차 하나의 인건비·학생인건비 산출근거를 사람 중심으로.
+ * 금액은 getBudgetDetails와 같은 집계 경로(aggregateDetails)에서 나온다 — 화면은 `annualSalary`를
+ * 곱하지 않는다(PL-D7). 다른 과제 합계(PS-6)는 getStaffParticipation과 같은 벌크 조회 + 순수 함수다.
+ */
+export async function getPersonnelTabData(
+  projectId: string,
+  yearId: string
+): Promise<ActionResult<PersonnelTabData>> {
+  try {
+    const pid = parseOrThrow(uuidSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
+    const yid = parseOrThrow(uuidSchema, yearId, '연차 ID 형식이 올바르지 않습니다.');
+    const { client } = await requireApprovedUser();
+
+    // N-13: 연차가 이 과제의 것인지. FK는 "존재하는 연차"만 보장한다
+    const year = await loadYear(client, yid);
+    if (year.projectId !== pid) {
+      throw new RuleViolationError('이 과제에 속하지 않은 연차입니다.');
+    }
+
+    // 하나라도 실패하면 실패를 그대로 올린다 — 부분 조회는 합계·E1을 조용히 작게 만든다 (절대 규칙 5).
+    // 조직원은 퇴사자까지 받는다 — 지난 연차 인력은 퇴사자와 연결된 채 남는 것이 정상이다(HR-5)
+    const [project, years, items, projectDetails, members, staff, settings] = await Promise.all([
+      projectsRepo.getProjectById(client, pid),
+      yearsRepo.listYears(client, pid),
+      budgetItemsRepo.listBudgetItemsByProject(client, pid),
+      budgetDetailsRepo.listByProject(client, pid),
+      membersRepo.listMembers(client, pid),
+      staffRepo.listStaff(client, { includeRetired: true }),
+      settingsRepo.getSettings(client),
+    ]);
+
+    const details = projectDetails
+      .filter((d) => d.yearId === yid && PERSONNEL_CATEGORIES.includes(d.category))
+      .sort(
+        (a, b) =>
+          BUDGET_CATEGORY_ORDER.indexOf(a.category) - BUDGET_CATEGORY_ORDER.indexOf(b.category) ||
+          subcategoryRank(a.category, a.subcategory) - subcategoryRank(b.category, b.subcategory) ||
+          a.order - b.order ||
+          a.id.localeCompare(b.id)
+      );
+
+    // 행 금액·셀 합계는 lib/budget-plan.ts가 전담한다 (PL-1~PL-8). 집계는 셀 단위로 독립이라
+    // 이 두 비목만 넘겨도 getBudgetPlanData와 같은 값이 나온다
+    const aggregate = aggregateDetails(details, members);
+    const memberById = new Map(members.map((m) => [m.id, m]));
+    const staffById = new Map(staff.map((s) => [s.id, s]));
+
+    const rows: PersonnelTabRow[] = details.map((detail, index) => {
+      const computed = aggregate.rows[index];
+      // 집계는 입력과 같은 순서·길이를 보장한다. 어긋나면 금액이 다른 행에 붙는다는 뜻이다
+      if (!computed) throw new ValidationError('산출근거 금액을 계산하지 못했습니다.');
+      const member = detail.memberId === null ? null : (memberById.get(detail.memberId) ?? null);
+      const linked = member?.staffId == null ? null : (staffById.get(member.staffId) ?? null);
+      return {
+        detail,
+        member,
+        staff: linked,
+        amount: computed.amount,
+        missingSalary: computed.missingSalary,
+        negative: computed.negative,
+        monthlyDisplay:
+          member === null || member.annualSalary === null ? null : monthlyDisplay(member.annualSalary),
+        participation: personnelParticipation(detail),
+        months: personnelMonths(detail),
+        basisBadge: salaryBasisBadge(
+          member ?? { salaryIncludesRetirement: null, salaryIncludesInsurance: null }
+        ),
+        appliedFrom: member?.salaryAppliedFrom ?? null,
+      };
+    });
+
+    // E1·합계의 재료 — getBudgetPlanData의 연차 sources와 같은 규칙 (그 함수의 주석 참고)
+    const cellTotals = new Map<BudgetCategory, CellTotal>(
+      aggregate.cells.map((cell) => [cell.category, cell])
+    );
+    const sources: YearTotalSource[] = [];
+    const itemOnlyCategories: BudgetCategory[] = [];
+    for (const category of PERSONNEL_TAB_CATEGORIES) {
+      const cell = cellTotals.get(category);
+      if (cell) {
+        sources.push(cell);
+        continue;
+      }
+      const item = items.find((i) => i.yearId === yid && i.category === category);
+      if (item) {
+        sources.push(itemSource(item));
+        if (item.plannedAmount !== 0) itemOnlyCategories.push(category);
+      }
+    }
+    const yearTotals = buildYearTotals(sources);
+    let cash = 0;
+    let inKind = 0;
+    for (const amounts of Object.values(yearTotals.byCategory)) {
+      cash += amounts.cashAmount;
+      inKind += amounts.inKindAmount;
+    }
+    const totals = { cash, inKind, e1: modifiedPersonnel(yearTotals) };
+
+    // PS-6: 연결된 조직원의 다른 과제 포함 계상률. getStaffParticipation과 같은 벌크 조회 → 순수 함수.
+    // 연차 startDate가 없으면 기준 연도가 없다(PS-3) — 0%로 보이면 안 되므로 null
+    const linkedStaffIds = new Set(
+      rows.map((row) => row.staff?.id).filter((id): id is string => id !== undefined)
+    );
+    const rateYear = year.startDate === null ? null : calendarYear(year.startDate);
+    let otherProjectsRate: Record<string, StaffYearRate> | null = null;
+    if (rateYear !== null) {
+      otherProjectsRate = {};
+      if (linkedStaffIds.size > 0) {
+        const [allDetails, linkedMembers, allYears, projects] = await Promise.all([
+          budgetDetailsRepo.listPersonnelDetailsAll(client),
+          membersRepo.listLinkedMembersAll(client),
+          yearsRepo.listAllYears(client),
+          projectsRepo.listProjects(client),
+        ]);
+        const participation = computeStaffParticipation(
+          { details: allDetails, members: linkedMembers, years: allYears, projects, staff },
+          rateYear
+        );
+        for (const row of participation.rows) {
+          if (!linkedStaffIds.has(row.staffId)) continue;
+          otherProjectsRate[row.staffId] = { total: row.total, tone: row.tone };
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      data: {
+        projectId: pid,
+        projectName: project.name,
+        todayISO: todayISO(new Date()), // §6.5 기준일 — Asia/Seoul 달력
+        year,
+        years: [...years]
+          .sort((a, b) => a.order - b.order)
+          .map((y) => ({ id: y.id, name: y.name, startDate: y.startDate })),
+        rows,
+        totals,
+        itemOnlyCategories,
+        otherProjectsRate,
+        rateYear,
+        currencyUnit: settings.currencyUnit,
       },
     };
   } catch (e) {

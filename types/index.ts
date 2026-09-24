@@ -271,6 +271,14 @@ export interface Member extends BaseEntity {
   // 참여율(%)은 여기 두지 않는다. (연차 × 인력)의 속성이라 BudgetDetail이 갖는다 (§5.11 주석)
   annualSalary: number | null;  // 실지급액(연봉), 원 단위 정수. 미입력이면 null
   hireType: HireType;           // 기본 'existing'. 'new'는 아직 사람이 정해지지 않은 자리
+
+  // ─ Phase 16 추가 — 조직원 연결과 급여 기준 스냅샷 (§5.19, §5.20, §7.10) ─
+  // 3필드는 스냅샷이다: [급여 반영]이 급여 이력에서 복사하고, 그 뒤 조직원 쪽이 바뀌어도 움직이지 않는다
+  // (협의 끝난 예산이 인사 변동으로 흔들리면 안 된다 — §5.11 주석, SL-5)
+  staffId: string | null;                   // 연결된 조직원. on delete set null
+  salaryIncludesRetirement: boolean | null; // 이 과제의 annualSalary가 퇴직급여충당금을 포함하는가. null = 기록 없음(수동 입력)
+  salaryIncludesInsurance: boolean | null;  // 4대보험 회사부담분 포함 여부. null = 기록 없음
+  salaryAppliedFrom: string | null;         // [급여 반영] 시 어느 급여 이력(effectiveFrom)을 썼는지. 수동 입력이면 null
 }
 
 // ─── §5.12 BudgetItem (비목별 예산·집행) ─────────────────────
@@ -927,6 +935,33 @@ export interface BudgetRule extends BaseEntity {
   severity: RuleSeverity;
   source: string;            // 출처. '과기부고시 제2026-38호 제26조①' 처럼 고시명·조문. 빈 문자열 금지 (RL-D5)
   note: string;              // 사용자 메모 (공고에서 달리 정한 사유 등)
+}
+
+// ─── §5.19 Staff (조직원 마스터, Phase 16) ──────────────────────
+// Member는 "이 과제의 참여자", Staff는 "우리 회사 사람". 여러 과제의 Member가 같은 Staff를
+// 가리켜야 전 과제 참여율 합산(§6.15)과 급여 기준 공유(§5.20)가 성립한다. 외부 기관 인력은 Staff가 아니다.
+
+export interface Staff extends BaseEntity {
+  name: string;                 // 필수
+  email: string;                // 필수·유일(소문자 정규화, ST-1). 사내 명부(§6.13)와 과제 Member를 잇는 키(HR-9)
+  position: string;             // 직위
+  employed: boolean;            // 재직 여부. false = 퇴사 — 과제 Member.active와 다르다(HR-5)
+  note: string;
+  order: number;
+}
+
+// ─── §5.20 StaffSalary (급여 이력, Phase 16) ───────────────────
+
+export type SalaryBasis = 'annual' | 'monthly';
+
+export interface StaffSalary extends BaseEntity {
+  staffId: string;
+  effectiveFrom: string;        // 'YYYY-MM-DD'. 이 날부터 적용. (staffId, effectiveFrom) 유일
+  basis: SalaryBasis;           // 입력한 단위. 연봉 환산은 basis로 정해진다(SL-1). 화면은 둘 다 보여 준다
+  amount: number;               // basis 단위의 금액. 원 단위 정수 (절대 규칙 4)
+  includesRetirement: boolean;  // 퇴직급여충당금 포함 — 급여 이력의 속성이다(SL-4)
+  includesInsurance: boolean;   // 4대보험 회사부담분 포함
+  note: string;                 // 예: "2026 연봉계약", "성과급 제외"
 }
 
 // ─── §14.2 AppUser ───────────────────────────────────────────

@@ -11,15 +11,21 @@
 //  - §7.10.1 [사내 명부에서 추가]: HR 호출은 그 버튼의 클릭 핸들러에서만 시작한다(HR-7). 모달을
 //    닫으면 hrState를 null로 돌려 받아온 명부를 버린다(HR-17). 수동 [인력 추가]는 그대로 남긴다 —
 //    외부 기관 인력은 사내 명부에 없다.
+//  - §7.10 조직원(Phase 16): `조직원` 열은 연결됨(이름·퇴사 배지) / [연결]. 이름은 서버 props에 없어
+//    listStaff(true)로 여기서 받는다 — 못 받으면 열에 그 사실을 남긴다(절대 규칙 5). [급여 반영]은
+//    연결된 인력만 누를 수 있고, 미연결이면 버튼을 감추는 대신 "조직원 연결" 링크로 [연결]을 가리킨다.
+//    기준 연차 목록은 팀 화면 props에 없어 누를 때 getMilestonesData(연차 포함)로 받는다.
+//    연봉 칸의 기준 배지(SL-4)는 Member 스냅샷에서 나온다 — 조직원 쪽 현재 급여가 아니다.
 // 쓰기는 전부 actions/team.ts를 거친다. supabase를 직접 부르지 않는다(§8.2 C-2).
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { ActionResult, HrImportResult, Member, OrgRole, Organization } from '@/types';
+import type { ActionResult, HrImportResult, Member, OrgRole, Organization, Staff } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import type { AssignedTask, MemberReferenceCounts } from '@/actions/team';
-import { HIRE_TYPE_LABELS, MEMBER_ROLE_LABELS, ORG_ROLE_LABELS } from '@/lib/constants';
+import { HIRE_TYPE_LABELS, MEMBER_ROLE_LABELS, ORG_ROLE_LABELS, SALARY_FLAG_LABELS } from '@/lib/constants';
 import { loadHrApiKey } from '@/lib/hr-key';
+import { salaryBasisBadge } from '@/lib/salary';
 import {
   countMemberReferences,
   deleteMember,
@@ -27,9 +33,15 @@ import {
   setMemberActive,
   setProjectPM,
 } from '@/actions/team';
+import { listStaff } from '@/actions/staff';
+import { getMilestonesData } from '@/actions/milestones';
 import Badge, { type BadgeTone } from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import StaffLinkPicker from '@/components/staff/StaffLinkPicker';
+import SalaryApplyDialog, {
+  type SalaryApplyDialogYear,
+} from '@/components/budget/personnel/SalaryApplyDialog';
 import HrDirectoryModal, { type HrDirectoryState } from './HrDirectoryModal';
 import MemberFormModal from './MemberFormModal';
 import MemberTasksPanel from './MemberTasksPanel';
@@ -128,6 +140,25 @@ function describeCounts(counts: MemberReferenceCounts): string {
   return parts.length === 0 ? '정리된 참조는 없습니다.' : parts.join(' · ');
 }
 
+// 조직원 이름·재직 여부 조회 상태. 실패해도 열을 비우지 않고 이유를 남긴다
+type StaffLookup =
+  | { phase: 'loading' }
+  | { phase: 'ready'; byId: Map<string, Staff> }
+  | { phase: 'error'; message: string };
+
+// 반영은 됐지만 퇴직금·4대보험 둘 다 미포함인 경우. 빈 칸으로 두면 '기록 없음'과 구분되지 않는다
+const NO_INCLUSION_LABEL = '포함 없음';
+
+/** SL-4 기준 배지 문구 */
+function basisLabels(member: Member): string[] {
+  const { labels } = salaryBasisBadge(member);
+  return labels.length === 0 ? [NO_INCLUSION_LABEL] : labels;
+}
+
+function formatWon(amount: number): string {
+  return `${amount.toLocaleString('ko-KR')}원`;
+}
+
 export default function MemberSection({
   projectId,
   members,
@@ -149,6 +180,32 @@ export default function MemberSection({
   const [notice, setNotice] = useState<string | null>(null);
   // null = 모달 닫힘. 명부는 이 상태 안에만 있다 — 닫히면 함께 버려진다(HR-17)
   const [hrState, setHrState] = useState<HrDirectoryState | null>(null);
+  // §7.10 조직원 열 — 연결된 조직원의 이름·재직 여부는 props에 없어 여기서 받는다
+  const [staffLookup, setStaffLookup] = useState<StaffLookup>({ phase: 'loading' });
+  const [linkTargetId, setLinkTargetId] = useState<string | null>(null);
+  // [급여 반영] 대상과 기준 연차 목록. 연차는 버튼을 누를 때 받으므로 둘을 함께 둔다
+  const [salaryTarget, setSalaryTarget] = useState<{
+    memberId: string;
+    years: SalaryApplyDialogYear[];
+  } | null>(null);
+  const [yearsLoadingFor, setYearsLoadingFor] = useState<string | null>(null);
+
+  // members가 바뀔 때(연결·등록·새로고침)마다 다시 받는다 — 삭제된 조직원 이름이 남아 보이면 안 된다.
+  // 이미 받은 이름은 다시 받는 동안 그대로 둔다(열이 깜빡이지 않게).
+  useEffect(() => {
+    let cancelled = false;
+    void listStaff(true).then((res) => {
+      if (cancelled) return;
+      if (!res.ok) {
+        setStaffLookup({ phase: 'error', message: res.error });
+        return;
+      }
+      setStaffLookup({ phase: 'ready', byId: new Map(res.data.map((i) => [i.staff.id, i.staff])) });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [members]);
 
   const groups = useMemo(() => buildGroups(members, organizations), [members, organizations]);
 
@@ -162,6 +219,9 @@ export default function MemberSection({
   const deleteBlocked = counts !== null && counts.budgetDetails > 0;
   const currentPmName =
     pmMemberId === null ? null : (byId.get(pmMemberId)?.name ?? '(삭제된 인력)');
+  const linkTarget = linkTargetId === null ? null : (byId.get(linkTargetId) ?? null);
+  const salaryTargetMember =
+    salaryTarget === null ? null : (byId.get(salaryTarget.memberId) ?? null);
 
   async function run<T>(
     action: () => Promise<ActionResult<T>>,
@@ -285,6 +345,46 @@ export default function MemberSection({
     handleSetPM(member);
   };
 
+  // §7.10 연결은 staffId만 바꾼다 — 연봉 변화가 없다는 것을 문구로도 남긴다
+  const handleLinked = (member: Member, staff: Staff | null): void => {
+    setLinkTargetId(null);
+    setNotice(
+      staff === null
+        ? `${member.name}님의 조직원 연결을 해제했습니다. 연봉과 기준 배지는 그대로입니다.`
+        : `${member.name}님을 조직원 ${staff.name}(${staff.email})과 연결했습니다. 연봉은 바뀌지 않습니다 — [급여 반영]으로 가져오세요.`
+    );
+    onDone();
+  };
+
+  // [급여 반영]: 기준일이 될 연차 시작일이 필요하다(SL-2). 연차 목록은 이 화면 props에 없어 누를 때 받는다
+  const openSalaryApply = async (member: Member): Promise<void> => {
+    setYearsLoadingFor(member.id);
+    onBusyChange(true);
+    try {
+      const res = await getMilestonesData(projectId);
+      if (!res.ok) {
+        onError(res.error, res.code);
+        return;
+      }
+      const years = [...res.data.years]
+        .sort((a, b) => a.order - b.order)
+        .map((y) => ({ id: y.id, name: y.name, startDate: y.startDate }));
+      setSalaryTarget({ memberId: member.id, years });
+    } finally {
+      setYearsLoadingFor(null);
+      onBusyChange(false);
+    }
+  };
+
+  const handleSalaryApplied = (member: Member, detailCount: number): void => {
+    setSalaryTarget(null);
+    const salary = member.annualSalary === null ? '(미입력)' : formatWon(member.annualSalary);
+    setNotice(
+      `${member.name} 연봉 ${salary}(${basisLabels(member).join(' · ')}) 반영 — 산출근거 ${detailCount}건 재계산`
+    );
+    onDone();
+  };
+
   return (
     <section aria-labelledby="member-section-title">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -355,6 +455,7 @@ export default function MemberSection({
                     <th className="px-4 py-2 font-medium">직급</th>
                     <th className="px-4 py-2 font-medium">분야</th>
                     <th className="px-4 py-2 font-medium">연락처</th>
+                    <th className="px-4 py-2 font-medium">조직원</th>
                     <th className="px-4 py-2 text-right font-medium">연봉</th>
                     <th className="px-4 py-2 font-medium">활성</th>
                     <th className="px-4 py-2 text-right font-medium">동작</th>
@@ -410,11 +511,74 @@ export default function MemberSection({
                             </>
                           )}
                         </td>
-                        {/* 미입력(null)은 0원과 다르다 — '—'로 구분해 보여준다 (§5.11) */}
+                        {/* §7.10 조직원 열 — 연결됨(이름·퇴사) / [연결]. 이름을 못 읽어도 연결 사실은 감추지 않는다 */}
+                        <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                          {member.staffId === null ? (
+                            <Button size="sm" disabled={busy} onClick={() => setLinkTargetId(member.id)}>
+                              연결
+                            </Button>
+                          ) : (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {staffLookup.phase === 'loading' && (
+                                <span className="text-xs text-grey-400">조직원 확인 중…</span>
+                              )}
+                              {staffLookup.phase === 'error' && (
+                                <span className="text-xs text-red-600" title={staffLookup.message}>
+                                  연결됨 (이름 조회 실패)
+                                </span>
+                              )}
+                              {staffLookup.phase === 'ready' &&
+                                (() => {
+                                  const staff = staffLookup.byId.get(member.staffId);
+                                  if (!staff) {
+                                    return (
+                                      <span className="text-xs text-orange-700">연결됨 (목록에 없는 조직원)</span>
+                                    );
+                                  }
+                                  return (
+                                    <>
+                                      <span className="text-grey-800" title={staff.email}>
+                                        {staff.name}
+                                      </span>
+                                      {!staff.employed && <Badge tone="amber">퇴사</Badge>}
+                                    </>
+                                  );
+                                })()}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={busy}
+                                onClick={() => setLinkTargetId(member.id)}
+                                aria-label={`${member.name} 조직원 연결 변경`}
+                              >
+                                변경
+                              </Button>
+                            </div>
+                          )}
+                        </td>
+                        {/* 미입력(null)은 0원과 다르다 — '—'로 구분해 보여준다 (§5.11).
+                            기준 배지(SL-4)는 이 과제의 스냅샷 — 어느 과제에서든 "무엇을 포함한 값인지"가 보인다 */}
                         <td className="px-4 py-2.5 text-right tabular-nums text-grey-600">
-                          {member.annualSalary === null
-                            ? '—'
-                            : `${member.annualSalary.toLocaleString('ko-KR')}원`}
+                          {member.annualSalary === null ? '—' : formatWon(member.annualSalary)}
+                          <div className="mt-1 flex flex-wrap justify-end gap-1">
+                            {basisLabels(member).map((label) => (
+                              <Badge
+                                key={label}
+                                tone={
+                                  label === SALARY_FLAG_LABELS.none || label === NO_INCLUSION_LABEL
+                                    ? 'neutral'
+                                    : 'blue'
+                                }
+                                title={
+                                  member.salaryAppliedFrom === null
+                                    ? '수동 입력이거나 [급여 반영] 전입니다'
+                                    : `${member.salaryAppliedFrom} 급여 이력을 반영한 값`
+                                }
+                              >
+                                {label}
+                              </Badge>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-4 py-2.5">
                           <Badge tone={member.active ? 'green' : 'neutral'}>
@@ -437,6 +601,26 @@ export default function MemberSection({
                             >
                               수정
                             </Button>
+                            {/* §7.10 [급여 반영]은 연결된 인력만. 미연결이면 버튼을 감추지 않고 [연결]을 가리킨다(SL-5) */}
+                            {member.staffId !== null ? (
+                              <Button
+                                size="sm"
+                                disabled={busy}
+                                onClick={() => void openSalaryApply(member)}
+                              >
+                                {yearsLoadingFor === member.id ? '준비 중…' : '급여 반영'}
+                              </Button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => setLinkTargetId(member.id)}
+                                title="급여 반영은 조직원과 연결된 인력만 할 수 있습니다"
+                                className="px-1 text-t7 text-grey-500 underline underline-offset-2 hover:text-grey-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                급여 반영 — 조직원 연결
+                              </button>
+                            )}
                             <Button
                               size="sm"
                               disabled={busy}
@@ -501,6 +685,25 @@ export default function MemberSection({
           projectId={projectId}
           onClose={() => setHrState(null)}
           onAdded={handleHrAdded}
+        />
+      )}
+
+      {linkTarget && (
+        <StaffLinkPicker
+          member={linkTarget}
+          onClose={() => setLinkTargetId(null)}
+          onLinked={handleLinked}
+        />
+      )}
+
+      {salaryTarget && salaryTargetMember && (
+        <SalaryApplyDialog
+          memberId={salaryTargetMember.id}
+          memberName={salaryTargetMember.name}
+          memberVersion={salaryTargetMember.version}
+          years={salaryTarget.years}
+          onClose={() => setSalaryTarget(null)}
+          onApplied={handleSalaryApplied}
         />
       )}
 

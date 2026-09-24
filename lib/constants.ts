@@ -36,7 +36,8 @@ export const MAX_TASK_DEPTH = 10;
 // 2 = Phase 9(budget_details 신설). 백업 파일 형식이 바뀌므로 올렸다 —
 // 구 백업(v1)은 budget_details 키가 없어 복원할 수 없고, K-5가 그 사실을 정확히 알린다
 // 3 = Phase 13(budget_rules 신설 + projects 한도 컬럼 2종 삭제, §5.18 RL-D7) — 같은 이유
-export const EXPECTED_SCHEMA_VERSION = 3;
+// 4 = Phase 16(staff·staff_salaries 신설 + members 컬럼 4종, §5.19·§5.20) — 같은 이유
+export const EXPECTED_SCHEMA_VERSION = 4;
 
 // ─── 부록 A.1 비목 라벨 ──────────────────────────────────────
 
@@ -294,6 +295,23 @@ export const HIRE_TYPE_LABELS: Record<HireType, string> = {
   existing: '기존인력',
   new: '채용예정',
 };
+
+// ─── §5.20 급여 이력 (Phase 16) ──────────────────────────────
+
+// SalaryBasis 타입은 T2(types/index.ts)가 정의한다. 여기서는 리터럴 유니온으로 키를 고정해
+// 타입 파일과의 동시 편집에서 순환·과도기 의존을 만들지 않는다
+export const SALARY_BASIS_LABELS: Record<'annual' | 'monthly', string> = {
+  annual: '연봉',
+  monthly: '월급',
+};
+
+// 급여 기준 배지 문구 (§5.11 스냅샷 3필드, §7.10 연봉 칸·§7.9.6 [기준] 열).
+// none = 스냅샷 3필드가 전부 null — 수동 입력이거나 [급여 반영] 전
+export const SALARY_FLAG_LABELS = {
+  retirement: '퇴직금 포함',
+  insurance: '4대보험 포함',
+  none: '기록 없음',
+} as const;
 
 export const DETAIL_AXIS_LABELS: Record<DetailAxis, string> = {
   cash: '현금',

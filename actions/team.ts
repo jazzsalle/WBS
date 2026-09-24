@@ -21,6 +21,7 @@ import type {
   Member,
   Organization,
   Project,
+  StaffSalary,
   Task,
 } from '@/types';
 import { requireApprovedUser } from '@/lib/auth/guard';
@@ -31,11 +32,14 @@ import {
   normalizeHrEmail,
   parseHrUsers,
   type HrDirectory,
+  type HrParseResult,
 } from '@/lib/hr';
+import { monthlyDisplay, pickSalaryAsOf, toAnnualSalary } from '@/lib/salary';
 import * as appUsers from '@/lib/db/app-users';
 import * as organizationsRepo from '@/lib/db/organizations';
 import * as membersRepo from '@/lib/db/members';
 import * as projectsRepo from '@/lib/db/projects';
+import * as staffRepo from '@/lib/db/staff';
 import * as tasksRepo from '@/lib/db/tasks';
 import * as yearsRepo from '@/lib/db/years';
 import { RuleViolationError, StaleDataError, ValidationError, toActionFailure } from '@/lib/db/errors';
@@ -105,6 +109,29 @@ export interface SalaryChangePreview {
   cells: SalaryImpactCell[];
 }
 
+// [급여 반영] 확인 대화상자의 연차 행 — SalaryImpactCell을 비목 구분 없이 연차로 합친 것
+export interface SalaryYearImpact {
+  yearId: string;
+  name: string;
+  before: number;
+  after: number;
+}
+
+// §7.10 [급여 반영] 미리보기. SL-2로 고른 이력과 그 이력을 반영했을 때의 PL-10b 영향을 함께 준다 —
+// 화면은 "2026-01-01 이력(월급 3,000,000 → 연봉 36,000,000)을 반영하면 N건이 이렇게 바뀝니다"를 그린다.
+export interface StaffSalaryApplyPreview {
+  salary: StaffSalary;
+  /** SL-1 환산 값. 이 값이 그대로 Member.annualSalary가 된다 */
+  annualSalary: number;
+  /** 표시 전용 월액(SL-1). 산식에 넣지 않는다 */
+  monthlyDisplay: number;
+  currentAnnualSalary: number | null;
+  detailCount: number;
+  byYear: SalaryYearImpact[];
+  /** 반영 시 Member에 복사될 기준 3필드 (SL-4) */
+  snapshot: membersRepo.MemberSalarySnapshot;
+}
+
 // ─── 입력 검증 ────────────────────────────────────────────────────────────────
 
 const uuidSchema = z.uuid();
@@ -164,7 +191,14 @@ const memberCreateSchema = memberFieldsSchema.partial().extend({
   name: memberFieldsSchema.shape.name,
 });
 
+// staffId·스냅샷 3필드는 여기 없다 — 연결은 linkMemberToStaff, 스냅샷은 [급여 반영]만 쓴다(§5.11).
+// patch로 열어 두면 화면이 "퇴직금 포함"을 손으로 찍을 수 있어 배지가 근거를 잃는다
 const memberPatchSchema = memberFieldsSchema.partial();
+
+// SL-2 기준일·급여 적용일. 'YYYY-MM-DD'는 사전순이 곧 시간순이라 그대로 비교한다
+const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "날짜는 'YYYY-MM-DD' 형식이어야 합니다.");
 
 function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, fallback: string): T {
   const parsed = schema.safeParse(value);
@@ -443,6 +477,66 @@ function recalcAmounts(
   };
 }
 
+// PL-10b 영향 계산의 본체. previewSalaryChange(수동 연봉)와 previewStaffSalaryApply([급여 반영])가
+// 같은 결과를 보여야 하므로 한 곳에 둔다 — 두 화면의 전후 금액이 어긋나면 어느 쪽을 믿을지 알 수 없다.
+async function buildSalaryChangePreview(
+  client: SupabaseClient,
+  member: Member,
+  nextSalary: number | null
+): Promise<SalaryChangePreview> {
+  const details = await membersRepo.listSalaryImpactedDetails(client, member.id);
+  const { results } = recalcAmounts(details, member.id, nextSalary);
+
+  // 연차 이름은 화면 표시용이다. 이름이 비어 있으면 순번으로 부른다 (GanttChart와 같은 관례).
+  // 목록에 없는 연차는 감추지 않고 그대로 드러낸다
+  const years = await yearsRepo.listYears(client, member.projectId);
+  const yearNames = new Map(
+    years.map((year) => [year.id, year.name.trim() || `${year.order + 1}차년도`])
+  );
+
+  const cells = new Map<string, SalaryImpactCell>();
+  let beforeTotal = 0;
+  let afterTotal = 0;
+  let missingSalaryCount = 0;
+
+  details.forEach((detail, i) => {
+    const result = results[i]!;
+    beforeTotal += detail.amount;
+    afterTotal += result.amount;
+    if (result.missingSalary) missingSalaryCount += 1;
+
+    const key = `${detail.yearId}|${detail.category}`;
+    let cell = cells.get(key);
+    if (!cell) {
+      cell = {
+        yearId: detail.yearId,
+        yearName: yearNames.get(detail.yearId) ?? '(목록에 없는 연차)',
+        category: detail.category,
+        rowCount: 0,
+        beforeAmount: 0,
+        afterAmount: 0,
+      };
+      cells.set(key, cell);
+    }
+    cell.rowCount += 1;
+    cell.beforeAmount += detail.amount;
+    cell.afterAmount += result.amount;
+  });
+
+  return {
+    memberId: member.id,
+    memberName: member.name,
+    currentAnnualSalary: member.annualSalary,
+    nextAnnualSalary: nextSalary,
+    detailCount: details.length,
+    beforeTotal,
+    afterTotal,
+    delta: afterTotal - beforeTotal,
+    missingSalaryCount,
+    cells: [...cells.values()],
+  };
+}
+
 /**
  * PL-10b 확인용 미리보기. **저장하지 않는다.**
  *
@@ -459,64 +553,18 @@ export async function previewSalaryChange(
     const { client } = await requireApprovedUser();
 
     const member = await membersRepo.getMemberById(client, memberId);
-    const details = await membersRepo.listSalaryImpactedDetails(client, memberId);
-    const { results } = recalcAmounts(details, memberId, nextSalary);
-
-    // 연차 이름은 화면 표시용이다. 이름이 비어 있으면 순번으로 부른다 (GanttChart와 같은 관례).
-    // 목록에 없는 연차는 감추지 않고 그대로 드러낸다
-    const years = await yearsRepo.listYears(client, member.projectId);
-    const yearNames = new Map(
-      years.map((year) => [year.id, year.name.trim() || `${year.order + 1}차년도`])
-    );
-
-    const cells = new Map<string, SalaryImpactCell>();
-    let beforeTotal = 0;
-    let afterTotal = 0;
-    let missingSalaryCount = 0;
-
-    details.forEach((detail, i) => {
-      const result = results[i]!;
-      beforeTotal += detail.amount;
-      afterTotal += result.amount;
-      if (result.missingSalary) missingSalaryCount += 1;
-
-      const key = `${detail.yearId}|${detail.category}`;
-      let cell = cells.get(key);
-      if (!cell) {
-        cell = {
-          yearId: detail.yearId,
-          yearName: yearNames.get(detail.yearId) ?? '(목록에 없는 연차)',
-          category: detail.category,
-          rowCount: 0,
-          beforeAmount: 0,
-          afterAmount: 0,
-        };
-        cells.set(key, cell);
-      }
-      cell.rowCount += 1;
-      cell.beforeAmount += detail.amount;
-      cell.afterAmount += result.amount;
-    });
-
-    return {
-      ok: true,
-      data: {
-        memberId,
-        memberName: member.name,
-        currentAnnualSalary: member.annualSalary,
-        nextAnnualSalary: nextSalary,
-        detailCount: details.length,
-        beforeTotal,
-        afterTotal,
-        delta: afterTotal - beforeTotal,
-        missingSalaryCount,
-        cells: [...cells.values()],
-      },
-    };
+    return { ok: true, data: await buildSalaryChangePreview(client, member, nextSalary) };
   } catch (e) {
     return toFailure(e);
   }
 }
+
+// PL-10b(v4.7): 수동 입력 = 기록 없음. 이전 [급여 반영]의 기준이 남아 있으면 새 연봉에 거짓 배지가 붙는다
+const NO_SALARY_SNAPSHOT: membersRepo.MemberSalarySnapshot = {
+  salaryIncludesRetirement: null,
+  salaryIncludesInsurance: null,
+  salaryAppliedFrom: null,
+};
 
 // O-1: 인력 행 편집은 여러 필드를 한 번에 바꾸므로 expectedVersion을 받아 잠금을 건다
 //
@@ -574,12 +622,14 @@ export async function updateMember(
 
     // 연봉 + 인건비 행 금액 + budget_items를 한 트랜잭션으로 적용한다 (PL-10b).
     // 목록이 그 사이 늘어났으면 RPC가 집합 불일치로 거부한다 — 부분 반영은 없다.
+    // 스냅샷 초기화도 같은 UPDATE다 — 따로 쓰면 실패 시 "연봉은 새 값, 배지는 옛 기준"이 남는다
     const applied = await membersRepo.applySalaryChange(
       client,
       memberId,
       nextSalary ?? null,
       amounts,
-      lockVersion
+      lockVersion,
+      NO_SALARY_SNAPSHOT
     );
 
     revalidateTeam(before.projectId);
@@ -587,6 +637,163 @@ export async function updateMember(
 
     // RPC는 요약 jsonb만 돌려준다 — 화면이 쓰는 최신 행(O-1 baseline)은 다시 읽어 준다
     return { ok: true, data: await membersRepo.getMemberById(client, memberId) };
+  } catch (e) {
+    return toFailure(e, client);
+  }
+}
+
+// ─── §7.10 조직원 연결 · [급여 반영] (Phase 16 — §5.19, §5.20 SL-1·SL-2·SL-4·SL-5) ─────
+
+/**
+ * Member.staffId만 바꾼다 — 연봉은 건드리지 않는다(§7.10). 값을 가져오는 것은 [급여 반영]의 몫이다.
+ * staffId가 null이면 연결을 끊는다.
+ *
+ * 한 과제 안에서 같은 조직원을 두 Member가 가리키면 참여율 합산(§6.15)이 그 사람을 두 번 세므로
+ * RULE로 거부한다. 다른 과제의 Member가 같은 조직원을 가리키는 것은 정상이다(그게 연결의 목적이다).
+ */
+export async function linkMemberToStaff(
+  memberId: string,
+  staffId: string | null
+): Promise<ActionResult<Member>> {
+  try {
+    const mid = parseOrThrow(uuidSchema, memberId, '인력 ID 형식이 올바르지 않습니다.');
+    const sid = parseOrThrow(uuidSchema.nullable(), staffId, '조직원 ID 형식이 올바르지 않습니다.');
+    const { user, client } = await requireApprovedUser();
+
+    const member = await membersRepo.getMemberById(client, mid);
+    if (sid !== null) {
+      // 없는 조직원이면 NotFound — FK 위반 문구보다 먼저, 사용자 문구로 드러낸다
+      await staffRepo.getStaffById(client, sid);
+      const siblings = await membersRepo.listMembers(client, member.projectId);
+      if (siblings.some((m) => m.id !== mid && m.staffId === sid)) {
+        throw new RuleViolationError('이 조직원은 이미 이 과제의 다른 인력에 연결되어 있습니다.');
+      }
+    }
+
+    // O-2: 단일 조작이라 낙관적 잠금을 생략한다 (setMemberActive와 같다)
+    const updated = await membersRepo.updateMember(client, mid, { staffId: sid }, user.id);
+    revalidateTeam(member.projectId);
+    // [인건비] 탭(§7.9.6)이 조직원 열·[급여 반영] 가능 여부를 이 값으로 그린다
+    revalidateBudget(member.projectId);
+    return { ok: true, data: updated };
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
+// SL-2: 연결된 조직원의 이력에서 기준일의 급여를 고른다. 없으면 어느 단계에서 막혔는지 문구로 가른다 —
+// "연결 안 됨"과 "이력 없음"은 사용자가 해야 할 일이 다르다(연결 vs /staff에서 이력 추가).
+async function pickStaffSalaryForMember(
+  client: SupabaseClient,
+  member: Member,
+  asOfDate: string
+): Promise<StaffSalary> {
+  if (member.staffId === null) {
+    throw new RuleViolationError('조직원이 연결되지 않았습니다.');
+  }
+  const salaries = await staffRepo.listSalariesByStaff(client, member.staffId);
+  const salary = pickSalaryAsOf(salaries, asOfDate);
+  if (salary === null) {
+    throw new RuleViolationError(
+      '급여 이력이 없습니다. 조직원 화면(/staff)에서 급여 이력을 추가하세요.'
+    );
+  }
+  return salary;
+}
+
+// SL-4: [급여 반영]이 Member에 복사하는 기준 3필드
+function toSalarySnapshot(salary: StaffSalary): membersRepo.MemberSalarySnapshot {
+  return {
+    salaryIncludesRetirement: salary.includesRetirement,
+    salaryIncludesInsurance: salary.includesInsurance,
+    salaryAppliedFrom: salary.effectiveFrom,
+  };
+}
+
+/**
+ * [급여 반영] 미리보기 (§7.10). **저장하지 않는다.**
+ * 기준일(asOfDate — 반영을 누른 연차의 시작일)로 이력을 고르고(SL-2) 연봉으로 환산해(SL-1)
+ * PL-10b 영향을 previewSalaryChange와 같은 계산으로 돌려준다. 연차별 전후 금액은 비목을 합친 값이다.
+ */
+export async function previewStaffSalaryApply(
+  memberId: string,
+  asOfDate: string
+): Promise<ActionResult<StaffSalaryApplyPreview>> {
+  try {
+    const mid = parseOrThrow(uuidSchema, memberId, '인력 ID 형식이 올바르지 않습니다.');
+    const asOf = parseOrThrow(dateSchema, asOfDate, '기준일이 올바르지 않습니다.');
+    const { client } = await requireApprovedUser();
+
+    const member = await membersRepo.getMemberById(client, mid);
+    const salary = await pickStaffSalaryForMember(client, member, asOf);
+    const annualSalary = toAnnualSalary(salary);
+    const preview = await buildSalaryChangePreview(client, member, annualSalary);
+
+    const byYear = new Map<string, SalaryYearImpact>();
+    for (const cell of preview.cells) {
+      let row = byYear.get(cell.yearId);
+      if (!row) {
+        row = { yearId: cell.yearId, name: cell.yearName, before: 0, after: 0 };
+        byYear.set(cell.yearId, row);
+      }
+      row.before += cell.beforeAmount;
+      row.after += cell.afterAmount;
+    }
+
+    return {
+      ok: true,
+      data: {
+        salary,
+        annualSalary,
+        monthlyDisplay: monthlyDisplay(annualSalary),
+        currentAnnualSalary: member.annualSalary,
+        detailCount: preview.detailCount,
+        byYear: [...byYear.values()],
+        snapshot: toSalarySnapshot(salary),
+      },
+    };
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
+/**
+ * [급여 반영] 저장 (§7.10, SL-5). updateMember의 PL-10b 경로(apply_salary_change)를 그대로 탄다 —
+ * 새 산식은 없다. 연봉과 기준 3필드 스냅샷은 같은 UPDATE다(PL-10b v4.7).
+ * 이력은 저장 시점에 다시 고른다: 미리보기 뒤 누가 이력을 고쳤어도 화면의 값이 아니라 지금 이력이 들어간다.
+ */
+export async function applyStaffSalary(
+  memberId: string,
+  asOfDate: string,
+  expectedVersion?: number
+): Promise<ActionResult<Member>> {
+  let client: SupabaseClient | undefined;
+  try {
+    const mid = parseOrThrow(uuidSchema, memberId, '인력 ID 형식이 올바르지 않습니다.');
+    const asOf = parseOrThrow(dateSchema, asOfDate, '기준일이 올바르지 않습니다.');
+    const ctx = await requireApprovedUser();
+    client = ctx.client;
+
+    const member = await membersRepo.getMemberById(client, mid);
+    const salary = await pickStaffSalaryForMember(client, member, asOf);
+    const annualSalary = toAnnualSalary(salary);
+
+    const details = await membersRepo.listSalaryImpactedDetails(client, mid);
+    const { amounts } = recalcAmounts(details, mid, annualSalary);
+
+    await membersRepo.applySalaryChange(
+      client,
+      mid,
+      annualSalary,
+      amounts,
+      expectedVersion,
+      toSalarySnapshot(salary)
+    );
+
+    revalidateTeam(member.projectId);
+    // 산출근거가 0건이어도 [인건비] 탭(§7.9.6)의 연봉·기준 배지 칸이 바뀐다
+    revalidateBudget(member.projectId);
+    return { ok: true, data: await membersRepo.getMemberById(client, mid) };
   } catch (e) {
     return toFailure(e, client);
   }
@@ -802,12 +1009,47 @@ async function readHrBody(res: Response): Promise<unknown> {
   }
 }
 
+type HrUsersResult =
+  | { ok: true; parsed: Extract<HrParseResult, { ok: true }> }
+  | { ok: false; error: string };
+
+// HTTP 호출·검증의 유일한 자리. 과제 인력(fetchHrDirectory)과 조직원(fetchHrDirectoryForStaff)이
+// 공유한다 — 호출부가 둘이 되면 키가 실리는 경로도 둘이 되어 HR-13 감시 지점이 흩어진다.
+// 429를 포함해 어떤 상태에서도 다시 부르지 않는다(HR-15) — 사용자 조작 하나에 호출 하나다.
+async function loadHrUsers(key: string): Promise<HrUsersResult> {
+  let res: Response;
+  try {
+    res = await fetch(HR_USERS_URL, {
+      method: 'GET',
+      headers: { [HR_API_KEY_HEADER]: key, Accept: 'application/json' },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(HR_TIMEOUT_MS),
+    });
+  } catch (networkError) {
+    // 예외 객체에는 요청 헤더가 실리지 않는다 — 이름만 남겨 타임아웃과 DNS 실패를 구분한다
+    console.error(
+      '[actions/team] HR 호출 실패:',
+      networkError instanceof Error ? networkError.name : typeof networkError
+    );
+    return { ok: false, error: formatHrError(null, null) };
+  }
+
+  if (!res.ok) {
+    return { ok: false, error: formatHrError(res.status, await readHrBody(res)) };
+  }
+
+  const parsed = parseHrUsers(await readHrBody(res));
+  if (!parsed.ok) {
+    return { ok: false, error: `HR 응답을 읽을 수 없습니다. ${parsed.reason}` };
+  }
+  return { ok: true, parsed };
+}
+
 /**
  * HR 명부를 한 번 불러와 이 과제 기준으로 선택 가능 여부까지 판정한다 (HR-8·HR-9·HR-16).
  * projectId가 null이면 판정을 생략한다 — §7.14 [연결 확인]은 과제 맥락이 없다.
  *
  * 실패는 전부 ActionResult 실패로 돌려주고 빈 목록으로 폴백하지 않는다(HR-14, 절대 규칙 5).
- * 429를 포함해 어떤 상태에서도 다시 부르지 않는다(HR-15) — 사용자 조작 하나에 호출 하나다.
  * 실패 code는 두지 않는다: 원인이 HR 쪽이라 STALE·AUTH·VALIDATION 어느 것도 아니다.
  */
 export async function fetchHrDirectory(
@@ -821,32 +1063,29 @@ export async function fetchHrDirectory(
 
     const existing = pid === null ? [] : await membersRepo.listMembers(client, pid);
 
-    let res: Response;
-    try {
-      res = await fetch(HR_USERS_URL, {
-        method: 'GET',
-        headers: { [HR_API_KEY_HEADER]: key, Accept: 'application/json' },
-        cache: 'no-store',
-        signal: AbortSignal.timeout(HR_TIMEOUT_MS),
-      });
-    } catch (networkError) {
-      // 예외 객체에는 요청 헤더가 실리지 않는다 — 이름만 남겨 타임아웃과 DNS 실패를 구분한다
-      console.error(
-        '[actions/team] HR 호출 실패:',
-        networkError instanceof Error ? networkError.name : typeof networkError
-      );
-      return { ok: false, error: formatHrError(null, null) };
-    }
+    const loaded = await loadHrUsers(key);
+    if (!loaded.ok) return loaded;
+    return { ok: true, data: assembleDirectory(loaded.parsed, existing) };
+  } catch (e) {
+    return toFailure(e);
+  }
+}
 
-    if (!res.ok) {
-      return { ok: false, error: formatHrError(res.status, await readHrBody(res)) };
-    }
+/**
+ * ST-3: 같은 명부를 **조직원 이메일 집합** 기준으로 판정한다 — `이미 등록됨`은 "조직원으로 이미 있다"는
+ * 뜻이다. 퇴사자도 포함해 비교한다: 퇴사 처리된 조직원을 명부에서 다시 만들면 ST-1 유일 제약에 걸린다.
+ * 반환 항목의 draft는 createStaffFromHr(actions/staff.ts)에 그대로 넘긴다.
+ */
+export async function fetchHrDirectoryForStaff(apiKey: string): Promise<ActionResult<HrDirectory>> {
+  try {
+    const key = parseOrThrow(hrApiKeySchema, apiKey, 'HR API 키가 올바르지 않습니다.');
+    const { client } = await requireApprovedUser();
 
-    const parsed = parseHrUsers(await readHrBody(res));
-    if (!parsed.ok) {
-      return { ok: false, error: `HR 응답을 읽을 수 없습니다. ${parsed.reason}` };
-    }
-    return { ok: true, data: assembleDirectory(parsed, existing) };
+    const existing = await staffRepo.listStaff(client, { includeRetired: true });
+
+    const loaded = await loadHrUsers(key);
+    if (!loaded.ok) return loaded;
+    return { ok: true, data: assembleDirectory(loaded.parsed, existing) };
   } catch (e) {
     return toFailure(e);
   }
