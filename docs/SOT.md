@@ -1414,7 +1414,7 @@ priorityScore = importance × urgency        # 1 ~ 25
 | PL-9 | **잠금**: `detailCount > 0`인 셀은 매트릭스에서 `plannedAmount`·`cashAmount`·`inKindAmount`를 직접 편집할 수 없다. 잠긴 셀을 클릭하면 편집 필드 대신 **산출근거 패널**이 열린다. 마지막 행을 지워 `detailCount`가 0이 되면 잠금이 풀리고 **직전 합계가 그대로 남는다** — 0으로 되돌리지 않는다. 근거를 지웠다고 예산이 사라져야 할 이유가 없고, 사용자가 이어서 손으로 고칠 수 있어야 한다. |
 | PL-10 | **저장 값과 합계의 일치는 트랜잭션 불변식이다.** `BudgetDetail`을 추가·수정·삭제하는 모든 RPC는 **같은 트랜잭션 안에서** 해당 `budget_items` 행의 세 금액을 다시 계산해 갱신한다. <br>이것은 CLAUDE.md의 "파생 값은 저장하지 않는다"에서 **의도적으로 벗어난 지점**이다(PL-10a와 함께 둘뿐이다). 근거: `plannedAmount`는 이미 §6.4 집행률·§7.2 대시보드·§6.8 임포트 스냅샷·§8.7 백업이 **읽고 있는 1급 필드**다. 조회 시점 계산으로 바꾸면 그 소비자를 전부 고쳐야 하고, 하나라도 빠뜨리면 화면마다 다른 예산이 보인다. 트랜잭션 안에서만 갱신되므로 드리프트가 구조적으로 불가능하며, **불변식을 통합 테스트로 고정한다**(행 추가·수정·삭제 후 `budget_items` 재조회 대조). |
 | PL-10a | **금액 산식은 `lib/budget-plan.ts` 한 곳에만 있다.** 서버 액션이 PL-1~PL-5로 `amount`를 계산해 RPC에 넘기고, **RPC는 더하기만 한다**(`sum(amount)`를 축별로). PL/pgSQL에 산식을 다시 구현하지 않는다. <br>근거: 같은 규칙이 두 곳에 생기면 반드시 어긋난다(§7.9.1 Step 4의 O-4와 같은 판단). 특히 반올림은 JS `Math.round`와 SQL `round()`가 **음수 .5와 부동소수점 경계에서 갈린다** — 금액에서 1원 차이는 합계 검증을 통과하지 못한다. 대가로 `amount`가 저장되지만(PL-D7), 이는 산식 이중화보다 훨씬 작은 위험이다. |
-| PL-10b | **`Member.annualSalary`가 바뀌면 그 인력을 참조하는 인건비 행의 `amount`와 관련 `budget_items`를 같은 트랜잭션에서 다시 계산한다.** 연봉은 산출의 **근거**이므로 근거가 바뀌면 결과도 바뀌는 것이 맞다. <br>단 **조용히 바꾸지 않는다**: `updateMember`가 연봉을 바꾸려 할 때 영향받는 산출근거 건수와 변경 전후 금액을 먼저 돌려주고, 사용자가 확인해야 저장한다(§7.10). 이 규칙이 없으면 인사 정보 수정이 협의 끝난 예산을 말없이 흔든다. <br>참여율·참여기간은 `BudgetDetail`에 있으므로 이 경로와 무관하다(§5.11). |
+| PL-10b | **`Member.annualSalary`가 바뀌면 그 인력을 참조하는 인건비 행의 `amount`와 관련 `budget_items`를 같은 트랜잭션에서 다시 계산한다.** (v4.7) `[급여 반영]`의 **급여 기준 스냅샷 3필드**(§5.11)도 같은 트랜잭션이다 — `apply_salary_change`가 선택 인자 `p_snapshot`으로 받아 같은 UPDATE에서 쓴다. 따로 쓰면 RPC 실패 시 "적용 이력은 새 값, 연봉은 옛 값"인 행이 남는다. **수동으로 연봉을 고치면 스냅샷 3필드는 null(기록 없음)로 되돌린다** — 이전 반영 기준이 남아 거짓 배지가 보이면 안 된다. 연봉은 산출의 **근거**이므로 근거가 바뀌면 결과도 바뀌는 것이 맞다. <br>단 **조용히 바꾸지 않는다**: `updateMember`가 연봉을 바꾸려 할 때 영향받는 산출근거 건수와 변경 전후 금액을 먼저 돌려주고, 사용자가 확인해야 저장한다(§7.10). 이 규칙이 없으면 인사 정보 수정이 협의 끝난 예산을 말없이 흔든다. <br>참여율·참여기간은 `BudgetDetail`에 있으므로 이 경로와 무관하다(§5.11). |
 
 #### 6.10.3 지침 검증 (PL-11~PL-16)
 
@@ -2487,7 +2487,8 @@ deleteTechRecord(techTargetId, recordId)
 ```
 listStaff(includeRetired?)                         // 목록 + 오늘 기준 현재 급여(SL-2) + 연결 과제 수
 createStaff(input) / updateStaff(id, patch, expectedVersion?) / deleteStaff(id)   // ST-1 이메일 유일, ST-2 참조 안내
-createStaffFromHr(apiKey, drafts)                  // ST-3: §6.13 경로 재사용. 이름·직위·이메일만
+createStaffFromHr(drafts)                          // ST-3: 명부는 fetchHrDirectoryForStaff(apiKey)로 이미 받았다 — 생성은 DB 쓰기뿐이라 키를 받지 않는다(HR-13). 이름·직위·이메일만
+fetchHrDirectoryForStaff(apiKey)                   // §6.13 HTTP 경로 공유, markSelectable을 조직원 이메일 집합에 대해
 addStaffSalary(staffId, input) / updateStaffSalary(id, patch, expectedVersion?) / deleteStaffSalary(id)   // SL-3
 getStaffDetail(staffId)                            // 급여 이력 + 연결 Member(과제명·스냅샷)
 getStaffParticipation(year)                        // §6.15 PS-1~PS-5. 저장 없음
