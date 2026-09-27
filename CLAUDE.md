@@ -52,8 +52,12 @@
 | `lib/salary.ts` | 급여 연봉 환산(SL-1), 적용 이력 선택(SL-2) | §5.20 |
 | `lib/participation.ts` | 조직원 연단위 참여율 합산(PS-1~PS-5) | §6.15 |
 | `lib/input-form/` | 사업비 입력 양식 좌표·검증·파싱(IN-1~IN-8) | §6.16 |
+| `lib/goal-form/` | 성과·기술목표 양식 좌표·검증·파싱, GF-6 숫자 해석 | §6.17 |
+| `lib/hwpx/` | hwpx 표 격자 추출·헤더 서명 식별·쪽 나뉨 잇기·행 해석(HX-1~HX-8). 클라이언트·Node 공용 | §6.18, 부록 C.3 |
 
 비목 별칭 사전·스킵 패턴·축 라벨은 SOT **부록 C**가 원본이고 `lib/constants.ts`에 정의한다. 임포트 관련 수정 시 부록 C를 먼저 본다.
+
+**엑셀 쓰기는 `exceljs`, 읽기는 SheetJS다** (부록 F, IN-8). 둘 다 `server-only` 어댑터에서만 import한다. `lib/input-form/`·`lib/goal-form/`은 서식 라이브러리를 모른다. **hwpx는 서버로 올리지 않는다** — 클라이언트가 표 격자만 보낸다(HX-1, 파일이 100MB급).
 
 **노트 본문은 사용자 입력이다.** `lib/notes.ts`는 마크다운을 **데이터 AST**로 파싱하고 뷰어가 그것을 React 엘리먼트로 옮긴다 — HTML 문자열을 만들지 않으므로 저장형 XSS가 구조적으로 불가능하다. **`dangerouslySetInnerHTML`을 노트 경로에 절대 도입하지 않는다.** 마크다운 기능을 넓힐 때도 AST 노드 종류를 늘리는 방식으로만 한다.
 
@@ -87,6 +91,10 @@ SOT §11을 따른다. 순서를 건너뛰지 않는다. Phase 실행은 `/phase
 | 16 | 조직원·인건비·참여율 | `staff`·`staff_salaries`(schema 4), `lib/salary.ts`·`lib/participation.ts`, `/staff`, 제안 모드 [인건비] 탭, 인력 연결·[급여 반영] | §5.19~5.20, §6.15, §7.9.6, §7.10, §7.18 |
 | 17 | 사업비 입력 양식 | `lib/input-form/`+어댑터, 내려받기·올리기 액션, §7.9.7 툴바 | §6.16, §7.9.7 |
 | 18 | 다크 모드 | 부록 E.5 팔레트, `LocalConfig.theme`, 설정 화면 모드, `bg-surface` 치환 | §7.19, 부록 E.5 |
+| 19 | 우리 양식 서식 | `exceljs`(쓰기만), `lib/xlsx-style.ts`, 입력 양식 어댑터 교체, 작성안내 시트·수식 | 부록 F, §6.16 IN-8 |
+| 20 | 수행 양식 | `budget_executions` 컬럼 7종 + `commit_execution_form`, 입력 양식 mode 분기(IN-9~IN-13), §7.9.7 수행 모드 | §5.12, §6.16, §7.9.7 |
+| 21 | 목표 양식 | `deliverables`·`tech_targets` 컬럼 + `commit_goal_form`, `lib/goal-form/`, §7.7 툴바 | §5.8~5.9, §6.17, §7.7 |
+| 22 | hwpx 계획서 가져오기 | `lib/hwpx/`(클라이언트 추출 → 격자만 서버로), `actions/plan-document.ts`, 부록 C.3 | §6.18, 부록 C.3 |
 
 Phase 0.5의 백업(§8.7)을 미루지 않는다. 무료 플랜에는 DB 백업이 없어서 이게 유일한 안전망이다.
 

@@ -2,10 +2,20 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v4.7** |
-| 최종 수정 | 2026-09-25 |
+| 문서 버전 | **v4.8** |
+| 최종 수정 | 2026-09-27 |
 | 상태 | 확정 (Phase 0 착수 가능) |
 | 목적 | 이 문서는 구현의 유일한 기준점이다. 코드와 문서가 다르면 **문서가 옳다**. |
+
+### v4.7 → v4.8 변경 요약 — Phase 19~22 엑셀 양식 서식 · 수행 양식 · 목표 양식 · hwpx 계획서 가져오기 (사용자 지시 2026-09-27)
+
+Tauri 번들 실검증 뒤 사용자 지시: ① 연구비 **제안·수행 모두** 우리 양식 xlsx를 내려받고 올릴 수 있게 ② 양식을 `samples/exel style.xlsx`의 시각 규칙대로 — 텍스트뿐이라 알아보기 힘들다, 수식도 ③ 정량적 성과목표·기술목표도 양식으로 ④ 한글 계획서(hwpx)를 올리면 목표 표·**평가방법·평가환경**까지 반영 ⑤ 그 외 자동 반영 후보 검토. 결정(2026-09-27): `exceljs` 도입(쓰기만), **반영은 전부 id 기반**, 수행 양식은 제안 양식과 **같은 열 + 집행일**, 목표 모델에 계획서 표의 열 6종 추가, hwpx만 받는다(PDF·hwp 제외). **배제**: 추진일정 표·기관 일반현황·집행내역 다운로드(RCMS 등)·참여연구원 표 자동 반영.
+
+- **Phase 19 — 부록 F 우리 양식 스타일 규칙 신설 + IN-8 개정**: SheetJS 커뮤니티판은 셀 서식을 쓰지 못한다(Phase 17 양식과 Phase 11 템플릿이 Calibri 기본값·채움 없음이었던 이유). 쓰기 엔진을 `exceljs`로 분리하고 좌표 맵·파서는 그대로 둔다. 작성안내 시트, 소계·총액 수식.
+- **Phase 20 — §5.12 `BudgetExecution` 내역 필드 7종, §6.16 IN-9~IN-13, §7.9.7 수행 모드**: 수행 양식은 제안 양식과 같은 시트·열에 `집행일`이 더 있고 집행 내역으로 들어간다. 금액 열은 **입력값**(IN-11). id 기반 추가·변경, 삭제는 사용자가 켜야 실행(IN-10). §13 12-a 해소. `schema_version`은 컬럼 추가뿐이라 **4 유지**(§8.8 기준).
+- **Phase 21 — §6.17 성과·기술목표 양식(GF-1~GF-8), §5.8·§5.9 필드 추가, §7.7 툴바**: 시트 4개(성과목표·성과실적·기술목표·측정이력), 드롭다운 검증, id 기반 반영, `commit_goal_form` RPC. 계획서 표의 열(구분·표준·인증기준·기준설정 근거·평가환경 / 가중치·평가방법)을 모델에 넣는다. 숫자 해석 규칙 GF-6. §13 13번 해소.
+- **Phase 22 — §6.18 hwpx 계획서 가져오기(HX-1~HX-8), 부록 C.3**: OWPML zip의 표(`hp:tbl`)를 **클라이언트에서** 격자로 뽑아 서버에 격자만 보낸다(파일이 108MB, 서버 액션 본문 한도 초과 — 실측). 표는 캡션이 아니라 **헤더 서명**으로 찾고, 쪽 나뉨으로 갈라진 표는 잇는다. 반영은 §6.17의 미리보기·RPC를 그대로 탄다.
+- §3 기술 스택(`exceljs`·`fflate`·`fast-xml-parser`), §5.12.1 `ImportKind` 2종 추가, §9 액션(`buildInputForm` mode 인자, Goal Form 3종, Plan Document 2종), §10·§11 갱신.
 
 ### v4.6 → v4.7 변경 요약 — Phase 15 성능 · Phase 16 조직원·인건비·참여율 · Phase 17 사업비 입력 양식 · Phase 18 다크 모드 (사용자 지시 2026-09-25)
 
@@ -287,6 +297,8 @@ Phase 8 계획 중 **§7.13이 두 줄뿐이라 구현이 임의로 정해야 �
 | 마크다운 | `react-markdown` + `remark-gfm` | 노트 렌더링 |
 | MD 에디터 | `textarea` + 라이브 프리뷰 (직접 구현) | 무거운 에디터 도입 안 함 |
 | 엑셀 파싱 | `xlsx` (SheetJS) | **서버 액션에서만** 파싱. 클라이언트 번들에 넣지 않음 |
+| 엑셀 생성 | `exceljs` | **서버 어댑터에서만**(우리 양식 — 서식·수식·데이터 유효성, 부록 F). SheetJS 커뮤니티판은 셀 서식을 기록하지 못해 Phase 19에서 쓰기 엔진을 분리했다(§6.16 IN-8). 읽기는 계속 SheetJS |
+| hwpx 파싱 | `fflate` + `fast-xml-parser` | **클라이언트**에서 표 격자만 뽑아 서버로 보낸다(§6.18 HX-1). 계획서가 100MB급(이미지)이라 서버 액션 본문으로 올리지 않는다. 순수 함수라 Node(vitest)에서도 같은 코드로 돈다 |
 | 문자열 유사도 | `fastest-levenshtein` | 비목명 퍼지 매칭 |
 | ID 생성 | `crypto.randomUUID()` | |
 
@@ -564,10 +576,12 @@ interface Deliverable extends BaseEntity {
   type: DeliverableType;
   name: string;                              // 지표명 (예: 'SCI급 논문 게재')
   unit: string;                              // 기본 '건'
+  weight: number;                            // 가중치(%). 계획서 성과목표 표의 가중치 열. 기본 0, 합계 100 권장(경고만) (Phase 21)
   targetTotal: number;                       // 과제 전체 목표 건수
   targetByYear: Record<string, number>;      // { yearId: 목표건수 }
   achievements: DeliverableAchievement[];    // 실적 목록
   orgId: string | null;                      // 주 책임 기관
+  evidenceMethod: string;                    // 평가방법(증빙) — 계획서 표의 평가방법 열('SW 등록증' 등). 자유 텍스트 (Phase 21)
   note: string;
   order: number;
 }
@@ -596,6 +610,7 @@ interface TechTargetRecord {
 interface TechTarget extends BaseEntity {
   projectId: string;
   name: string;                    // 평가항목명 (예: '객체 인식 정확도')
+  group: string;                   // 구분 — 계획서 표의 세로 병합 그룹(예 '디지털 트윈 자율안전관리 플랫폼'). 빈 문자열 허용 (Phase 21)
   unit: string;                    // 단위 (예: '%', 'ms', 'fps')
   direction: Direction;            // 기본 'higher_better'
 
@@ -608,7 +623,11 @@ interface TechTarget extends BaseEntity {
   worldBestHolder: string;         // 세계최고수준 보유국/보유기관
 
   measureMethod: MeasureMethod;
-  measureDescription: string;      // 측정방법 상세
+  measureDescription: string;      // 측정방법 상세 — hwpx의 "(3) 평가방법 및 평가환경" 표 평가방법 열이 여기로 (HX-7)
+  standardBasis: string;           // 표준(시험)·인증기준 (Phase 21)
+  basisRationale: string;          // 기준설정 근거 (Phase 21)
+  evaluationEnvironment: string;   // 평가환경 (Phase 21)
+  note: string;                    // 비고. 숫자로 풀지 못한 목표치 원문이 `[원문] …`으로 남는다(GF-6) (Phase 21)
 
   records: TechTargetRecord[];     // 측정 이력 (최신값이 현재 실적치)
   orgId: string | null;
@@ -698,8 +717,18 @@ interface BudgetExecution {
   date: string;              // 집행일
   amount: number;            // 집행액 (원). **0 이상 정수만** — 실무에서 집행액을 음수로 잡는 경우가 없다(사용자 확인).
                              // 환불·감액은 별도 행이 아니라 원래 집행 행을 수정한다.
-  description: string;       // 적요
+  description: string;       // 적요 = 품명/내역명. 수행 양식의 `품명` 열이 여기로 (IN-9)
   note: string;
+
+  // ─ Phase 20 추가 — 수행 양식이 제안 양식과 같은 열을 갖기 위한 내역 필드 (§6.16 IN-9). 전부 선택이다.
+  //   화면의 집행 내역 패널에서 손으로 넣을 때는 비워 둘 수 있고, 양식으로 올리면 채워진다.
+  subcategoryCode: string | null;   // 세목 코드(부록 A.5). 비목은 부모 BudgetItem이 정한다
+  spec: string;                     // 규격 / 산출내역 메모
+  unitPrice: number | null;         // 단가(원 단위 정수). 인자와 함께 있으면 금액을 보완·검증한다(IN-11)
+  factors: DetailFactor[] | null;   // §5.17과 같은 형, 0~3개. 인건비 집행의 참여율·개월도 여기(IN-12)
+  axis: DetailAxis | null;          // 현금/현물. **집행은 null을 허용**한다 — §5.17과 다르다(집행 시점엔 축이 없는 실무가 있다)
+  memberId: string | null;          // 인건비 집행의 인력(§5.11). 과제 경계 검증 대상(IN-13). 인력 삭제 시 set null
+  detailId: string | null;          // 어느 산출근거(§5.17)의 집행인지. 산출근거 삭제 시 set null. 집행률 외 집계에 쓰지 않는다
 }
 
 interface BudgetItem extends BaseEntity {
@@ -727,8 +756,8 @@ interface BudgetItem extends BaseEntity {
 
 ```ts
 // 'budget_plan' = 총괄표(셀 총액, §6.8) / 'budget_detail' = 산출근거 시트(행 내역, §6.11)
-// 집행내역 임포트는 여전히 제외 (§13 12-a)
-type ImportKind = 'budget_plan' | 'budget_detail';
+// 'execution_form' = 수행 양식(§6.16 IN-10) / 'goal_form' = 목표 양식·hwpx(§6.17 GF-5, §6.18 HX-8) — 스냅샷 종류로만 쓴다(프로파일은 만들지 않는다)
+type ImportKind = 'budget_plan' | 'budget_detail' | 'execution_form' | 'goal_form';
 
 interface ImportProfile extends BaseEntity {
   name: string;                   // 예: '산자부 사업비 총괄표'
@@ -1765,7 +1794,7 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 
 ---
 
-### 6.16 사업비 입력 양식 (Phase 17)
+### 6.16 사업비 입력 양식 (Phase 17 · Phase 19~20 확장)
 
 | # | 규칙 |
 |---|---|
@@ -1776,7 +1805,42 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 | IN-5 | 반영은 **양식에 행이 있는 비목 단위의 교체**다(D-15·D-15b — 기존 `commit_detail_import` RPC를 그대로 쓴다, 새 RPC 없음). 양식에 행이 하나도 없는 비목의 기존 산출근거는 **지우지 않고 유지**하며 미리보기에 "양식에 없는 비목 N행 유지"로 드러낸다. 반영 전 미리보기가 "추가 N · 변경 M · 삭제 K · 유지 U"와 합계·규칙 findings를 보여 주고, 스냅샷(I-17·D-17)을 남긴다. 추가/변경/삭제 판정은 두 시트의 숨김 `detailId` 열로 한다. 기존 행이 없고 양식에만 행이 있는 비목은 **교체 목록에 넣지 않고 추가만** 한다(미리보기 뒤 다른 경로로 들어온 행을 지우지 않기 위해 — D-15a 보호). 기존 행의 세목을 **다른 비목으로 옮기는** 편집은 원래 비목이 교체 대상이 아니면 차단한다(`category-moved`) — 원본이 남고 사본이 생겨 근거가 둘이 된다. |
 | IN-6 | 미리보기와 반영은 **같은 파싱 함수**를 탄다(§9 I-13과 같은 원칙). `fileHash` 대조. **교체 대상 비목은 미리보기 시점의 것이다** — 반영은 파일을 다시 파싱하되 `replaceCategories`는 클라이언트가 미리보기 결과에서 그대로 넘긴 목록을 쓴다(서버는 그 목록이 파일의 유효 비목 부분집합인지만 검증). 반영 시점 DB로 재판정하면 미리보기 뒤 다른 경로로 들어온 행이 있는 비목이 교체 대상이 되어 사용자가 본 적 없는 삭제가 일어나고 RPC의 D-15a 건너뜀이 절대 발동하지 않는다(Phase 17 통합 테스트가 잡은 결함). |
 | IN-7 | 생성기는 인건비 금액 열에 **엑셀 수식**(`=ROUND(월급열×참여율/100×개월,0)`이 아니라 `=ROUND(연봉×참여율/100×개월/12,0)` — PL-2 중간 반올림 금지)을 넣어 사용자가 엑셀에서도 같은 값을 본다. 연봉이 없는 인력은 수식 대신 빈 칸 + 비고 "연봉 미입력". |
-| IN-8 | 양식은 `xlsx`만. SheetJS는 어댑터(`lib/input-form-adapter.ts`, `server-only`)에서만(I-13). |
+| IN-8 | 양식은 `xlsx`만. **쓰기는 `exceljs`, 읽기는 SheetJS** — 둘 다 어댑터(`lib/input-form-adapter.ts`, `server-only`)에서만(I-13). SheetJS 커뮤니티판은 셀 서식(글꼴·채움·테두리·숫자 서식·데이터 유효성)을 기록하지 못해 Phase 17 양식이 서식 없는 텍스트뿐이었다 — Phase 19에서 쓰기 엔진을 교체했다. 서식 규칙은 **부록 F**이고 `lib/xlsx-style.ts`가 상수·헬퍼를 갖는다. `lib/input-form/`은 여전히 "어느 값이 어느 칸에"만 다루고 서식 라이브러리를 import하지 않는다. |
+| IN-9 | **수행 모드 양식은 제안 양식과 같은 시트·열에 `집행일` 열이 더 있다**(사용자 결정 2026-09-27). 좌표 맵은 하나이고 `mode: 'plan' \| 'execution'` 분기로 열을 파생한다 — 맵을 둘로 두지 않는다(IN-1). `_meta.mode`를 적고, 올린 파일의 mode가 화면 모드와 다르면 거부한다("제안 양식입니다 — 제안 모드에서 올리세요"). 수행 모드 행의 대상은 §5.12 `BudgetExecution`이다: 품명→`description`, 규격→`spec`, 단가→`unitPrice`, 인자→`factors`, 축→`axis`, 세목→`subcategoryCode`, 인건비 인력→`memberId`. |
+| IN-10 | 수행 모드 반영은 **id 기반**이다(연차·비목 단위 교체가 아니다). 숨김 열 `executionId`: 있으면 변경, 없으면 추가, 양식에서 사라진 id는 **삭제 후보**. 삭제는 미리보기에 건수·목록으로 보이고 사용자가 `[삭제 포함]`을 켜야 실행한다(기본 꺼짐) — 집행은 되돌리기 어려운 실적이라 산출근거(IN-5)보다 보수적으로. 변경 행은 미리보기 시점의 `version`으로 O-1 비교하고, 그 뒤 바뀐 행은 충돌로 표시해 그 행만 건너뛴다. 반영은 단일 RPC `commit_execution_form`(security invoker, 과제 경계 검증) 트랜잭션이고 스냅샷 `kind: 'execution_form'`(I-17 창 공유)을 남긴다. |
+| IN-11 | 수행 모드 **금액 열은 입력값으로 읽는다**(제안 모드의 수식과 다르다) — 집행액은 단가×수량으로 떨어지지 않는 경우가 있다. 단가·인자가 있고 금액이 비면 PL-1과 같은 산식으로 채우고, 둘 다 있는데 다르면 **경고**(막지 않는다, 입력 금액이 이긴다). 인건비 시트도 같다 — 연봉 수식(IN-7)은 제안 모드에서만 넣는다. `집행일`은 필수(비면 오류 행, 반영 불가), 금액은 0 이상 정수(§5.12), 축은 비어도 된다(null). |
+| IN-12 | 수행 모드 인건비 시트: 행 = 인력 × 기존 인건비 집행(`memberId`가 있는 집행) — 없으면 빈 1행. 참여율·개월 열은 §5.12에 전용 컬럼이 없으므로 `factors`에 라벨 `참여율(%)`(isPercent)·`참여기간(월)`로 저장한다(§5.17과 같은 규약). 연봉·월급 열은 표시 전용(읽지 않는다, IN-3). |
+| IN-13 | 두 모드 모두 숨김 id(`detailId`·`executionId`)와 `memberId`가 다른 과제·연차의 것이면 RULE 거부(N-13과 같은 경계 검증). 미리보기와 반영은 같은 파싱(IN-6)이고 `fileHash`를 대조한다. |
+
+### 6.17 성과·기술목표 양식 (Phase 21)
+
+`lib/goal-form/`에 둔다. `lib/input-form/`과 같은 구조(좌표 맵·메타·파서·미리보기, xlsx 무의존)이며 **단위 테스트 필수**.
+
+| # | 규칙 |
+|---|---|
+| GF-1 | **좌표 맵이 데이터다**(IN-1). 시트 ① `성과목표`: 구분 / 유형 / 지표명 / 단위 / 가중치(%) / 전체 목표 / 연차별 목표 ×N(연차 순, 헤더 = 연차 이름) / 연차 합계(수식) / 책임기관 / 평가방법 / 비고 + 숨김 `deliverableId` ② `성과실적`: 지표명(표시 전용) / 산출물명 / 달성일 / 연차 / 기관 / 관여자 / 증빙 URL / 비고 + 숨김 `deliverableId`·`achievementId` ③ `기술목표`: 구분 / 평가항목 / 단위 / 방향 / 비중(%) / 연차별 목표 ×N / 최종 목표 / 국내수준 / 세계최고 / 보유국·기관 / 측정방법 / 측정방법 상세 / 표준·인증기준 / 기준설정 근거 / 평가환경 / 책임기관 / 비고 + 숨김 `techTargetId` ④ `측정이력`: 평가항목(표시 전용) / 측정값 / 측정일 / 연차 / 방법 / 평가기관 / 증빙 URL / 비고 + 숨김 `techTargetId`·`recordId` ⑤ 숨김 `_meta`: `formVersion`·`projectId`·`yearIds`(열 순서)·기관 id·이름 목록·인력 id·이름 목록·생성 시각. |
+| GF-2 | `_meta` 거부 규칙은 IN-2와 같다(없거나 `projectId` 불일치·`formVersion` 불일치 → 거부). **연차 열은 `_meta.yearIds` 순서로 읽는다** — 헤더 이름으로 추측하지 않는다. |
+| GF-3 | 유형·방향·측정방법·연차는 부록 A.2·A.4 **한글 라벨**로 적고 데이터 유효성(드롭다운)을 건다. 읽을 때 라벨 → 코드. 모르는 라벨은 오류 행(반영 불가, 사유 표시). |
+| GF-4 | 기관·관여자는 이름 드롭다운이지만 **매칭은 `_meta`에 실은 그 과제의 목록 안에서 완전 일치**만이다(D-11류 퍼지 매칭 없음). 동명 기관·인력은 양식 생성 시 `이름 (2)`처럼 구분해 싣는다. 관여자는 `;`로 여러 명. 매칭 실패는 오류 행. |
+| GF-5 | 반영은 **id 기반**(사용자 결정): 숨김 id 있으면 변경(미리보기 시점 `version`으로 O-1 비교, 그 뒤 바뀐 행은 충돌로 표시해 건너뜀), 없으면 추가, 양식에서 사라진 id는 삭제 후보 — `[삭제 포함]`을 켜야 실행(IN-10과 같은 태도). 지표 삭제는 실적·측정 이력을 함께 지우므로 건수를 함께 보인다. 반영은 단일 RPC `commit_goal_form`(security invoker, 과제 경계 검증 N-13) 트랜잭션, 스냅샷 `kind: 'goal_form'`. 미리보기와 반영은 같은 파싱(IN-6), `fileHash` 대조. `targetByYear` 키는 `_meta.yearIds`로만 채운다. |
+| GF-6 | **숫자 해석**(양식·hwpx 공통, `lib/goal-form/value.ts`): 문자열에서 `≥`·`이상`·`↑` → `higher_better` 힌트, `≤`·`이하`·`미만`·`이내`·`↓` → `lower_better` 힌트, `a~b` 범위는 뒤 숫자, 쉼표·공백·`%`·단위 접미(단위 열과 같은 문자열) 제거, `-`·빈칸 → 없음(null). 남는 문자가 있으면(`LOD 2.5`, `수초이내`) 첫 숫자를 채우되 원문을 비고에 `[원문] LOD 2.5`로 남기고 **경고**한다. 숫자가 아예 없으면 null + 원문 비고 + 경고. 방향은 힌트가 있으면 그것, 없으면 양식 값(양식) 또는 `higher_better`(hwpx). 연차별 힌트가 서로 다르면 경고. **중간 반올림 없음**. |
+| GF-7 | 기술목표 `targetValue`가 비면 연차별 목표 중 **값이 있는 마지막 연차**로 채운다(계획서 표에 최종 목표 열이 없다). 성과목표 `targetTotal`이 비면 Σ연차. 둘 다 있고 다르면 D-3 경고(저장은 허용). |
+| GF-8 | 양식 수식: 성과목표 연차 합계 `=SUM(연차 열)`, 가중치 합계 행, 기술목표 비중 합계 행. 수식 셀은 읽지 않는다(캐시값 없이 `f`만, IN-7과 같은 이유). 서식은 부록 F. |
+
+### 6.18 hwpx 계획서 가져오기 (Phase 22)
+
+`lib/hwpx/`에 둔다. **클라이언트와 Node 양쪽에서 도는 순수 함수**(`fflate`·`fast-xml-parser`만 의존, DOM API 금지) — 브라우저에서 표를 뽑고 vitest는 `samples/*.hwpx` 실측으로 같은 코드를 검증한다. **단위 테스트 필수**.
+
+| # | 규칙 |
+|---|---|
+| HX-1 | 파일은 `.hwpx`(OWPML zip)만. `.hwp`(바이너리)·PDF는 받지 않는다 — 고르면 "hwpx로 저장해 다시 올려 주세요". **압축 해제와 표 추출은 클라이언트**에서 하고 서버 액션은 `HwpxTable[]`(격자 JSON)과 그 해시만 받는다. 이유: 계획서는 이미지 때문에 100MB급이라(실측 108MB, `section0.xml` 18MB, 표 276개) 서버 액션 본문 한도를 넘긴다. `Contents/section*.xml`만 풀고 `BinData/`는 읽지 않는다. |
+| HX-2 | 격자: `hp:tbl`의 `rowCnt`·`colCnt`로 격자를 만들고 `hp:tc`의 `hp:cellAddr`(colAddr·rowAddr)·`hp:cellSpan`(colSpan·rowSpan)으로 병합을 **S-11과 같은 방식으로 확장**(좌상단 값을 범위 전체에 복사). 셀 텍스트는 문단(`hp:p`)을 `\n`으로 잇고 `hp:t` 조각을 이어 붙인다. `hp:equation`은 `hp:script` 텍스트를 `[수식: …]`으로 인라인, 그림은 `[그림]`. 중첩 표(실측 0건)는 부모 셀 텍스트에 넣지 않고 별도 표로 뽑는다. `rowCnt`와 실제 `hp:tr` 수가 다르면 그 표는 "구조 불일치"로 표시하고 건너뛴다(조용히 자르지 않는다). |
+| HX-3 | 표 식별은 캡션이 아니라 **헤더 서명**이다(실측: 표 앞에 캡션이 없다). 헤더 행(첫 2행, 병합 확장 후)의 셀 텍스트를 I-1로 정규화한 집합이 부록 C.3의 서명 키워드를 **모두** 포함하면 그 표다. 기술목표 = {평가항목, 단위, 비중, 세계최고, 국내수준, 개발목표치} · 성과목표 = {항목, 단위, 가중치, 개발목표치, 평가방법} · 평가방법 = {순번, 평가항목, 평가방법, 평가환경}. 같은 종류가 서로 떨어져 여러 개면 첫 묶음만 쓰고 나머지는 "같은 표가 N개 더 있습니다"로 알린다. |
+| HX-4 | **쪽 나뉨**: 같은 서명의 표가 **연달아**(사이에 다른 표 없이) 나오면 두 번째부터 헤더 행을 떼고 하나로 잇는다(실측: 기술목표 2개, 평가방법 3개 — `repeatHeader`가 켜져 있어도 hwpx는 표를 나눈다). 이은 뒤 순번(`N.` 접두 또는 순번 열)이 1씩 늘지 않으면 경고. |
+| HX-5 | 기술목표 행: `구분` = 세로 병합이 확장된 첫 열 값(빈 값이면 직전 행 승계 — S-2). 평가항목은 `^\d+\.\s*` 접두를 떼고 그 순번을 보관한다(평가방법 표와 잇는 키). 연차 열(`1차년도`…)은 **과제 연차 순서**로 대응 — 연차 수가 다르면 경고, 남는 열은 무시하고 모자라면 빈 값. 세계최고는 `보유국/보유기업` 열이 텍스트(`worldBestHolder`), `성능수준` 열이 값(GF-6). 값·국내수준·연차 목표는 GF-6. 담당 연구개발기관은 기관명이 과제 기관과 **정규화 후 완전 일치**할 때만 `orgId`(별칭·퍼지 없음, 실패는 비고에 `[담당기관] …`). 평가방법 열은 부록 C.3으로 `measureMethod`(`공인기관시험평가`→`certified_lab`, `전문가평가`→`expert_review`, 그 외 `other`+원문 비고). 표준·인증기준·기준설정근거 열은 그대로 텍스트. |
+| HX-6 | 성과목표 행: `항목`이 여러 열(실측 3열)에 걸친 계층이면 **왼쪽부터 병합 확장된 라벨을 `/`로 이어** 지표명을 만든다(`특허/국내/등록/건수`, `학술/SCI급 게재논문/게재`). 유형은 부록 C.3 별칭 사전으로 매핑, 없으면 `other`. 단위가 `점수`이거나(`SMART 평균`·`Impact Factor 평균`) 연차 목표가 전부 비면 **"반영 제외"** 행으로 미리보기에 남긴다(조용히 빼지 않는다). `계` 열 → `targetTotal`, 비면 Σ연차(GF-7). 가중치 → `weight`, 평가방법 → `evidenceMethod`. `구분` 열의 `사업별 성과지표`류 값은 버린다. |
+| HX-7 | 평가방법 표: `순번`으로 기술목표 행에 잇는다(순번이 없는 행은 평가항목 이름 완전 일치로 재시도, 실패는 "연결 못 함" 경고). 평가방법 열 → `measureDescription`. 평가환경 열은 `[기준설정 근거]`가 시작되는 문단부터 뒤를 `basisRationale`에, 앞을 `evaluationEnvironment`에 나눈다. 기술목표 표의 기준설정근거 열(짧은 요약)이 따로 있으면 `요약\n상세` 순으로 잇는다. |
+| HX-8 | 반영은 §6.17의 미리보기·`commit_goal_form`을 **그대로 탄다** — hwpx는 양식 파서의 앞단(격자 → 양식 행)일 뿐 별도 반영 경로가 없다. 기존 지표와의 대응은 **이름 정규화 후 완전 일치**로 `techTargetId`/`deliverableId`를 채워 변경, 없으면 추가. **삭제 후보는 만들지 않는다**(계획서는 과제 목표의 부분집합일 수 있다). 실적·측정 이력은 건드리지 않는다. 미리보기·반영의 해시 대상은 파일이 아니라 격자 JSON이다(같은 격자 = 같은 결과). |
 
 ---
 
@@ -1920,6 +1984,13 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 - "측정값 추가" 인라인 폼 (값, 측정일, 방법, 평가기관, 증빙)
 - 상단 요약: 가중 달성률 게이지, 비중 합계(100이 아니면 경고)
 - 국가R&D 계획서 표 형식에 맞춘 **인쇄용 레이아웃** 제공
+
+**툴바 (Phase 21·22 — §6.17, §6.18)**
+
+- `[양식 내려받기]`: xlsx, 부록 F 스타일. 시트 `성과목표`·`성과실적`·`기술목표`·`측정이력` + 숨김 `_meta`(GF-1). 기존 지표·실적이 채워져 있고 유형·방향·측정방법·연차·기관은 드롭다운(GF-3·GF-4)
+- `[양식 올리기]`: 파일 → `_meta` 검증(GF-2) → 미리보기(시트별 추가·변경·삭제·충돌 건수, 경고: 가중치 합≠100, Σ연차≠총량(D-3), 숫자로 풀지 못한 값(GF-6), 반영 제외 행) → `[삭제 포함]` 토글(기본 꺼짐) → 반영(GF-5)
+- `[계획서(hwpx) 가져오기]`(Phase 22): 파일을 **브라우저에서** 풀어 표를 찾고(HX-1~HX-4), 찾은 표(기술목표·성과목표·평가방법)의 행 수를 보여 준 뒤 같은 미리보기로 간다(HX-8). 못 찾은 표는 "표를 찾지 못했습니다 — 헤더 서명" 안내
+- 탭 2 테이블에 `구분` 열(같은 구분끼리 묶어 표시), 행 확장에 표준·인증기준 / 기준설정 근거 / 평가환경 텍스트. 탭 1 테이블에 가중치·평가방법 열
 
 ### 7.8 마일스톤 (`/projects/[id]/milestones`)
 
@@ -2075,7 +2146,7 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 - 하단: 연차 인건비 합계(현금/현물) · **수정인건비 E1**(PL-11) · 참고: 각 조직원의 **다른 과제 포함 연도 계상률**(§6.15 PS-6, `/staff` 링크)
 - 인쇄: 표 그대로(P-R1~R5)
 
-#### 7.9.7 사업비 입력 양식 (제안 모드 툴바 [입력 양식 내려받기] · [입력 양식 올리기], Phase 17)
+#### 7.9.7 사업비 입력 양식 (제안·수행 모드 툴바 [입력 양식 내려받기] · [입력 양식 올리기], Phase 17 · Phase 19~20)
 
 **우리 양식**이다 — 부처 서식(§6.8·§6.11 임포트, §6.12 내보내기)과 다르다. 부처 서식은 헤더를 추측해 읽어야 하지만 이 양식은 우리가 만들었으므로 **고정 좌표**로 읽는다(§6.16).
 
@@ -2083,6 +2154,8 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 - **[입력 양식 올리기]**: 파일 → `_meta` 검증 → 미리보기(행 수·합계·경고 — 규칙 findings 포함) → 반영. 반영은 **연차 단위 교체**(§6.11 D-15와 같은 태도)이며 스냅샷(I-17)을 남긴다
 - 인건비 시트의 인력은 **양식에 있던 인력만** 받는다(`_meta`의 id) — 이름으로 매칭하지 않는다. 새 인력은 앱에서 먼저 만든다
 - 경고는 막지 않는다(PL-15·RL-1)
+- **서식(Phase 19)**: 두 모드 모두 부록 F 스타일이다. 첫 시트 `작성안내`(과제명·연차·모드·작성 방법·원칙·주의 — "금액 열은 읽지 않는다"(제안) / "금액 열을 읽는다"(수행)를 모드별로 명시). 사업비 시트에 세목 소계·비목 소계·총액 **수식 행** — 숨김 키 열이 비어 있으므로 파서는 IN-4의 빈 행 규칙으로 건너뛴다. 백분율 서식은 계속 쓰지 않는다(X-7).
+- **수행 모드(Phase 20)**: 같은 두 버튼. 내려받은 파일은 제안 양식과 같은 시트·열에 `집행일` 열이 더 있고(IN-9) 기존 집행 내역이 채워져 있다. 올리면 집행 내역이 id 기반으로 추가·변경(·선택 삭제)된다(IN-10·IN-11). 미리보기는 추가·변경·삭제·충돌 건수, **연차별 집행률 전후**, 예산 초과가 되는 셀(B-2) 경고를 보여 준다. 집행 내역 패널(§7.9)은 새 필드(세목·규격·단가·인자·축·인력·산출근거)를 접힌 "내역" 줄로 보여 주고 편집할 수 있다 — 필수가 아니다.
 
 ### 7.10 인력·기관 (`/projects/[id]/team`)
 
@@ -2393,7 +2466,7 @@ interface BackupFile {
 - 마이그레이션 파일은 Git에 커밋한다. 이게 스키마의 진실 공급원이다.
 - 앱은 시작 시 `app_settings.schema_version`을 확인한다. 코드 기대값(`lib/constants.ts`의 `EXPECTED_SCHEMA_VERSION`)보다 **낮으면** 마이그레이션 안내를, **높으면** 앱 업데이트 안내를 띄우고 진입을 막는다.
 - **`schema_version`을 올리는 기준은 "백업 파일 형식이 바뀌는가"다.** 테이블 추가·삭제가 여기 해당한다(§8.7 `BACKUP_TABLES`가 바뀐다). 컬럼 추가나 RPC 변경만으로는 올리지 않는다 — 기존 백업 파일이 그대로 복원되기 때문이다. <br>이 기준이 없으면 K-5의 버전 게이트가 "호환"이라 판정한 파일을 `parseBackupFile`의 테이블 목록 검사가 거부해, 사용자가 **"테이블 데이터가 없습니다"라는 엉뚱한 메시지**를 본다. 올릴 때는 마이그레이션의 `update app_settings set schema_version`과 `EXPECTED_SCHEMA_VERSION`을 **같은 커밋에서** 함께 고친다.
-- 이력: `1` = Phase 0 최초 스키마. **`2` = Phase 9 (`budget_details` 신설 — Phase 0 이후 첫 테이블 추가).** **`3` = Phase 13 (`budget_rules` 신설 + `projects`의 한도 컬럼 2종 삭제).** **`4` = Phase 16 (`staff`·`staff_salaries` 신설 + `members` 컬럼 4종 추가).**
+- 이력: `1` = Phase 0 최초 스키마. **`2` = Phase 9 (`budget_details` 신설 — Phase 0 이후 첫 테이블 추가).** **`3` = Phase 13 (`budget_rules` 신설 + `projects`의 한도 컬럼 2종 삭제).** **`4` = Phase 16 (`staff`·`staff_salaries` 신설 + `members` 컬럼 4종 추가).** Phase 20·21은 `budget_executions`·`deliverables`·`tech_targets` **컬럼 추가와 RPC 2종뿐이라 4를 유지**한다(위 기준 — 백업 파일 형식이 바뀌지 않는다. 옛 백업은 새 컬럼이 기본값으로 복원된다).
 
 ---
 
@@ -2501,10 +2574,25 @@ applyStaffSalary(memberId, asOfDate, expectedVersion?)   // annualSalary + 기�
 
 **Budget Input Form** (Phase 17 — §7.9.7, §6.16)
 ```
-buildInputForm(projectId, yearId)                  // xlsx 생성(서버, 어댑터). _meta 포함
-previewInputForm(projectId, file)                  // IN-3~IN-6 검증 + 미리보기(행·합계·규칙 findings)
-commitInputForm(projectId, file, fileHash, replaceCategories) // 비목 단위 교체 + 스냅샷. 미리보기와 같은 파싱 경로, 교체 목록은 미리보기 결과(IN-6)
+buildInputForm(projectId, yearId, mode)            // xlsx 생성(서버, exceljs 어댑터, 부록 F). _meta에 mode. mode: 'plan' | 'execution' (IN-9)
+previewInputForm(projectId, file, mode)            // IN-3~IN-6·IN-9~IN-13 검증 + 미리보기. 수행 모드는 추가·변경·삭제 후보·충돌 + 집행률 전후
+commitInputForm(projectId, file, fileHash, replaceCategories) // 제안 모드: 비목 단위 교체 + 스냅샷(IN-6)
+commitExecutionForm(projectId, file, fileHash, includeDeletes) // 수행 모드: commit_execution_form RPC(id 기반, IN-10) + 스냅샷 'execution_form'
 ```
+
+**Goal Form** (Phase 21 — §6.17, §7.7)
+```
+buildGoalForm(projectId)                           // xlsx 생성(exceljs 어댑터). 시트 4개 + _meta(GF-1)
+previewGoalForm(projectId, file)                   // GF-2~GF-7 검증 + 미리보기(시트별 추가·변경·삭제·충돌, 경고)
+commitGoalForm(projectId, file, fileHash, includeDeletes) // commit_goal_form RPC + 스냅샷 'goal_form'. 미리보기와 같은 파싱(IN-6)
+```
+
+**Plan Document (hwpx)** (Phase 22 — §6.18)
+```
+previewPlanTables(projectId, tables, tablesHash)   // 클라이언트가 뽑은 HwpxTable[] → HX-3~HX-7 → §6.17 미리보기 형과 같은 결과
+commitPlanTables(projectId, tables, tablesHash)    // 같은 해석을 다시 돌려 commit_goal_form(삭제 없음, HX-8) + 스냅샷 'goal_form'
+```
+- `previewPlanTables`·`commitPlanTables`는 파일을 받지 않는다(HX-1). 격자 JSON 크기는 서버 액션 한도 안이어야 하고, 넘으면 클라이언트가 "표만 추출해도 너무 큽니다"로 알린다.
 
 **Organization / Member**
 ```
@@ -2757,7 +2845,10 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 │   ├── auth.ts       getCurrentUser, approveUser 등 (§9 Auth)
 │   ├── backup.ts     exportAll, importAll (§8.7)
 │   ├── import.ts     inspectWorkbook ~ commitImport (§9 Budget Import)
-│   └── detail-import.ts  inspectDetailSheet ~ commitDetailImport (§9 Budget Detail Import)
+│   ├── detail-import.ts  inspectDetailSheet ~ commitDetailImport (§9 Budget Detail Import)
+│   ├── input-form.ts  buildInputForm ~ commitExecutionForm (§9 Budget Input Form)
+│   ├── goal-form.ts   buildGoalForm ~ commitGoalForm (§9 Goal Form)
+│   └── plan-document.ts  previewPlanTables, commitPlanTables (§9 Plan Document)
 ├── components/
 │   ├── ui/            Button, Badge, Modal, ProgressBar, ConflictDialog(O-3), ErrorBanner,
 │   │                  Matrix5x5(§7.6 우선순위 · §7.11 리스크가 공유하는 5×5 히트맵),
@@ -2782,7 +2873,8 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 │   ├── tutorial/      TutorialButton, TutorialPanel(드로어, §7.17), StepItem
 │   ├── staff/         StaffList, StaffDetailPanel(급여 이력), ParticipationMatrix(§7.18), StaffLinkPicker(§7.10)
 │   ├── budget/personnel/  PersonnelTab(§7.9.6), SalaryApplyDialog(PL-10b)
-│   ├── budget/input-form/ InputFormDownload, InputFormUpload(§7.9.7)
+│   ├── budget/input-form/ InputFormDownload, InputFormUpload(§7.9.7 — 두 모드 공용, 수행 모드는 삭제 토글·집행률 전후)
+│   ├── goals/form/    GoalFormDownload, GoalFormUpload, PlanDocumentUpload(브라우저에서 hwpx 해제, §7.7)
 │   │   ├── plan/      DetailPanel(§7.9.2), SubcategorySection, PersonnelRow,
 │   │   │              QuantityRow, FactorInputs
 │   │   ├── import/    ImportWizard(모달+단계 상태기계), wizard-state.ts(공용 타입·헬퍼),
@@ -2808,7 +2900,10 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 │   ├── help.ts / content.ts / tutorial.ts   §7.16·§7.17 도움말 레지스트리·서버 fs 로더·튜토리얼 단계 (Phase 14)
 │   ├── participation.ts                §6.15 조직원 참여율 합산 (PS-1~PS-5)
 │   ├── salary.ts                       §5.20 SL-1·SL-2 (연봉 환산·적용 이력 선택)
-│   ├── input-form/                     §6.16 입력 양식 좌표·검증·파싱 (xlsx 무의존)
+│   ├── input-form/                     §6.16 입력 양식 좌표·검증·파싱 (xlsx 무의존). layout은 mode 분기(IN-9)
+│   ├── xlsx-style.ts                   부록 F 스타일 상수·exceljs 헬퍼(작성안내 시트·헤더·키 열·테두리). server-only 어댑터에서만 import
+│   ├── goal-form/                      §6.17 목표 양식 좌표·메타·파서·미리보기·value.ts(GF-6 숫자 해석) (xlsx 무의존)
+│   ├── hwpx/                           §6.18 hwpx → HwpxTable 격자(zip·XML, 클라이언트·Node 공용) + tables.ts(HX-3 식별·HX-4 잇기)·rows.ts(HX-5~HX-7 행 해석)
 │   ├── import/                         ★ 전부 순수 함수 — SheetJS를 import하지 않는다.
 │   │   │                                 워크북 → RawSheet 변환은 어댑터(actions 쪽)의 몫이다.
 │   │   ├── types.ts                    어댑터 경계(RawCell·MergeRange·RawSheet), 판정·금액 타입
@@ -2885,6 +2980,14 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 
 | **18. 다크 모드** | 부록 E.5 다크 팔레트, `LocalConfig.theme`, 설정 화면 모드, `bg-white → bg-surface` 치환, 깜빡임 방지 스크립트 | 어둡게로 바꾸면 전 화면이 TDS 다크 팔레트로 그려지고 흰 카드가 남지 않는다. 인쇄는 밝은 팔레트 |
 
+| **19. 우리 양식 서식** | `exceljs` 도입, `lib/xlsx-style.ts`(부록 F), `lib/input-form-adapter.ts` 쓰기 교체(IN-8), 작성안내 시트·소계·총액 수식 | 내려받은 입력 양식이 `samples/exel style.xlsx`와 같은 규칙(Pretendard·검정 헤더·베이지 키 열·테두리·틀 고정·작성안내)으로 열리고, Phase 17 왕복 테스트가 그대로 통과한다(좌표·파서 불변) |
+
+| **20. 수행 양식** | `budget_executions` 컬럼 7종 + `commit_execution_form` RPC(`schema_version` 4 유지), `lib/input-form/` mode 분기(IN-9~IN-13), `actions/input-form.ts` `commitExecutionForm`, §7.9.7 수행 모드, 집행 내역 패널 내역 줄 | 수행 모드에서 내려받은 양식에 집행일·품명·금액을 적어 올리면 집행 내역이 생기고 집행률(§6.4)이 맞는다. 다시 내려받으면 `executionId`가 채워져 있고, 행을 고쳐 올리면 새 행이 아니라 그 행이 바뀐다. 행을 지운 파일은 삭제 토글을 켜야만 지운다 |
+
+| **21. 목표 양식** | `deliverables`·`tech_targets` 컬럼(§5.8·§5.9) + `commit_goal_form` RPC, `lib/goal-form/`(GF-1~GF-8) + 단위 테스트, `actions/goal-form.ts` 3종, §7.7 툴바·테이블 열 | 내려받은 양식에 지표 1개·기술목표 1개(연차별 목표 포함)를 추가해 올리면 화면에 나타나고 달성률(§6.2·§6.3)이 맞는다. 다시 내려받아 이름을 고쳐 올리면 같은 행이 바뀐다. `≤10`은 10·`lower_better`로, `LOD 2.5`는 2.5 + 원문 비고로 들어온다(GF-6) |
+
+| **22. hwpx 계획서 가져오기** | `fflate`·`fast-xml-parser`, `lib/hwpx/`(HX-1~HX-8) + `samples/*.hwpx` 실측 테스트, `actions/plan-document.ts` 2종, `PlanDocumentUpload`, 부록 C.3 | 실측 계획서를 올리면 기술목표 28행·성과목표 표의 건수 지표·평가방법 28행이 미리보기에 나오고(쪽 나뉨 표가 이어져서), 반영 후 기술목표 화면의 평가환경·기준설정 근거가 채워진다. 반영 제외 행(SMART 평균·Impact Factor)이 미리보기에 사유와 함께 남는다 |
+
 > **Phase 13은 계상(계획) 단계 규칙만 다룬다.** 집행 단계의 회수 산식(연구수당 지급비율 − 직접비 사용비율 20%p, 간접비 사용비율)은 §13 후보다. 기관 유형·기업 규모 필드를 만들지 않는다 — 프리셋 선택이 그 선택이다.
 
 > **Phase 12는 타이핑을 줄이는 것이 전부다.** HR API에 **연봉이 없어서**(HR-2) 인건비 산출근거의 손품은 줄지 않는다. 이 Phase를 "인사 연동"으로 부풀리지 않는다 — 자동 동기화도, 명부 복제도, 재직 상태 반영도 하지 않는다(HR-5·HR-7·HR-17).
@@ -2901,7 +3004,7 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 
 > Phase 5.5는 **실제 엑셀 파일 샘플이 확보된 뒤에** 착수한다. 서식을 모르는 상태로 파서를 만들면 헛수고가 된다. `lib/import/` 전체를 순수 함수로 만들고 샘플 파일 기반 단위 테스트를 작성한다.
 
-> **필수 1**: `lib/tree.ts`, `lib/progress.ts`, `lib/goals.ts`, `lib/budget.ts`, `lib/budget-plan.ts`, `lib/priority.ts`, `lib/risk.ts`, `lib/dates.ts`, `lib/todos.ts`, `lib/import/`(**`detail-sheet.ts` 포함**)는 순수 함수로 만들고 **단위 테스트를 반드시 작성**한다(Vitest). 특히 §6.3 기술목표 달성률은 방향성·baseline 조합에서 실수가 나기 쉽다.
+> **필수 1**: `lib/tree.ts`, `lib/progress.ts`, `lib/goals.ts`, `lib/budget.ts`, `lib/budget-plan.ts`, `lib/priority.ts`, `lib/risk.ts`, `lib/dates.ts`, `lib/todos.ts`, `lib/import/`(**`detail-sheet.ts` 포함**), `lib/input-form/`, `lib/goal-form/`, `lib/hwpx/`는 순수 함수로 만들고 **단위 테스트를 반드시 작성**한다(Vitest). 특히 §6.3 기술목표 달성률은 방향성·baseline 조합에서 실수가 나기 쉽다.
 >
 > **필수 2**: Phase 0에서 RLS를 켜지 않고 시작하면 나중에 켤 때 전부 깨진다. **처음부터 켜고** 개발한다.
 >
@@ -2973,8 +3076,10 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 | 10 | 변경 이력 / 감사 로그 | Postgres 트리거로 구현 가능해짐 |
 | 11 | 과제 템플릿 (WBS·목표 구조 재사용) | |
 | 12 | ~~SQLite 전환~~ | v3.0에서 PostgreSQL 채택으로 해소 |
-| 12-a | 집행내역 엑셀 임포트 | v3.2에서 설계 제외. 집행은 수동 입력. 필요해지면 `ImportKind`에 `'execution'`을 되살리고 중복 방지(sourceHash)·배치 되돌리기를 재설계 |
-| 13 | 성과목표·기술목표 엑셀 임포트 | 예산 파이프라인(`lib/import/`)을 재사용하면 확장 가능 |
+| ~~12-a~~ | ~~집행내역 엑셀 임포트~~ | **해소 (v4.8 / Phase 20)** — 우리 양식(§6.16 IN-9~IN-13)이라 `sourceHash`가 필요 없다: 숨김 `executionId`로 중복을 막고, 되돌리기는 스냅샷(`kind: 'execution_form'`). 외부 서식(RCMS·IRIS 다운로드)은 **배제**(사용자 결정 2026-09-27) |
+| ~~13~~ | ~~성과목표·기술목표 엑셀 임포트~~ | **해소 (v4.8 / Phase 21·22)** — §6.17 우리 양식(고정 좌표) + §6.18 hwpx 계획서 표(헤더 서명) |
+| 26 | PDF·`.hwp` 계획서 가져오기 | **안 한다**(HX-1). PDF는 표 셀 텍스트가 흘러 합쳐지고 수식이 사라진다(실측). hwp 바이너리는 파서 비용이 크다 — hwpx로 저장해 올린다 |
+| 27 | 계획서의 다른 표 자동 반영 | **배제(사용자 결정 2026-09-27)**: 추진일정 표(→WBS·마일스톤), 연구개발기관 일반 현황(→기관 필드), 집행내역 다운로드(RCMS·IRIS), 참여연구원 표(→인력). 필요해지면 §6.18 격자 파이프라인에 표 종류를 더하는 방식으로 |
 | ~~14~~ | ~~임포트 결과 → 엑셀 역방향 내보내기~~ | **해소 (v4.2 / Phase 11).** §6.12·§7.9.4. 템플릿에 값만 채워 서식·병합·수식을 원본 그대로 낸다 |
 | ~~16~~ | ~~산출근거 시트 엑셀 임포트~~ | **해소 (v4.1 / Phase 10).** §6.11·§7.9.3. `lib/import/` 파이프라인을 그대로 재사용하고 행 구조 해석만 얹었다 |
 | ~~17~~ | ~~부처별 지침 고시율 프리셋~~ | **해소 (v4.4 / Phase 13).** §5.18 규칙 데이터 + 부록 D 프리셋(조문 출처 포함) + §6.14 판정기. 아래는 결정 당시 메모 — PL-16에 따라 코드에 넣지 않았다. 출처가 확실한 표를 확보하면 **사용자 입력의 기본값 제안**으로만 도입. <br>**사용자 확인(2026-08-12)**: 부처별 비목·지침은 나중에 조사해서 넣고, **과제마다 다를 수 있으므로 과제별로 규칙을 적용할 수 있어야 한다.** 두 가지가 따라 나온다 — ① **프리셋은 언제나 기본값 제안일 뿐이고 과제별 입력이 이긴다.** 부처를 골랐다고 값이 잠기면 안 된다(같은 부처 안에서도 기관 유형·공고에 따라 다르다). ② 지금 과제별로 담을 수 있는 규칙은 **비율 두 개뿐**이다(`allowanceRateLimit`·`indirectRateLimit`). 조사 결과가 그보다 많으면(인건비 현물 비율 상한·장비비 단건 한도·연구활동비 세목별 상한 등) `Project`에 필드를 계속 늘리지 말고 **규칙을 데이터로 담는 구조**(과제별 규칙 목록 + 판정기)로 바꾼다. 어느 쪽인지는 **실제 규정 모양을 보고 정한다** — 지금 지어내지 않는다 |
@@ -3750,6 +3855,49 @@ export const SUBCATEGORY_ALIASES: Record<BudgetCategory, Record<string, string>>
 
 ---
 
+### C.3 목표 표 별칭 (hwpx 계획서 가져오기 §6.18, 목표 양식 §6.17)
+
+`lib/constants.ts`에 정의한다. 실측 원본: `samples/*.hwpx`(에너지R&D 일반 계획서, 2026-04).
+
+**C.3.1 헤더 서명** (HX-3 — I-1 정규화 후 부분 문자열 포함 판정, 전부 있어야 그 표)
+
+| 표 | 필수 키워드 | 별칭 |
+|---|---|---|
+| 기술목표 | 평가항목 · 단위 · 비중 · 세계최고 · 국내수준 · 개발목표치 | 비중 ← `전체항목에서차지하는비중` / 국내수준 ← `연구개발전국내수준` |
+| 성과목표 | 항목 · 단위 · 가중치 · 개발목표치 · 평가방법 | 개발목표치 ← `목표치` |
+| 평가방법 | 순번 · 평가항목 · 평가방법 · 평가환경 | 평가항목 ← `성능지표` |
+
+**C.3.2 성과목표 항목 → 유형** (HX-6 — 계층 라벨을 `/`로 이은 문자열에 대해 위에서부터 포함 판정, 첫 매칭 채택. 없으면 `other`)
+
+| 포함 키워드 | 유형 |
+|---|---|
+| `SCI` + `게재` (Impact Factor 제외) | `paper_sci` |
+| `비SCI` / `국내논문` / `국내학술지` | `paper_domestic` |
+| `학술대회` / `학회발표` | `conference` |
+| `특허/국내/등록` / `국내특허등록` | `patent_dom_reg` |
+| `특허/국내/출원` / `국내특허출원` | `patent_dom_apply` |
+| `특허/국외/등록` / `해외특허등록` / `국제특허등록` | `patent_intl_reg` |
+| `특허/국외/출원` / `해외특허출원` / `PCT` | `patent_intl_apply` |
+| `소프트웨어등록` / `SW등록` / `프로그램등록` | `sw_registration` |
+| `기술이전` / `기술료` | `tech_transfer` |
+| `상용화` / `시제품` / `사업화` / `매출` | `commercialization` |
+| `표준` | `standard` |
+| `인력양성` / `고용창출` / `교육프로그램` / `학위` | `hr_training` |
+
+**반영 제외**(HX-6): 단위가 `점수`이거나 항목에 `SMART` · `Impact Factor` · `평균`이 들어가면 건수 지표가 아니다 — 미리보기에 "반영 제외: 건수 지표가 아님"으로 남긴다.
+
+**C.3.3 평가방법 → `measureMethod`** (HX-5, I-1 정규화 후)
+
+| 포함 키워드 | 값 |
+|---|---|
+| `공인기관` / `시험성적` / `시험평가` / `인증` | `certified_lab` |
+| `전문가` / `협의체` / `자문` | `expert_review` |
+| `수요기업` / `고객` / `사용자평가` | `customer` |
+| `자체` | `self` |
+| 그 외 | `other` (+ 비고에 원문) |
+
+**C.3.4 값 방향 힌트** (GF-6): `≥`·`이상`·`↑`·`초과` → higher / `≤`·`이하`·`미만`·`이내`·`↓` → lower. `-`·`—`·`없음`·빈칸 → 없음.
+
 ## 부록 D. 연구비 사용 규칙 프리셋 (§5.18, §6.14)
 
 **모든 값에 조문이 붙는다.** 조문 없는 값은 이 표에 들어올 수 없다(RL-D5). 프리셋은 `lib/rules-presets.ts`의 상수이고 `applyRulePreset`이 과제별 행으로 옮긴다 — 옮긴 뒤에는 행이 진실이다(RL-D4).
@@ -3918,3 +4066,22 @@ export const SUBCATEGORY_ALIASES: Record<BudgetCategory, Record<string, string>>
 | `purple` | #3f2447 | #522361 | #66247b | #7b2595 | #962fb5 | #ae3dd1 | #c353e5 | #d77cf2 | #eaacfc | #f6d9ff |
 
 시맨틱(다크): `screen` #17171c(`darkThemeBackground`) · `surface` #202027(`darkThemeBackgroundLevel01`) · `surface-grey` #2c2c35 · `hairline` #3c3c47(`darkThemeHairlineBorder`) · `dimmed` rgba(0,0,0,0.56). `white`·`black`은 바뀌지 않는다(버튼 글자·인쇄). 인쇄(`@media print`)는 항상 밝은 팔레트.
+
+---
+
+## 부록 F. 우리 양식 스타일 규칙 (Phase 19, §6.16 IN-8 · §6.17 GF-8)
+
+원본은 `samples/exel style.xlsx`(2026-09 요구사항 회신 양식)의 시각 규칙이다. 내용이 아니라 **보이는 규칙**만 옮긴다. `lib/xlsx-style.ts`가 상수·헬퍼를 갖고 어댑터(server-only)만 import한다. 사용자 지시: "텍스트만 있으니 알아보기 힘들다".
+
+| # | 규칙 |
+|---|---|
+| F-1 | 글꼴 **Pretendard 10pt**, 본문 `#1A1A1A`, 보조(안내·표시 전용 열) `#6B6B6B`. 워크북 기본 글꼴도 Pretendard로(빈 셀 포함). |
+| F-2 | **헤더 행**: 채움 `#1A1A1A`, 흰 굵은 글자, 아래 테두리 `medium`, 세로 가운데·왼쪽 정렬, 줄바꿈. 2단 헤더(연차 열 묶음)는 위 행을 가로 병합. |
+| F-3 | **키 열**(사람이 고치면 안 되는 식별·표시 전용 열 — 성명·세목 라벨·지표명 표시 등 `read: false`인 보이는 열): 채움 `#F4F1EA`, 글자 `#6B6B6B`. 사용자가 **적는 열**은 채움 없음(흰색). 숨김 열은 그대로 숨김(`hidden: true`, 너비 0이 아니라 열 숨김). |
+| F-4 | 모든 데이터 셀 얇은 테두리(`thin`, `#BFBFBF`). 소계·합계 행은 위 테두리 `medium` + 굵은 글자 + 채움 `#F7F7F7`. |
+| F-5 | 정렬: 텍스트 왼쪽·위·줄바꿈, 짧은 분류(유형·축·방향) 가운데, 숫자·금액 오른쪽. 첫 데이터 행 위에서 **틀 고정**(`A{dataStartRow}`), 헤더 행 자동 필터. |
+| F-6 | 숫자 서식: 금액(원) `#,##0`, 참여율·비중·가중치·인자는 **일반 숫자**(백분율 서식 금지 — X-7·IN-4의 ×100 함정), 날짜 열은 날짜 셀 + 서식 `yyyy-mm-dd`(읽을 때 SheetJS `cellDates`로 ISO 문자열 복원). 수식 셀은 값 없이 `f`만(IN-7). |
+| F-7 | 열 너비: 이름·품명 26, 규격·비고·설명 40~60, 숫자 12~14, 분류 10, 숨김 id 열은 숨김. 행 높이는 자동(줄바꿈). |
+| F-8 | **작성안내 시트**(첫 시트, 이름 `작성안내`): A1 제목 20pt 굵게(`{과제명} — {양식 이름}`), A2 보조 색 부제(`생성 {일시} · {연차} · {모드}`), A4부터 2열 표(`목적` / `작성 방법` / `원칙` / `주의` / `읽지 않는 열`) — 키 열 `#F7F7F7` 굵게, 값 열 너비 120·줄바꿈. 모드별 문장은 양식 생성기가 넣는다(§7.9.7). 파서는 이 시트를 읽지 않는다. |
+| F-9 | 데이터 유효성(드롭다운): 목록형 열(유형·방향·측정방법·축·연차·기관·관여자)은 숨김 시트 `_lists`의 범위를 참조한다(`_meta`와 별개, 파서는 읽지 않는다). 잘못된 값은 엑셀이 막지만 **파서도 다시 검사**한다(GF-3) — 붙여넣기는 유효성을 우회한다. |
+| F-10 | 인쇄: 가로, 페이지 너비 맞춤, 헤더 행 반복. 시트 탭 색은 데이터 시트 `#1A1A1A`, 안내 시트 `#F4F1EA`. |
