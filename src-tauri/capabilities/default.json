@@ -8,6 +8,9 @@
   },
   "permissions": [
     "core:default",
+    "allow-keychain-get",
+    "allow-keychain-set",
+    "allow-keychain-delete",
     "deep-link:default",
     {
       "identifier": "opener:allow-open-url",

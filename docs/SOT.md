@@ -3001,7 +3001,7 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 |---|---|
 | 대상 OS | Windows 우선. macOS는 여력 되면 |
 | 배포 | **NSIS 설치 파일(`*_x64-setup.exe`)을 배포한다.** 사내 공유 폴더에 두고 각자 설치 |
-| ⚠️ MSI를 쓰지 않는 이유 | `bundle.targets`가 `["msi","nsis"]`라 빌드하면 **둘 다 나오지만, MSI는 배포하지 않는다.** Tauri v2는 MSI에 `installMode`를 지원하지 않아 WiX 산출물이 구조적으로 `InstallScope="perMachine"`이 되고 **관리자 권한을 요구한다** — §12의 "관리자 권한 없이 사용자 폴더에 설치 가능할 것"을 만족하지 못한다. NSIS만 `installMode: "currentUser"` → `RequestExecutionLevel user` + `$LOCALAPPDATA` 설치로 §12를 만족한다. **두 파일을 함께 공유 폴더에 두면 사용자가 admin이 필요한 쪽을 집는다** — setup.exe만 올린다 |
+| ⚠️ MSI를 만들지 않는 이유 | `bundle.targets`는 **`["nsis"]`만이다.** 두 가지 이유. ① (2026-09-27 확인) WiX 3가 MSI 데이터베이스를 코드페이지 1252로 만들어 `templates/산출근거_표준.xlsx` 같은 **한글 파일명을 담지 못하고 `LGHT0311`로 빌드가 멈춘다** — 리소스에 한글 파일명이 들어간 Phase 11 이후 MSI는 빌드 자체가 불가능하다. ② 설령 만들어져도 배포하지 않는다: Tauri v2는 MSI에 `installMode`를 지원하지 않아 WiX 산출물이 구조적으로 `InstallScope="perMachine"`이 되고 **관리자 권한을 요구한다** — §12의 "관리자 권한 없이 사용자 폴더에 설치 가능할 것"을 만족하지 못한다. NSIS만 `installMode: "currentUser"` → `RequestExecutionLevel user` + `$LOCALAPPDATA` 설치로 §12를 만족한다. **두 파일을 함께 공유 폴더에 두면 사용자가 admin이 필요한 쪽을 집는다** — setup.exe만 올린다 |
 | 포트 | 랜덤 할당 후 사이드카에 전달. 고정 포트 금지 |
 | 코드 서명 | v1에서는 하지 않는다. Windows SmartScreen 경고는 감수 |
 | 자동 업데이트 | v1 제외. 공유 폴더의 새 설치 파일로 수동 갱신 |

@@ -23,6 +23,7 @@ WebView가 `http://127.0.0.1:{port}`에 접속한다. `wbs://` 딥링크로 OAut
 | `tauri-plugin-opener` | OAuth URL 시스템 브라우저 열기 — 프론트가 `plugin:opener\|open_url` invoke (JS 래퍼 없음) | `opener:allow-open-url` |
 | `tauri-plugin-fs` | 백업 파일 쓰기·목록·삭제(§8.7 K-1·K-3) + LocalConfig 저장(§5.16) | `fs:allow-*` 6종 + `fs:scope` 전체(`**`) — 백업 폴더가 사용자 임의 경로라 좁힐 수 없다 |
 | `tauri-plugin-dialog` | 백업 폴더 선택 대화상자 (§7.14) | `dialog:allow-open` |
+| (앱 명령) `keychain_get/set/delete` | 세션 토큰 OS 키체인 (A-4) — `build.rs`의 `AppManifest.commands`가 `allow-*` 권한을 생성한다 | `allow-keychain-get/set/delete` — **원격 출처(프로덕션 사이드카)는 앱 명령도 명시 허용이 필요**하다. 빠지면 dev는 되고 번들만 `not allowed by ACL`로 로그인이 막힌다 |
 
 사이드카 실행 방식: 사용자 PC에 Node 설치를 요구하지 않기 위해 **빌드 머신의 node
 실행 파일을 리소스로 동봉**한다. externalBin 대신 리소스 + `std::process`를 쓴다
@@ -36,7 +37,7 @@ WebView가 `http://127.0.0.1:{port}`에 접속한다. `wbs://` 딥링크로 OAut
 winget install Rustlang.Rustup   # 이후 rustup default stable-msvc
 cd src-tauri; cargo check        # 컴파일 검증
 cd ..; npm run tauri:dev         # 개발 실행 (next dev + 창)
-npm run tauri:build              # msi/nsis 번들 (beforeBuildCommand가 사이드카 리소스 준비)
+npm run tauri:build              # nsis 번들 (beforeBuildCommand가 사이드카 리소스 준비). MSI는 만들지 않는다 — SOT §14.1
 ```
 
 딥링크 확인: 앱 실행 상태에서 `start "wbs://auth-callback?code=test"` →
