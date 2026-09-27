@@ -1,30 +1,48 @@
-// SheetJS 어댑터 — 사업비 입력 양식(`InputFormWorkbook`)을 xlsx 바이트로 만든다 (SOT §6.16 IN-2·IN-7·IN-8).
+// exceljs 쓰기 어댑터 — 사업비 입력 양식(`InputFormWorkbook`)을 xlsx 바이트로 만든다 (SOT §6.16 IN-2·IN-7·IN-8, 부록 F).
 //
 // `lib/export-adapter.ts`·`lib/import-adapter.ts`와 같은 자리, 같은 이유다. `lib/input-form/`은
-// "어느 값이 어느 칸에 있는가"만 다루는 SheetJS 무의존 층이라(IN-8) 워크북을 실제로 만드는 일은
-// 여기 한 곳에 모인다. 읽기는 새로 만들지 않는다 — 올린 양식은 `lib/import-adapter.readUploadedWorkbook`이
+// "어느 값이 어느 칸에 있는가"만 다루는 서식 라이브러리 무의존 층이라(IN-8) 워크북을 실제로 만드는 일은
+// 여기 한 곳에 모인다. 쓰기는 exceljs다 — SheetJS 커뮤니티판은 셀 서식을 기록하지 못해 Phase 17 양식이
+// 서식 없는 텍스트뿐이었다. 읽기는 새로 만들지 않는다 — 올린 양식은 `lib/import-adapter.readUploadedWorkbook`이
 // 만든 RawSheet(숨김 시트 포함)를 파서가 고정 좌표로 읽는다(IN-1).
+//
+// 보이는 규칙(글꼴·채움·테두리·너비)은 전부 `lib/xlsx-style.ts`(부록 F)에 있다. 여기는 FormSheet의
+// **힌트**(kind·headerRow·dataStartRow·columnHints·rowRoles)를 그 헬퍼 호출로 옮길 뿐, 색·서식 문자열을
+// 직접 쓰지 않는다. 힌트가 없는 FormSheet는 값·수식·숨김만 쓴다(`_meta`가 그렇다).
 //
 // I-13: `import 'server-only'`로 클라이언트 번들 유입을 컴파일 타임에 막는다.
 import 'server-only';
 
-import * as XLSX from 'xlsx';
-import type { FormCell, FormSheet, InputFormWorkbook } from '@/lib/input-form/types';
+import ExcelJS from 'exceljs';
+import type { FormCell, FormRowRole, FormSheet, InputFormWorkbook } from '@/lib/input-form/types';
+import {
+  createStyledWorkbook,
+  finishDataSheet,
+  finishGuideSheet,
+  styleDataCell,
+  styleGuideSheet,
+  styleHeaderRow,
+  styleSummaryRow,
+} from '@/lib/xlsx-style';
 
 // ─── 셀 ───────────────────────────────────────────────────────────────────────
 
 /**
- * FormCell → SheetJS 셀. 값도 수식도 없으면 `undefined`(셀 레코드를 만들지 않는다).
+ * FormCell → exceljs 셀 값. 값도 수식도 없으면 아무것도 쓰지 않는다(서식만 남을 수 있다).
  *
- * **숫자 서식(`z`)을 어느 셀에도 붙이지 않는다.** 참여율·인자 열이 백분율 서식이면 화면의 `10`이
- * 엑셀에서 `1000%`로 보이고(X-7), 올릴 때는 저장값이 `0.1`이라 D-22의 ×100 되돌리기가 필요해진다 —
- * 임포트에서 금액이 1/100로 어긋난 바로 그 함정이다. 일반 숫자로 두면 양방향 모두 값 = 화면 숫자다.
+ * **숫자 서식은 여기서 붙이지 않는다** — 열 힌트를 받은 `styleDataCell`이 `numFmtFor`로만 정한다.
+ * 참여율·인자 열이 백분율 서식이면 화면의 `10`이 엑셀에서 `1000%`로 보이고(X-7), 올릴 때는 저장값이
+ * `0.1`이라 D-22의 ×100 되돌리기가 필요해진다 — 임포트에서 금액이 1/100로 어긋난 바로 그 함정이다.
+ * 일반 숫자로 두면 양방향 모두 값 = 화면 숫자다.
  *
- * 수식 셀은 **캐시값 없이** `f`만 쓴다(IN-7). 캐시를 넣으면 엑셀이 다시 계산하기 전까지 우리가
- * 계산한 값이 보이는데, 그 값이 앱 산식과 어긋나는 순간을 사용자가 알 길이 없다. 빈 채로 두면
- * 엑셀이 열면서 계산하고, 앱은 어차피 금액 열을 읽지 않는다(IN-3).
+ * 수식 셀은 **`result` 없이** `{ formula }`만 쓴다(IN-7). exceljs는 result가 없으면 `<v>`를 아예 쓰지 않는다
+ * (`<c r="N2"><f>…</f></c>`). 캐시를 넣으면 엑셀이 다시 계산하기 전까지 우리가 계산한 값이 보이는데, 그 값이
+ * 앱 산식과 어긋나는 순간을 사용자가 알 길이 없다. 빈 채로 두면 엑셀이 열면서 계산하고, 앱은 어차피 금액 열을
+ * 읽지 않는다(IN-3). 올리기 경로(`readWorkbook`, cellFormula:false)는 이 셀을 레코드 없음 → null로 읽는다.
+ * 테스트가 SheetJS로 `f`를 확인하려면 `sheetStubs`(또는 `cellStyles`)가 필요하다 — 없으면 SheetJS가 v=0을
+ * 합성한 뒤 빈 숫자로 보고 레코드째 버린다.
  */
-function toSheetCell(cell: FormCell, where: string): XLSX.CellObject | undefined {
+function writeCellValue(target: ExcelJS.Cell, cell: FormCell, where: string): void {
   if (typeof cell.formula === 'string') {
     const formula = cell.formula.trim();
     if (formula === '') throw new Error(`${where}: 수식이 비어 있습니다.`);
@@ -33,59 +51,136 @@ function toSheetCell(cell: FormCell, where: string): XLSX.CellObject | undefined
     if (formula.startsWith('=')) {
       throw new Error(`${where}: 수식은 '=' 없이 담아야 합니다 (${formula}).`);
     }
-    return { t: 'n', f: formula };
+    target.value = { formula };
+    return;
   }
 
   const value = cell.value;
-  if (value === undefined || value === null) return undefined;
+  if (value === undefined || value === null) return;
   if (typeof value === 'number') {
-    // NaN·Infinity는 SheetJS가 문자열 "NaN"으로 써 버린다. 금액·참여율 계산이 깨진 신호이므로 막는다
+    // NaN·Infinity는 exceljs가 그대로 <v>에 흘려 엑셀이 열지 못하는 파일이 된다.
+    // 금액·참여율 계산이 깨진 신호이므로 막는다
     if (!Number.isFinite(value)) throw new Error(`${where}: 유한한 숫자가 아닙니다 (${value}).`);
-    return { t: 'n', v: value };
+    target.value = value;
+    return;
   }
-  return { t: 's', v: value };
+  target.value = value;
 }
 
 // ─── 시트 ─────────────────────────────────────────────────────────────────────
 
-/**
- * FormSheet → 워크시트. `!ref`는 **행 수 × 최대 열 수 격자** 전체다 — 값이 있는 셀만으로 잡으면
- * 끝 열이 비어 있는 헤더(비고 등)가 잘려 파서가 보는 격자 폭이 시트마다 달라진다.
- * 행이 하나도 없으면 `!ref`를 두지 않는다(빈 시트). `A1:A1`로 꾸미면 없는 셀이 있는 척하게 된다.
- */
-function toWorksheet(sheet: FormSheet): XLSX.WorkSheet {
-  const ws: XLSX.WorkSheet = {};
-  let maxCol = -1;
+/** 힌트 검사 — 생성기와 어긋난 힌트를 조용히 절반만 적용하지 않는다 */
+function assertHints(sheet: FormSheet, columnCount: number): void {
+  const { columnHints, rowRoles, headerRow, dataStartRow } = sheet;
+  if (columnHints !== undefined && columnHints.length < columnCount) {
+    throw new Error(
+      `'${sheet.name}' 시트의 열 힌트 수(${columnHints.length})가 열 수(${columnCount})보다 적습니다.`
+    );
+  }
+  if (rowRoles !== undefined && rowRoles.length !== sheet.rows.length) {
+    throw new Error(
+      `'${sheet.name}' 시트의 행 역할 수(${rowRoles.length})와 행 수(${sheet.rows.length})가 다릅니다.`
+    );
+  }
+  if (headerRow !== undefined && (!Number.isInteger(headerRow) || headerRow < 1)) {
+    throw new Error(`'${sheet.name}' 시트의 헤더 행이 올바르지 않습니다: ${headerRow}`);
+  }
+  if (dataStartRow !== undefined && (!Number.isInteger(dataStartRow) || dataStartRow <= (headerRow ?? 1))) {
+    throw new Error(`'${sheet.name}' 시트의 데이터 시작 행이 올바르지 않습니다: ${dataStartRow}`);
+  }
+}
 
+/** rowRoles가 없을 때의 기본 — 헤더 행까지는 header, 나머지는 data(types.ts) */
+function rowRoleOf(sheet: FormSheet, rowIndex: number, headerRow: number): FormRowRole {
+  if (sheet.rowRoles !== undefined) return sheet.rowRoles[rowIndex] ?? 'data';
+  return rowIndex + 1 <= headerRow ? 'header' : 'data';
+}
+
+/**
+ * 데이터 시트 서식(부록 F-1~F-7·F-10). 값을 다 쓴 뒤에 부른다 — `styleSummaryRow`가 셀에 숫자·수식이
+ * 있는지 보고 정렬을 고르기 때문이다. `styleDataCell`을 먼저 깔고 소계·총액 행을 그 위에 덮는다.
+ */
+function styleDataSheet(ws: ExcelJS.Worksheet, sheet: FormSheet, columnCount: number): void {
+  const headerRow = sheet.headerRow ?? 1;
+  const dataStartRow = sheet.dataStartRow ?? headerRow + 1;
+  const hidden = new Set(sheet.hiddenColumns);
+
+  if (sheet.headerRow !== undefined) styleHeaderRow(ws, headerRow, columnCount);
+
+  sheet.rows.forEach((_, r) => {
+    const role = rowRoleOf(sheet, r, headerRow);
+    if (role === 'header') return;
+    const rowNumber = r + 1;
+    if (sheet.columnHints !== undefined) {
+      sheet.columnHints.forEach((hint, c) => {
+        // 숨김 열은 보이지 않으니 서식을 깔 이유가 없다
+        if (hidden.has(c)) return;
+        styleDataCell(ws.getCell(rowNumber, c + 1), hint);
+      });
+    }
+    if (role === 'subtotal' || role === 'total') styleSummaryRow(ws, rowNumber, columnCount, role);
+  });
+
+  // 틀 고정·필터·너비·인쇄는 세 힌트가 모두 있을 때만 — 하나라도 없으면 생성기가 서식을 의도하지 않은 시트다
+  if (sheet.headerRow !== undefined && sheet.dataStartRow !== undefined && sheet.columnHints !== undefined) {
+    finishDataSheet(ws, {
+      headerRow,
+      dataStartRow,
+      columnCount,
+      hiddenColumns: sheet.hiddenColumns.map((c) => c + 1),
+      widths: sheet.columnHints.map((hint) => hint.width),
+    });
+  }
+}
+
+/** 작성안내 시트 서식(부록 F-8). 격자는 `buildGuideSheet`가 정한다: A1 제목, A2 부제, A4부터 2열 표 */
+const GUIDE_TITLE_ROW = 1;
+const GUIDE_SUBTITLE_ROW = 2;
+const GUIDE_TABLE_START_ROW = 4;
+
+function styleGuide(ws: ExcelJS.Worksheet, sheet: FormSheet): void {
+  styleGuideSheet(ws, {
+    titleRow: GUIDE_TITLE_ROW,
+    subtitleRow: GUIDE_SUBTITLE_ROW,
+    tableStartRow: GUIDE_TABLE_START_ROW,
+    tableRowCount: Math.max(sheet.rows.length - (GUIDE_TABLE_START_ROW - 1), 0),
+  });
+  finishGuideSheet(ws);
+}
+
+/**
+ * FormSheet → 워크시트. 값·수식을 먼저 쓰고 힌트가 있으면 서식을 입힌다.
+ *
+ * exceljs의 `<dimension>`은 값·수식이 있는 셀의 경계다(서식만 있는 셀은 세지 않는다). 헤더 행이 전폭이므로
+ * 파서가 보는 격자 폭(`!ref`)은 헤더 폭과 같다 — 끝 열(비고 등)이 데이터 행에서 비어 있어도 잘리지 않는다.
+ * 행이 하나도 없으면 빈 시트다.
+ */
+function writeSheet(wb: ExcelJS.Workbook, sheet: FormSheet): void {
+  // 숨김: 사용자가 필요하면 볼 수 있어야 하므로 'hidden'(veryHidden은 VBA로만 해제된다)
+  const ws = sheet.hidden ? wb.addWorksheet(sheet.name, { state: 'hidden' }) : wb.addWorksheet(sheet.name);
+
+  let columnCount = 0;
   sheet.rows.forEach((row, r) => {
-    if (row.length > 0) maxCol = Math.max(maxCol, row.length - 1);
+    columnCount = Math.max(columnCount, row.length);
     row.forEach((cell, c) => {
-      const addr = XLSX.utils.encode_cell({ r, c });
-      const sheetCell = toSheetCell(cell, `'${sheet.name}'!${addr}`);
-      if (sheetCell) ws[addr] = sheetCell;
+      const target = ws.getCell(r + 1, c + 1);
+      writeCellValue(target, cell, `'${sheet.name}'!${target.address}`);
     });
   });
 
-  if (sheet.rows.length > 0) {
-    ws['!ref'] = XLSX.utils.encode_range({
-      s: { r: 0, c: 0 },
-      e: { r: sheet.rows.length - 1, c: Math.max(maxCol, 0) },
-    });
-  }
-
-  if (sheet.hiddenColumns.length > 0) {
-    // 희소 배열이다 — SheetJS는 항목이 있는 인덱스만 <col>로 쓴다. 보이는 열은 기본 너비로 둔다
-    const cols: XLSX.ColInfo[] = [];
-    for (const index of sheet.hiddenColumns) {
-      if (!Number.isInteger(index) || index < 0) {
-        throw new Error(`'${sheet.name}' 시트의 숨김 열 인덱스가 올바르지 않습니다: ${index}`);
-      }
-      cols[index] = { hidden: true };
+  for (const index of sheet.hiddenColumns) {
+    if (!Number.isInteger(index) || index < 0) {
+      throw new Error(`'${sheet.name}' 시트의 숨김 열 인덱스가 올바르지 않습니다: ${index}`);
     }
-    ws['!cols'] = cols;
+    ws.getColumn(index + 1).hidden = true;
   }
 
-  return ws;
+  assertHints(sheet, columnCount);
+  if (sheet.kind === 'guide') {
+    styleGuide(ws, sheet);
+  } else {
+    styleDataSheet(ws, sheet, columnCount);
+  }
 }
 
 // ─── 워크북 ───────────────────────────────────────────────────────────────────
@@ -93,30 +188,26 @@ function toWorksheet(sheet: FormSheet): XLSX.WorkSheet {
 /**
  * 입력 양식 워크북 → xlsx 바이트 (IN-8: 양식은 xlsx만).
  *
- * 숨김 시트(`_meta`, IN-2)는 `Workbook.Sheets[i].Hidden = 1`로 표시한다 — 워크북 수준 속성이라
- * 시트 객체가 아니라 여기서 정한다. SheetJS는 숨김 시트도 `SheetNames`에 그대로 두므로
+ * 숨김 시트(`_meta`, IN-2)는 `state: 'hidden'`으로 만든다. SheetJS는 숨김 시트도 `SheetNames`에 그대로 두므로
  * `lib/import-adapter.readWorkbook`이 만든 RawSheet 목록에 `_meta`가 포함된다(파서가 거기서 읽는다).
+ * 시트 순서는 `wb.sheets` 순서 그대로다(F-8 — 작성안내가 첫 시트).
  *
- * `.mjs` 빌드의 `XLSX.writeFile`은 `fs`가 묶여 있지 않으므로 버퍼를 돌려주고 저장은 호출부의 몫이다
- * (export-adapter.writeWorkbookBuffer와 같은 이유).
+ * `writeBuffer`는 Promise다. 저장은 호출부의 몫이다(export-adapter.writeWorkbookBuffer와 같은 이유).
  */
-export function writeInputFormWorkbook(wb: InputFormWorkbook): Buffer {
+export async function writeInputFormWorkbook(wb: InputFormWorkbook): Promise<Buffer> {
   if (wb.sheets.length === 0) throw new Error('입력 양식에 시트가 하나도 없습니다.');
 
   const seen = new Set<string>();
-  const workbook: XLSX.WorkBook = { SheetNames: [], Sheets: {}, Workbook: { Sheets: [] } };
-  wb.sheets.forEach((sheet, index) => {
+  const workbook = createStyledWorkbook();
+  for (const sheet of wb.sheets) {
     if (seen.has(sheet.name)) throw new Error(`시트 이름이 중복됩니다: ${sheet.name}`);
     seen.add(sheet.name);
-    workbook.SheetNames.push(sheet.name);
-    workbook.Sheets[sheet.name] = toWorksheet(sheet);
-    // Hidden: 0 보임 / 1 숨김 / 2 매우 숨김(VBA로만 해제). 사용자가 필요하면 볼 수 있어야 하므로 1
-    workbook.Workbook!.Sheets![index] = { Hidden: sheet.hidden ? 1 : 0 };
-  });
+    writeSheet(workbook, sheet);
+  }
 
-  const out: unknown = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx', compression: true });
+  const out: unknown = await workbook.xlsx.writeBuffer();
   if (Buffer.isBuffer(out)) return out;
-  // type:'buffer'는 Node에서 Buffer를 주지만, 런타임이 Uint8Array를 주더라도 그대로 삼키지 않는다
+  // Node에서는 Buffer를 주지만, 런타임이 Uint8Array(ArrayBuffer 뷰)를 주더라도 그대로 삼키지 않는다
   if (out instanceof Uint8Array) return Buffer.from(out);
   throw new Error('입력 양식 파일을 만들지 못했습니다 (예상치 못한 출력 형식).');
 }

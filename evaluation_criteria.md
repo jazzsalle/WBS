@@ -388,3 +388,14 @@ evaluator는 이 체크리스트로 PASS/FAIL을 판정한다. 모든 항목은 
 - [ ] 다크에서 대비가 깨지는 곳 없음 — 배지(연한 배경 + 진한 글자 쌍)·ErrorBanner·모달 dimmed·인쇄 토큰. 수동 확인 목록에 화면별 항목
 - [ ] `npm test`·`tsc`·`build` 통과. §13 9번(다크 모드) 해소 표기
 
+
+## Phase 19 — 우리 양식 서식 (SOT v4.8 부록 F, §6.16 IN-8, §7.9.7 서식)
+
+- [ ] `exceljs`가 dependencies에 있고 **`lib/input-form-adapter.ts`(server-only)에서만** import된다. SheetJS는 읽기(`readUploadedWorkbook`)에 그대로 남는다. `lib/input-form/`은 `exceljs`·`xlsx`를 import하지 않는다(정적 검사 grep 0건)
+- [ ] `lib/xlsx-style.ts`: 부록 F 팔레트·글꼴·테두리·헤더/키 열/합계 행 스타일·작성안내 시트 헬퍼가 상수로 있고, 어댑터만 import한다. `samples/exel style.xlsx`의 규칙(F-1~F-5)과 값이 일치한다
+- [ ] 내려받은 양식: 첫 시트 `작성안내`(F-8: 제목 20pt·부제·2열 안내 표, 모드별 "금액 열은 읽지 않는다" 문장), 데이터 시트 헤더 검정 채움·흰 굵은 글자·아래 medium 테두리, 표시 전용(`read: false`) 보이는 열 베이지 채움, 모든 데이터 셀 thin 테두리, 틀 고정 + 자동 필터, 열 너비(F-7), 숨김 열·숨김 `_meta` 시트 유지
+- [ ] 숫자 서식: 금액 `#,##0`, 참여율·인자는 일반 숫자(백분율 서식 0건 — 통합 테스트로 고정), 수식 셀은 캐시값 없이 `f`만(IN-7 유지)
+- [ ] 사업비 시트에 세목 소계·비목 소계·총액 **수식 행**(F-4 스타일). 파서는 이 행을 IN-4 빈 행 규칙으로 건너뛴다 — 왕복 테스트(내려받기 → 파싱)에서 소계 행이 데이터로 잡히지 않는다
+- [ ] **Phase 17 왕복 테스트가 그대로 통과한다** — 좌표 맵·파서 불변. 새 어댑터로 만든 파일을 `readUploadedWorkbook`으로 읽어 `parseInputForm`이 같은 결과를 낸다(통합 테스트)
+- [ ] 생성된 xlsx를 openpyxl 또는 exceljs로 다시 열어 스타일을 검증하는 테스트(헤더 채움 색·글꼴 이름·틀 고정·자동 필터·숨김 시트)
+- [ ] `npm test`·`tsc`·`build` 통과. 클라이언트 번들에 `exceljs`가 들어가지 않는다(`server-only`)

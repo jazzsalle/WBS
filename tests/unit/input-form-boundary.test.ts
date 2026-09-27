@@ -17,6 +17,10 @@ import path from 'node:path';
 const ROOT = path.resolve(__dirname, '../..');
 const INPUT_FORM_DIR = path.join(ROOT, 'lib/input-form');
 const INPUT_FORM_ADAPTER = path.join(ROOT, 'lib/input-form-adapter.ts');
+const XLSX_STYLE = path.join(ROOT, 'lib/xlsx-style.ts');
+
+/** exceljs를 import해도 되는 파일 — 정확히 이 둘이고 둘 다 server-only다(IN-8, 부록 F) */
+const EXCELJS_ALLOWED = ['lib/input-form-adapter.ts', 'lib/xlsx-style.ts'] as const;
 
 /** 금액 산식을 부를 수 있는 유일한 파일(미리보기). 나머지 lib/input-form/**은 부르지 못한다 */
 const AMOUNT_CALLER_ALLOWED = 'lib/input-form/preview.ts';
@@ -120,8 +124,27 @@ function relative(file: string): string {
   return path.relative(ROOT, file).split(path.sep).join('/');
 }
 
+/** SheetJS(읽기)·exceljs(쓰기) — 둘 다 어댑터 밖에서는 보이면 안 되는 서식·워크북 라이브러리다(IN-8) */
 function isXlsx(specifier: string): boolean {
-  return specifier === 'xlsx' || specifier.startsWith('xlsx/');
+  return (
+    specifier === 'xlsx' ||
+    specifier.startsWith('xlsx/') ||
+    specifier === 'exceljs' ||
+    specifier.startsWith('exceljs/')
+  );
+}
+
+function isExcelJS(specifier: string): boolean {
+  return specifier === 'exceljs' || specifier.startsWith('exceljs/');
+}
+
+/** `@/lib/xlsx-style`(부록 F 헬퍼)을 가리키는가 — 클라이언트에 실리면 exceljs가 딸려 들어간다 */
+function pointsToXlsxStyle(specifier: string, fromFile: string): boolean {
+  let resolved: string;
+  if (specifier.startsWith('@/')) resolved = path.join(ROOT, specifier.slice(2));
+  else if (specifier.startsWith('.')) resolved = path.resolve(path.dirname(fromFile), specifier);
+  else return false;
+  return resolved.replace(/\.(ts|tsx)$/, '') === XLSX_STYLE.replace(/\.ts$/, '');
 }
 
 /** 모듈 지정자가 lib/input-form-adapter를 가리키는가 (`@/` 별칭·상대경로 모두) */
@@ -138,9 +161,11 @@ function pointsToInputFormAdapter(specifier: string, fromFile: string): boolean 
 const inputFormModules = listFiles(INPUT_FORM_DIR, ['.ts']);
 const adapterExists = fs.existsSync(INPUT_FORM_ADAPTER);
 
-const clientFiles = CLIENT_SCAN_DIRS.flatMap((dir) =>
-  listFiles(path.join(ROOT, dir), ['.ts', '.tsx'])
-).filter((file) => /^['"]use client['"]/.test(firstStatement(fs.readFileSync(file, 'utf8'))));
+const appFiles = CLIENT_SCAN_DIRS.flatMap((dir) => listFiles(path.join(ROOT, dir), ['.ts', '.tsx']));
+
+const clientFiles = appFiles.filter((file) =>
+  /^['"]use client['"]/.test(firstStatement(fs.readFileSync(file, 'utf8')))
+);
 
 // ─── 준비 상태 ────────────────────────────────────────────────────────────────
 
@@ -168,15 +193,39 @@ describe('입력 양식 경계 검사 준비 상태', () => {
   });
 });
 
-// ─── 1. lib/input-form/**/*.ts는 xlsx를 import하지 않는다 (IN-8) ───────────────
+// ─── 1. lib/input-form/**/*.ts는 xlsx·exceljs를 import하지 않는다 (IN-8) ───────
 
-describe.skipIf(inputFormModules.length === 0)('lib/input-form은 SheetJS 무의존이다 (IN-8)', () => {
-  it.each(inputFormModules.map((file) => relative(file)))('%s가 xlsx를 import하지 않는다', (rel) => {
+describe.skipIf(inputFormModules.length === 0)('lib/input-form은 SheetJS·exceljs 무의존이다 (IN-8)', () => {
+  it.each(inputFormModules.map((file) => relative(file)))('%s가 xlsx·exceljs를 import하지 않는다', (rel) => {
     const source = fs.readFileSync(path.join(ROOT, rel), 'utf8');
     expect(
       importedModules(source).filter(isXlsx),
-      `${rel}이 SheetJS를 직접 씁니다. 워크북을 만드는 일은 lib/input-form-adapter.ts의 몫입니다 (IN-8)`
+      `${rel}이 워크북 라이브러리를 직접 씁니다. 워크북을 만드는 일은 lib/input-form-adapter.ts의 몫입니다 (IN-8)`
     ).toEqual([]);
+  });
+});
+
+// ─── 1b. exceljs는 어댑터·스타일 헬퍼 두 파일에서만, 둘 다 server-only (IN-8, 부록 F) ──
+
+describe('exceljs는 lib/input-form-adapter.ts·lib/xlsx-style.ts에서만 import한다 (IN-8)', () => {
+  it(`app/components/lib/actions/types ${appFiles.length}개 파일 중 exceljs를 import하는 파일이 정확히 둘이다`, () => {
+    const importers = appFiles
+      .filter((file) => importedModules(fs.readFileSync(file, 'utf8')).some(isExcelJS))
+      .map(relative)
+      .sort();
+    expect(
+      importers,
+      'exceljs를 import하는 파일이 허용 목록과 다릅니다. 서식은 lib/xlsx-style.ts, 워크북 쓰기는 ' +
+        'lib/input-form-adapter.ts에만 둡니다 (IN-8)'
+    ).toEqual([...EXCELJS_ALLOWED].sort());
+  });
+
+  it.each([...EXCELJS_ALLOWED])("%s의 첫 구문이 import 'server-only'다 (I-13)", (rel) => {
+    const first = firstStatement(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+    expect(
+      first.replace(/["']/g, "'"),
+      `${rel}은 import 'server-only'로 시작해야 합니다 — exceljs가 클라이언트 번들로 새는 것을 컴파일 타임에 막는 유일한 가드입니다`
+    ).toMatch(/^import\s+'server-only'/);
   });
 });
 
@@ -212,11 +261,20 @@ describe("'use client' 파일은 입력 양식 어댑터·SheetJS를 쓰지 않�
     ).toEqual([]);
   });
 
-  it('xlsx를 직접 import하는 클라이언트 파일이 없다', () => {
+  it('xlsx·exceljs를 직접 import하는 클라이언트 파일이 없다', () => {
     const offenders = clientFiles
       .filter((file) => importedModules(fs.readFileSync(file, 'utf8')).some(isXlsx))
       .map(relative);
-    expect(offenders, "'use client' 파일이 SheetJS를 직접 import했습니다 (I-13)").toEqual([]);
+    expect(offenders, "'use client' 파일이 SheetJS·exceljs를 직접 import했습니다 (I-13)").toEqual([]);
+  });
+
+  it('@/lib/xlsx-style을 import하는 클라이언트 파일이 없다 (부록 F 헬퍼는 exceljs를 끌고 온다)', () => {
+    const offenders = clientFiles
+      .filter((file) =>
+        importedModules(fs.readFileSync(file, 'utf8')).some((specifier) => pointsToXlsxStyle(specifier, file))
+      )
+      .map(relative);
+    expect(offenders, "'use client' 파일이 lib/xlsx-style을 직접 import했습니다 (I-13)").toEqual([]);
   });
 
   it('스캔이 실제로 클라이언트 파일을 찾았다', () => {

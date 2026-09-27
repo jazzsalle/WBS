@@ -8,4 +8,5 @@ export * from './types';
 export * from './meta';
 export * from './parse';
 export * from './build';
+export * from './guide';
 export * from './preview';

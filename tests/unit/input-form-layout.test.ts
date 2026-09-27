@@ -217,14 +217,15 @@ describe('checkMeta 거부 3종 (IN-2)', () => {
 });
 
 describe('경계 (IN-8)', () => {
-  it('lib/input-form/**은 xlsx를 import하지 않는다', () => {
+  it('lib/input-form/**은 xlsx·exceljs를 import하지 않는다', () => {
     const dir = path.resolve(__dirname, '../../lib/input-form');
     const files = fs.readdirSync(dir).filter((f) => f.endsWith('.ts'));
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
       const source = fs.readFileSync(path.join(dir, file), 'utf8');
-      expect(source, file).not.toMatch(/from\s+['"]xlsx['"]/);
-      expect(source, file).not.toMatch(/require\(\s*['"]xlsx['"]\s*\)/);
+      // Phase 19부터 쓰기는 exceljs다(IN-8) — 서식 라이브러리도 좌표 맵·파서 층에 들어오면 안 된다
+      expect(source, file).not.toMatch(/from\s+['"](xlsx|exceljs)(\/[^'"]*)?['"]/);
+      expect(source, file).not.toMatch(/require\(\s*['"](xlsx|exceljs)(\/[^'"]*)?['"]\s*\)/);
     }
   });
 });

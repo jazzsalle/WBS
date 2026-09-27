@@ -5,6 +5,7 @@
 // `RawSheet`를 그대로 받는다. 여기는 **어느 값이 어느 칸에 있는가**만 다룬다.
 
 import type { BudgetCategory, BudgetDetail, DetailAxis, Member, Project, Year } from '@/types';
+import type { FormCellFormat } from './layout';
 
 // ─── 생성기 → 어댑터 (쓰기) ─────────────────────────────────
 
@@ -17,6 +18,25 @@ export interface FormCell {
   formula?: string;
 }
 
+/** 양식 모드(IN-9). Phase 19는 'plan'만 만들고 'execution'은 Phase 20이 잇는다 — 작성안내 문장만 먼저 분기한다 */
+export type InputFormMode = 'plan' | 'execution';
+
+/** 행 역할. 어댑터가 부록 F-2(헤더)·F-4(소계·합계) 서식을 고를 때 쓴다 */
+export type FormRowRole = 'header' | 'data' | 'subtotal' | 'total';
+
+/**
+ * 열 서식 힌트(부록 F-3·F-5·F-6·F-7). 어댑터가 exceljs 스타일로 옮긴다 — 여기는 서식 라이브러리를 모른다(IN-8).
+ * `format`은 layout의 것을 그대로 쓰되 `'percent'`는 넣지 않는다(F-6·X-7 — 백분율 서식 금지).
+ */
+export interface FormColumnHint {
+  /** 보이는 열이면서 `read: false` — 사람이 고치면 안 되는 표시·계산 전용 열(F-3 베이지). 숨김 열은 false */
+  key: boolean;
+  format: FormCellFormat;
+  /** 엑셀 열 너비(문자 수) — F-7 */
+  width: number;
+  align: 'left' | 'center' | 'right';
+}
+
 export interface FormSheet {
   name: string;
   /** `_meta`만 true (IN-2) */
@@ -25,6 +45,17 @@ export interface FormSheet {
   rows: FormCell[][];
   /** 숨길 열(0-based). `memberId`·`detailId`·세목 코드처럼 사람이 볼 필요 없는 키 열 */
   hiddenColumns: number[];
+  // ─ Phase 19 서식 힌트(부록 F). 전부 선택이다 — 힌트 없는 FormSheet도 유효하다
+  /** 없으면 'data'. `작성안내`(F-8)만 'guide' */
+  kind?: 'data' | 'guide';
+  /** 1-based. 없으면 1 */
+  headerRow?: number;
+  /** 1-based. 없으면 `headerRow + 1` — 틀 고정·자동 필터 기준(F-5) */
+  dataStartRow?: number;
+  /** 열 수와 같은 길이 */
+  columnHints?: FormColumnHint[];
+  /** `rows`와 같은 길이. 없으면 `headerRow` 이전은 header, 나머지 data */
+  rowRoles?: FormRowRole[];
 }
 
 export interface InputFormWorkbook {

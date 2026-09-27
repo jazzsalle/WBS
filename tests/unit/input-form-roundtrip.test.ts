@@ -9,11 +9,20 @@
 // (export-roundtrip.test.ts의 recalc와 같은 원칙): 허용 문법은 생성기가 실제로 쓰는 ROUND·IF·사칙연산·`=`뿐이고,
 // 그 밖의 토큰을 만나면 조용히 건너뛰지 않고 던진다 — 건너뛰면 검산이 사라진다.
 //
+// Phase 19부터 쓰기는 exceljs다(IN-8). exceljs는 결과 없는 수식 셀을 `<c><f>…</f></c>`(`<v>`·`t` 없음)로 쓰는데,
+// SheetJS는 이 셀에 `v=0`을 합성한 뒤 `'n'` 분기에서 `0 == ""`로 보고 **레코드째 버린다**. 수식을 SheetJS로
+// 보려면 `sheetStubs: true`가 필요하다 — 그러면 `{t:'z', f, v:0}`으로 살아남고 `Recalc.cell()`은 `f`를 먼저
+// 보므로 검산은 그대로다. 대신 서식만 있는 빈 셀도 `{t:'z'}` 스텁으로 나타나므로 "셀이 없다"가 아니라
+// "값이 없다"로 단언한다. "캐시값 없음"(IN-7)은 SheetJS의 `v=0` 합성 때문에 SheetJS로는 볼 수 없어 exceljs로
+// 다시 열어 `result === undefined`를 본다.
+//
 // 기준값은 전부 SOT다(부록 B.7.1~B.7.3). 구현이 낸 값을 기준으로 삼지 않는다.
 
 import { describe, expect, it } from 'vitest';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
+  GUIDE_SHEET_NAME,
   INPUT_FORM_SHEETS,
   INPUT_FORM_VERSION,
   META_KEYS,
@@ -231,9 +240,26 @@ const DATA: InputFormData = { project: PROJECT, year: YEAR, members: MEMBERS, de
 // ─── 파이프라인 ──────────────────────────────────────────────
 
 /** 생성 → 쓰기 → 올리기 경로로 읽기. 파서가 받는 것과 정확히 같은 RawSheet 목록이다 */
-function roundtripSheets(data: InputFormData): { buffer: Buffer; sheets: RawSheet[] } {
-  const buffer = writeInputFormWorkbook(buildInputForm(data, TODAY));
+async function roundtripSheets(data: InputFormData): Promise<{ buffer: Buffer; sheets: RawSheet[] }> {
+  const buffer = await writeInputFormWorkbook(buildInputForm(data, TODAY));
   return { buffer, sheets: readWorkbook(new Uint8Array(buffer)) };
+}
+
+/** 수식 `f`를 보려고 여는 SheetJS 워크북 — `sheetStubs`가 없으면 exceljs가 쓴 수식 셀이 사라진다(파일 머리 주석) */
+function readWithFormulas(buffer: Buffer): XLSX.WorkBook {
+  return XLSX.read(buffer, { type: 'buffer', cellFormula: true, sheetStubs: true });
+}
+
+/** IN-7 "캐시값 없이 f만"은 exceljs로 다시 열어야 보인다 — SheetJS는 `v=0`을 합성한다 */
+async function reloadWithExcelJS(buffer: Buffer): Promise<ExcelJS.Workbook> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buffer as unknown as ArrayBuffer);
+  return wb;
+}
+
+/** SheetJS 스텁(`{t:'z'}`)이나 없는 셀 — 어느 쪽이든 "값이 없다" */
+function hasNoValue(cell: XLSX.CellObject | undefined): boolean {
+  return cell === undefined || cell.v === undefined;
 }
 
 function parseOrThrow(sheets: readonly RawSheet[]): ParsedInputForm {
@@ -533,14 +559,40 @@ class Parser {
 }
 
 // ═══ 왕복 ═══════════════════════════════════════════════════════
+//
+// 픽스처는 모듈 top-level await로 준비한다 — exceljs 쓰기가 Promise라서다. describe 콜백은 동기로 둔다.
 
-const base = roundtripSheets(DATA);
+const base = await roundtripSheets(DATA);
+const baseExcel = await reloadWithExcelJS(base.buffer);
+
+// (d) 산출근거 0건 인력
+const EMPTY_MEMBER = member({ id: 'm-empty', name: '신입', order: 100, annualSalary: 40_000_000 });
+const EMPTY_MEMBER_DATA: InputFormData = { ...DATA, members: [...MEMBERS, EMPTY_MEMBER] };
+const emptyMemberRoundtrip = await roundtripSheets(EMPTY_MEMBER_DATA);
+
+// (g) isPercent 인자 — 부록 A.5 프리셋에는 isPercent 인자가 없으므로 기존 행의 isPercent 라벨을 잇는 경로로 확인한다
+const PERCENT_DETAIL = detail({
+  id: 'q-pct',
+  category: 'allowance',
+  subcategory: 'default',
+  name: '연구수당',
+  unitPrice: 10_000_000,
+  factors: [{ label: '지급률(%)', value: 28, isPercent: true }],
+  amount: 2_800_000,
+});
+const PERCENT_DETAILS = [...ALL_DETAILS, PERCENT_DETAIL];
+const percentRoundtrip = await roundtripSheets({ ...DATA, details: PERCENT_DETAILS });
 
 describe('(a) 부록 B.7 왕복 — 생성 → xlsx → 읽기 → 파싱 → 미리보기가 같은 산출근거에 도달한다', () => {
   const result = previewOf(base.sheets);
 
-  it('시트 3장이 올리기 경로에서 그대로 읽힌다 (숨김 _meta 포함, IN-2)', () => {
-    expect(base.sheets.map((s) => s.name)).toEqual([PERSONNEL_DEF.name, BUDGET_DEF.name, META_DEF.name]);
+  it('시트 4장이 올리기 경로에서 그대로 읽힌다 (작성안내 첫 시트 F-8, 숨김 _meta 포함 IN-2)', () => {
+    expect(base.sheets.map((s) => s.name)).toEqual([
+      GUIDE_SHEET_NAME,
+      PERSONNEL_DEF.name,
+      BUDGET_DEF.name,
+      META_DEF.name,
+    ]);
   });
 
   it('행 25건 전부 unchanged — added·changed·deleted 0, 차단 없음', () => {
@@ -599,12 +651,15 @@ describe('(a) 부록 B.7 왕복 — 생성 → xlsx → 읽기 → 파싱 → �
 // ═══ (b) 수식 검산 ══════════════════════════════════════════════
 
 describe('(b) 수식 검산 — 생성기의 엑셀 수식을 직접 계산하면 SOT 최종 금액이 나온다 (IN-7)', () => {
-  const wb = XLSX.read(base.buffer, { type: 'buffer', cellFormula: true });
+  const wb = readWithFormulas(base.buffer);
   const personnelWs = wb.Sheets[PERSONNEL_DEF.name];
   const budgetWs = wb.Sheets[BUDGET_DEF.name];
   if (!personnelWs || !budgetWs) throw new Error('인건비·사업비 시트가 없다');
   const personnel = new Recalc(personnelWs, PERSONNEL_DEF.name);
   const budget = new Recalc(budgetWs, BUDGET_DEF.name);
+  const personnelXl = baseExcel.getWorksheet(PERSONNEL_DEF.name);
+  const budgetXl = baseExcel.getWorksheet(BUDGET_DEF.name);
+  if (!personnelXl || !budgetXl) throw new Error('exceljs로 다시 연 워크북에 인건비·사업비 시트가 없다');
 
   /** memberId 숨김 열로 인건비 데이터 행(0-based)을 찾는다 */
   function personnelRow(memberId: string): number {
@@ -630,9 +685,12 @@ describe('(b) 수식 검산 — 생성기의 엑셀 수식을 직접 계산하�
       const r = personnelRow(`m-${index}`);
       const formulaCell = personnelWs![addr(PERSONNEL_DEF, 'formulaAmount', r)] as XLSX.CellObject | undefined;
       const amountCell = personnelWs![addr(PERSONNEL_DEF, 'amount', r)] as XLSX.CellObject | undefined;
-      // 값이 아니라 수식이어야 한다 — 캐시값을 검산하면 생성기의 계산을 되풀이하는 것밖에 안 된다
+      // 값이 아니라 수식이어야 한다 — 캐시값을 검산하면 생성기의 계산을 되풀이하는 것밖에 안 된다.
+      // 캐시 없음은 exceljs로 본다(SheetJS는 v=0을 합성한다 — 파일 머리 주석)
       expect(formulaCell?.f, `${name} 산식 금액`).toMatch(/^ROUND\(/);
-      expect(formulaCell?.v, `${name} 산식 금액 캐시`).toBeUndefined();
+      const formulaXl = personnelXl.getCell(addr(PERSONNEL_DEF, 'formulaAmount', r));
+      expect(formulaXl.formula, `${name} 산식 금액(exceljs)`).toMatch(/^ROUND\(/);
+      expect(formulaXl.result, `${name} 산식 금액 캐시`).toBeUndefined();
       expect(amountCell?.f, `${name} 금액`).toBeDefined();
 
       expect(personnel.number(addr(PERSONNEL_DEF, 'formulaAmount', r)), `${name} 산식`).toBe(amount - adjustment);
@@ -667,13 +725,56 @@ describe('(b) 수식 검산 — 생성기의 엑셀 수식을 직접 계산하�
       const r = budgetRow(name);
       const cell = budgetWs![addr(BUDGET_DEF, 'amount', r)] as XLSX.CellObject | undefined;
       expect(cell?.f, name).toContain('IF(');
-      expect(cell?.v, `${name} 캐시`).toBeUndefined();
+      const cellXl = budgetXl.getCell(addr(BUDGET_DEF, 'amount', r));
+      expect(cellXl.formula, `${name}(exceljs)`).toContain('IF(');
+      expect(cellXl.result, `${name} 캐시`).toBeUndefined();
       expect(budget.number(addr(BUDGET_DEF, 'amount', r)), name).toBe(amount);
     }
-    // 인자 0개 행(간접비): 세 IF가 전부 1이라 단가 그대로
+    // 인자 0개 행(간접비): 세 IF가 전부 1이라 단가 그대로. 서식만 있는 빈 셀은 스텁으로 남으므로 "값 없음"으로 본다
     const safety = budgetRow('연구실 안전관리비');
-    expect(budgetWs![addr(BUDGET_DEF, 'factor1', safety)]).toBeUndefined();
+    expect(hasNoValue(budgetWs![addr(BUDGET_DEF, 'factor1', safety)] as XLSX.CellObject | undefined)).toBe(true);
     expect(budget.number(addr(BUDGET_DEF, 'amount', safety))).toBe(2_000_000);
+  });
+
+  it('사업비 소계·총액 행(§7.9.7): SUM 수식이 있고 숨김 키 열이 비어 있어 파서가 IN-4 빈 행으로 건너뛴다', () => {
+    const form = buildInputForm(DATA, TODAY);
+    const budgetForm = form.sheets.find((s) => s.name === BUDGET_DEF.name);
+    if (!budgetForm?.rowRoles) throw new Error('사업비 FormSheet에 rowRoles가 없다');
+    const sumRows = budgetForm.rowRoles
+      .map((role, index) => ({ role, index }))
+      .filter(({ role }) => role === 'subtotal' || role === 'total');
+    expect(sumRows.length).toBeGreaterThan(0);
+    expect(sumRows.filter(({ role }) => role === 'total')).toHaveLength(1);
+
+    const rawBudget = sheetNamed(base.sheets, BUDGET_DEF.name);
+    for (const { index, role } of sumRows) {
+      const amountCell = budgetWs![addr(BUDGET_DEF, 'amount', index)] as XLSX.CellObject | undefined;
+      expect(amountCell?.f, `${role} 행 ${index + 1}`).toMatch(/^SUM\(/);
+      // 숨김 키 2열이 비어 있어야 unknown-subcategory·데이터 행으로 잡히지 않는다
+      expect(hasNoValue(budgetWs![addr(BUDGET_DEF, 'subcategory', index)] as XLSX.CellObject | undefined), `${role} 행 ${index + 1} 세목 키`).toBe(true);
+      expect(hasNoValue(budgetWs![addr(BUDGET_DEF, 'detailId', index)] as XLSX.CellObject | undefined), `${role} 행 ${index + 1} detailId`).toBe(true);
+      // 올리기 경로(readWorkbook)에서도 같은 행의 키·사용자 열이 전부 null이다
+      const raw = rawBudget.cells[index];
+      for (const role2 of ['subcategory', 'detailId', 'name', 'spec', 'unitPrice', 'factor1', 'factor2', 'factor3', 'adjustment', 'note']) {
+        expect(raw?.[columnOf(BUDGET_DEF, role2)]?.value ?? null, `${role} 행 ${index + 1} ${role2}`).toBeNull();
+      }
+    }
+
+    // 파싱된 사업비 행 수 = 값이 적힌 데이터 행 수 — 소계·총액 행이 끼어들지 않았다
+    const userColumns = ['name', 'spec', 'unitPrice', 'factor1', 'factor2', 'factor3', 'adjustment', 'note'].map((role) =>
+      columnOf(BUDGET_DEF, role)
+    );
+    const filledDataRows = budgetForm.rows.filter((row, index) => {
+      if (budgetForm.rowRoles![index] !== 'data') return false;
+      return userColumns.some((c) => {
+        const v = row[c]?.value;
+        return v !== undefined && v !== null && v !== '';
+      });
+    });
+    expect(filledDataRows).toHaveLength(QUANTITY_DETAILS.length);
+    const parsed = parseOrThrow(base.sheets);
+    expect(parsed.budget).toHaveLength(filledDataRows.length);
+    expect(parsed.budget.some((row) => row.issues.some((i) => i.kind === 'unknown-subcategory'))).toBe(false);
   });
 
   it('계산기는 모르는 함수·범위를 통과시키지 않는다 (검산의 전제)', () => {
@@ -723,9 +824,8 @@ describe('(c) 금액·산식 금액·연봉·월급을 999로 덮어써도 미�
 // ═══ (d) 빈 인력 행에 값을 적으면 add ══════════════════════════════
 
 describe('(d) 산출근거 0건 인력의 빈 행에 참여율 30·개월 12·현금을 적어 올리면 add 1행', () => {
-  const EMPTY_MEMBER = member({ id: 'm-empty', name: '신입', order: 100, annualSalary: 40_000_000 });
-  const data: InputFormData = { ...DATA, members: [...MEMBERS, EMPTY_MEMBER] };
-  const { sheets } = roundtripSheets(data);
+  const data = EMPTY_MEMBER_DATA;
+  const { sheets } = emptyMemberRoundtrip;
 
   it('생성된 빈 행은 memberId만 있고 detailId·참여율·개월·축이 비어 있다 (IN-3 "0건이면 빈 값 1행")', () => {
     const sheet = sheetNamed(sheets, PERSONNEL_DEF.name);
@@ -888,18 +988,8 @@ describe('(f) 사업비 시트 — 빈 줄에 적으면 add, 기존 행을 비�
 // ═══ (g) isPercent 인자 왕복 ═══════════════════════════════════════
 
 describe('(g) isPercent 인자가 있는 세목 행은 왕복 후 값 그대로다 — 양식 0.28 ↔ 저장 28 (IN-4)', () => {
-  // 부록 A.5 프리셋에는 isPercent 인자가 없으므로 기존 행의 isPercent 라벨을 잇는 경로로 확인한다
-  const percentDetail = detail({
-    id: 'q-pct',
-    category: 'allowance',
-    subcategory: 'default',
-    name: '연구수당',
-    unitPrice: 10_000_000,
-    factors: [{ label: '지급률(%)', value: 28, isPercent: true }],
-    amount: 2_800_000,
-  });
-  const existing = [...ALL_DETAILS, percentDetail];
-  const { sheets, buffer } = roundtripSheets({ ...DATA, details: existing });
+  const existing = PERCENT_DETAILS;
+  const { sheets, buffer } = percentRoundtrip;
 
   it('양식 셀에는 0.28이 적히고 백분율 서식이 아니다', () => {
     const sheet = sheetNamed(sheets, BUDGET_DEF.name);
@@ -910,7 +1000,7 @@ describe('(g) isPercent 인자가 있는 세목 행은 왕복 후 값 그대로�
   });
 
   it('엑셀 수식도 0.28로 같은 금액 2,800,000을 낸다', () => {
-    const wb = XLSX.read(buffer, { type: 'buffer', cellFormula: true });
+    const wb = readWithFormulas(buffer);
     const ws = wb.Sheets[BUDGET_DEF.name]!;
     const sheet = sheetNamed(sheets, BUDGET_DEF.name);
     const r = findRow(sheet, BUDGET_DEF, 'detailId', 'q-pct');

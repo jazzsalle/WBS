@@ -476,7 +476,7 @@ export async function buildInputForm(
     };
 
     const workbook = buildInputFormWorkbook(data, todayISO(new Date()));
-    const buffer = writeInputFormWorkbook(workbook);
+    const buffer = await writeInputFormWorkbook(workbook);
 
     return {
       ok: true,

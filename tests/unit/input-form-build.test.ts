@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   EMPTY_ROWS_PER_SUBCATEGORY,
+  GUIDE_SHEET_NAME,
   INPUT_FORM_SHEETS,
   INPUT_FORM_VERSION,
   columnAddress,
@@ -22,6 +23,8 @@ import {
   DEFAULT_PERSONNEL_SUBCATEGORY,
   NO_INCLUSION_LABEL,
   NO_SALARY_NOTE,
+  SUBTOTAL_SUFFIX,
+  TOTAL_LABEL,
   buildInputForm,
   inputFormFileName,
 } from '@/lib/input-form/build';
@@ -220,8 +223,11 @@ function sheetNamed(sheets: FormSheet[], name: string): FormSheet {
   return found;
 }
 
+/** 데이터 행만 — 소계·총액 행(rowRoles 'subtotal'·'total')은 뺀다. 힌트가 없으면 종전처럼 dataStartRow부터 */
 function dataRows(sheet: FormSheet, def: typeof PERSONNEL_DEF): FormCell[][] {
-  return sheet.rows.slice(def.dataStartRow - 1);
+  const roles = sheet.rowRoles;
+  if (!roles) return sheet.rows.slice(def.dataStartRow - 1);
+  return sheet.rows.filter((_, index) => roles[index] === 'data');
 }
 
 function cellOf(row: FormCell[], def: typeof PERSONNEL_DEF, role: string): FormCell {
@@ -470,7 +476,9 @@ describe('사업비 시트 (IN-4)', () => {
     const softwareIndex = rows.findIndex((r) => cellOf(r, BUDGET_DEF, 'name').value === 'AEC Collection');
     expect(softwareIndex).toBeGreaterThanOrEqual(0);
     const row = rows[softwareIndex]!;
-    const rowNumber = softwareIndex + BUDGET_DEF.dataStartRow;
+    // 데이터 행 사이에 소계 행이 끼므로 엑셀 행 번호는 시트 전체 인덱스에서 얻는다
+    const rowNumber = budgetSheet.rows.indexOf(row) + 1;
+    expect(rowNumber).toBeGreaterThanOrEqual(BUDGET_DEF.dataStartRow);
     expect(cellOf(row, BUDGET_DEF, 'category').value).toBe('연구활동비');
     expect(cellOf(row, BUDGET_DEF, 'subcategoryLabel').value).toBe('⑥ 소프트웨어 활용비');
     expect(cellOf(row, BUDGET_DEF, 'unitPrice').value).toBe(540_000);
@@ -544,7 +552,7 @@ describe('숨김 열·_meta·파일명 (IN-2)', () => {
 
   it('(e) _meta 시트는 숨김이고 buildMetaRows 행이 parseMeta로 되돌아온다', () => {
     expect(metaSheet.hidden).toBe(true);
-    expect(workbook.sheets.map((s) => s.name)).toEqual(['인건비', '사업비', '_meta']);
+    expect(workbook.sheets.map((s) => s.name)).toEqual([GUIDE_SHEET_NAME, '인건비', '사업비', '_meta']);
     const meta = parseMeta(toRawSheet(metaSheet));
     expect(meta).not.toBeNull();
     expect(meta!.formVersion).toBe(INPUT_FORM_VERSION);
@@ -571,17 +579,256 @@ describe('숨김 열·_meta·파일명 (IN-2)', () => {
   });
 });
 
+// ─── 소계·총액 행 (§7.9.7 서식, IN-4 빈 행) ─────────────────
+
+interface SlotRange {
+  key: string;
+  category: string;
+  first: number;
+  last: number;
+  subtotalRow: number;
+}
+
+describe('사업비 시트 소계·총액 행 (§7.9.7)', () => {
+  const rows = budgetSheet.rows;
+  const roles = budgetSheet.rowRoles ?? [];
+  const amountLetter = columnLetter(columnOf(BUDGET_DEF, 'amount'));
+  const amountAt = (rowNumber: number) => columnAddress(BUDGET_DEF, 'amount', rowNumber);
+  const rowNumberOf = (addr: string) => Number(addr.replace(/^[A-Z]+/, ''));
+
+  /** 슬롯(복합 키) → 데이터 행 번호 범위(1-based)와 바로 뒤 세목 소계 행 */
+  function slotRanges(): SlotRange[] {
+    const out: SlotRange[] = [];
+    let open: SlotRange | null = null;
+    rows.forEach((row, index) => {
+      const rowNumber = index + 1;
+      const role = roles[index];
+      if (role === 'data') {
+        const key = String(cellOf(row, BUDGET_DEF, 'subcategory').value);
+        const category = String(cellOf(row, BUDGET_DEF, 'category').value);
+        if (open && open.key === key) {
+          open.last = rowNumber;
+        } else {
+          if (open) throw new Error(`슬롯 ${open.key}가 소계 없이 끝났다`);
+          open = { key, category, first: rowNumber, last: rowNumber, subtotalRow: -1 };
+        }
+      } else if (role === 'subtotal' && open) {
+        open.subtotalRow = rowNumber;
+        out.push(open);
+        open = null;
+      }
+    });
+    return out;
+  }
+
+  it('rowRoles가 rows와 같은 길이이고 헤더·데이터·소계·총액으로만 이뤄진다', () => {
+    expect(roles).toHaveLength(rows.length);
+    expect(roles.slice(0, BUDGET_DEF.dataStartRow - 1).every((r) => r === 'header')).toBe(true);
+    expect(new Set(roles)).toEqual(new Set(['header', 'data', 'subtotal', 'total']));
+    expect(roles.filter((r) => r === 'total')).toHaveLength(1);
+    expect(roles[roles.length - 1]).toBe('total');
+  });
+
+  it('(i) 세목 소계 행이 슬롯 직후에 있고 수식이 그 슬롯의 데이터 행 범위 SUM이다', () => {
+    const ranges = slotRanges();
+    expect(ranges.map((r) => r.key)).toEqual(slotKeys(dataRows(budgetSheet, BUDGET_DEF)).map((k) => k.code));
+    for (const range of ranges) {
+      expect(range.subtotalRow, range.key).toBe(range.last + 1);
+      expect(range.last - range.first + 1, range.key).toBeGreaterThanOrEqual(EMPTY_ROWS_PER_SUBCATEGORY);
+      const row = rows[range.subtotalRow - 1]!;
+      expect(cellOf(row, BUDGET_DEF, 'amount').formula).toBe(
+        `SUM(${amountLetter}${range.first}:${amountLetter}${range.last})`
+      );
+      expect(cellOf(row, BUDGET_DEF, 'amount').value).toBeUndefined();
+      expect(String(cellOf(row, BUDGET_DEF, 'subcategoryLabel').value).endsWith(SUBTOTAL_SUFFIX)).toBe(true);
+    }
+    // 연구활동비 ⑥ 소프트웨어 활용비: 기존 1행 + 빈 3줄 = 4행
+    const software = ranges.find((r) => r.key === 'activity:activity_software');
+    if (!software) throw new Error('소프트웨어 슬롯이 없다');
+    expect(software.last - software.first + 1).toBe(1 + EMPTY_ROWS_PER_SUBCATEGORY);
+    expect(cellOf(rows[software.subtotalRow - 1]!, BUDGET_DEF, 'subcategoryLabel').value).toBe(
+      `⑥ 소프트웨어 활용비${SUBTOTAL_SUFFIX}`
+    );
+  });
+
+  it('(ii) 비목 소계는 그 비목 세목 소계 셀들의 SUM, 총액은 비목 소계 셀들의 SUM', () => {
+    const ranges = slotRanges();
+    const categorySubtotalCells: string[] = [];
+    rows.forEach((row, index) => {
+      if (roles[index] !== 'subtotal') return;
+      const label = cellOf(row, BUDGET_DEF, 'category').value;
+      if (label === null || label === undefined) return; // 세목 소계는 비목 열이 비어 있다
+      const rowNumber = index + 1;
+      expect(String(label).endsWith(SUBTOTAL_SUFFIX)).toBe(true);
+      const categoryLabel = String(label).slice(0, -SUBTOTAL_SUFFIX.length);
+      // 직전 비목 소계 뒤 ~ 이 비목 소계 앞에 나온 세목 소계 전부가 이 비목의 것이다
+      const previousCategoryRow =
+        categorySubtotalCells.length > 0 ? rowNumberOf(categorySubtotalCells[categorySubtotalCells.length - 1]!) : 0;
+      const own = ranges.filter((r) => r.subtotalRow > previousCategoryRow && r.subtotalRow < rowNumber);
+      expect(own.length, categoryLabel).toBeGreaterThan(0);
+      expect(own.every((r) => r.category === categoryLabel), categoryLabel).toBe(true);
+      expect(cellOf(row, BUDGET_DEF, 'amount').formula).toBe(
+        `SUM(${own.map((r) => amountAt(r.subtotalRow)).join(',')})`
+      );
+      categorySubtotalCells.push(amountAt(rowNumber));
+    });
+    // 인건비·학생인건비를 뺀 비목 수만큼
+    const expectedCategories = BUDGET_CATEGORY_ORDER.filter((c) => c !== 'personnel' && c !== 'student_personnel');
+    expect(categorySubtotalCells).toHaveLength(expectedCategories.length);
+
+    const totalRow = rows[rows.length - 1]!;
+    expect(cellOf(totalRow, BUDGET_DEF, 'category').value).toBe(TOTAL_LABEL);
+    expect(cellOf(totalRow, BUDGET_DEF, 'amount').formula).toBe(`SUM(${categorySubtotalCells.join(',')})`);
+    expect(cellOf(totalRow, BUDGET_DEF, 'amount').value).toBeUndefined();
+  });
+
+  it('(v) 소계·총액 행은 숨김 키 2열·사용자 열·축이 전부 비어 있다 — 파서가 IN-4 빈 행으로 건너뛴다', () => {
+    const mustBeEmpty = [
+      'subcategory', 'detailId', 'name', 'spec', 'unitPrice',
+      'factor1', 'factor2', 'factor3', 'adjustment', 'axis', 'note',
+    ];
+    let seen = 0;
+    rows.forEach((row, index) => {
+      if (roles[index] !== 'subtotal' && roles[index] !== 'total') return;
+      seen += 1;
+      for (const role of mustBeEmpty) {
+        expect(cellOf(row, BUDGET_DEF, role), `${index + 1}행 ${role}`).toEqual({});
+      }
+    });
+    expect(seen).toBeGreaterThan(0);
+  });
+
+  it('인건비 시트에는 소계·총액 행이 없다', () => {
+    const personnelRoles = personnelSheet.rowRoles ?? [];
+    expect(personnelRoles).toHaveLength(personnelSheet.rows.length);
+    expect(personnelRoles.some((r) => r === 'subtotal' || r === 'total')).toBe(false);
+    expect(personnelRoles.filter((r) => r === 'data')).toHaveLength(PERSONNEL.length);
+  });
+
+  it('_meta.subcategoryCodes는 소계 행과 무관하게 슬롯 목록 그대로다', () => {
+    const meta = parseMeta(toRawSheet(metaSheet));
+    expect(meta!.subcategoryCodes).toEqual(slotRanges().map((r) => r.key));
+  });
+});
+
+// ─── 서식 힌트 (부록 F-3·F-6·F-7) ────────────────────────────
+
+describe('서식 힌트 (부록 F)', () => {
+  it('(iii) columnHints 길이 = 열 수, key = read:false인 보이는 열, percent 없음', () => {
+    for (const [sheet, def] of [[personnelSheet, PERSONNEL_DEF], [budgetSheet, BUDGET_DEF]] as const) {
+      const hints = sheet.columnHints;
+      if (!hints) throw new Error(`${def.name} 시트에 columnHints가 없다`);
+      expect(hints).toHaveLength(def.columns.length);
+      const keyRoles = def.columns.filter((_, i) => hints[i]!.key).map((c) => c.role);
+      const expectedKeyRoles = def.columns.filter((c) => !c.hidden && !c.read).map((c) => c.role);
+      expect(keyRoles, def.name).toEqual(expectedKeyRoles);
+      expect(expectedKeyRoles.length).toBeGreaterThan(0);
+      expect(hints.some((h) => h.format === 'percent')).toBe(false);
+      for (const h of hints) {
+        expect(h.width).toBeGreaterThan(0);
+        expect(['left', 'center', 'right']).toContain(h.align);
+      }
+      expect(sheet.kind).toBe('data');
+      expect(sheet.headerRow).toBe(def.headerRow);
+      expect(sheet.dataStartRow).toBe(def.dataStartRow);
+    }
+    // 숨김 열은 key가 아니다
+    for (const index of budgetSheet.hiddenColumns) expect(budgetSheet.columnHints![index]!.key).toBe(false);
+    // 대표 값 몇 개 — 역할→너비·정렬 표(F-5·F-7)
+    const hint = (def: typeof PERSONNEL_DEF, sheet: FormSheet, role: string) =>
+      sheet.columnHints![columnOf(def, role)]!;
+    expect(hint(PERSONNEL_DEF, personnelSheet, 'name')).toMatchObject({ key: true, width: 26, align: 'left', format: 'text' });
+    expect(hint(PERSONNEL_DEF, personnelSheet, 'participation')).toMatchObject({ key: false, width: 12, align: 'right', format: 'decimal' });
+    expect(hint(PERSONNEL_DEF, personnelSheet, 'amount')).toMatchObject({ key: true, width: 14, align: 'right', format: 'formula' });
+    expect(hint(PERSONNEL_DEF, personnelSheet, 'axis')).toMatchObject({ key: false, width: 10, align: 'center' });
+    expect(hint(BUDGET_DEF, budgetSheet, 'spec')).toMatchObject({ key: false, width: 40, align: 'left' });
+    expect(hint(BUDGET_DEF, budgetSheet, 'category')).toMatchObject({ key: true, width: 12 });
+    expect(hint(BUDGET_DEF, budgetSheet, 'unitPrice')).toMatchObject({ key: false, width: 14, align: 'right', format: 'int' });
+  });
+
+  it('_meta에는 힌트가 없고 작성안내는 kind만 있다', () => {
+    expect(metaSheet.kind).toBeUndefined();
+    expect(metaSheet.columnHints).toBeUndefined();
+    expect(metaSheet.rowRoles).toBeUndefined();
+    const guide = sheetNamed(workbook.sheets, GUIDE_SHEET_NAME);
+    expect(guide.kind).toBe('guide');
+    expect(guide.columnHints).toBeUndefined();
+    expect(guide.rowRoles).toBeUndefined();
+    expect(guide.hidden).toBe(false);
+    expect(guide.hiddenColumns).toEqual([]);
+  });
+});
+
+// ─── 작성안내 시트 (F-8, §7.9.7) ─────────────────────────────
+
+describe('작성안내 시트 (F-8)', () => {
+  const guide = workbook.sheets[0]!;
+  const bodyOf = (sheet: FormSheet, label: string): string => {
+    const row = sheet.rows.slice(3).find((r) => r[0]?.value === label);
+    if (!row) throw new Error(`안내 행 '${label}'이 없다`);
+    return String(row[1]?.value);
+  };
+
+  it('(iv) 첫 시트·kind guide·A1 제목·A2 부제·3행 빈 줄·A4부터 5행 표', () => {
+    expect(guide.name).toBe(GUIDE_SHEET_NAME);
+    expect(guide.kind).toBe('guide');
+    expect(guide.rows[0]![0]!.value).toBe('스마트 건설 플랫폼 — 사업비 입력 양식');
+    expect(guide.rows[1]![0]!.value).toBe('생성 2026-09-25 · 1차년도 · 제안');
+    expect(guide.rows[2]).toEqual([]);
+    expect(guide.rows.slice(3).map((r) => r[0]!.value)).toEqual(['목적', '작성 방법', '원칙', '주의', '읽지 않는 열']);
+    expect(guide.rows).toHaveLength(8);
+  });
+
+  it('(iv) 주의: plan은 "금액 열은 읽지 않는다", execution은 "금액 열을 읽는다"', () => {
+    expect(bodyOf(guide, '주의')).toContain('금액 열은 읽지 않는다');
+    expect(bodyOf(guide, '주의')).not.toContain('금액 열을 읽는다');
+
+    const execution = buildInputForm(DATA, TODAY, 'execution').sheets[0]!;
+    expect(execution.rows[1]![0]!.value).toBe('생성 2026-09-25 · 1차년도 · 수행');
+    expect(bodyOf(execution, '주의')).toContain('금액 열을 읽는다');
+    expect(bodyOf(execution, '주의')).not.toContain('금액 열은 읽지 않는다');
+  });
+
+  it('원칙: 인력은 양식에 있던 인력만, 경고는 막지 않음, 비목 단위 교체(plan)', () => {
+    const principle = bodyOf(guide, '원칙');
+    expect(principle).toContain('이름으로 찾지 않습니다');
+    expect(principle).toContain('막지 않습니다');
+    expect(principle).toContain('비목 단위');
+    const execution = buildInputForm(DATA, TODAY, 'execution').sheets[0]!;
+    expect(bodyOf(execution, '원칙')).toContain('[삭제 포함]');
+  });
+
+  it('읽지 않는 열: 좌표 맵의 !hidden && !read 열 라벨을 시트별로 생성한다', () => {
+    const text = bodyOf(guide, '읽지 않는 열');
+    const sheetLines = text.split('\n').filter((l) => l.startsWith('「'));
+    expect(sheetLines).toHaveLength(2);
+    for (const def of [PERSONNEL_DEF, BUDGET_DEF]) {
+      const unread = def.columns.filter((c) => !c.hidden && !c.read).map((c) => c.label);
+      const line = sheetLines.find((l) => l.startsWith(`「${def.name}」`));
+      expect(line).toBe(`「${def.name}」 ${unread.join(' · ')}`);
+      // 읽는 열(품명·참여율 등)은 그 줄에 없다
+      const listed = line!.slice(`「${def.name}」 `.length).split(' · ');
+      for (const c of def.columns.filter((c) => !c.hidden && c.read)) expect(listed).not.toContain(c.label);
+    }
+    expect(text).toContain('「인건비」 성명 · 직위');
+    expect(text).toContain('「사업비」 비목 · 세목 · 금액');
+    expect(text).toContain('memberId');
+  });
+});
+
 // ─── 경계 (IN-8, PL-10a) ─────────────────────────────────────
 
 describe('경계', () => {
   const dir = path.resolve(__dirname, '../../lib/input-form');
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.ts'));
 
-  it('lib/input-form/**에 xlsx import가 없다 (IN-8)', () => {
+  it('lib/input-form/**에 xlsx·exceljs import가 없다 (IN-8)', () => {
+    expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
       const source = fs.readFileSync(path.join(dir, file), 'utf8');
-      expect(source, file).not.toMatch(/from\s+['"]xlsx['"]/);
-      expect(source, file).not.toMatch(/require\(\s*['"]xlsx['"]\s*\)/);
+      expect(source, file).not.toMatch(/from\s+['"](xlsx|exceljs)['"]/);
+      expect(source, file).not.toMatch(/require\(\s*['"](xlsx|exceljs)['"]\s*\)/);
+      expect(source, file).not.toMatch(/import\(\s*['"](xlsx|exceljs)['"]\s*\)/);
     }
   });
 

@@ -1,12 +1,16 @@
-// 사업비 입력 양식 생성기 (SOT §6.16 IN-1·IN-3·IN-4·IN-7, §7.9.7).
+// 사업비 입력 양식 생성기 (SOT §6.16 IN-1·IN-3·IN-4·IN-7, §7.9.7, 부록 F).
 //
 // 앱 데이터 → `InputFormWorkbook`(FormCell 격자). 좌표는 전부 `layout.ts`에서 온다 — 여기에 열 번호가
-// 하나라도 박히면 파서와 어긋날 수 있다(IN-1). SheetJS를 import하지 않는다(IN-8).
+// 하나라도 박히면 파서와 어긋날 수 있다(IN-1). `xlsx`·`exceljs`를 import하지 않는다(IN-8) — 서식은
+// FormSheet의 **힌트**(columnHints·rowRoles·kind)로만 실어 보내고 어댑터가 부록 F로 옮긴다.
 //
 // **금액을 계산하지 않는다.** 인건비·사업비 금액 열은 엑셀 수식이다(IN-7) — 사용자가 엑셀에서 참여율을
 // 고치면 그 자리에서 같은 값이 보여야 하고, 올리면 서버가 PL-1로 다시 계산한다(금액 열은 읽지 않는다, IN-3).
 // 그래서 `computeDetailAmount`를 부를 이유가 없다. 수식은 연봉 셀을 직접 쓴다 — 월급 셀을 거치면
 // 월액 반올림이 끼어 박선욱 행이 1원 어긋난다(PL-2).
+//
+// 사업비 시트의 소계·총액 행(§7.9.7)도 수식뿐이다. 숨김 키 열과 사용자 열을 전부 비워 두므로 파서는
+// IN-4의 빈 행 규칙으로 건너뛴다 — 이 행들을 읽게 만드는 변경은 파서와 함께 해야 한다.
 
 import { personnelParticipation } from '@/lib/budget-plan';
 import {
@@ -20,6 +24,7 @@ import { exportFileName } from '@/lib/export/detail-sheet';
 import { personnelMonths } from '@/lib/participation';
 import { monthlyDisplay, salaryBasisBadge } from '@/lib/salary';
 import type { BudgetCategory, BudgetDetail } from '@/types';
+import { buildGuideSheet } from './guide';
 import {
   EMPTY_ROWS_PER_SUBCATEGORY,
   INPUT_FORM_SHEETS,
@@ -28,10 +33,18 @@ import {
   columnOf,
   hiddenColumnIndexes,
 } from './layout';
-import type { InputFormSheetDef } from './layout';
+import type { InputFormColumnDef, InputFormSheetDef } from './layout';
 import { buildMetaRows } from './meta';
 import { subcategoryKeyOf } from './parse';
-import type { FormCell, FormSheet, InputFormData, InputFormWorkbook } from './types';
+import type {
+  FormCell,
+  FormColumnHint,
+  FormRowRole,
+  FormSheet,
+  InputFormData,
+  InputFormMode,
+  InputFormWorkbook,
+} from './types';
 
 /** IN-7: 연봉이 없으면 수식 대신 이 비고를 적는다. 파서(T3)가 경고로 되돌려 읽는 문구이기도 하다 */
 export const NO_SALARY_NOTE = '연봉 미입력';
@@ -39,8 +52,71 @@ export const NO_SALARY_NOTE = '연봉 미입력';
 export const NO_INCLUSION_LABEL = '포함 없음';
 /** IN-3: 기존 행이 없는 인력의 빈 행에 미리 적는 세목 */
 export const DEFAULT_PERSONNEL_SUBCATEGORY = 'personnel_internal';
+/** 소계·총액 행 라벨 접미·총액 라벨(§7.9.7) */
+export const SUBTOTAL_SUFFIX = ' 소계';
+export const TOTAL_LABEL = '총액';
 
 const PERSONNEL_CATEGORIES: ReadonlySet<BudgetCategory> = new Set(['personnel', 'student_personnel']);
+
+// ─── 서식 힌트 (부록 F-3·F-5·F-6·F-7) ───────────────────────
+
+/**
+ * 역할 → 열 너비(F-7). 같은 역할 이름이 시트마다 뜻이 다를 수 있어(인건비 `subcategory`는 보이는 세목 라벨,
+ * 사업비 `subcategory`는 숨김 키) 라벨이 아니라 역할로 고르되 숨김 열은 표를 보지 않는다.
+ */
+const COLUMN_WIDTHS: Readonly<Record<string, number>> = {
+  name: 26,
+  spec: 40,
+  note: 40,
+  subcategory: 20,
+  subcategoryLabel: 20,
+  salaryBasis: 20,
+  staff: 20,
+  category: 12,
+  position: 12,
+  annualSalary: 14,
+  monthlySalary: 14,
+  unitPrice: 14,
+  formulaAmount: 14,
+  amount: 14,
+  adjustment: 14,
+  participation: 12,
+  months: 12,
+  factor1: 12,
+  factor2: 12,
+  factor3: 12,
+  axis: 10,
+};
+/** 숨김 열은 너비가 보이지 않는다 — 표를 보지 않고 이 값이다 */
+const HIDDEN_COLUMN_WIDTH = 10;
+
+function columnHint(column: InputFormColumnDef): FormColumnHint {
+  const format = column.format ?? 'text';
+  if (format === 'percent') {
+    // F-6·X-7: 백분율 서식 금지. 좌표 맵이 percent를 달면 여기서 막는다
+    throw new Error(`열 '${column.label}'의 서식이 percent다 — 입력 양식은 백분율 서식을 쓰지 않는다(F-6)`);
+  }
+  let width: number;
+  if (column.hidden) {
+    width = HIDDEN_COLUMN_WIDTH;
+  } else {
+    const w = COLUMN_WIDTHS[column.role];
+    // 표에 없는 역할이 새로 생기면 조용히 기본 너비로 두지 않고 여기서 터뜨린다
+    if (w === undefined) throw new Error(`열 역할 '${column.role}'의 너비가 정해지지 않았다(F-7)`);
+    width = w;
+  }
+  const align: FormColumnHint['align'] =
+    format === 'int' || format === 'decimal' || format === 'formula'
+      ? 'right'
+      : column.role === 'axis'
+        ? 'center'
+        : 'left';
+  return { key: !column.hidden && !column.read, format, width, align };
+}
+
+function columnHints(def: InputFormSheetDef): FormColumnHint[] {
+  return def.columns.map(columnHint);
+}
 
 // ─── 셀 헬퍼 ────────────────────────────────────────────────
 
@@ -58,12 +134,13 @@ function makeRow(sheet: InputFormSheetDef): {
   };
 }
 
-function headerRows(sheet: InputFormSheetDef): FormCell[][] {
+/** 헤더 행(과 그 앞뒤 빈 줄). 행 역할은 전부 'header' — 틀 고정 위쪽이다 */
+function headerRows(sheet: InputFormSheetDef): { rows: FormCell[][]; roles: FormRowRole[] } {
   const rows: FormCell[][] = [];
   for (let r = 1; r < sheet.headerRow; r += 1) rows.push([]);
   rows.push(sheet.columns.map((column) => ({ value: column.label })));
   for (let r = sheet.headerRow + 1; r < sheet.dataStartRow; r += 1) rows.push([]);
-  return rows;
+  return { rows, roles: rows.map(() => 'header') };
 }
 
 function byOrder<T extends { order: number }>(a: T, b: T): number {
@@ -76,11 +153,32 @@ function subcategoryLabel(category: BudgetCategory, code: string): string {
   return def ? def.label : code;
 }
 
+function dataSheet(
+  def: InputFormSheetDef,
+  rows: FormCell[][],
+  roles: FormRowRole[]
+): FormSheet {
+  if (rows.length !== roles.length) {
+    throw new Error(`'${def.name}' 시트의 행 수(${rows.length})와 행 역할 수(${roles.length})가 다르다`);
+  }
+  return {
+    name: def.name,
+    hidden: def.hidden,
+    rows,
+    hiddenColumns: hiddenColumnIndexes(def),
+    kind: 'data',
+    headerRow: def.headerRow,
+    dataStartRow: def.dataStartRow,
+    columnHints: columnHints(def),
+    rowRoles: roles,
+  };
+}
+
 // ─── 인건비 시트 (IN-3, IN-7) ────────────────────────────────
 
 function buildPersonnelSheet(data: InputFormData): { sheet: FormSheet; memberIds: string[] } {
   const def = INPUT_FORM_SHEETS.personnel;
-  const rows = headerRows(def);
+  const { rows, roles } = headerRows(def);
   const members = [...data.members].sort(byOrder);
   const memberIdSet = new Set(members.map((m) => m.id));
 
@@ -142,11 +240,12 @@ function buildPersonnelSheet(data: InputFormData): { sheet: FormSheet; memberIds
       }
 
       rows.push(cells);
+      roles.push('data');
     }
   }
 
   return {
-    sheet: { name: def.name, hidden: def.hidden, rows, hiddenColumns: hiddenColumnIndexes(def) },
+    sheet: dataSheet(def, rows, roles),
     memberIds: members.map((m) => m.id),
   };
 }
@@ -189,9 +288,10 @@ function budgetSubcategorySlots(details: readonly BudgetDetail[]): BudgetSlot[] 
 
 function buildBudgetSheet(data: InputFormData): { sheet: FormSheet; subcategoryCodes: string[] } {
   const def = INPUT_FORM_SHEETS.budget;
-  const rows = headerRows(def);
+  const { rows, roles } = headerRows(def);
   const factorRoles = ['factor1', 'factor2', 'factor3'] as const;
   const slots = budgetSubcategorySlots(data.details);
+  const amountAt = (rowNumber: number) => columnAddress(def, 'amount', rowNumber);
 
   const pushRow = (slot: BudgetSlot, detail: BudgetDetail | null) => {
     const rowNumber = rows.length + 1;
@@ -224,18 +324,66 @@ function buildBudgetSheet(data: InputFormData): { sheet: FormSheet; subcategoryC
     set('note', { value: detail ? detail.note : null });
 
     rows.push(cells);
+    roles.push('data');
+  };
+
+  /**
+   * 소계·총액 행. 라벨 셀과 금액 수식만 쓰고 나머지는 전부 빈 칸이다 — 숨김 키·품명·단가·인자·조정액·비고가
+   * 비어 있어야 파서가 IN-4 빈 행으로 건너뛴다. 그 행의 금액 셀 주소를 돌려줘 상위 합계가 참조한다.
+   */
+  const pushSumRow = (role: 'subtotal' | 'total', labelRole: string, label: string, formula: string): string => {
+    const rowNumber = rows.length + 1;
+    const { cells, set } = makeRow(def);
+    set(labelRole, { value: label });
+    set('amount', { formula });
+    rows.push(cells);
+    roles.push(role);
+    return amountAt(rowNumber);
+  };
+
+  const categorySubtotalCells: string[] = [];
+  let currentCategory: BudgetCategory | null = null;
+  let subcategorySubtotalCells: string[] = [];
+
+  const closeCategory = () => {
+    if (currentCategory === null) return;
+    categorySubtotalCells.push(
+      pushSumRow(
+        'subtotal',
+        'category',
+        `${BUDGET_CATEGORY_LABELS[currentCategory]}${SUBTOTAL_SUFFIX}`,
+        `SUM(${subcategorySubtotalCells.join(',')})`
+      )
+    );
+    subcategorySubtotalCells = [];
   };
 
   for (const slot of slots) {
+    if (slot.category !== currentCategory) {
+      closeCategory();
+      currentCategory = slot.category;
+    }
     const existing = data.details
       .filter((d) => d.category === slot.category && d.subcategory === slot.code)
       .sort(byOrder);
+    const firstRow = rows.length + 1;
     for (const detail of existing) pushRow(slot, detail);
     for (let i = 0; i < EMPTY_ROWS_PER_SUBCATEGORY; i += 1) pushRow(slot, null);
+    const lastRow = rows.length;
+    subcategorySubtotalCells.push(
+      pushSumRow(
+        'subtotal',
+        'subcategoryLabel',
+        `${slot.label}${SUBTOTAL_SUFFIX}`,
+        `SUM(${amountAt(firstRow)}:${amountAt(lastRow)})`
+      )
+    );
   }
+  closeCategory();
+  pushSumRow('total', 'category', TOTAL_LABEL, `SUM(${categorySubtotalCells.join(',')})`);
 
   return {
-    sheet: { name: def.name, hidden: def.hidden, rows, hiddenColumns: hiddenColumnIndexes(def) },
+    sheet: dataSheet(def, rows, roles),
     subcategoryCodes: slots.map((s) => s.key),
   };
 }
@@ -252,10 +400,16 @@ export function inputFormFileName(
 }
 
 /**
- * 양식 한 장. `todayISO`는 `_meta.generatedAt`과 파일명에 쓴다 — 시각을 여기서 읽지 않아야
- * 같은 입력이면 같은 출력이다(테스트 가능).
+ * 양식 한 장. 시트 순서 `[작성안내, 인건비, 사업비, _meta]`(F-8 — 안내가 첫 시트).
+ * `todayISO`는 `_meta.generatedAt`·파일명·안내 부제에 쓴다 — 시각을 여기서 읽지 않아야
+ * 같은 입력이면 같은 출력이다(테스트 가능). `mode`는 Phase 19에서 안내 문장만 바꾼다(IN-9는 Phase 20).
  */
-export function buildInputForm(data: InputFormData, todayISO: string): InputFormWorkbook {
+export function buildInputForm(
+  data: InputFormData,
+  todayISO: string,
+  mode: InputFormMode = 'plan'
+): InputFormWorkbook {
+  const guide = buildGuideSheet(data, todayISO, mode);
   const personnel = buildPersonnelSheet(data);
   const budget = buildBudgetSheet(data);
   const metaDef = INPUT_FORM_SHEETS.meta;
@@ -274,7 +428,7 @@ export function buildInputForm(data: InputFormData, todayISO: string): InputForm
   };
 
   return {
-    sheets: [personnel.sheet, budget.sheet, meta],
+    sheets: [guide, personnel.sheet, budget.sheet, meta],
     fileName: inputFormFileName(data.project, data.year, todayISO),
   };
 }
