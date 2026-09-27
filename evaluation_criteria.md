@@ -399,3 +399,25 @@ evaluator는 이 체크리스트로 PASS/FAIL을 판정한다. 모든 항목은 
 - [ ] **Phase 17 왕복 테스트가 그대로 통과한다** — 좌표 맵·파서 불변. 새 어댑터로 만든 파일을 `readUploadedWorkbook`으로 읽어 `parseInputForm`이 같은 결과를 낸다(통합 테스트)
 - [ ] 생성된 xlsx를 openpyxl 또는 exceljs로 다시 열어 스타일을 검증하는 테스트(헤더 채움 색·글꼴 이름·틀 고정·자동 필터·숨김 시트)
 - [ ] `npm test`·`tsc`·`build` 통과. 클라이언트 번들에 `exceljs`가 들어가지 않는다(`server-only`)
+
+## Phase 20 — 수행 양식 (SOT v4.8 §5.12, §6.16 IN-9~IN-13, §7.9.7 수행 모드, §9 Budget Input Form, §13 12-a)
+
+> 수행 양식은 제안 양식과 **같은 시트·열 + `집행일`**이다(IN-9). 대상은 산출근거가 아니라 `BudgetExecution`이고 반영은 **id 기반**(IN-10). 금액 열을 **읽는다**(IN-11). 미리보기와 반영이 다른 파싱 경로면 FAIL(IN-6·IN-13).
+
+**스키마·RPC**
+- [ ] 마이그레이션 1개: `budget_executions`에 `subcategory_code text null`, `spec text not null default ''`, `unit_price bigint null`, `factors jsonb null`, `axis text null check (axis in ('cash','in_kind'))`, `member_id uuid null references members on delete set null`, `detail_id uuid null references budget_details on delete set null`. `import_snapshots.kind`(및 `import_profiles.kind`) check 제약에 `'execution_form'`·`'goal_form'` 추가. **`schema_version`은 4 유지**(§8.8 — 컬럼 추가뿐). RLS 정책 변경 불필요함을 마이그레이션 머리말에 근거로
+- [ ] `commit_execution_form` RPC(security invoker, 단일 트랜잭션): 입력 = projectId·yearId·adds[]·updates[](id·expectedVersion 포함)·deleteIds[]. 과제·연차 경계 검증(executionId의 budget_item이 그 과제·연차인지, memberId·detailId가 그 과제인지 — IN-13), `version` 불일치 행은 **건너뛰고 conflict 목록으로 반환**(전체 롤백 아님, IN-10), 스냅샷 `kind='execution_form'`(I-17 창 공유, 과제별 20개) 기록, 건수(added/updated/deleted/conflicts) 반환. 리포지토리 `lib/db/`에 래퍼, `mapper.ts` snake↔camel
+- [ ] 타입·Zod: `BudgetExecution`에 §5.12 7필드(전부 nullable/기본값), `DetailFactor[] | null`, `axis: DetailAxis | null`. 기존 집행 CRUD(`createExecution`/`updateExecution`)가 새 필드를 선택적으로 받는다. 백업/복원(§8.7)이 새 컬럼을 그대로 실어 나른다(스모크: 내보내기 JSON에 필드 존재, 옛 백업 파일 복원 시 기본값)
+
+**순수 함수 `lib/input-form/`**
+- [ ] `layout.ts`: 좌표 맵 하나 + `mode` 분기(`sheetsFor(mode)` 류) — 수행 모드는 인건비·사업비 시트에 `집행일`(read, format 'date') 열과 숨김 `executionId` 열이 있고, 금액 열이 `read: true`·format 'int'(수식 아님). 제안 모드 맵은 Phase 17·19와 **바이트 단위로 동일**(기존 layout 테스트 그대로 통과)
+- [ ] `build.ts`: `mode='execution'`이면 기존 집행 내역(연차 × 비목)을 행으로 채운다 — 인건비 시트는 `memberId` 있는 집행(없으면 인력당 빈 1행, IN-12: 참여율·개월은 `factors` 라벨 `참여율(%)`·`참여기간(월)`에서), 사업비 시트는 세목 코드 순(세목 없는 집행은 그 비목의 `default` 슬롯). 금액 열은 값(수식 없음), 집행일 채움, `_meta.mode='execution'`. 소계·총액 수식 행은 두 모드 공통. 작성안내 '주의'에 "금액 열을 읽는다", '읽지 않는 열'이 mode별 맵에서 생성(`unreadColumnsText(mode)`)
+- [ ] `parse.ts`: `mode` 인자. `_meta.mode`가 요청 mode와 다르면 거부(IN-9 메시지). 수행 모드 행: `executionId`(숨김, 없으면 신규) · 집행일 필수(비면 오류 행 `no-date`) · 금액 0 이상 정수(음수·소수 오류) · 단가·인자 있고 금액 비면 PL-1 산식으로 채움, 둘 다 있고 다르면 경고 `amount-mismatch`(입력 금액 우선) · 축 빈 값 허용(null) · 세목 코드 검사는 제안 모드와 같음(IN-4) · 참여율·개월 → factors. 경계: `executionId`·`memberId`·`detailId`가 `_meta` 목록 밖이면 오류 행(IN-13)
+- [ ] `preview.ts`: 수행 모드 diff — 기존 집행(id) 대비 `add`/`update`(필드 비교)/`unchanged`/`delete 후보`(양식에서 사라진 id)/`conflict`(미리보기 시점 version 보관). 요약: 연차별 **집행률 전후**(`lib/budget.ts` 재사용, 정의 1곳), 예산 초과가 되는 셀 목록(B-2), 오류·경고 건수. `includeDeletes` 기본 false
+- [ ] 단위 테스트: 수행 모드 생성→쓰기→읽기→파싱 왕복(집행 5건 이상, 인건비 2건: factors 왕복), 집행일 누락·음수 금액·`amount-mismatch`·mode 불일치 거부·경계 위반, 집행률 전후 수치(부록 B.4 값으로 검산), 제안 모드 결과 불변(Phase 19 테스트 전부 그대로)
+
+**액션·화면**
+- [ ] `buildInputForm(projectId, yearId, mode)`·`previewInputForm(projectId, file, mode)`·`commitExecutionForm(projectId, file, fileHash, includeDeletes)`. commit은 preview와 **같은 파싱 함수** + `fileHash` 대조(IN-6·IN-13), RPC 결과의 conflicts를 ActionResult로 그대로 전달(삼키지 않음). `commitInputForm`(제안)은 무변경
+- [ ] §7.9.7: 수행 모드 툴바에 같은 두 버튼. 업로드 모달 미리보기가 추가·변경·삭제 후보·충돌 건수, 연차별 집행률 전후, 예산 초과 셀 경고를 보여 주고 `[삭제 포함]` 토글(기본 꺼짐)이 delete를 켠다. 집행 내역 패널(§7.9)에 새 필드가 접힌 "내역" 줄로 표시·편집(필수 아님)
+- [ ] F-9: 수행·제안 양식의 `축` 열에 드롭다운(`_lists` 숨김 시트) — 파서는 여전히 값을 검사
+- [ ] `npm test`·`tsc`·`build` 통과. `db push` 후 통합 테스트(commit_execution_form 경계·conflict·스냅샷). §13 12-a 해소 표기 확인. 절대 규칙 3·5
