@@ -287,6 +287,8 @@
 없음
 
 ## Next steps
+> ⚠️ **회사 PC 인계 (2026-09-28 집 PC에서 정리)**: ① `git pull` (마이그레이션 없음 — Phase 19까지는 `db push` 불필요, Phase 20에서 생긴다) ② `npm install` (`exceljs` 추가됨) ③ **`samples/` 폴더를 집 PC에서 복사**해 올 것 — gitignore라 저장소에 없다. Phase 19 스타일 원본 `exel style.xlsx`, Phase 22 실측 테스트용 계획서 hwpx(108MB, `2. (협약변경_KGS_유엔이)_2026_수정 연구개발계획서_에너지R&D(일반)_유엔이_260427_0511.hwpx`), 같은 문서의 PDF, 실측 예산 엑셀 2종. 없으면 Phase 22 실측 테스트가 건너뛰어지고 Phase 5.5 실측 검증도 건너뛴다 ④ Phase 20 planner는 집 PC에서 띄웠다가 **결과 없이 중단**했다 — 회사 PC에서 `/phase-run 20`으로 처음부터. evaluation_criteria.md Phase 20 체크리스트는 커밋돼 있다 ⑤ Tauri 설치기 검증·수동 검증 일괄은 여전히 회사 PC 몫(사용자 결정)
+
 -1. **`/phase-run 20`** — 수행 양식: `budget_executions` 컬럼 7종 마이그레이션(schema 4 유지) + `commit_execution_form` RPC → `lib/input-form/` mode 분기(IN-9~IN-13, `guide.ts`의 `unreadColumnsText`가 mode별 맵을 받게) → `commitExecutionForm` 액션 → §7.9.7 수행 모드 UI·집행 내역 패널 내역 줄. evaluation_criteria.md에 Phase 20 체크리스트를 먼저 쓴다
 0. ~~`/phase-run 13`~~ — **2026-09-24 완료.** 다음은 Current goal의 1→2→3 순서
 1. **Phase 10 후속 (남은 것, 블로킹 아님)**:
