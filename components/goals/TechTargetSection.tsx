@@ -24,6 +24,7 @@ import { deleteTechRecord, deleteTechTarget } from '@/actions/goals';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import ErrorBanner from '@/components/ui/ErrorBanner';
+import ExpandableText from '@/components/ui/ExpandableText';
 import Modal from '@/components/ui/Modal';
 import ProgressBar from '@/components/ui/ProgressBar';
 import PrintHeader from '@/components/print/PrintHeader';
@@ -562,8 +563,8 @@ export default function TechTargetSection({
                               </div>
                               <div>
                                 <dt className="text-grey-500">측정방법 상세</dt>
-                                <dd className="whitespace-pre-wrap text-grey-800">
-                                  {target.measureDescription || '—'}
+                                <dd className="min-w-0 text-grey-800">
+                                  <ExpandableText text={target.measureDescription} label="측정방법 상세" />
                                 </dd>
                               </div>
                             </dl>
@@ -572,26 +573,26 @@ export default function TechTargetSection({
                             <dl className="mt-3 grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
                               <div>
                                 <dt className="text-grey-500">표준(시험)·인증기준</dt>
-                                <dd className="whitespace-pre-wrap break-words text-grey-800">
-                                  {target.standardBasis || '—'}
+                                <dd className="min-w-0 text-grey-800">
+                                  <ExpandableText text={target.standardBasis} label="표준(시험)·인증기준" />
                                 </dd>
                               </div>
                               <div>
                                 <dt className="text-grey-500">기준설정 근거</dt>
-                                <dd className="whitespace-pre-wrap break-words text-grey-800">
-                                  {target.basisRationale || '—'}
+                                <dd className="min-w-0 text-grey-800">
+                                  <ExpandableText text={target.basisRationale} label="기준설정 근거" />
                                 </dd>
                               </div>
                               <div>
                                 <dt className="text-grey-500">평가환경</dt>
-                                <dd className="whitespace-pre-wrap break-words text-grey-800">
-                                  {target.evaluationEnvironment || '—'}
+                                <dd className="min-w-0 text-grey-800">
+                                  <ExpandableText text={target.evaluationEnvironment} label="평가환경" />
                                 </dd>
                               </div>
                               <div>
                                 <dt className="text-grey-500">비고</dt>
-                                <dd className="whitespace-pre-wrap break-words text-grey-800">
-                                  {target.note || '—'}
+                                <dd className="min-w-0 text-grey-800">
+                                  <ExpandableText text={target.note} label="비고" />
                                 </dd>
                               </div>
                             </dl>

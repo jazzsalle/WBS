@@ -598,9 +598,149 @@ export const AMBIGUOUS_ALIASES: Record<string, BudgetCategory[]> = {
 
 // 부록 C.3.4 값 방향 힌트 (GF-6). 양식·hwpx 공통 원본 — lib/goal-form/value.ts가 이 표만 본다
 export const GOAL_VALUE_HINT_KEYWORDS: Record<Exclude<Direction, 'target_exact'>, readonly string[]> = {
-  higher_better: ['≥', '이상', '↑', '초과'],
-  lower_better: ['≤', '이하', '미만', '이내', '↓'],
+  higher_better: ['≥', '>', '이상', '↑', '초과'],
+  lower_better: ['≤', '<', '이하', '미만', '이내', '↓'],
 };
 
 // 없음 기호 — 셀 전체가 이 문자일 때만 null이다. `-5`는 음수이므로 부분 일치로 쓰면 안 된다
 export const GOAL_VALUE_NONE_SYMBOLS: readonly string[] = ['-', '—', '없음'];
+
+// ─── 부록 C.3 목표 표 (hwpx 계획서 가져오기 §6.18) ────────────
+// 원본은 SOT 부록 C.3이다. 표를 고치면 tests/unit/hwpx-constants.test.ts가 행 수·순서를 잡는다.
+// 모든 키워드는 SOT 표기 그대로 두고, 판정하는 쪽이 대상과 키워드를 **양쪽 모두** I-1(normalizeLabel)로
+// 정규화해 비교한다 — 여기 정규화형을 적으면 SOT와 1:1 대조가 깨진다.
+// 표 종류 키는 lib/hwpx/types.ts의 PlanTableKind와 같다(여기서 import하지 않는 것은 constants가 lib/hwpx보다 아래 층이라서).
+
+export interface HwpxSignatureKeyword {
+  keyword: string;
+  aliases: readonly string[];
+}
+
+/** C.3.1 헤더 서명 — 첫 2행 정규화 텍스트가 키워드(또는 별칭)를 **전부** 포함하면 그 표다(HX-3) */
+export const HWPX_TABLE_SIGNATURES: Record<'tech' | 'deliverable' | 'method', readonly HwpxSignatureKeyword[]> = {
+  tech: [
+    { keyword: '평가항목', aliases: [] },
+    { keyword: '단위', aliases: [] },
+    { keyword: '비중', aliases: ['전체항목에서차지하는비중'] },
+    { keyword: '세계최고', aliases: [] },
+    { keyword: '국내수준', aliases: ['연구개발전국내수준'] },
+    { keyword: '개발목표치', aliases: [] },
+  ],
+  deliverable: [
+    { keyword: '항목', aliases: [] },
+    { keyword: '단위', aliases: [] },
+    { keyword: '가중치', aliases: [] },
+    { keyword: '개발목표치', aliases: ['목표치'] },
+    { keyword: '평가방법', aliases: [] },
+  ],
+  method: [
+    { keyword: '순번', aliases: [] },
+    { keyword: '평가항목', aliases: ['성능지표'] },
+    { keyword: '평가방법', aliases: [] },
+    { keyword: '평가환경', aliases: [] },
+  ],
+};
+
+/**
+ * C.3.2 성과목표 지표명 → 유형. **순서가 판정이다** — 위에서부터 첫 매칭을 채택한다.
+ * `비SCI`는 `SCI`를 포함하므로 반드시 SCI 규칙보다 위에 있어야 한다(S-7).
+ *
+ * `anyOf`는 OR, 그 안의 배열은 AND(`SCI` + `게재`). `exclude` 중 하나라도 포함하면 이 규칙은 건너뛴다.
+ * 어느 규칙에도 안 맞으면 `other`.
+ */
+export interface HwpxDeliverableTypeRule {
+  type: DeliverableType;
+  anyOf: readonly (readonly string[])[];
+  exclude: readonly string[];
+}
+
+export const HWPX_DELIVERABLE_TYPE_RULES: readonly HwpxDeliverableTypeRule[] = [
+  { type: 'paper_domestic', anyOf: [['비SCI'], ['국내논문'], ['국내학술지']], exclude: [] },
+  { type: 'paper_sci', anyOf: [['SCI', '게재']], exclude: ['Impact Factor'] },
+  { type: 'conference', anyOf: [['학술대회'], ['학회발표']], exclude: [] },
+  { type: 'patent_dom_reg', anyOf: [['특허국내등록'], ['국내특허등록']], exclude: [] },
+  { type: 'patent_dom_apply', anyOf: [['특허국내출원'], ['국내특허출원']], exclude: [] },
+  { type: 'patent_intl_reg', anyOf: [['특허국외등록'], ['해외특허등록'], ['국제특허등록']], exclude: [] },
+  { type: 'patent_intl_apply', anyOf: [['특허국외출원'], ['해외특허출원'], ['PCT']], exclude: [] },
+  { type: 'sw_registration', anyOf: [['소프트웨어등록'], ['SW등록'], ['프로그램등록']], exclude: [] },
+  { type: 'tech_transfer', anyOf: [['기술이전'], ['기술료']], exclude: [] },
+  { type: 'commercialization', anyOf: [['상용화'], ['시제품'], ['사업화'], ['매출']], exclude: [] },
+  { type: 'standard', anyOf: [['표준']], exclude: [] },
+  { type: 'hr_training', anyOf: [['인력양성'], ['고용창출'], ['교육프로그램'], ['학위']], exclude: [] },
+];
+
+/**
+ * C.3.2 반영 제외(U-7) — 건수 지표가 아닌 행. 지표명에 키워드가 들어가거나 단위가 `점수`와 같으면 제외한다.
+ * **이 조건뿐이다** — 목표가 전부 `-`인 행은 제외하지 않고 목표 0으로 반영한다.
+ */
+export const HWPX_DELIVERABLE_EXCLUDE_NAME_KEYWORDS: readonly string[] = ['SMART', 'Impact Factor'];
+export const HWPX_DELIVERABLE_EXCLUDE_UNITS: readonly string[] = ['점수'];
+
+/**
+ * C.3.3 평가방법 → measureMethod(HX-5). 위에서부터 포함 판정, 첫 매칭 채택.
+ * 셀이 비면 `self`, 어느 규칙에도 안 맞으면 `other` + 비고 원문 + 경고 `method-other`(S-20·S-32).
+ * hwpx 전용이다 — 목표 양식(GF-3)은 부록 A.4 라벨 완전 일치만 쓴다.
+ */
+export const HWPX_MEASURE_METHOD_RULES: readonly { method: MeasureMethod; keywords: readonly string[] }[] = [
+  { method: 'certified_lab', keywords: ['공인기관', '시험성적', '시험평가', '인증'] },
+  { method: 'expert_review', keywords: ['전문가', '협의체', '자문'] },
+  { method: 'customer', keywords: ['수요기업', '고객', '사용자평가'] },
+  { method: 'self', keywords: ['자체'] },
+];
+
+/**
+ * C.3.5 열 역할(S-3). 헤더 셀(병합 확장 후)을 C.3.1과 같이 I-1 정규화해 판정한다.
+ * 연차 열(`N차년도`, `개발목표치` 아래)은 라벨이 아니라 HWPX_YEAR_COLUMN_PATTERN으로 잡는다.
+ * 여기 없는 열과 역할을 못 정한 열은 미리보기에 "읽지 않은 열"로 표시한다.
+ */
+export type HwpxTechColumnRole = 'name' | 'unit' | 'weight' | 'year' | 'measureMethod' | 'org' | 'ignored';
+export type HwpxDeliverableColumnRole =
+  | 'category' | 'item' | 'unit' | 'weight' | 'year' | 'total' | 'evidenceMethod';
+export type HwpxMethodColumnRole = 'seq' | 'name' | 'measureDescription' | 'evaluationEnvironment';
+
+export interface HwpxColumnRoleDef<R extends string> {
+  role: R;
+  labels: readonly string[];
+}
+
+// 기술목표 `평가항목`이 가로 병합으로 여러 열이면 데이터가 `N.`로 시작하는 열 하나만 쓴다(U-1).
+// `ignored`는 서명 판정에만 쓰이고 값은 읽지 않는다 — 기존 값 보존(U-2)
+export const HWPX_TECH_COLUMN_ROLES: readonly HwpxColumnRoleDef<HwpxTechColumnRole>[] = [
+  { role: 'name', labels: ['평가항목'] },
+  { role: 'unit', labels: ['단위'] },
+  { role: 'weight', labels: ['비중', '전체항목에서차지하는비중'] },
+  { role: 'year', labels: [] },
+  { role: 'measureMethod', labels: ['평가방법'] },
+  { role: 'org', labels: ['담당기관', '담당연구개발기관'] },
+  { role: 'ignored', labels: ['세계최고', '국내수준', '표준', '인증', '기준설정근거'] },
+];
+
+// `구분`·`항목`은 지표명·유형 결정에만 쓴다 — Deliverable에 구분 필드가 없다(U-5·U-6)
+export const HWPX_DELIVERABLE_COLUMN_ROLES: readonly HwpxColumnRoleDef<HwpxDeliverableColumnRole>[] = [
+  { role: 'category', labels: ['구분'] },
+  { role: 'item', labels: ['항목'] },
+  { role: 'unit', labels: ['단위'] },
+  { role: 'weight', labels: ['가중치'] },
+  { role: 'year', labels: [] },
+  { role: 'total', labels: ['계'] },
+  { role: 'evidenceMethod', labels: ['평가방법'] },
+];
+
+export const HWPX_METHOD_COLUMN_ROLES: readonly HwpxColumnRoleDef<HwpxMethodColumnRole>[] = [
+  { role: 'seq', labels: ['순번'] },
+  { role: 'name', labels: ['평가항목', '성능지표'] },
+  { role: 'measureDescription', labels: ['평가방법'] },
+  { role: 'evaluationEnvironment', labels: ['평가환경'] },
+];
+
+/** 연차 열 헤더(I-1 정규화 후). 괄호 속 연도(`1차년도(2026)`)는 정규화가 이미 지운다 */
+export const HWPX_YEAR_COLUMN_PATTERN = /^(\d+)차년도$/;
+
+/** 평가환경에서 이 표식으로 시작하는 문단부터 끝까지는 버린다(HX-7, U-8) */
+export const HWPX_BASIS_RATIONALE_MARKER = '[기준설정 근거]';
+
+/**
+ * C.3.6 시간 단위(U-3) — 기술목표 단위가 I-1 정규화 후 이 중 하나와 **완전 일치**하면
+ * 셀 힌트가 없을 때 방향을 `lower_better`로 둔다(HX-5)
+ */
+export const HWPX_TIME_UNITS: readonly string[] = ['초', 's', 'sec', 'ms', '분', 'min', '시간', 'hr'];

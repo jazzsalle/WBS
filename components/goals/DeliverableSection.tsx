@@ -33,6 +33,7 @@ import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import ProgressBar from '@/components/ui/ProgressBar';
 import ErrorBanner from '@/components/ui/ErrorBanner';
+import ExpandableText from '@/components/ui/ExpandableText';
 import { setRealtimePaused } from '@/components/RealtimeRefresher';
 import DeliverableFormModal from './DeliverableFormModal';
 import AchievementForm from './AchievementForm';
@@ -505,9 +506,11 @@ export default function DeliverableSection({
                           </Badge>
                         )}
                         {deliverable.note !== '' && (
-                          <p className="mt-1 max-w-xs truncate text-xs text-grey-500" title={deliverable.note}>
-                            {deliverable.note}
-                          </p>
+                          <ExpandableText
+                            text={deliverable.note}
+                            label="비고"
+                            className="mt-1 max-w-xs text-xs text-grey-500"
+                          />
                         )}
                       </td>
                       <td className="px-3 py-2.5 text-grey-600">
@@ -586,14 +589,12 @@ export default function DeliverableSection({
                       })}
 
                       <td className="px-3 py-2.5 text-grey-600">
-                        {deliverable.evidenceMethod === '' ? (
-                          '—'
-                        ) : (
-                          // 서술형이라 길 수 있다 — 표에서는 줄바꿈을 살려 폭만 제한한다
-                          <p className="max-w-[14rem] whitespace-pre-wrap break-words text-xs">
-                            {deliverable.evidenceMethod}
-                          </p>
-                        )}
+                        {/* 서술형이라 길 수 있다 — 한 줄로 접고 오버레이·펼침으로 본다 (U-12) */}
+                        <ExpandableText
+                          text={deliverable.evidenceMethod}
+                          label="평가방법(증빙)"
+                          className="max-w-[14rem] text-xs"
+                        />
                       </td>
                       <td className="px-3 py-2.5 text-grey-600">{orgName(deliverable.orgId)}</td>
                       <td className="px-3 py-2.5 text-right">

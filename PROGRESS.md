@@ -1,6 +1,8 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
+2026-09-29 집 PC (**Phase 22 완료** — hwpx 계획서 가져오기. evaluator PASS 16/16, 테스트 3,416건 + 파괴적 11건, 마이그레이션 없음. **Phase 19~22 전부 끝** — 다음은 수동 검증 일괄)
+
 2026-09-29 집 PC (**Phase 21 완료** — 목표 양식. `db push` 적용, evaluator 재채점 PASS(1차 FAIL 3건 수정), 테스트 3,125건 + 파괴적 11건. 다음 Phase 22 hwpx 계획서 가져오기)
 
 2026-09-28 밤 집 PC (**Phase 20 완료** — 수행 양식. `db push` 적용, evaluator PASS 11/11, 테스트 2,747건 + 파괴적 9건. 다음 Phase 21 목표 양식)
@@ -14,7 +16,9 @@
 2026-09-25 (**Phase 18 완료** — 다크 모드. 사용자 추가 지시 5건(성능·입력 양식·조직원·인건비·다크) 전부 끝. evaluator PASS)
 
 ## Current goal
-**Phase 19~22 진행 중 (2026-09-27 사용자 지시, SOT v4.8).** 순서: 19 우리 양식 서식(exceljs·부록 F) → 20 수행 양식(집행 내역 id 기반) → 21 목표 양식 → 22 hwpx 계획서 가져오기. 결정 사항은 SOT v4.8 변경 요약에 있다. 실측 파일: `samples/exel style.xlsx`(스타일 원본), `samples/*.hwpx`(계획서, 108MB — gitignore). 설치기·수동 검증은 **회사 PC에서** 이어서 한다(사용자 결정).
+**Phase 0~22 개발 범위 종료 (2026-09-29).** 다음은 ① **수동 검증 일괄**(아래 "수동 검증 > 대기" + Phase 19~22 항목 — 특히 실측 hwpx를 앱에서 올려 기술목표 28·성과목표 11(+제외 3)·평가방법 28 확인, 브라우저 추출 시간, 목표 화면 [더보기]) ② 후속 정리(Next steps) ③ §13 후보 중 사용자가 고르는 것.
+
+(이전 목표) **Phase 19~22 진행 중 (2026-09-27 사용자 지시, SOT v4.8).** 순서: 19 우리 양식 서식(exceljs·부록 F) → 20 수행 양식(집행 내역 id 기반) → 21 목표 양식 → 22 hwpx 계획서 가져오기. 결정 사항은 SOT v4.8 변경 요약에 있다. 실측 파일: `samples/exel style.xlsx`(스타일 원본), `samples/*.hwpx`(계획서, 108MB — gitignore). 설치기·수동 검증은 **회사 PC에서** 이어서 한다(사용자 결정).
 
 (이전 목표) **개발 범위 종료(Phase 0~18).** 2026-09-25 사용자 추가 지시 5건이 Phase 15~18로 모두 끝났다. 다음은 우선순위대로:
 1. **수동 검증 일괄 진행** — 아래 "수동 검증 > 대기". 따라하기 드로어(Phase 14)로 한 바퀴 돈 뒤, Phase 16·17·18 항목을 본다. **다크 모드는 세 상태(밝게/어둡게/시스템)로 화면별 18항목**
@@ -32,6 +36,14 @@
 > ⚠️ **회사 PC는 `git pull` 후 반드시 `db push`를 해야 앱에 진입할 수 있다.** Phase 9에서 `schema_version`이 1 → 2로 올라가 §8.8 게이트가 걸린다. 의도된 안전장치다. (Phase 12는 스키마 변경이 없다.)
 
 ## Done this session
+- **Phase 22 완료 (2026-09-29, evaluator PASS 16/16)** — hwpx 계획서 가져오기 (SOT v4.8 §6.18 HX-1~HX-8, 부록 C.3.1~C.3.7, §7.7). 계획: `docs/plans/phase-22-plan.md`(끝의 사용자 결정 U-1~U-12가 우선)
+  - **실측**(samples hwpx 108MB, 메인 세션 python + T0): 표 276개, 목표 표는 종류별 1개로 **쪽 나뉨 없음**(SOT의 "기술목표 2개·평가방법 3개" 문구가 틀려 정정), 기술목표 28·성과목표 14·평가방법 28, 헤더 2/2/1, 수식 9개·각주·중첩 표 50개(목표 표 안엔 0). 격자 24KB
+  - **사용자 결정 U-1~U-12**: 기술목표는 번호 붙은 평가항목·단위·비중·연차 목표·평가방법·담당기관만(세계최고·국내수준·표준·기준설정근거 미반영, 기존 값 보존) · 단위가 시간이면 낮을수록 좋음 · 성과목표 지표명 `특허 {국내|국외}{출원|등록} 건수`·`SCI급 게재논문 게재`, SMART·Impact Factor 제외(실측 반영 11 + 제외 3) · 평가환경의 `[기준설정 근거]` 이후 버림 · 수식·그림(·각주) 제외 · 미리보기 뒤 변경은 덮어씀 · 스냅샷 "계획서(hwpx)" · 긴 텍스트 한 줄+[더보기](오버 시 오버레이, 클릭 시 펼침)
+  - `lib/hwpx/`: `zip.ts`(형식 판정, section만 해제 — BinData 미해제) · `extract.ts`(hp:tbl 깊이 인식 스캔 + 표 단위 파싱, 병합 확장) · `tables.ts`·`issues.ts`(헤더 서명·헤더 행 수·잇기·열 역할) · `rows.ts`(**서버 전용** — HX-5~HX-8, `GoalFormRows` + 합성 `_meta` → Phase 21 `previewGoalForm(allowDeletes:false)`·`commit_goal_form` 그대로, 별도 RPC 없음) · `serialize.ts`·`limits.ts`·`types.ts`. 의존성 `fflate`·`fast-xml-parser`
+  - 액션 `actions/plan-document.ts`(격자만 받음, 서버 해시, commit 시점 재계산), 화면 `PlanDocumentUpload.tsx`(브라우저 해제·진행 표시)·`GoalPreviewPanel.tsx`(Phase 21 모달에서 추출)·`components/ui/ExpandableText.tsx`, 설정 스냅샷 "계획서(hwpx)" 라벨
+  - 구현 중 확정한 판정 세부는 SOT 부록 C.3.5 "판정 세부"(T5)·C.3.7(T6)에 기록
+  - 보호: `.gitignore`에 `samples*.zip`·`*.hwpx`·`*.hwp` — 작업 트리의 `samples.zip`(실데이터 묶음)이 무시되지 않고 있었다. 픽스처는 합성 XML(`tests/fixtures/hwpx/`), 실측 테스트는 건수·구조만 단언하고 samples가 없으면 skip
+  - 테스트: 단위 84파일 2,762건(hwpx 7파일 — 실측 포함), 통합 `plan-document-actions` 15건, 전체 `npm test` 3,416건, 파괴적 11건, build 통과. 실측: preview 39 add·blocked false, 재미리보기 39 unchanged(멱등), Node 추출 약 1.3초
 - **Phase 21 완료 (2026-09-29, evaluator 재채점 PASS)** — 목표 양식 (SOT v4.8 §6.17 GF-1~GF-11, §5.8·§5.9, §7.7). 계획·RPC 계약: `docs/plans/phase-21-plan.md`
   - **사용자 결정 24건**(S-1~S-22 + 추가 2건, SOT v4.8 "Phase 21 착수 전 보강"): 스냅샷 복원은 막고 원본만 기록(GF-11) · 실적·측정은 **지표명으로** 부모 연결(GF-10, 같은 파일 새 지표 포함) · 새 필드 표시+모달 편집+가중치 합 경고 · 성과목표 `구분` 열 없음 · 지표명 드롭다운은 같은 파일 시트 범위 참조(warning) · 음수 가중치·비중 blocking · 나머지는 planner 권고안(컬럼명 `group_name`, `form = goal`, `#total` 합계 행 등)
   - 스키마: `20260929000000_goal_form.sql` — `deliverables` 2컬럼·`tech_targets` 5컬럼(schema 4 유지), `commit_goal_form` RPC(경계 N-13, 행별 version 충돌 건너뜀, 임시 키 `row:<n>` 부모 해석, S-6② 부모 삭제 검사, targetByYear 병합, 스냅샷 `goals` 테이블별), `restore_import_snapshot`은 goals 스냅샷 거부, `restore_backup`은 새 컬럼 기본값 채움. **dev DB 적용됨**
@@ -305,7 +317,7 @@
   - 알려진 톤 반전(읽힘엔 문제 없음): 노트 코드 블록(다크에서 밝은 바탕), 마일스톤 오늘 선(흰 선)
 
 ## In progress
-없음. 다음은 Phase 22(`/phase-run 22`).
+없음. Phase 0~22 개발 범위 종료 — 다음은 수동 검증 일괄.
 
 (기록) **Phase 20 수행 양식 — 회사 PC 시점 상태, 이후 집 PC에서 완료** (계획: `docs/plans/phase-20-plan.md`, T0~T15)
 - 끝난 태스크: T0(SOT 보강) · T1(마이그레이션 SQL) · T2(타입·Zod·리포지토리) · T3(좌표 맵 mode 분기·_meta) · T4(생성기·작성안내·드롭다운) · T5(수행 파서) · T6(수행 미리보기·페이로드) · T7(어댑터 날짜 셀·인라인 드롭다운) · T8(왕복 테스트 + 결함 2건) · T9(서버 액션) · T10(집행 CRUD 새 필드) · T11a(집행 패널 "내역" 줄) · T11b(연구비 화면 수행 툴바·업로드 모달) · T12(설정 스냅샷 패널)
@@ -316,7 +328,9 @@
 - 명세 밖 추가: `actions/budget.ts` `getExecutionDetailOptions(projectId)`(패널 인력·산출근거 선택지, 읽기 전용) · `tests/unit/input-form-boundary.test.ts` 산식 호출 허용 목록에 `parse-execution.ts`·`execution-preview.ts` 추가(IN-11 금액 보완 — 산식 재사용이지 재구현 아님)
 
 ## Next steps
-> **다음: Phase 22 hwpx 계획서 가져오기 — `/phase-run 22`.** 첫 작업: planner가 `samples/*.hwpx`(108MB, gitignore — PC 간 수동 복사) 실측으로 SOT §6.18·부록 C.3 공백을 뽑는다. 파서는 Phase 21의 행 모델 `GoalFormRows`(`lib/goal-form/parse.ts`)를 만들고 `previewGoalForm(allowDeletes: false)`·`commit_goal_form`을 그대로 탄다(HX-8). 회사 PC로 옮기면 `git pull`만 하면 된다(DB 공유, `20260929000000` 이미 적용).
+> **다음: 수동 검증 일괄**(Current goal 참고). 후속 정리 후보(Phase 22에서 나온 것): ① 목표 화면 번들 23→55kB — hwpx 모듈(fflate·fast-xml-parser)을 [계획서 가져오기] 클릭 시 동적 import로 ② 브라우저에서 108MB 추출 시간 실측 — Node 1.3초(S-24 Worker 기준 1.5초에 근접), 느리면 Web Worker ③ `next.config.ts`에 `serverActions.bodySizeLimit` 없음(기본 1MB) vs xlsx 업로드 상한 10MB 불일치 — 1MB 넘는 xlsx가 Zod 전에 실패할 수 있음(별건) ④ 기술목표 행 확장 영역은 인쇄에서 빠진다(원래 print:hidden) — [더보기] 필드를 인쇄에 넣을지 결정 ⑤ 각 모달 액션 호출 throw 처리는 Phase 22에서 추가함.
+>
+> (처리됨, 2026-09-29) Phase 22 hwpx 계획서 가져오기 — `/phase-run 22`. 첫 작업: planner가 `samples/*.hwpx`(108MB, gitignore — PC 간 수동 복사) 실측으로 SOT §6.18·부록 C.3 공백을 뽑는다. 파서는 Phase 21의 행 모델 `GoalFormRows`(`lib/goal-form/parse.ts`)를 만들고 `previewGoalForm(allowDeletes: false)`·`commit_goal_form`을 그대로 탄다(HX-8). 회사 PC로 옮기면 `git pull`만 하면 된다(DB 공유, `20260929000000` 이미 적용).
 >
 > (처리됨, 2026-09-29) Phase 21 목표 양식.
 

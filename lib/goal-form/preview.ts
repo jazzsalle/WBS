@@ -346,6 +346,75 @@ function need<T>(value: T | null, where: string, field: string): T {
   return value;
 }
 
+// ─── 투영 (IN-10) ────────────────────────────────────────────
+// 기존 행이 양식에 보였을 모습 — 파서가 읽었을 값(앞뒤 공백 없음, 빈 단위는 유형 기본 단위, 연차 목표는
+// yearIds 키만). hwpx(HX-8, S-18)도 표가 주지 않은 필드를 이 값으로 채워 재미리보기를 멱등으로 만든다 —
+// 투영 규칙이 두 곳에 있으면 어긋난 쪽이 매번 "변경"으로 보이므로 이 함수들만 쓴다.
+
+export function projectDeliverable(d: Deliverable, yearIds: readonly string[]): GoalDeliverableValues {
+  const unit = d.unit.trim();
+  return {
+    type: d.type,
+    name: d.name.trim(),
+    // 파서가 빈 단위를 유형 기본 단위로 채운다(GF-9)
+    unit: unit === '' ? DELIVERABLE_TYPE_DEFAULT_UNITS[d.type] : unit,
+    weight: d.weight,
+    targetTotal: d.targetTotal,
+    targetByYear: yearTargetsOf(d.targetByYear, yearIds),
+    orgId: d.orgId,
+    evidenceMethod: d.evidenceMethod.trim(),
+    note: d.note.trim(),
+  };
+}
+
+export function projectAchievement(a: DeliverableAchievement, parentId: string): GoalAchievementValues {
+  return {
+    parent: { kind: 'existing', id: parentId },
+    title: a.title.trim(),
+    date: a.date,
+    yearId: a.yearId,
+    orgId: a.orgId,
+    memberIds: uniqueIds(a.memberIds),
+    evidenceUrl: a.evidenceUrl.trim(),
+    note: a.note.trim(),
+  };
+}
+
+export function projectTechTarget(t: TechTarget, yearIds: readonly string[]): GoalTechTargetValues {
+  return {
+    group: t.group.trim(),
+    name: t.name.trim(),
+    unit: t.unit.trim(),
+    direction: t.direction,
+    weight: t.weight,
+    targetValue: t.targetValue,
+    targetByYear: yearTargetsOf(t.targetByYear, yearIds),
+    baselineDomestic: t.baselineDomestic,
+    worldBest: t.worldBest,
+    worldBestHolder: t.worldBestHolder.trim(),
+    measureMethod: t.measureMethod,
+    measureDescription: t.measureDescription.trim(),
+    standardBasis: t.standardBasis.trim(),
+    basisRationale: t.basisRationale.trim(),
+    evaluationEnvironment: t.evaluationEnvironment.trim(),
+    orgId: t.orgId,
+    note: t.note.trim(),
+  };
+}
+
+export function projectRecord(r: TechTargetRecord, parentId: string): GoalRecordValues {
+  return {
+    parent: { kind: 'existing', id: parentId },
+    value: r.value,
+    date: r.date,
+    yearId: r.yearId,
+    method: r.method,
+    evaluator: r.evaluator.trim(),
+    evidenceUrl: r.evidenceUrl.trim(),
+    note: r.note.trim(),
+  };
+}
+
 // ─── 종류별 규칙 ─────────────────────────────────────────────
 
 interface ParsedBase {
@@ -508,21 +577,7 @@ export function previewGoalForm(input: GoalFormPreviewInput): GoalFormPreview {
         evidenceMethod: row.evidenceMethod,
         note: row.note,
       }),
-      projection: (d) => {
-        const unit = d.unit.trim();
-        return {
-          type: d.type,
-          name: d.name.trim(),
-          // 파서가 빈 단위를 유형 기본 단위로 채운다(GF-9)
-          unit: unit === '' ? DELIVERABLE_TYPE_DEFAULT_UNITS[d.type] : unit,
-          weight: d.weight,
-          targetTotal: d.targetTotal,
-          targetByYear: yearTargetsOf(d.targetByYear, yearIds),
-          orgId: d.orgId,
-          evidenceMethod: d.evidenceMethod.trim(),
-          note: d.note.trim(),
-        };
-      },
+      projection: (d) => projectDeliverable(d, yearIds),
       existingValues: (d) => ({
         type: d.type,
         name: d.name,
@@ -572,16 +627,7 @@ export function previewGoalForm(input: GoalFormPreviewInput): GoalFormPreview {
         evidenceUrl: row.evidenceUrl,
         note: row.note,
       }),
-      projection: (a) => ({
-        parent: { kind: 'existing', id: a.parentId },
-        title: a.title.trim(),
-        date: a.date,
-        yearId: a.yearId,
-        orgId: a.orgId,
-        memberIds: uniqueIds(a.memberIds),
-        evidenceUrl: a.evidenceUrl.trim(),
-        note: a.note.trim(),
-      }),
+      projection: (a) => projectAchievement(a, a.parentId),
       existingValues: (a) => ({
         parent: { kind: 'existing', id: a.parentId },
         title: a.title,
@@ -634,25 +680,7 @@ export function previewGoalForm(input: GoalFormPreviewInput): GoalFormPreview {
         orgId: row.orgId,
         note: row.note,
       }),
-      projection: (t) => ({
-        group: t.group.trim(),
-        name: t.name.trim(),
-        unit: t.unit.trim(),
-        direction: t.direction,
-        weight: t.weight,
-        targetValue: t.targetValue,
-        targetByYear: yearTargetsOf(t.targetByYear, yearIds),
-        baselineDomestic: t.baselineDomestic,
-        worldBest: t.worldBest,
-        worldBestHolder: t.worldBestHolder.trim(),
-        measureMethod: t.measureMethod,
-        measureDescription: t.measureDescription.trim(),
-        standardBasis: t.standardBasis.trim(),
-        basisRationale: t.basisRationale.trim(),
-        evaluationEnvironment: t.evaluationEnvironment.trim(),
-        orgId: t.orgId,
-        note: t.note.trim(),
-      }),
+      projection: (t) => projectTechTarget(t, yearIds),
       existingValues: (t) => ({
         group: t.group,
         name: t.name,
@@ -713,16 +741,7 @@ export function previewGoalForm(input: GoalFormPreviewInput): GoalFormPreview {
         evidenceUrl: row.evidenceUrl,
         note: row.note,
       }),
-      projection: (r) => ({
-        parent: { kind: 'existing', id: r.parentId },
-        value: r.value,
-        date: r.date,
-        yearId: r.yearId,
-        method: r.method,
-        evaluator: r.evaluator.trim(),
-        evidenceUrl: r.evidenceUrl.trim(),
-        note: r.note.trim(),
-      }),
+      projection: (r) => projectRecord(r, r.parentId),
       existingValues: (r) => ({
         parent: { kind: 'existing', id: r.parentId },
         value: r.value,

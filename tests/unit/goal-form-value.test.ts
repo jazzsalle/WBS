@@ -6,8 +6,8 @@ import { appendOriginalNote, combineHints, parseGoalValue } from '@/lib/goal-for
 
 describe('부록 C.3.4 상수', () => {
   it('키워드 표가 SOT와 같다', () => {
-    expect(GOAL_VALUE_HINT_KEYWORDS.higher_better).toEqual(['≥', '이상', '↑', '초과']);
-    expect(GOAL_VALUE_HINT_KEYWORDS.lower_better).toEqual(['≤', '이하', '미만', '이내', '↓']);
+    expect(GOAL_VALUE_HINT_KEYWORDS.higher_better).toEqual(['≥', '>', '이상', '↑', '초과']);
+    expect(GOAL_VALUE_HINT_KEYWORDS.lower_better).toEqual(['≤', '<', '이하', '미만', '이내', '↓']);
     expect(GOAL_VALUE_NONE_SYMBOLS).toEqual(['-', '—', '없음']);
   });
 });
@@ -81,6 +81,42 @@ describe('parseGoalValue — 방향 힌트 키워드', () => {
       value: 10,
       hint: null,
       original: '10 이상 20 이하',
+      warning: 'unparsed-text',
+    });
+  });
+
+  // `<`·`>`는 U-3로 추가(실측 `< 5`). `≤`·`≥`와는 다른 코드 포인트라 부분 문자열로 겹치지 않는다
+  it("'< 5' → 5 · lower_better, 경고 없음", () => {
+    expect(parseGoalValue('< 5', '')).toEqual({ value: 5, hint: 'lower_better', original: null, warning: null });
+  });
+
+  it("'> 3' → 3 · higher_better, 경고 없음", () => {
+    expect(parseGoalValue('> 3', '')).toEqual({ value: 3, hint: 'higher_better', original: null, warning: null });
+  });
+
+  it('`<`·`>`도 단위와 함께 풀린다', () => {
+    expect(parseGoalValue('<5ms', 'ms')).toEqual({ value: 5, hint: 'lower_better', original: null, warning: null });
+    expect(parseGoalValue('>95 %', '%')).toEqual({ value: 95, hint: 'higher_better', original: null, warning: null });
+  });
+
+  it('`≤`·`≥`는 `<`·`>` 추가 뒤에도 그대로', () => {
+    expect(parseGoalValue('≤ 5', '').hint).toBe('lower_better');
+    expect(parseGoalValue('≥ 5', '').hint).toBe('higher_better');
+  });
+
+  // 두 글자 표기는 C.3.4에 없다 — 방향은 잡히고 남는 `=`는 조용히 버리지 않고 원문 경고로 남는다
+  it.each([
+    ['<= 5', 'lower_better'],
+    ['>= 5', 'higher_better'],
+  ] as const)('%s → 5 · %s + 원문 + unparsed-text', (raw, hint) => {
+    expect(parseGoalValue(raw, '')).toEqual({ value: 5, hint, original: raw, warning: 'unparsed-text' });
+  });
+
+  it('`<`·`>`가 한 셀에 함께 있으면 힌트 없음 + 경고', () => {
+    expect(parseGoalValue('> 3 < 5', '')).toEqual({
+      value: 3,
+      hint: null,
+      original: '> 3 < 5',
       warning: 'unparsed-text',
     });
   });

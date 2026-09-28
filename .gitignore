@@ -7,6 +7,10 @@ env*.download
 
 # 실제 예산 자료 — 절대 커밋 금지
 samples/
+# PC 간 이동용 samples/ 압축본 — 같은 실데이터다
+samples*.zip
+*.hwpx
+*.hwp
 *.xlsx
 *.xls
 !tests/fixtures/*.xlsx

@@ -100,6 +100,23 @@ export const GOAL_FORM_ISSUES = {
   },
   'weight-sum': { message: '가중치·비중 합계가 100이 아닙니다', blocking: false },
   conflict: { message: '양식을 받은 뒤 다른 곳에서 바뀌었거나 삭제된 행이라 건너뜁니다', blocking: false },
+  // ── hwpx 계획서 행 (HX-5·HX-8, S-17·S-20) — 표 단위 사유는 lib/hwpx의 PLAN_ISSUES ──
+  'ambiguous-match': {
+    message: '같은 이름의 기존 목표가 둘 이상이라 어느 행에 반영할지 정할 수 없습니다 — 목표 화면에서 이름을 서로 다르게 고치세요',
+    blocking: true,
+  },
+  'duplicate-plan-name': {
+    message: '계획서에 같은 이름의 행이 둘 이상이라 어느 행을 반영할지 정할 수 없습니다',
+    blocking: true,
+  },
+  'org-unmatched': {
+    message: '담당기관이 과제 기관과 일치하지 않아 비워 둡니다 — 원문은 비고에 남깁니다',
+    blocking: false,
+  },
+  'method-other': {
+    message: '평가방법을 측정방법 목록에 대응하지 못해 기타로 둡니다 — 원문은 비고에 남깁니다',
+    blocking: false,
+  },
 } as const satisfies Record<string, { message: string; blocking: boolean }>;
 
 export type GoalFormIssueKind = keyof typeof GOAL_FORM_ISSUES;

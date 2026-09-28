@@ -5,7 +5,7 @@
 // 달성률·경고 판정은 서버가 끝낸 값을 섹션이 그대로 쓴다(O-4). 여기서 가공하지 않는다.
 // 비활성 탭은 언마운트한다: §7.7 탭 2의 인쇄용 레이아웃이 감춰진 탭까지 함께 인쇄하는 것을 막고,
 // 열려 있던 폼의 R-4 보류 카운터도 정리 함수로 함께 풀린다.
-// 툴바의 목표 양식 내려받기·올리기(§7.7, GF-1·GF-5)는 두 시트를 한 파일로 다루므로 탭 밖에 둔다.
+// 툴바의 목표 양식 내려받기·올리기(§7.7, GF-1·GF-5)와 계획서(hwpx) 가져오기(HX-8)는 두 탭을 함께 다루므로 탭 밖에 둔다.
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,7 @@ import Button from '@/components/ui/Button';
 import DeliverableSection from './DeliverableSection';
 import GoalFormDownload from './GoalFormDownload';
 import GoalFormUpload from './GoalFormUpload';
+import PlanDocumentUpload from './PlanDocumentUpload';
 import TechTargetSection from './TechTargetSection';
 
 type GoalTab = 'deliverables' | 'techTargets';
@@ -35,7 +36,7 @@ export default function GoalsScreen({ projectId, data }: GoalsScreenProps) {
   const router = useRouter();
   const [tab, setTab] = useState<GoalTab>('deliverables');
   // 모달을 닫으면 선택·미리보기는 언마운트로 폐기된다 (연구비 화면 입력 양식과 같다)
-  const [formModal, setFormModal] = useState<'download' | 'upload' | null>(null);
+  const [formModal, setFormModal] = useState<'download' | 'upload' | 'plan' | null>(null);
   const [formResult, setFormResult] = useState<string | null>(null);
 
   return (
@@ -56,6 +57,14 @@ export default function GoalsScreen({ projectId, data }: GoalsScreenProps) {
           onClick={() => setFormModal('upload')}
         >
           양식 올리기
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          title="연구개발계획서(hwpx)의 기술목표·성과목표·평가방법 표를 읽어 미리보기 뒤 반영합니다 (§7.7). 반영은 되돌릴 수 없습니다"
+          onClick={() => setFormModal('plan')}
+        >
+          계획서(hwpx) 가져오기
         </Button>
       </div>
 
@@ -132,6 +141,17 @@ export default function GoalsScreen({ projectId, data }: GoalsScreenProps) {
           onClose={() => setFormModal(null)}
           onDone={(message) => {
             // 결과·충돌 목록은 모달이 먼저 보여 주고, 목표 표·달성률은 서버에서 다시 그린다
+            setFormResult(message);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {formModal === 'plan' && (
+        <PlanDocumentUpload
+          projectId={projectId}
+          onClose={() => setFormModal(null)}
+          onDone={(message) => {
             setFormResult(message);
             router.refresh();
           }}

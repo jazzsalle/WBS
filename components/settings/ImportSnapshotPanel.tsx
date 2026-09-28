@@ -6,6 +6,7 @@
 //   ② 산출근거(commitDetailImport) — 계획액 + 삭제되는 budget_details 행 (D-17)
 //   ③ 수행 양식(commitExecutionForm) — 집행 행의 추가 id·변경 전 원본·삭제 id (IN-14). items는 빈 배열
 //   ④ 목표 양식(commitGoalForm) — 목표 행의 추가 id·변경 전 원본·삭제 id (GF-11). 복원은 거부된다
+//      계획서(hwpx) 가져오기도 같은 RPC·같은 모양을 남긴다 — source.sheetName으로만 구별한다 (S-31)
 // 계획액을 통째로 되돌리는 조작이라 전체 복원(K-4)과 같은 무게의 2단계 확인을 거친다.
 // 데이터 접근은 actions/import 경유만 한다 — supabase를 직접 호출하지 않는다 (절대 규칙 3).
 
@@ -19,6 +20,8 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import Modal from '@/components/ui/Modal';
+// S-31: 계획서(hwpx) 가져오기가 스냅샷 source.sheetName에 넣는 값 — 액션과 같은 상수를 공유한다
+import { PLAN_DOCUMENT_SHEET_NAME } from '@/lib/hwpx/types';
 
 /** 2단계 확인의 마지막 관문 — 오타로 통과할 수 없게 정확히 이 문자열을 요구한다 */
 const CONFIRM_WORD = '되돌리기';
@@ -65,10 +68,21 @@ function isGoalSnapshot(snapshot: ImportSnapshot): boolean {
   return snapshot.snapshot.kind === 'goal_form';
 }
 
+/** S-31: 목표 양식 스냅샷 중 계획서(hwpx) 가져오기가 남긴 것. 데이터 모양은 같고 라벨만 다르다 */
+function isPlanDocumentSnapshot(snapshot: ImportSnapshot): boolean {
+  return isGoalSnapshot(snapshot) && snapshot.snapshot.source.sheetName === PLAN_DOCUMENT_SHEET_NAME;
+}
+
 /** RPC가 복원을 거부할 때 쓰는 문구와 같게 둔다 — 화면 안내와 거부 사유가 따로 놀지 않게 */
 const GOAL_RESTORE_BLOCKED = '목표 양식 스냅샷은 되돌릴 수 없습니다 — 반영 기록용입니다';
+const PLAN_DOCUMENT_RESTORE_BLOCKED = '계획서 반영은 되돌릴 수 없습니다 — 반영 기록용입니다';
+
+function restoreBlockedMessage(snapshot: ImportSnapshot): string {
+  return isPlanDocumentSnapshot(snapshot) ? PLAN_DOCUMENT_RESTORE_BLOCKED : GOAL_RESTORE_BLOCKED;
+}
 
 function kindLabel(snapshot: ImportSnapshot): string {
+  if (isPlanDocumentSnapshot(snapshot)) return PLAN_DOCUMENT_SHEET_NAME;
   if (isGoalSnapshot(snapshot)) return '목표 양식';
   if (isExecutionSnapshot(snapshot)) return '수행 양식';
   return isDetailSnapshot(snapshot) ? '산출근거' : '예산계획';
@@ -304,7 +318,8 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
         </li>
         <li>
           <strong>목표 양식 스냅샷은 되돌릴 수 없습니다</strong> (GF-11) — 반영 기록용입니다. 성과목표·
-          성과실적·기술목표·측정이력의 추가·변경·삭제 건수만 보여 줍니다.
+          성과실적·기술목표·측정이력의 추가·변경·삭제 건수만 보여 줍니다. 계획서(hwpx) 가져오기
+          반영도 같은 방식으로 기록되며 &lsquo;계획서(hwpx)&rsquo;로 표시됩니다.
         </li>
       </ul>
 
@@ -372,7 +387,10 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                   </div>
                   <p className="mt-1 text-xs text-grey-500">
                     {new Date(snapshot.snapshot.capturedAt).toLocaleString('ko-KR')} ·{' '}
-                    {snapshot.snapshot.source.sheetName} 시트
+                    {/* 계획서(hwpx)는 시트가 아니라 문서다 — "계획서(hwpx) 시트"로 읽히지 않게 */}
+                    {isPlanDocumentSnapshot(snapshot)
+                      ? snapshot.snapshot.source.sheetName
+                      : `${snapshot.snapshot.source.sheetName} 시트`}
                   </p>
                   {isGoalSnapshot(snapshot) ? (
                     <>
@@ -381,7 +399,9 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                       >
                         {goalSummary(snapshot)}
                       </p>
-                      <p className="mt-1 text-xs text-grey-500">{GOAL_RESTORE_BLOCKED} (GF-11)</p>
+                      <p className="mt-1 text-xs text-grey-500">
+                        {restoreBlockedMessage(snapshot)} (GF-11)
+                      </p>
                     </>
                   ) : isExecutionSnapshot(snapshot) ? (
                     <p
@@ -401,7 +421,7 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                   variant="danger"
                   // GF-11: 목표 양식 스냅샷은 복원 경로가 없다 — 모달조차 열지 않는다
                   disabled={isGoalSnapshot(snapshot)}
-                  title={isGoalSnapshot(snapshot) ? GOAL_RESTORE_BLOCKED : undefined}
+                  title={isGoalSnapshot(snapshot) ? restoreBlockedMessage(snapshot) : undefined}
                   onClick={() => {
                     setTarget(snapshot);
                     setStep(1);
