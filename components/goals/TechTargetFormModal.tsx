@@ -21,6 +21,7 @@ import { setRealtimePaused } from '@/components/RealtimeRefresher';
 
 interface FormValues {
   name: string;
+  group: string;
   unit: string;
   direction: Direction;
   weight: string;
@@ -30,6 +31,10 @@ interface FormValues {
   worldBestHolder: string;
   measureMethod: MeasureMethod;
   measureDescription: string;
+  standardBasis: string;
+  basisRationale: string;
+  evaluationEnvironment: string;
+  note: string;
   orgId: string; // '' = 미지정 (§5.9 orgId는 nullable)
 }
 
@@ -41,6 +46,7 @@ interface FieldDef {
 // 폼과 O-3 비교 패널이 같은 정의를 쓴다 — 한쪽에만 있는 필드가 조용히 덮어써지지 않게
 const FIELDS: readonly FieldDef[] = [
   { key: 'name', label: '평가항목' },
+  { key: 'group', label: '구분' },
   { key: 'unit', label: '단위' },
   { key: 'direction', label: '방향성' },
   { key: 'weight', label: '비중(%)' },
@@ -50,11 +56,16 @@ const FIELDS: readonly FieldDef[] = [
   { key: 'worldBestHolder', label: '보유국/보유기관' },
   { key: 'measureMethod', label: '측정방법' },
   { key: 'measureDescription', label: '측정방법 상세' },
+  { key: 'standardBasis', label: '표준·인증기준' },
+  { key: 'basisRationale', label: '기준설정 근거' },
+  { key: 'evaluationEnvironment', label: '평가환경' },
+  { key: 'note', label: '비고' },
   { key: 'orgId', label: '책임 기관' },
 ] as const;
 
 const EMPTY_VALUES: FormValues = {
   name: '',
+  group: '',
   unit: '',
   direction: 'higher_better', // §5.9 기본값
   weight: '',
@@ -64,12 +75,17 @@ const EMPTY_VALUES: FormValues = {
   worldBestHolder: '',
   measureMethod: 'self',
   measureDescription: '',
+  standardBasis: '',
+  basisRationale: '',
+  evaluationEnvironment: '',
+  note: '',
   orgId: '',
 };
 
 function toValues(target: TechTarget): FormValues {
   return {
     name: target.name,
+    group: target.group,
     unit: target.unit,
     direction: target.direction,
     weight: String(target.weight),
@@ -79,6 +95,10 @@ function toValues(target: TechTarget): FormValues {
     worldBestHolder: target.worldBestHolder,
     measureMethod: target.measureMethod,
     measureDescription: target.measureDescription,
+    standardBasis: target.standardBasis,
+    basisRationale: target.basisRationale,
+    evaluationEnvironment: target.evaluationEnvironment,
+    note: target.note,
     orgId: target.orgId ?? '',
   };
 }
@@ -213,6 +233,7 @@ export default function TechTargetFormModal({
 
     const payload = {
       name: values.name.trim(),
+      group: values.group.trim(),
       unit: values.unit.trim(),
       direction: values.direction,
       weight: weight ?? 0,
@@ -222,6 +243,10 @@ export default function TechTargetFormModal({
       worldBestHolder: values.worldBestHolder.trim(),
       measureMethod: values.measureMethod,
       measureDescription: values.measureDescription.trim(),
+      standardBasis: values.standardBasis.trim(),
+      basisRationale: values.basisRationale.trim(),
+      evaluationEnvironment: values.evaluationEnvironment.trim(),
+      note: values.note,
       orgId: values.orgId === '' ? null : values.orgId,
     };
 
@@ -331,6 +356,18 @@ export default function TechTargetFormModal({
                 maxLength={200}
                 required
                 placeholder="예: 객체 인식 정확도"
+                className={numberInputClass}
+              />
+            </label>
+
+            <label className="sm:col-span-2">
+              <span className="text-sm font-medium text-grey-700">구분</span>
+              <input
+                type="text"
+                value={values.group}
+                onChange={(e) => setField('group', e.target.value)}
+                maxLength={200}
+                placeholder="계획서 표의 구분(세로 병합 그룹). 비워도 됩니다"
                 className={numberInputClass}
               />
             </label>
@@ -471,6 +508,50 @@ export default function TechTargetFormModal({
                 rows={3}
                 maxLength={10000}
                 placeholder="측정 조건, 시험 규격, 데이터셋 등"
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
+              />
+            </label>
+
+            <label className="sm:col-span-2">
+              <span className="text-sm font-medium text-grey-700">표준(시험)·인증기준</span>
+              <textarea
+                value={values.standardBasis}
+                onChange={(e) => setField('standardBasis', e.target.value)}
+                rows={2}
+                maxLength={10000}
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
+              />
+            </label>
+
+            <label className="sm:col-span-2">
+              <span className="text-sm font-medium text-grey-700">기준설정 근거</span>
+              <textarea
+                value={values.basisRationale}
+                onChange={(e) => setField('basisRationale', e.target.value)}
+                rows={2}
+                maxLength={10000}
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
+              />
+            </label>
+
+            <label className="sm:col-span-2">
+              <span className="text-sm font-medium text-grey-700">평가환경</span>
+              <textarea
+                value={values.evaluationEnvironment}
+                onChange={(e) => setField('evaluationEnvironment', e.target.value)}
+                rows={2}
+                maxLength={10000}
+                className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
+              />
+            </label>
+
+            <label className="sm:col-span-2">
+              <span className="text-sm font-medium text-grey-700">비고</span>
+              <textarea
+                value={values.note}
+                onChange={(e) => setField('note', e.target.value)}
+                rows={3}
+                maxLength={10000}
                 className="mt-1 w-full rounded-lg border border-grey-300 px-3 py-2 text-sm focus:border-grey-500 focus:outline-none"
               />
             </label>

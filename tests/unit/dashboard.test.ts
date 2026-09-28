@@ -274,6 +274,8 @@ function deliverable(spec: {
       achievement(`${spec.id}-a${i}`)
     ),
     orgId: null,
+    weight: 0,
+    evidenceMethod: '',
     note: '',
     order: 0,
   };
@@ -315,6 +317,11 @@ function techTarget(spec: {
     worldBestHolder: '',
     measureMethod: 'self',
     measureDescription: '',
+    group: '',
+    standardBasis: '',
+    basisRationale: '',
+    evaluationEnvironment: '',
+    note: '',
     records: [...(spec.records ?? [])],
     orgId: null,
     order: 0,

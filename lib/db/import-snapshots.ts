@@ -12,8 +12,11 @@ import type {
   DetailAxis,
   DetailFactor,
   DetailFormula,
+  DeliverableType,
+  Direction,
   HireType,
   ImportSnapshot,
+  MeasureMethod,
   MemberRole,
 } from '@/types';
 import { dbToApp, dbToAppArray } from './mapper';
@@ -117,6 +120,161 @@ export interface ExecutionFormCommitResult {
   deleted: number;
   // version이 달라 건너뛴 변경·삭제. 오류가 아니라 정상 결과의 일부다(전체 롤백 아님, IN-10)
   conflicts: ExecutionFormConflict[];
+}
+
+// ─── §6.17 GF-5·GF-11 목표 양식 반영 (Phase 21) ──────────────
+
+/**
+ * 모든 행 타입은 **RPC 페이로드 그대로**라 DB 표기(snake_case)다. RPC는 필드 키가 하나라도
+ * 빠지면 거부한다 — 기본값이 조용히 들어가면 측정값 0처럼 달성률이 왜곡되기 때문이다.
+ * 그래서 선택(?) 필드를 두지 않고 nullable 컬럼만 `| null`이다.
+ *
+ * `target_by_year`: `_meta.yearIds` 키 전부를 싣는다. null은 "그 키 삭제"이고 싣지 않은
+ * 기존 키는 보존된다(S-13). 추가 행에서는 RPC가 null 키를 버린다.
+ */
+export type GoalFormTargetByYear = Record<string, number | null>;
+
+export interface GoalFormDeliverableFields {
+  type: DeliverableType;
+  name: string;
+  unit: string;
+  weight: number;                    // 0 이상
+  target_total: number;              // 건수 — 0 이상 정수
+  target_by_year: GoalFormTargetByYear; // 값도 0 이상 정수
+  org_id: string | null;
+  evidence_method: string;
+  note: string;
+}
+
+// row_key("row:<n>")는 같은 반영의 새 실적이 deliverable_ref로 가리키는 임시 키다(GF-10)
+export interface GoalFormDeliverableAddRow extends GoalFormDeliverableFields {
+  row_key?: string | null;
+}
+
+export interface GoalFormDeliverableUpdateRow extends GoalFormDeliverableFields {
+  id: string;
+}
+
+export interface GoalFormAchievementFields {
+  title: string;
+  date: string;                      // 'YYYY-MM-DD'
+  year_id: string | null;
+  org_id: string | null;
+  member_ids: string[];              // update는 전체 교체(빈 배열 = 관여자 없음)
+  evidence_url: string;
+  note: string;
+}
+
+// 부모는 기존 지표(deliverable_id) 또는 새 지표의 임시 키(deliverable_ref) 중 **정확히 하나**다.
+// 유니온으로 둬 둘 다 싣거나 둘 다 빠진 페이로드를 타입 단계에서 막는다
+export type GoalFormAchievementAddRow = GoalFormAchievementFields &
+  (
+    | { deliverable_id: string; deliverable_ref?: never }
+    | { deliverable_ref: string; deliverable_id?: never }
+  );
+
+// deliverable_id는 현재 부모여야 한다 — 다르면 RPC가 parent-moved로 거부한다
+export interface GoalFormAchievementUpdateRow extends GoalFormAchievementFields {
+  id: string;
+  deliverable_id: string;
+}
+
+export interface GoalFormTechTargetFields {
+  name: string;
+  group_name: string;
+  unit: string;
+  direction: Direction;
+  weight: number;                    // 0 이상 (DB check가 아니라 RPC가 막는다)
+  target_value: number;              // null 불가
+  target_by_year: GoalFormTargetByYear;
+  baseline_domestic: number | null;
+  world_best: number | null;
+  world_best_holder: string;
+  measure_method: MeasureMethod;
+  measure_description: string;
+  standard_basis: string;
+  basis_rationale: string;
+  evaluation_environment: string;
+  org_id: string | null;
+  note: string;
+}
+
+export interface GoalFormTechTargetAddRow extends GoalFormTechTargetFields {
+  row_key?: string | null;
+}
+
+export interface GoalFormTechTargetUpdateRow extends GoalFormTechTargetFields {
+  id: string;
+}
+
+export interface GoalFormRecordFields {
+  value: number;                     // null 불가
+  date: string;                      // 'YYYY-MM-DD'
+  year_id: string | null;
+  method: MeasureMethod;
+  evaluator: string;
+  evidence_url: string;
+  note: string;
+}
+
+export type GoalFormRecordAddRow = GoalFormRecordFields &
+  (
+    | { tech_target_id: string; tech_target_ref?: never }
+    | { tech_target_ref: string; tech_target_id?: never }
+  );
+
+export interface GoalFormRecordUpdateRow extends GoalFormRecordFields {
+  id: string;
+  tech_target_id: string;            // 현재 부모
+}
+
+// 종류별 블록. RPC는 키 생략을 빈 배열로 보지만 래퍼 호출자는 셋 다 명시한다
+export interface GoalFormCommitBlock<A, U> {
+  adds: A[];
+  updates: U[];
+  deleteIds: string[];               // [삭제 포함]을 켰을 때만 채운다 — 판정은 서버 액션의 몫
+}
+
+export interface GoalFormCommitPayload {
+  deliverables: GoalFormCommitBlock<GoalFormDeliverableAddRow, GoalFormDeliverableUpdateRow>;
+  achievements: GoalFormCommitBlock<GoalFormAchievementAddRow, GoalFormAchievementUpdateRow>;
+  techTargets: GoalFormCommitBlock<GoalFormTechTargetAddRow, GoalFormTechTargetUpdateRow>;
+  records: GoalFormCommitBlock<GoalFormRecordAddRow, GoalFormRecordUpdateRow>;
+}
+
+// GF-5: 충돌 기준은 **내려받은 시점**의 version(_meta)이다. 변경·삭제 대상 전부와
+// 삭제할 부모의 현재 자식 전부를 담아야 한다(S-6②) — 빠지면 RPC가 거부하거나 conflict로 돌린다
+export type GoalFormExpected = Record<string, number>;
+
+// 우리 양식은 프로파일을 쓰지 않는다 — 스냅샷의 profileId는 RPC가 null로 채운다
+export interface GoalFormSource {
+  fileName: string;
+  sheetName: string;
+  fileHash: string;
+}
+
+export type GoalFormKind = 'deliverable' | 'achievement' | 'techTarget' | 'record';
+
+export interface GoalFormConflict {
+  kind: GoalFormKind;                // `_meta` 접두어와 같다
+  id: string;
+  reason: 'changed' | 'deleted';
+}
+
+export interface GoalFormKindCounts {
+  added: number;
+  updated: number;
+  deleted: number;                   // deleteIds로 지운 행만. cascade된 자식은 스냅샷에만 남는다
+}
+
+export interface GoalFormCommitResult {
+  snapshotId: string;
+  deliverables: GoalFormKindCounts;
+  achievements: GoalFormKindCounts;
+  techTargets: GoalFormKindCounts;
+  records: GoalFormKindCounts;
+  // version이 달라 건너뛴 변경·삭제. 오류가 아니라 정상 결과의 일부다(전체 롤백 아님, GF-5)
+  conflicts: GoalFormConflict[];
 }
 
 // ─── §6.11 산출근거 시트 임포트 (Phase 10) ───────────────────
@@ -234,6 +392,27 @@ const executionFormCommitResultSchema = z.object({
   updated: z.number(),
   deleted: z.number(),
   conflicts: z.array(z.object({ id: z.uuid(), reason: z.enum(['changed', 'deleted']) })),
+});
+
+const goalFormKindCountsSchema = z.object({
+  added: z.number(),
+  updated: z.number(),
+  deleted: z.number(),
+});
+// GF-5. conflicts를 선택으로 두면 마이그레이션이 덜 적용된 DB에서 충돌이 0건으로 보인다
+const goalFormCommitResultSchema = z.object({
+  snapshotId: z.uuid(),
+  deliverables: goalFormKindCountsSchema,
+  achievements: goalFormKindCountsSchema,
+  techTargets: goalFormKindCountsSchema,
+  records: goalFormKindCountsSchema,
+  conflicts: z.array(
+    z.object({
+      kind: z.enum(['deliverable', 'achievement', 'techTarget', 'record']),
+      id: z.uuid(),
+      reason: z.enum(['changed', 'deleted']),
+    })
+  ),
 });
 
 // commit_execution_form의 raise 해석 (lib/db/budget-details.ts와 같은 규약):
@@ -371,12 +550,46 @@ export async function commitExecutionForm(
   return result.data;
 }
 
+/**
+ * §6.17 GF-5 목표 양식 반영. 네 종류의 삭제(자식 → 부모)·변경(부모 → 자식)·추가(부모 → 자식)와
+ * 스냅샷(`kind: 'goal_form'`, GF-11)이 **한 트랜잭션**이다. version이 `expected`와 다른
+ * 변경·삭제는 그 행만 건너뛰고 `conflicts`로 돌아온다(예외가 아니다). 과제 경계·연차·기관·
+ * 인력 변경·parent-moved 위반은 전체 롤백이다.
+ *
+ * 예외는 commit_execution_form과 같은 규약이다 — 과제 없음만 NotFoundError, 나머지 RULE.
+ */
+export async function commitGoalForm(
+  client: SupabaseClient,
+  projectId: string,
+  payload: GoalFormCommitPayload,
+  expected: GoalFormExpected,
+  source: GoalFormSource
+): Promise<GoalFormCommitResult> {
+  const { data, error } = await client.rpc('commit_goal_form', {
+    p_project_id: projectId,
+    p_deliverables: payload.deliverables,
+    p_achievements: payload.achievements,
+    p_tech_targets: payload.techTargets,
+    p_records: payload.records,
+    p_expected: expected,
+    p_source: source,
+  });
+  if (error) throwExecutionFormRpcError(error);
+  const result = goalFormCommitResultSchema.safeParse(data);
+  if (!result.success) {
+    console.error('[db] commit_goal_form 반환값이 기대 형식과 다릅니다:', data);
+    throw new ValidationError('저장소 응답이 기대 스키마와 다릅니다. 앱과 DB 버전을 확인하세요.');
+  }
+  return result.data;
+}
+
 // §7.14: 스냅샷 시점의 계획액으로 되돌린다. 역시 단일 트랜잭션 + 과제 경계 검증.
 // D-17a: 스냅샷에 `details` 키가 있으면 산출근거 행까지 되돌린다 — 그 셀의 현재 행을
 // 지우고 스냅샷 행을 되살린다(I-17 "복원이 행을 삭제하지 않는다"의 명시적 예외).
 // `budget_items` 행 자체는 여전히 지우지 않아 집행 내역이 보존된다.
 // IN-14: `executions` 키가 있으면 수행 양식 반영을 완전히 되돌린다. 그 뒤 대상 행이 다시
 // 바뀌었으면 RPC가 복원 전체를 거부한다(P0001 → RuleViolationError).
+// GF-11(S-3): `goals` 키가 있는 목표 양식 스냅샷은 RPC가 복원을 거부한다(RuleViolationError).
 export async function restoreImportSnapshot(
   client: SupabaseClient,
   snapshotId: string

@@ -697,3 +697,100 @@ describe('수행 양식형 시트 — 날짜 셀·인라인 드롭다운 (F-6·F
     expect((ws?.getCell('C2').value as Date).toISOString()).toBe('2025-04-01T00:00:00.000Z');
   });
 });
+
+describe('범위 참조 드롭다운·경고형 (F-9, 목표 양식 GF-4·GF-10)', () => {
+  const HINT = { key: false, format: 'text', width: 20, align: 'left' } as const;
+  function dataSheet(name: string, validations: FormSheet['validations']): FormSheet {
+    return {
+      name,
+      hidden: false,
+      hiddenColumns: [],
+      kind: 'data',
+      headerRow: 1,
+      dataStartRow: 2,
+      columnHints: [HINT, HINT],
+      rows: [
+        [{ value: '지표명' }, { value: '관여자' }],
+        [{ value: '논문' }, { value: '홍길동' }],
+        [{}, {}],
+      ],
+      validations,
+    };
+  }
+  const LISTS: FormSheet = {
+    name: '_lists',
+    hidden: true,
+    hiddenColumns: [],
+    rows: [[{ value: '관여자' }], [{ value: '홍길동' }], [{ value: '김철수' }]],
+  };
+
+  async function load(sheets: FormSheet[]): Promise<ExcelJS.Workbook> {
+    const out = await writeInputFormWorkbook({ sheets, fileName: 'x.xlsx' });
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(out as unknown as ArrayBuffer);
+    return wb;
+  }
+
+  it("listRange는 '시트'!$A$2:$A$n 수식 — 한글 시트명도 작은따옴표로 감싸고, errorStyle을 그대로 싣는다", async () => {
+    const wb = await load([
+      dataSheet('성과실적', [
+        { column: 0, values: [], listRange: { sheet: '성과목표', range: '$B$2:$B$14' }, errorStyle: 'warning' },
+        { column: 1, values: [], listRange: { sheet: '_lists', range: '$A$2:$A$3' } },
+      ]),
+      dataSheet('성과목표', undefined),
+      LISTS,
+    ]);
+    const ws = wb.getWorksheet('성과실적');
+    for (const r of [2, 3]) {
+      const name = ws?.getCell(r, 1).dataValidation;
+      expect(name?.type).toBe('list');
+      expect(name?.formulae).toEqual(["'성과목표'!$B$2:$B$14"]);
+      expect(name?.errorStyle).toBe('warning');
+      expect(name?.allowBlank).toBe(true);
+      const who = ws?.getCell(r, 2).dataValidation;
+      expect(who?.formulae).toEqual(["'_lists'!$A$2:$A$3"]);
+      // errorStyle 생략은 'stop' — Phase 20 인라인 목록과 같다
+      expect(who?.errorStyle ?? 'stop').toBe('stop');
+    }
+    expect(ws?.getCell(1, 1).dataValidation).toBeFalsy();
+    expect(wb.getWorksheet('_lists')?.state).toBe('hidden');
+  });
+
+  it("시트 이름 안의 작은따옴표는 두 번 쓴다 — 공백도 안전하다", async () => {
+    const wb = await load([
+      dataSheet('측정', [{ column: 0, values: [], listRange: { sheet: "O'Brien 목록", range: '$A$2:$A$3' } }]),
+      { ...LISTS, name: "O'Brien 목록" },
+    ]);
+    expect(wb.getWorksheet('측정')?.getCell(2, 1).dataValidation?.formulae).toEqual(["'O''Brien 목록'!$A$2:$A$3"]);
+  });
+
+  it('인라인 목록도 errorStyle warning을 받는다', async () => {
+    const wb = await load([dataSheet('시트', [{ column: 1, values: ['현금', '현물'], errorStyle: 'warning' }])]);
+    const dv = wb.getWorksheet('시트')?.getCell(2, 2).dataValidation;
+    expect(dv?.formulae).toEqual(['"현금,현물"']);
+    expect(dv?.errorStyle).toBe('warning');
+  });
+
+  it('values와 listRange를 함께 지정하면 throw한다', async () => {
+    await expect(
+      writeInputFormWorkbook({
+        sheets: [dataSheet('시트', [{ column: 0, values: ['a'], listRange: { sheet: '_lists', range: '$A$2:$A$3' } }]), LISTS],
+        fileName: 'x.xlsx',
+      })
+    ).rejects.toThrow(/함께 지정/);
+  });
+
+  it('없는 시트·상대 참조 범위·금지 문자 시트명은 throw한다', async () => {
+    const write = (range: { sheet: string; range: string }, extra: FormSheet[] = [LISTS]) =>
+      writeInputFormWorkbook({ sheets: [dataSheet('시트', [{ column: 0, values: [], listRange: range }]), ...extra], fileName: 'x.xlsx' });
+    await expect(write({ sheet: '없는시트', range: '$A$2:$A$3' })).rejects.toThrow(/워크북에 없습니다/);
+    await expect(write({ sheet: '_lists', range: 'A2:A3' })).rejects.toThrow(/절대 참조/);
+    await expect(write({ sheet: 'a/b', range: '$A$2' }, [{ ...LISTS, name: 'a/b' }])).rejects.toThrow(/쓸 수 없는 문자/);
+  });
+
+  it('listRange 없이 values가 비면 기존처럼 throw한다 (빈 목록)', async () => {
+    await expect(
+      writeInputFormWorkbook({ sheets: [dataSheet('시트', [{ column: 0, values: [] }])], fileName: 'x.xlsx' })
+    ).rejects.toThrow(/비어 있습니다/);
+  });
+});

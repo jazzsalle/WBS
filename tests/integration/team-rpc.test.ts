@@ -148,6 +148,8 @@ describe('delete_member — H-9 참조 8곳 정리', () => {
         targetTotal: 1,
         targetByYear: {},
         orgId: null,
+        weight: 0,
+        evidenceMethod: '',
         note: '',
         order: 0,
       },

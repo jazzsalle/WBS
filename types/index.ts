@@ -185,10 +185,12 @@ export interface Deliverable extends BaseEntity {
   type: DeliverableType;
   name: string;                              // 지표명 (예: 'SCI급 논문 게재')
   unit: string;                              // 기본 '건'
+  weight: number;                            // 가중치(%). 기본 0, 합계 100 권장(경고만) — 소수 허용 (Phase 21)
   targetTotal: number;                       // 과제 전체 목표 건수
   targetByYear: Record<string, number>;      // { yearId: 목표건수 }
   achievements: DeliverableAchievement[];    // 실적 목록
   orgId: string | null;                      // 주 책임 기관
+  evidenceMethod: string;                    // 평가방법(증빙) — 계획서 표의 평가방법 열 (Phase 21)
   note: string;
   order: number;
 }
@@ -213,6 +215,7 @@ export interface TechTargetRecord {
 export interface TechTarget extends BaseEntity {
   projectId: string;
   name: string;                    // 평가항목명 (예: '객체 인식 정확도')
+  group: string;                   // 구분 — 계획서 표의 세로 병합 그룹. DB 컬럼은 group_name(예약어 회피, N-9 특례) (Phase 21)
   unit: string;                    // 단위 (예: '%', 'ms', 'fps')
   direction: Direction;            // 기본 'higher_better'
 
@@ -226,6 +229,10 @@ export interface TechTarget extends BaseEntity {
 
   measureMethod: MeasureMethod;
   measureDescription: string;      // 측정방법 상세
+  standardBasis: string;           // 표준(시험)·인증기준 (Phase 21)
+  basisRationale: string;          // 기준설정 근거 (Phase 21)
+  evaluationEnvironment: string;   // 평가환경 (Phase 21)
+  note: string;                    // 비고. 숫자로 풀지 못한 목표치 원문이 `[원문] …`으로 남는다(GF-6) (Phase 21)
 
   records: TechTargetRecord[];     // 측정 이력 (최신값이 현재 실적치)
   orgId: string | null;
@@ -409,12 +416,24 @@ export interface ImportSnapshotPayload {
   projectId: string;
   capturedAt: string;
   // D-17: 산출근거 임포트(commit_detail_import)가 남긴 스냅샷은 'budget_detail',
-  // 수행 양식(commit_execution_form, IN-10)은 'execution_form'이다.
+  // 수행 양식(commit_execution_form, IN-10)은 'execution_form', 목표 양식(commit_goal_form, GF-11)은 'goal_form'이다.
   // 총괄표 스냅샷(schemaVersion 1)에는 이 키가 없어 undefined다 — 설정 화면이 종류를 가르는 근거다
-  kind?: 'budget_detail' | 'execution_form';
+  kind?: 'budget_detail' | 'execution_form' | 'goal_form';
   source: ImportSnapshotSource;
   items: ImportSnapshotItem[];       // 파일에 등장한 (연차, 비목)만 담긴다 (S-9). 수행 스냅샷은 빈 배열
   executions?: ImportSnapshotExecutions; // IN-14: 수행 스냅샷에만 있다
+  goals?: ImportSnapshotGoals;       // GF-11: 목표 양식 스냅샷에만 있다
+}
+
+// GF-11 — 목표 양식 반영이 바꾼 행(성과목표·실적·기술목표·측정 이력 + 삭제 지표의 연계 행).
+// Phase 21은 이 스냅샷의 복원을 거부하고, 나중의 완전 되돌리기를 위해 원본만 남긴다.
+// before는 DB 행 원본(snake_case) 그대로다 — 여러 테이블의 행이 섞이므로 앱은 형태를 가정하지 않는다
+// 키는 테이블 이름(deliverables·deliverable_achievements·tech_targets·tech_target_records,
+// before에는 achievement_members·task_deliverables·task_tech_targets도)
+export interface ImportSnapshotGoals {
+  added: Record<string, string[]>;                    // 반영이 추가한 행 id
+  before: Record<string, Record<string, unknown>[]>;  // 변경·삭제 전 행 원본(연계 행 포함)
+  deleted: Record<string, string[]>;                  // 반영이 지운 행 id(cascade로 지워진 자식 포함)
 }
 
 // IN-14 — 수행 양식 반영이 바꾼 집행 행. 복원(완전 되돌리기)은 RPC가 이 값으로 한다.

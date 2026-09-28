@@ -1,6 +1,8 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
+2026-09-29 집 PC (**Phase 21 완료** — 목표 양식. `db push` 적용, evaluator 재채점 PASS(1차 FAIL 3건 수정), 테스트 3,125건 + 파괴적 11건. 다음 Phase 22 hwpx 계획서 가져오기)
+
 2026-09-28 밤 집 PC (**Phase 20 완료** — 수행 양식. `db push` 적용, evaluator PASS 11/11, 테스트 2,747건 + 파괴적 9건. 다음 Phase 21 목표 양식)
 
 2026-09-28 저녁 회사 PC (Phase 20 구현 완료·검증 대기 — 집 PC에서 이어서)
@@ -30,6 +32,15 @@
 > ⚠️ **회사 PC는 `git pull` 후 반드시 `db push`를 해야 앱에 진입할 수 있다.** Phase 9에서 `schema_version`이 1 → 2로 올라가 §8.8 게이트가 걸린다. 의도된 안전장치다. (Phase 12는 스키마 변경이 없다.)
 
 ## Done this session
+- **Phase 21 완료 (2026-09-29, evaluator 재채점 PASS)** — 목표 양식 (SOT v4.8 §6.17 GF-1~GF-11, §5.8·§5.9, §7.7). 계획·RPC 계약: `docs/plans/phase-21-plan.md`
+  - **사용자 결정 24건**(S-1~S-22 + 추가 2건, SOT v4.8 "Phase 21 착수 전 보강"): 스냅샷 복원은 막고 원본만 기록(GF-11) · 실적·측정은 **지표명으로** 부모 연결(GF-10, 같은 파일 새 지표 포함) · 새 필드 표시+모달 편집+가중치 합 경고 · 성과목표 `구분` 열 없음 · 지표명 드롭다운은 같은 파일 시트 범위 참조(warning) · 음수 가중치·비중 blocking · 나머지는 planner 권고안(컬럼명 `group_name`, `form = goal`, `#total` 합계 행 등)
+  - 스키마: `20260929000000_goal_form.sql` — `deliverables` 2컬럼·`tech_targets` 5컬럼(schema 4 유지), `commit_goal_form` RPC(경계 N-13, 행별 version 충돌 건너뜀, 임시 키 `row:<n>` 부모 해석, S-6② 부모 삭제 검사, targetByYear 병합, 스냅샷 `goals` 테이블별), `restore_import_snapshot`은 goals 스냅샷 거부, `restore_backup`은 새 컬럼 기본값 채움. **dev DB 적용됨**
+  - `lib/goal-form/`: `value.ts`(GF-6 숫자 해석) · `layout.ts`·`meta.ts`·`types.ts`(좌표 맵·_meta) · `build.ts`·`guide.ts`(생성·작성안내) · `parse.ts`(xlsx 무관 행 모델 `GoalFormRows` — Phase 22 hwpx가 같은 모델을 만든다, 사유 표 `GOAL_FORM_ISSUES`) · `preview.ts`(투영 비교·삭제 후보·달성률 전후·페이로드). 어댑터는 `writeInputFormWorkbook` 재사용 + `listRange`·`errorStyle` 추가(입력 양식 산출물 불변)
+  - 액션 `actions/goal-form.ts` 3종(미리보기·반영 같은 파이프라인, fileHash 대조), 목표 CRUD 새 필드, 화면: 툴바·업로드 모달·테이블 새 열·구분 묶음·모달 편집·설정 스냅샷 패널 "목표 양식"(복원 비활성)
+  - 구현 중 정정(SOT 반영): ① `parent-moved`는 실적 행 지표명이 **다른** 지표 이름과 일치할 때만 — 지표 이름만 고쳐 올리는 §11 흐름을 막지 않게 ② `_meta` `yearIds`는 `year:` 행 순서로(별도 행 없음) ③ 합계 행 아래 값은 blocking `below-total` ④ 방법·부모 측정방법 둘 다 없으면 blocking `no-method`(evaluator가 찾은 미리보기 throw 버그)
+  - 스냅샷 `goals` 형태 불일치(RPC는 테이블별 객체, Zod는 평면 배열)를 통합 전에 잡아 Zod를 RPC에 맞춤 — 그대로 뒀으면 스냅샷 하나로 설정 목록이 깨졌다
+  - 테스트: 단위 76파일 2,491건(goal-form 7파일 323건), 통합 `goal-form-actions` 30건(§11 완료 기준·경계·충돌·연쇄 삭제·복원 거부·20개 창), 파괴적 11건(새 컬럼 백업·옛 백업 기본값). 전체 `npm test` 3,125건·build 통과는 evaluator 수정 **전** 기준 — 수정 뒤에는 단위 전체·goal-form 통합만 다시 돌렸다
+  - 알려진 한계: 백분율 서식 칸에 `10%` → 0.1로 읽힌다(GF-6 "숫자 셀 그대로", 입력 양식 D-22와 다름 — 우리 양식엔 % 서식 없음, 필요하면 SOT 결정) · 두 지표 이름을 맞바꾸면 parent-moved로 막힘(작성안내에 주의) · 가중치 합 100 비교는 정확 비교(소수 오차 가능, 기존 T-3과 같음)
 - **Phase 20 완료 (2026-09-28, evaluator PASS 11/11)** — 수행 양식 (SOT §5.12, §6.16 IN-9~IN-14, §7.9.7). 구현 내용은 아래 "In progress"에서 옮긴 요약과 `docs/plans/phase-20-plan.md` 참고:
   - 집 PC에서 `20260928000000_execution_form.sql`을 dev DB에 적용(link 없이 `--db-url` 직결, `.env.test.local`의 URL). 7컬럼·`commit_execution_form`·`schema_version=4` 직접 조회로 확인
   - 통합 테스트 초안(T9·T10) 39건이 **수정 없이 통과**. 백업 S-12 테스트 2건을 `tests/destructive/backup-roundtrip.test.ts`에 추가(내보내기 JSON 7컬럼, 7컬럼 뺀 옛 형식 복원 시 `spec=''`·나머지 null)
@@ -294,7 +305,7 @@
   - 알려진 톤 반전(읽힘엔 문제 없음): 노트 코드 블록(다크에서 밝은 바탕), 마일스톤 오늘 선(흰 선)
 
 ## In progress
-없음. 다음은 Phase 21(`/phase-run 21`).
+없음. 다음은 Phase 22(`/phase-run 22`).
 
 (기록) **Phase 20 수행 양식 — 회사 PC 시점 상태, 이후 집 PC에서 완료** (계획: `docs/plans/phase-20-plan.md`, T0~T15)
 - 끝난 태스크: T0(SOT 보강) · T1(마이그레이션 SQL) · T2(타입·Zod·리포지토리) · T3(좌표 맵 mode 분기·_meta) · T4(생성기·작성안내·드롭다운) · T5(수행 파서) · T6(수행 미리보기·페이로드) · T7(어댑터 날짜 셀·인라인 드롭다운) · T8(왕복 테스트 + 결함 2건) · T9(서버 액션) · T10(집행 CRUD 새 필드) · T11a(집행 패널 "내역" 줄) · T11b(연구비 화면 수행 툴바·업로드 모달) · T12(설정 스냅샷 패널)
@@ -305,7 +316,9 @@
 - 명세 밖 추가: `actions/budget.ts` `getExecutionDetailOptions(projectId)`(패널 인력·산출근거 선택지, 읽기 전용) · `tests/unit/input-form-boundary.test.ts` 산식 호출 허용 목록에 `parse-execution.ts`·`execution-preview.ts` 추가(IN-11 금액 보완 — 산식 재사용이지 재구현 아님)
 
 ## Next steps
-> **다음: Phase 21 목표 양식 — `/phase-run 21`.** 회사 PC로 옮기면 `git pull`만 하면 된다(DB는 공유라 `db push` 이미 적용됨).
+> **다음: Phase 22 hwpx 계획서 가져오기 — `/phase-run 22`.** 첫 작업: planner가 `samples/*.hwpx`(108MB, gitignore — PC 간 수동 복사) 실측으로 SOT §6.18·부록 C.3 공백을 뽑는다. 파서는 Phase 21의 행 모델 `GoalFormRows`(`lib/goal-form/parse.ts`)를 만들고 `previewGoalForm(allowDeletes: false)`·`commit_goal_form`을 그대로 탄다(HX-8). 회사 PC로 옮기면 `git pull`만 하면 된다(DB 공유, `20260929000000` 이미 적용).
+>
+> (처리됨, 2026-09-29) Phase 21 목표 양식.
 
 > (처리됨, 2026-09-28 밤) **집 PC 인계 (2026-09-28 회사 PC에서 정리) — Phase 20 마무리 순서**:
 > ① `git pull` → `npm install`(의존성 변경 없음, 확인용)

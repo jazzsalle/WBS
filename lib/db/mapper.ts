@@ -2,7 +2,7 @@
 // 이 파일만 변환을 전담한다. 리포지토리 밖에서 케이스 변환을 하지 않는다.
 //
 // 특례 2가지:
-//  - N-9: DB `sort_order` ↔ 앱 `order` (order는 SQL 예약어)
+//  - N-9: DB `sort_order` ↔ 앱 `order`, DB `group_name` ↔ 앱 `group` (둘 다 SQL 예약어)
 //  - jsonb 컬럼의 내부 키는 변환하지 않는다. targetByYear의 키는 yearId(uuid 문자열),
 //    categoryAliases의 키는 엑셀 원문 라벨이다 — 키를 건드리면 데이터가 깨진다 (N-3, N-13).
 
@@ -21,11 +21,13 @@ const JSONB_PASSTHROUGH_KEYS = new Set([
 
 function snakeToCamelKey(key: string): string {
   if (key === 'sort_order') return 'order'; // N-9
+  if (key === 'group_name') return 'group'; // N-9 (tech_targets, Phase 21)
   return key.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 }
 
 function camelToSnakeKey(key: string): string {
   if (key === 'order') return 'sort_order'; // N-9
+  if (key === 'group') return 'group_name'; // N-9 (tech_targets, Phase 21)
   return key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 }
 

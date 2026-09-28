@@ -5,6 +5,7 @@
 //   ① 총괄표(commitImport) — 계획액만 담는다
 //   ② 산출근거(commitDetailImport) — 계획액 + 삭제되는 budget_details 행 (D-17)
 //   ③ 수행 양식(commitExecutionForm) — 집행 행의 추가 id·변경 전 원본·삭제 id (IN-14). items는 빈 배열
+//   ④ 목표 양식(commitGoalForm) — 목표 행의 추가 id·변경 전 원본·삭제 id (GF-11). 복원은 거부된다
 // 계획액을 통째로 되돌리는 조작이라 전체 복원(K-4)과 같은 무게의 2단계 확인을 거친다.
 // 데이터 접근은 actions/import 경유만 한다 — supabase를 직접 호출하지 않는다 (절대 규칙 3).
 
@@ -59,7 +60,16 @@ function isExecutionSnapshot(snapshot: ImportSnapshot): boolean {
   return snapshot.snapshot.kind === 'execution_form';
 }
 
+/** GF-11: 목표 양식 반영이 남긴 스냅샷인가. Phase 21은 복원을 거부한다(RPC raise + 버튼 비활성) */
+function isGoalSnapshot(snapshot: ImportSnapshot): boolean {
+  return snapshot.snapshot.kind === 'goal_form';
+}
+
+/** RPC가 복원을 거부할 때 쓰는 문구와 같게 둔다 — 화면 안내와 거부 사유가 따로 놀지 않게 */
+const GOAL_RESTORE_BLOCKED = '목표 양식 스냅샷은 되돌릴 수 없습니다 — 반영 기록용입니다';
+
 function kindLabel(snapshot: ImportSnapshot): string {
+  if (isGoalSnapshot(snapshot)) return '목표 양식';
   if (isExecutionSnapshot(snapshot)) return '수행 양식';
   return isDetailSnapshot(snapshot) ? '산출근거' : '예산계획';
 }
@@ -90,6 +100,72 @@ function executionSummary(snapshot: ImportSnapshot): string {
   const counts = executionCounts(snapshot);
   if (counts === null) return '집행 변경 기록이 스냅샷에 없습니다 — 스냅샷이 손상되었을 수 있습니다';
   return `집행 추가 ${counts.added}건 · 변경 ${counts.changed}건 · 삭제 ${counts.deleted}건`;
+}
+
+/** 시트 이름 ↔ 스냅샷 키(테이블 이름). 순서는 양식 시트 순서(GF-1) */
+const GOAL_TABLES = [
+  { table: 'deliverables', label: '성과목표' },
+  { table: 'deliverable_achievements', label: '성과실적' },
+  { table: 'tech_targets', label: '기술목표' },
+  { table: 'tech_target_records', label: '측정이력' },
+] as const;
+
+/** 세지는 않지만 commit_goal_form이 before에 항상 넣는 연계 행 키 — 없으면 원본이 빠진 것이다 */
+const GOAL_LINK_TABLES = ['achievement_members', 'task_deliverables', 'task_tech_targets'] as const;
+
+interface GoalSheetCounts extends ExecutionCounts {
+  label: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isIdArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((id) => typeof id === 'string');
+}
+
+/**
+ * GF-11: 시트별 추가·변경·삭제 건수. 변경 = before에 있는데 deleted에 없는 id(IN-14와 같은 셈).
+ * jsonb는 매퍼가 검증하지 않으므로 여기서 형태를 확인한다 — 깨졌으면 null을 돌려 손상으로
+ * 드러낸다. 0건으로 보이면 "아무것도 안 바뀐 반영"으로 오해한다 (절대 규칙 5).
+ */
+function goalCounts(snapshot: ImportSnapshot): GoalSheetCounts[] | null {
+  const goals: unknown = snapshot.snapshot.goals;
+  if (!isRecord(goals)) return null;
+  const { added, before, deleted } = goals;
+  if (!isRecord(added) || !isRecord(before) || !isRecord(deleted)) return null;
+  if (GOAL_LINK_TABLES.some((table) => !Array.isArray(before[table]))) return null;
+
+  const counts: GoalSheetCounts[] = [];
+  for (const { table, label } of GOAL_TABLES) {
+    const addedIds = added[table];
+    const deletedIds = deleted[table];
+    const beforeRows = before[table];
+    if (!isIdArray(addedIds) || !isIdArray(deletedIds) || !Array.isArray(beforeRows)) return null;
+
+    const beforeIds: string[] = [];
+    for (const row of beforeRows) {
+      if (!isRecord(row) || typeof row.id !== 'string') return null;
+      beforeIds.push(row.id);
+    }
+    const deletedSet = new Set(deletedIds);
+    counts.push({
+      label,
+      added: addedIds.length,
+      changed: new Set(beforeIds.filter((id) => !deletedSet.has(id))).size,
+      deleted: deletedSet.size,
+    });
+  }
+  return counts;
+}
+
+function goalSummary(snapshot: ImportSnapshot): string {
+  const counts = goalCounts(snapshot);
+  if (counts === null) return '목표 변경 기록이 스냅샷에 없거나 형식이 깨졌습니다 — 스냅샷이 손상되었을 수 있습니다';
+  return counts
+    .map((c) => `${c.label} 추가 ${c.added} · 변경 ${c.changed} · 삭제 ${c.deleted}`)
+    .join(' / ');
 }
 
 export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelProps) {
@@ -195,7 +271,8 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
       <p className="mt-1 text-sm text-grey-500">
         엑셀 반영 직전의 상태입니다. 잘못 반영했을 때 여기서 되돌립니다. 예산계획 반영(§6.8)은
         계획액을, 산출근거 반영(§6.11)은 계획액과 <strong>삭제된 산출근거 행</strong>까지, 수행
-        양식 반영(§6.16)은 <strong>추가·변경·삭제된 집행 내역</strong>을 담습니다.
+        양식 반영(§6.16)은 <strong>추가·변경·삭제된 집행 내역</strong>을 담습니다. 목표 양식
+        반영(§6.17)은 기록으로만 남고 되돌릴 수 없습니다.
       </p>
 
       {/* I-17의 사실을 그대로 적는다 — 안 적으면 사용자가 "복원의 복원"을 기대한다 */}
@@ -224,6 +301,10 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
           <strong>수행 양식 스냅샷은 반영 전체를 되돌립니다</strong> (IN-14) — 반영으로 추가된 집행은
           삭제되고, 바뀐 집행은 원래 값으로, 삭제된 집행은 되살아납니다. 반영 뒤 그 집행을 다시
           고쳤거나 지웠다면 되돌리기 전체가 거부됩니다.
+        </li>
+        <li>
+          <strong>목표 양식 스냅샷은 되돌릴 수 없습니다</strong> (GF-11) — 반영 기록용입니다. 성과목표·
+          성과실적·기술목표·측정이력의 추가·변경·삭제 건수만 보여 줍니다.
         </li>
       </ul>
 
@@ -293,7 +374,16 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                     {new Date(snapshot.snapshot.capturedAt).toLocaleString('ko-KR')} ·{' '}
                     {snapshot.snapshot.source.sheetName} 시트
                   </p>
-                  {isExecutionSnapshot(snapshot) ? (
+                  {isGoalSnapshot(snapshot) ? (
+                    <>
+                      <p
+                        className={`mt-1 text-xs ${goalCounts(snapshot) === null ? 'text-red-600' : 'text-grey-500'}`}
+                      >
+                        {goalSummary(snapshot)}
+                      </p>
+                      <p className="mt-1 text-xs text-grey-500">{GOAL_RESTORE_BLOCKED} (GF-11)</p>
+                    </>
+                  ) : isExecutionSnapshot(snapshot) ? (
                     <p
                       className={`mt-1 text-xs ${executionCounts(snapshot) === null ? 'text-red-600' : 'text-grey-500'}`}
                     >
@@ -309,6 +399,9 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                 <Button
                   size="sm"
                   variant="danger"
+                  // GF-11: 목표 양식 스냅샷은 복원 경로가 없다 — 모달조차 열지 않는다
+                  disabled={isGoalSnapshot(snapshot)}
+                  title={isGoalSnapshot(snapshot) ? GOAL_RESTORE_BLOCKED : undefined}
                   onClick={() => {
                     setTarget(snapshot);
                     setStep(1);

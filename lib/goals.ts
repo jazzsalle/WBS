@@ -192,6 +192,22 @@ export function summarizeTechTarget(target: TechTargetInput): TechTargetSummary 
   };
 }
 
+// ─── 가중치 합계 (T-3, §7.7 탭 1 가중치 경고) ─────────────────
+
+export interface WeightSummary {
+  totalWeight: number;
+  weightMismatch: boolean; // Σweight ≠ 100. 항목이 0개면 경고할 대상이 없어 false
+}
+
+/**
+ * 기술목표 비중(T-3)과 성과목표 가중치(§7.7 탭 1)의 합계 경고.
+ * 두 탭의 판정이 어긋나지 않게 한 함수로 둔다. 저장은 막지 않는다 — 경고만.
+ */
+export function summarizeWeights(items: readonly { weight: number }[]): WeightSummary {
+  const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+  return { totalWeight, weightMismatch: items.length > 0 && totalWeight !== 100 };
+}
+
 export interface TechTargetTotal {
   weightedRate: number | null;  // T-3: Σweight가 0이면 null (0으로 나누지 않는다)
   totalWeight: number;
@@ -208,23 +224,22 @@ export interface TechTargetTotal {
 export function computeTechTargetTotal(
   targets: readonly TechTargetInput[]
 ): TechTargetTotal {
-  let totalWeight = 0;
   let weightedSum = 0;
   let unmeasuredCount = 0;
   let evaluatorMissingCount = 0;
 
   for (const t of targets) {
     const summary = summarizeTechTarget(t);
-    totalWeight += t.weight;
     weightedSum += (summary.rate ?? 0) * t.weight;
     if (summary.rate === null) unmeasuredCount += 1;
     if (summary.evaluatorMissing) evaluatorMissingCount += 1;
   }
 
+  const { totalWeight, weightMismatch } = summarizeWeights(targets);
   return {
     weightedRate: totalWeight === 0 ? null : weightedSum / totalWeight,
     totalWeight,
-    weightMismatch: targets.length > 0 && totalWeight !== 100,
+    weightMismatch,
     unmeasuredCount,
     evaluatorMissingCount,
   };

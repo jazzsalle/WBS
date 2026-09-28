@@ -160,9 +160,11 @@ export const deliverableRowSchema = z.object({
   type: deliverableTypeSchema,
   name: z.string(),
   unit: z.string(),
+  weight: z.number(), // numeric — tech_targets.weight와 같이 PostgREST가 JSON 숫자로 준다
   target_total: z.number(),
   target_by_year: z.record(z.string(), z.number()), // { yearId: 목표건수 } — 키는 변환 금지 (N-13)
   org_id: z.uuid().nullable(),
+  evidence_method: z.string(),
   note: z.string(),
   sort_order: z.number(),
 });
@@ -187,6 +189,7 @@ export const techTargetRowSchema = z.object({
   ...baseRow,
   project_id: z.uuid(),
   name: z.string(),
+  group_name: z.string(), // 앱 TechTarget.group (N-9 특례 — group은 SQL 예약어)
   unit: z.string(),
   direction: directionSchema,
   weight: z.number(),
@@ -197,6 +200,10 @@ export const techTargetRowSchema = z.object({
   world_best_holder: z.string(),
   measure_method: measureMethodSchema,
   measure_description: z.string(),
+  standard_basis: z.string(),
+  basis_rationale: z.string(),
+  evaluation_environment: z.string(),
+  note: z.string(),
   org_id: z.uuid().nullable(),
   sort_order: z.number(),
 });
@@ -513,14 +520,26 @@ export const importSnapshotExecutionsSchema = z.object({
   deleted: z.array(z.uuid()).optional(),
 });
 
+// GF-11 — before에는 네 테이블과 연계 행(achievement_members·작업 연계)이 섞인다. 행 형태는
+// 검증하지 않는다: Phase 21은 복원을 거부하고 앱은 건수만 읽으며, 형태를 요구하면 이후 컬럼
+// 추가로 옛 스냅샷 하나가 그 과제의 스냅샷 목록 전체를 깨뜨린다(IN-14와 같은 이유)
+// commit_goal_form이 쓰는 형태 — 키는 테이블 이름. added·deleted는 4종 테이블,
+// before는 거기에 연계 행(achievement_members·task_deliverables·task_tech_targets)이 더해진다.
+// 테이블 목록을 고정하지 않는 이유: 행 원본만 담는 기록이라 키가 늘어도 목록 화면이 깨지면 안 된다
+export const importSnapshotGoalsSchema = z.looseObject({
+  added: z.record(z.string(), z.array(z.uuid())),
+  before: z.record(z.string(), z.array(z.looseObject({}))),
+  deleted: z.record(z.string(), z.array(z.uuid())),
+});
+
 export const importSnapshotPayloadSchema = z.object({
   schemaVersion: z.number(),
   projectId: z.uuid(),
   capturedAt: isoTimestamp,
   // D-17: 산출근거 스냅샷(commit_detail_import)은 'budget_detail', 수행 양식(commit_execution_form,
-  // IN-10)은 'execution_form'. Zod가 모르는 키를 지우므로 여기 적지 않으면 설정 화면이 스냅샷
+  // IN-10)은 'execution_form', 목표 양식(commit_goal_form, GF-11)은 'goal_form'. Zod가 모르는 키를 지우므로 여기 적지 않으면 설정 화면이 스냅샷
   // 종류를 영영 알 수 없다 (총괄표 스냅샷은 undefined). 값을 빠뜨리면 그 과제의 목록 전체가 깨진다
-  kind: z.enum(['budget_detail', 'execution_form']).optional(),
+  kind: z.enum(['budget_detail', 'execution_form', 'goal_form']).optional(),
   source: z.object({
     fileName: z.string(),
     sheetName: z.string(),
@@ -529,6 +548,7 @@ export const importSnapshotPayloadSchema = z.object({
   }),
   items: z.array(importSnapshotItemSchema),
   executions: importSnapshotExecutionsSchema.optional(), // IN-14: 수행 스냅샷에만 있다
+  goals: importSnapshotGoalsSchema.optional(), // GF-11: 목표 양식 스냅샷에만 있다
 });
 
 export const importSnapshotRowSchema = z.object({

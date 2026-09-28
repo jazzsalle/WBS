@@ -43,6 +43,7 @@ import {
   computeTechTargetTotal,
   summarizeDeliverable,
   summarizeTechTarget,
+  summarizeWeights,
 } from '@/lib/goals';
 import { todayISO } from '@/lib/dates';
 
@@ -88,6 +89,10 @@ export interface GoalsData {
     achievedTotal: number;
     rate: number | null;
     byType: { type: DeliverableType; target: number; achieved: number }[];
+    /** Σ성과목표 가중치(%). 반올림하지 않은 원시값 */
+    weightSum: number;
+    /** §7.7 탭 1 경고 배지 — Σweight ≠ 100. 지표 0개면 false (탭 2 weightMismatch와 같은 판정) */
+    weightMismatch: boolean;
   };
   techTargets: TechTargetView[];
   techSummary: { weightedRate: number | null; weightSum: number; weightMismatch: boolean };
@@ -115,6 +120,17 @@ const evidenceUrlSchema = z.string().trim().max(2000, '증빙 링크는 2000자 
 
 const noteSchema = z.string().max(10_000);
 
+// Phase 21 계획서 표의 서술형 열(평가방법·표준·근거·환경). 비고와 같은 상한 —
+// 양식 파서(GF-9)도 이 상한을 따른다.
+const longTextSchema = z.string().trim().max(10_000, '10,000자 이내로 입력하세요.');
+
+// 성과목표 가중치·기술목표 비중(%). 소수 허용. 음수는 가중 합계를 뒤집으므로 거부한다 —
+// deliverables.weight는 DB check도 있지만 tech_targets.weight는 없어서 여기가 유일한 방어선이다 (S-20)
+const weightSchema = z
+  .number()
+  .finite('가중치가 올바르지 않습니다.')
+  .nonnegative('가중치는 0 이상이어야 합니다.');
+
 // §5.8 성과목표는 "건수"다 — 0 이상 정수만 받는다 (DB도 integer)
 const countSchema = z
   .number()
@@ -141,9 +157,11 @@ const deliverableFieldsSchema = z.object({
   type: deliverableTypeSchema,
   name: nameSchema,
   unit: z.string().trim().max(20, '단위는 20자 이내여야 합니다.'),
+  weight: weightSchema,
   targetTotal: countSchema,
   targetByYear: deliverableYearTargetsSchema,
   orgId: z.uuid().nullable(),
+  evidenceMethod: longTextSchema,
   note: noteSchema,
 });
 
@@ -179,10 +197,14 @@ const achievementPatchSchema = achievementFieldsSchema.partial();
 
 const techTargetFieldsSchema = z.object({
   name: nameSchema,
+  group: z.string().trim().max(200, '구분은 200자 이내여야 합니다.'),
   unit: z.string().trim().max(20, '단위는 20자 이내여야 합니다.'),
   direction: directionSchema,
   // T-3: 비중은 가중 평균의 분모다. 음수가 섞이면 전체 달성률이 뒤집힌다
-  weight: z.number().nonnegative('비중은 0 이상이어야 합니다.'),
+  weight: z
+    .number()
+    .finite('비중이 올바르지 않습니다.')
+    .nonnegative('비중은 0 이상이어야 합니다.'),
   targetValue: measureValueSchema,
   targetByYear: techYearTargetsSchema,
   baselineDomestic: measureValueSchema.nullable(),
@@ -190,6 +212,10 @@ const techTargetFieldsSchema = z.object({
   worldBestHolder: z.string().trim().max(200, '보유국/보유기관은 200자 이내여야 합니다.'),
   measureMethod: measureMethodSchema,
   measureDescription: noteSchema,
+  standardBasis: longTextSchema,
+  basisRationale: longTextSchema,
+  evaluationEnvironment: longTextSchema,
+  note: noteSchema,
   orgId: z.uuid().nullable(),
 });
 
@@ -323,9 +349,11 @@ export async function createDeliverable(
         type: fields.type,
         name: fields.name,
         unit: fields.unit ?? '건', // §5.8 기본 '건'
+        weight: fields.weight ?? 0,
         targetTotal: fields.targetTotal ?? 0,
         targetByYear: fields.targetByYear ?? {},
         orgId: fields.orgId ?? null,
+        evidenceMethod: fields.evidenceMethod ?? '',
         note: fields.note ?? '',
         order: nextOrder(existing),
       },
@@ -571,6 +599,7 @@ export async function createTechTarget(
       {
         projectId: pid,
         name: fields.name,
+        group: fields.group ?? '',
         unit: fields.unit ?? '',
         direction: fields.direction ?? 'higher_better', // §5.9 기본값
         weight: fields.weight ?? 0,
@@ -581,6 +610,10 @@ export async function createTechTarget(
         worldBestHolder: fields.worldBestHolder ?? '',
         measureMethod: fields.measureMethod ?? 'self',
         measureDescription: fields.measureDescription ?? '',
+        standardBasis: fields.standardBasis ?? '',
+        basisRationale: fields.basisRationale ?? '',
+        evaluationEnvironment: fields.evaluationEnvironment ?? '',
+        note: fields.note ?? '',
         orgId: fields.orgId ?? null,
         order: nextOrder(existing),
       },
@@ -851,6 +884,7 @@ export async function getGoalsData(projectId: string): Promise<ActionResult<Goal
     });
 
     const deliverableTotal = computeDeliverableTotal(deliverables);
+    const deliverableWeights = summarizeWeights(deliverables);
 
     // §7.7 "유형별 도넛"용 단순 합산. 순서는 목록 등장 순(= sort_order)으로 결정적이다
     const byTypeMap = new Map<DeliverableType, { type: DeliverableType; target: number; achieved: number }>();
@@ -892,6 +926,8 @@ export async function getGoalsData(projectId: string): Promise<ActionResult<Goal
           achievedTotal: deliverableTotal.achieved,
           rate: deliverableTotal.rate,
           byType: [...byTypeMap.values()],
+          weightSum: deliverableWeights.totalWeight,
+          weightMismatch: deliverableWeights.weightMismatch,
         },
         techTargets: techTargetViews,
         techSummary: {

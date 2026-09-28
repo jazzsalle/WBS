@@ -22,6 +22,7 @@ import {
   finishDataSheet,
   finishGuideSheet,
   inlineListFormula,
+  rangeListFormula,
   styleDataCell,
   styleGuideSheet,
   styleHeaderRow,
@@ -118,7 +119,12 @@ function validationRows(sheet: FormSheet): number[] {
   return out;
 }
 
-function applyValidations(ws: ExcelJS.Worksheet, sheet: FormSheet, columnCount: number): void {
+function applyValidations(
+  ws: ExcelJS.Worksheet,
+  sheet: FormSheet,
+  columnCount: number,
+  sheetNames: ReadonlySet<string>
+): void {
   if (sheet.validations === undefined) return;
   const seen = new Set<number>();
   const rows = validationRows(sheet);
@@ -130,13 +136,27 @@ function applyValidations(ws: ExcelJS.Worksheet, sheet: FormSheet, columnCount: 
     // 같은 열에 두 목록이면 뒤의 것이 앞을 덮는다 — 어느 쪽이 의도였는지 여기서는 알 수 없다
     if (seen.has(column)) throw new Error(`'${sheet.name}' 시트의 드롭다운 열이 중복됩니다: ${column}`);
     seen.add(column);
+    const where = `'${sheet.name}' 시트 ${column}번 열`;
+    const { listRange } = validation;
+    // 둘 다 있으면 인라인 목록과 범위 중 어느 쪽이 의도였는지 알 수 없다(types.ts 규약: listRange면 values는 [])
+    if (listRange !== undefined && validation.values.length > 0) {
+      throw new Error(`${where}: 드롭다운에 목록 값과 목록 범위를 함께 지정했습니다.`);
+    }
+    // 없는 시트를 가리키면 엑셀은 드롭다운을 빈 목록으로 보여줄 뿐이라 아무도 알아채지 못한다
+    if (listRange !== undefined && !sheetNames.has(listRange.sheet)) {
+      throw new Error(`${where}: 드롭다운 목록 시트 '${listRange.sheet}'가 워크북에 없습니다.`);
+    }
     let formula: string;
     try {
-      formula = inlineListFormula(validation.values);
+      formula =
+        listRange !== undefined
+          ? rangeListFormula(listRange.sheet, listRange.range)
+          : inlineListFormula(validation.values);
     } catch (e) {
-      throw new Error(`'${sheet.name}' 시트 ${column}번 열: ${e instanceof Error ? e.message : String(e)}`);
+      throw new Error(`${where}: ${e instanceof Error ? e.message : String(e)}`);
     }
-    for (const r of rows) applyListValidation(ws.getCell(r + 1, column + 1), formula);
+    const errorStyle = validation.errorStyle ?? 'stop';
+    for (const r of rows) applyListValidation(ws.getCell(r + 1, column + 1), formula, errorStyle);
   }
 }
 
@@ -205,7 +225,7 @@ function styleGuide(ws: ExcelJS.Worksheet, sheet: FormSheet): void {
  * 파서가 보는 격자 폭(`!ref`)은 헤더 폭과 같다 — 끝 열(비고 등)이 데이터 행에서 비어 있어도 잘리지 않는다.
  * 행이 하나도 없으면 빈 시트다.
  */
-function writeSheet(wb: ExcelJS.Workbook, sheet: FormSheet): void {
+function writeSheet(wb: ExcelJS.Workbook, sheet: FormSheet, sheetNames: ReadonlySet<string>): void {
   // 숨김: 사용자가 필요하면 볼 수 있어야 하므로 'hidden'(veryHidden은 VBA로만 해제된다)
   const ws = sheet.hidden ? wb.addWorksheet(sheet.name, { state: 'hidden' }) : wb.addWorksheet(sheet.name);
 
@@ -234,7 +254,7 @@ function writeSheet(wb: ExcelJS.Workbook, sheet: FormSheet): void {
     styleGuide(ws, sheet);
   } else {
     styleDataSheet(ws, sheet, columnCount);
-    applyValidations(ws, sheet, columnCount);
+    applyValidations(ws, sheet, columnCount, sheetNames);
   }
 }
 
@@ -253,12 +273,13 @@ export async function writeInputFormWorkbook(wb: InputFormWorkbook): Promise<Buf
   if (wb.sheets.length === 0) throw new Error('입력 양식에 시트가 하나도 없습니다.');
 
   const seen = new Set<string>();
-  const workbook = createStyledWorkbook();
   for (const sheet of wb.sheets) {
     if (seen.has(sheet.name)) throw new Error(`시트 이름이 중복됩니다: ${sheet.name}`);
     seen.add(sheet.name);
-    writeSheet(workbook, sheet);
   }
+  // 범위 목록은 뒤에 오는 시트(`_lists`)를 가리킬 수 있어 이름을 먼저 다 모은다
+  const workbook = createStyledWorkbook();
+  for (const sheet of wb.sheets) writeSheet(workbook, sheet, seen);
 
   const out: unknown = await workbook.xlsx.writeBuffer();
   if (Buffer.isBuffer(out)) return out;

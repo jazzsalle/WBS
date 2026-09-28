@@ -653,6 +653,15 @@ describe('getGoalsData (§9 조회, §6.2, §6.3, 부록 B.2)', () => {
     expect(data.deliverableSummary.byType).toEqual([]);
     expect(data.techSummary.weightedRate).toBeNull(); // T-3: 0으로 나누지 않는다
     expect(data.techSummary.weightMismatch).toBe(false); // 항목이 없으면 경고도 없다
+    expect(data.deliverableSummary.weightSum).toBe(0);
+    expect(data.deliverableSummary.weightMismatch).toBe(false); // 지표 0개면 경고 없음 (S-19)
+  });
+
+  it('성과목표 가중치를 생략한 지표만 있으면 합 0이고 경고한다 (§7.7 탭 1, S-19)', async () => {
+    // beforeAll의 성과목표 4종은 가중치를 주지 않았다 → 전부 기본값 0
+    const data = unwrap(await goals.getGoalsData(summaryProjectId));
+    expect(data.deliverableSummary.weightSum).toBe(0);
+    expect(data.deliverableSummary.weightMismatch).toBe(true);
   });
 });
 
@@ -782,5 +791,160 @@ describe('실적·측정 이력 낙관적 잠금 (§5.8·§5.9 version, §8.4 O-
         1
       )
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+// Phase 21: 계획서 표의 열을 담는 새 필드. 액션은 전부 선택 인자로 받는다 —
+// 생략하면 create는 DB 기본값(0/''), update는 건드리지 않는다 (S-19, §7.7)
+describe('목표 새 필드 (Phase 21 — §5.8 weight·evidenceMethod, §5.9 group 외, S-19)', () => {
+  it('성과목표: 가중치·평가방법을 생략하면 0과 빈 문자열이다', async () => {
+    const created = unwrap(
+      await goals.createDeliverable(projectId, { type: 'other', name: '새 필드 생략 지표' })
+    );
+    expect(created.weight).toBe(0);
+    expect(created.evidenceMethod).toBe('');
+    unwrap(await goals.deleteDeliverable(created.id));
+  });
+
+  it('성과목표: 새 필드로 생성하면 조회 값이 같고, 일부만 수정하면 나머지는 유지된다', async () => {
+    const created = unwrap(
+      await goals.createDeliverable(projectId, {
+        type: 'sw_registration',
+        name: '새 필드 지표',
+        weight: 12.5, // numeric — 소수 허용 (§5.8)
+        evidenceMethod: 'SW 등록증',
+        note: '비고 원문',
+      })
+    );
+    expect(created.weight).toBe(12.5);
+    expect(created.evidenceMethod).toBe('SW 등록증');
+
+    const fetched = await deliverablesRepo.getDeliverableById(user.client, created.id);
+    expect(fetched.weight).toBe(12.5);
+    expect(fetched.evidenceMethod).toBe('SW 등록증');
+    expect(fetched.note).toBe('비고 원문');
+
+    const updated = unwrap(
+      await goals.updateDeliverable(created.id, { weight: 30 }, fetched.version)
+    );
+    expect(updated.weight).toBe(30);
+    expect(updated.evidenceMethod).toBe('SW 등록증'); // patch에 없으면 그대로
+    expect(updated.note).toBe('비고 원문');
+    expect(updated.name).toBe('새 필드 지표');
+
+    const updated2 = unwrap(
+      await goals.updateDeliverable(created.id, { evidenceMethod: '프로그램 등록증 사본' })
+    );
+    expect(updated2.weight).toBe(30);
+    expect(updated2.evidenceMethod).toBe('프로그램 등록증 사본');
+
+    unwrap(await goals.deleteDeliverable(created.id));
+  });
+
+  it('성과목표: 음수·비유한 가중치와 상한 초과 평가방법은 거부한다', async () => {
+    expectCode(
+      await goals.createDeliverable(projectId, { type: 'other', name: '음수 가중치', weight: -1 }),
+      'VALIDATION'
+    );
+    expectCode(
+      await goals.createDeliverable(projectId, {
+        type: 'other',
+        name: '무한 가중치',
+        weight: Number.POSITIVE_INFINITY,
+      }),
+      'VALIDATION'
+    );
+    expectCode(
+      await goals.createDeliverable(projectId, {
+        type: 'other',
+        name: '긴 평가방법',
+        evidenceMethod: 'x'.repeat(10_001),
+      }),
+      'VALIDATION'
+    );
+    expectCode(await goals.updateDeliverable(deliverableId, { weight: -0.5 }), 'VALIDATION');
+  });
+
+  it('기술목표: 구분·표준·근거·환경·비고를 생략하면 빈 문자열이다', async () => {
+    const created = unwrap(await goals.createTechTarget(projectId, { name: '새 필드 생략 항목' }));
+    expect(created.group).toBe('');
+    expect(created.standardBasis).toBe('');
+    expect(created.basisRationale).toBe('');
+    expect(created.evaluationEnvironment).toBe('');
+    expect(created.note).toBe('');
+    unwrap(await goals.deleteTechTarget(created.id));
+  });
+
+  it('기술목표: 새 필드로 생성하면 조회 값이 같고, 일부만 수정하면 나머지는 유지된다', async () => {
+    const created = unwrap(
+      await goals.createTechTarget(projectId, {
+        name: '새 필드 평가항목',
+        group: '디지털 트윈 자율안전관리 플랫폼',
+        standardBasis: 'KS X ISO/IEC 25023',
+        basisRationale: '선행 과제 실측치 기준',
+        evaluationEnvironment: '공인시험기관 테스트베드',
+        note: '[원문] 최종 목표: 수초이내',
+      })
+    );
+
+    // group은 DB group_name으로 저장된다(N-9 특례) — 왕복해도 같은 값이어야 한다
+    const fetched = await techTargetsRepo.getTechTargetById(user.client, created.id);
+    expect(fetched.group).toBe('디지털 트윈 자율안전관리 플랫폼');
+    expect(fetched.standardBasis).toBe('KS X ISO/IEC 25023');
+    expect(fetched.basisRationale).toBe('선행 과제 실측치 기준');
+    expect(fetched.evaluationEnvironment).toBe('공인시험기관 테스트베드');
+    expect(fetched.note).toBe('[원문] 최종 목표: 수초이내');
+
+    const updated = unwrap(
+      await goals.updateTechTarget(created.id, { group: '구분 B', note: '' }, fetched.version)
+    );
+    expect(updated.group).toBe('구분 B');
+    expect(updated.note).toBe('');
+    expect(updated.standardBasis).toBe('KS X ISO/IEC 25023'); // patch에 없으면 그대로
+    expect(updated.basisRationale).toBe('선행 과제 실측치 기준');
+    expect(updated.evaluationEnvironment).toBe('공인시험기관 테스트베드');
+
+    unwrap(await goals.deleteTechTarget(created.id));
+  });
+
+  it('기술목표: 음수 비중·상한 초과 텍스트는 거부한다 (tech_targets.weight는 DB check가 없다 — S-20)', async () => {
+    expectCode(
+      await goals.createTechTarget(projectId, { name: '음수 비중', weight: -10 }),
+      'VALIDATION'
+    );
+    expectCode(await goals.updateTechTarget(techTargetId, { weight: -1 }), 'VALIDATION');
+    expectCode(
+      await goals.createTechTarget(projectId, { name: '긴 구분', group: 'x'.repeat(201) }),
+      'VALIDATION'
+    );
+    expectCode(
+      await goals.createTechTarget(projectId, {
+        name: '긴 평가환경',
+        evaluationEnvironment: 'x'.repeat(10_001),
+      }),
+      'VALIDATION'
+    );
+  });
+
+  it('getGoalsData: 성과목표 가중치 합이 100이면 경고가 없다 (S-19)', async () => {
+    const weightProjectId = await newProject('가중치 합계 검증 과제');
+    const a = unwrap(
+      await goals.createDeliverable(weightProjectId, { type: 'paper_sci', name: '논문', weight: 60 })
+    );
+    unwrap(
+      await goals.createDeliverable(weightProjectId, { type: 'other', name: '기타', weight: 40 })
+    );
+
+    let data = unwrap(await goals.getGoalsData(weightProjectId));
+    expect(data.deliverableSummary.weightSum).toBe(100);
+    expect(data.deliverableSummary.weightMismatch).toBe(false);
+
+    unwrap(await goals.updateDeliverable(a.id, { weight: 70 }));
+    data = unwrap(await goals.getGoalsData(weightProjectId));
+    expect(data.deliverableSummary.weightSum).toBe(110);
+    expect(data.deliverableSummary.weightMismatch).toBe(true);
+    // 성과목표 가중치와 기술목표 비중은 서로 섞이지 않는다
+    expect(data.techSummary.weightSum).toBe(0);
+    expect(data.techSummary.weightMismatch).toBe(false);
   });
 });

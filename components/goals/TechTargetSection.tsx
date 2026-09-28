@@ -9,6 +9,8 @@
 //  - current가 null이면 '미측정'. 미측정 항목도 전체 가중 계산에 0으로 들어간다(§6.3).
 //  - 비중 합계가 100이 아니면 경고(T-3), 공인시험인데 평가기관이 비어 있으면 경고(T-4).
 //  - 인쇄(§7.7 "국가R&D 계획서 표 형식")에서는 버튼·확장 영역을 감추고 표만 남긴다.
+//  - 구분(group)이 같은 항목은 묶어 보인다 — 계획서 표의 세로 병합을 흉내 낸 것이라
+//    구분 이름은 묶음의 첫 행에만 적는다. 묶음 순서는 첫 등장 순, 묶음 안은 order 순이다.
 // 쓰기는 전부 actions/goals.ts를 거친다. supabase를 직접 부르지 않는다(§8.2 C-2).
 
 import { Fragment, useMemo, useState } from 'react';
@@ -41,8 +43,8 @@ export interface TechTargetSectionProps {
   organizations: Organization[];
 }
 
-// 계획서 표 그대로: 평가항목 / 단위 / 비중 / 국내수준 / 세계최고 / 목표치 / 현재 실적 / 달성률 / 측정방법 / 동작
-const COLUMN_COUNT = 10;
+// 계획서 표 그대로: 구분 / 평가항목 / 단위 / 비중 / 국내수준 / 세계최고 / 목표치 / 현재 실적 / 달성률 / 측정방법 / 동작
+const COLUMN_COUNT = 11;
 
 const TH_CLASS = `px-3 py-2 font-medium ${PRINT_TH}`;
 const TD_CLASS = `px-3 py-2 align-top ${PRINT_TD}`;
@@ -85,6 +87,24 @@ function unavailableRateReason(view: TechTargetView): string {
  */
 function sortRecordsAsc(records: readonly TechTargetRecord[]): TechTargetRecord[] {
   return [...records].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * 같은 구분끼리 묶는다. 묶음 순서는 구분이 처음 나온 순서, 묶음 안은 들어온 순서(= order)를 지킨다.
+ * 빈 구분도 하나의 묶음이다 — 구분을 안 쓰는 과제에서는 표가 그대로 보인다.
+ */
+function groupViews(
+  views: readonly TechTargetView[]
+): { view: TechTargetView; groupStart: boolean }[] {
+  const buckets = new Map<string, TechTargetView[]>();
+  for (const view of views) {
+    const bucket = buckets.get(view.techTarget.group);
+    if (bucket) bucket.push(view);
+    else buckets.set(view.techTarget.group, [view]);
+  }
+  return [...buckets.values()].flatMap((bucket) =>
+    bucket.map((view, index) => ({ view, groupStart: index === 0 }))
+  );
 }
 
 function isLink(url: string): boolean {
@@ -226,6 +246,10 @@ export default function TechTargetSection({
       ? undefined
       : byId.get(recordForm.techTargetId)?.records.find((r) => r.id === recordForm.recordId);
 
+  const groupedViews = useMemo(() => groupViews(views), [views]);
+  // 구분을 하나도 안 쓰면 묶음 경계선을 그을 이유가 없다
+  const hasGroups = useMemo(() => views.some((view) => view.techTarget.group !== ''), [views]);
+
   // 미측정 건수는 서버가 준 current로만 센다 (§6.3: 미측정도 분모에 포함되고 달성률 0으로 들어간다)
   const unmeasuredCount = views.filter((view) => view.current === null).length;
 
@@ -281,7 +305,7 @@ export default function TechTargetSection({
 
   return (
     <section aria-labelledby="tech-target-section-title" className="print:text-black">
-      {/* P-R1 세로 + P-R3 머리말. 계획서 표는 10열이라 A4 세로에 들어간다 */}
+      {/* P-R1 세로 + P-R3 머리말. 계획서 표는 동작 열을 뺀 10열이라 A4 세로에 들어간다 */}
       <PrintHeader
         title="정량적 기술목표"
         projectName={projectName}
@@ -381,12 +405,13 @@ export default function TechTargetSection({
       </div>
 
       <div className={`mt-4 overflow-x-auto rounded-xl border border-grey-200 bg-surface ${PRINT_TABLE_WRAP}`}>
-        <table className={`w-full min-w-[1040px] text-left text-sm ${PRINT_TABLE}`}>
+        <table className={`w-full min-w-[1140px] text-left text-sm ${PRINT_TABLE}`}>
           <caption className="hidden px-3 py-2 text-left text-sm font-bold text-grey-900 print:table-caption">
             정량적 기술목표
           </caption>
           <thead className="text-xs text-grey-500 print:text-black">
             <tr className="border-b border-grey-100">
+              <th className={TH_CLASS}>구분</th>
               <th className={TH_CLASS}>평가항목</th>
               <th className={TH_CLASS}>단위</th>
               <th className={TH_CLASS}>비중(%)</th>
@@ -408,14 +433,21 @@ export default function TechTargetSection({
               </tr>
             )}
 
-            {views.map((view) => {
+            {groupedViews.map(({ view, groupStart }) => {
               const target = view.techTarget;
               const expanded = expandedId === target.id;
               const recordsDesc = sortRecordsAsc(target.records).reverse();
 
               return (
                 <Fragment key={target.id}>
-                  <tr className={expanded ? 'bg-grey-50' : ''}>
+                  <tr
+                    className={`${expanded ? 'bg-grey-50' : ''} ${
+                      hasGroups && groupStart ? 'border-t-2 border-t-grey-200' : ''
+                    }`}
+                  >
+                    <td className={`${TD_CLASS} max-w-[180px] whitespace-pre-wrap break-words text-grey-700`}>
+                      {groupStart ? target.group || '—' : ''}
+                    </td>
                     <td className={TD_CLASS}>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <button
@@ -532,6 +564,34 @@ export default function TechTargetSection({
                                 <dt className="text-grey-500">측정방법 상세</dt>
                                 <dd className="whitespace-pre-wrap text-grey-800">
                                   {target.measureDescription || '—'}
+                                </dd>
+                              </div>
+                            </dl>
+
+                            {/* 계획서 평가방법·평가환경 표의 서술형 열 (§5.9 Phase 21) */}
+                            <dl className="mt-3 grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
+                              <div>
+                                <dt className="text-grey-500">표준(시험)·인증기준</dt>
+                                <dd className="whitespace-pre-wrap break-words text-grey-800">
+                                  {target.standardBasis || '—'}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-grey-500">기준설정 근거</dt>
+                                <dd className="whitespace-pre-wrap break-words text-grey-800">
+                                  {target.basisRationale || '—'}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-grey-500">평가환경</dt>
+                                <dd className="whitespace-pre-wrap break-words text-grey-800">
+                                  {target.evaluationEnvironment || '—'}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-grey-500">비고</dt>
+                                <dd className="whitespace-pre-wrap break-words text-grey-800">
+                                  {target.note || '—'}
                                 </dd>
                               </div>
                             </dl>

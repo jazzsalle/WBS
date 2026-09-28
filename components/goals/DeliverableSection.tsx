@@ -62,6 +62,11 @@ const TYPE_SHADES: readonly string[] = [
   'var(--color-blue-100)',
 ] as const;
 
+/** 가중치는 소수가 허용된다(S-20). 자릿수를 임의로 잘라 합계가 달라 보이지 않게 한다 */
+function formatWeight(value: number): string {
+  return value.toLocaleString('ko-KR', { maximumFractionDigits: 6 });
+}
+
 function typeShade(index: number): string {
   // 유형이 색 수보다 많으면 명도가 반복된다 — 범례가 옆에 붙어 있어 식별은 유지된다
   return TYPE_SHADES[index % TYPE_SHADES.length] ?? 'var(--color-blue-500)';
@@ -327,7 +332,7 @@ export default function DeliverableSection({
     void run(() => reorderDeliverables(projectId, ids));
   };
 
-  const columnCount = 8 + orderedYears.length;
+  const columnCount = 10 + orderedYears.length;
 
   return (
     <section aria-labelledby="deliverable-section-title">
@@ -393,6 +398,20 @@ export default function DeliverableSection({
               </>
             )}
           </div>
+
+          <p className="mt-3 text-xs text-grey-500">
+            가중치 합계{' '}
+            <span className="font-semibold tabular-nums text-grey-800">
+              {formatWeight(summary.weightSum)}%
+            </span>
+          </p>
+          {summary.weightMismatch && (
+            // §7.7 탭 1: 탭 2 비중 합계와 같은 태도 — 경고만 하고 저장은 막지 않는다
+            <Badge tone="amber" className="mt-1.5 max-w-full whitespace-normal text-left">
+              가중치 합계 {formatWeight(summary.weightSum)}% (100 아님). 계획서 성과목표 표의
+              가중치 합은 100이어야 합니다.
+            </Badge>
+          )}
         </div>
 
         <div>
@@ -440,6 +459,7 @@ export default function DeliverableSection({
                 <th className="px-4 py-2 font-medium">지표명</th>
                 <th className="px-3 py-2 font-medium">유형</th>
                 <th className="px-3 py-2 font-medium">단위</th>
+                <th className="px-3 py-2 text-right font-medium">가중치(%)</th>
                 <th className="px-3 py-2 text-right font-medium">목표(총)</th>
                 <th className="px-3 py-2 text-right font-medium">달성</th>
                 <th className="px-3 py-2 font-medium">달성률</th>
@@ -448,6 +468,7 @@ export default function DeliverableSection({
                     {year.name}
                   </th>
                 ))}
+                <th className="px-3 py-2 font-medium">평가방법</th>
                 <th className="px-3 py-2 font-medium">책임기관</th>
                 <th className="px-3 py-2 text-right font-medium">동작</th>
               </tr>
@@ -493,6 +514,9 @@ export default function DeliverableSection({
                         {DELIVERABLE_TYPE_LABELS[deliverable.type]}
                       </td>
                       <td className="px-3 py-2.5 text-grey-600">{deliverable.unit || '—'}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-grey-600">
+                        {formatWeight(deliverable.weight)}
+                      </td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-grey-800">
                         {deliverable.targetTotal}
                       </td>
@@ -561,6 +585,16 @@ export default function DeliverableSection({
                         );
                       })}
 
+                      <td className="px-3 py-2.5 text-grey-600">
+                        {deliverable.evidenceMethod === '' ? (
+                          '—'
+                        ) : (
+                          // 서술형이라 길 수 있다 — 표에서는 줄바꿈을 살려 폭만 제한한다
+                          <p className="max-w-[14rem] whitespace-pre-wrap break-words text-xs">
+                            {deliverable.evidenceMethod}
+                          </p>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 text-grey-600">{orgName(deliverable.orgId)}</td>
                       <td className="px-3 py-2.5 text-right">
                         <div className="flex flex-wrap justify-end gap-1.5">

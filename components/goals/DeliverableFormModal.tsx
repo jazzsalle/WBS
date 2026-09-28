@@ -20,8 +20,10 @@ interface FormValues {
   type: DeliverableType;
   name: string;
   unit: string;
+  weight: string; // '' = 0 (§5.8 기본 0). 입력 중 빈 문자열을 표현해야 해서 문자열
   targetTotal: string; // 입력 중 빈 문자열을 표현해야 해서 문자열로 들고 있는다
   orgId: string; // '' = 책임기관 미지정 (§5.8 orgId는 nullable)
+  evidenceMethod: string;
   note: string;
 }
 
@@ -32,8 +34,10 @@ const FIELDS: readonly { key: FieldKey; label: string }[] = [
   { key: 'type', label: '유형' },
   { key: 'name', label: '지표명' },
   { key: 'unit', label: '단위' },
+  { key: 'weight', label: '가중치(%)' },
   { key: 'targetTotal', label: '목표(총)' },
   { key: 'orgId', label: '책임기관' },
+  { key: 'evidenceMethod', label: '평가방법' },
   { key: 'note', label: '비고' },
 ] as const;
 
@@ -43,8 +47,10 @@ const EMPTY_VALUES: FormValues = {
   type: DEFAULT_TYPE,
   name: '',
   unit: DELIVERABLE_TYPE_DEFAULT_UNITS[DEFAULT_TYPE],
+  weight: '0',
   targetTotal: '0',
   orgId: '',
+  evidenceMethod: '',
   note: '',
 };
 
@@ -53,8 +59,10 @@ function toValues(deliverable: Deliverable): FormValues {
     type: deliverable.type,
     name: deliverable.name,
     unit: deliverable.unit,
+    weight: String(deliverable.weight),
     targetTotal: String(deliverable.targetTotal),
     orgId: deliverable.orgId ?? '',
+    evidenceMethod: deliverable.evidenceMethod,
     note: deliverable.note,
   };
 }
@@ -170,12 +178,22 @@ export default function DeliverableFormModal({
       return;
     }
 
+    // 가중치는 소수 허용(S-20). 빈 칸은 기본 0이고, 음수는 서버도 거부한다
+    const weightText = values.weight.trim();
+    const weight = weightText === '' ? 0 : Number(weightText);
+    if (!Number.isFinite(weight) || weight < 0) {
+      setFailure({ message: '가중치는 0 이상 숫자로 입력하세요.', code: 'VALIDATION' });
+      return;
+    }
+
     const payload = {
       type: values.type,
       name: values.name.trim(),
       unit: values.unit.trim(),
+      weight,
       targetTotal,
       orgId: values.orgId === '' ? null : values.orgId,
+      evidenceMethod: values.evidenceMethod.trim(),
       note: values.note,
     };
 
@@ -328,6 +346,23 @@ export default function DeliverableFormModal({
             </label>
 
             <label>
+              <span className="text-sm font-medium text-grey-700">가중치(%)</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={values.weight}
+                onChange={(e) => setField('weight', e.target.value)}
+                placeholder="0"
+                className={inputClass}
+              />
+              <span className="mt-1 block text-xs text-grey-500">
+                지표 가중치 합계 100 권장. 100이 아니어도 저장됩니다.
+              </span>
+            </label>
+
+            <label>
               <span className="text-sm font-medium text-grey-700">책임기관</span>
               <select
                 value={values.orgId}
@@ -345,6 +380,18 @@ export default function DeliverableFormModal({
                   <option value={values.orgId}>(삭제된 기관)</option>
                 )}
               </select>
+            </label>
+
+            <label className="sm:col-span-2">
+              <span className="text-sm font-medium text-grey-700">평가방법(증빙)</span>
+              <textarea
+                value={values.evidenceMethod}
+                onChange={(e) => setField('evidenceMethod', e.target.value)}
+                rows={2}
+                maxLength={10000}
+                placeholder="예: SW 등록증"
+                className={inputClass}
+              />
             </label>
 
             <label className="sm:col-span-2">

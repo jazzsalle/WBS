@@ -12,6 +12,7 @@ import {
   latestRecord,
   summarizeDeliverable,
   summarizeTechTarget,
+  summarizeWeights,
   type DeliverableInput,
   type TechTargetInput,
 } from '@/lib/goals';
@@ -574,6 +575,43 @@ describe('§6.3 T-3 weight 합계', () => {
     const total = computeTechTargetTotal([measured(80, 50), naByT2]);
     expect(total.weightedRate).toBe(40); // (80×50 + 0×50)/100
     expect(total.unmeasuredCount).toBe(1);
+  });
+});
+
+describe('§7.7 가중치 합계 (성과목표 가중치·기술목표 비중 공용)', () => {
+  const w = (...weights: number[]) => weights.map((weight) => ({ weight }));
+
+  it('합 100이면 경고 없음', () => {
+    expect(summarizeWeights(w(40, 30, 30))).toEqual({ totalWeight: 100, weightMismatch: false });
+  });
+
+  it('합이 100이 아니면 경고 — 부족·초과 모두', () => {
+    expect(summarizeWeights(w(40, 30))).toEqual({ totalWeight: 70, weightMismatch: true });
+    expect(summarizeWeights(w(60, 60))).toEqual({ totalWeight: 120, weightMismatch: true });
+  });
+
+  it('항목이 0개면 합 0이고 경고 아님', () => {
+    expect(summarizeWeights([])).toEqual({ totalWeight: 0, weightMismatch: false });
+  });
+
+  it('항목이 있는데 전부 0이면 경고 (가중치 미입력)', () => {
+    expect(summarizeWeights(w(0, 0))).toEqual({ totalWeight: 0, weightMismatch: true });
+  });
+
+  it('소수 가중치를 반올림하지 않고 합산한다', () => {
+    expect(summarizeWeights(w(12.5, 37.5, 50))).toEqual({ totalWeight: 100, weightMismatch: false });
+    expect(summarizeWeights(w(12.5, 37.5)).totalWeight).toBe(50);
+  });
+
+  it('computeTechTargetTotal의 T-3 판정과 같은 결과를 낸다', () => {
+    const targets = [60, 60].map((weight) =>
+      techTarget({ direction: 'higher_better', baselineDomestic: null, targetValue: 100, weight, records: [] })
+    );
+    const total = computeTechTargetTotal(targets);
+    expect(summarizeWeights(targets)).toEqual({
+      totalWeight: total.totalWeight,
+      weightMismatch: total.weightMismatch,
+    });
   });
 });
 

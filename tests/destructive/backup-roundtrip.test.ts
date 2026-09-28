@@ -315,6 +315,117 @@ describe('§8.8 S-12: budget_executions 내역 7컬럼 백업·옛 형식 복원
   });
 });
 
+// §5.8·§5.9 Phase 21 목표 새 7컬럼 — 백업이 새 컬럼을 실어 나르고, 7컬럼이 없는 옛(Phase 21 이전)
+// 백업도 not null 위반 없이 복원돼야 한다(§8.8, S-2). restore_backup이 이 7컬럼만 기본값으로 채운다.
+describe('§8.8 S-2: deliverables·tech_targets 새 7컬럼 백업·옛 형식 복원', () => {
+  const DELIVERABLE_ID = 'aaaa0000-0000-4000-8000-0000000000a1';
+  const TECH_TARGET_ID = 'aaaa0000-0000-4000-8000-0000000000a2';
+  const DELIVERABLE_COLS = ['weight', 'evidence_method'] as const;
+  const TECH_TARGET_COLS = [
+    'group_name', 'standard_basis', 'basis_rationale', 'evaluation_environment', 'note',
+  ] as const;
+
+  beforeAll(async () => {
+    // 7컬럼 전부 기본값이 아닌 값을 넣는다 — 기본값이면 "보존"과 "기본값으로 채움"을 가를 수 없다
+    await sql`
+      insert into public.deliverables
+        (id, project_id, type, name, target_total, weight, evidence_method, created_by, updated_by)
+      values
+        (${DELIVERABLE_ID}::uuid, ${SEED.projectId}::uuid, 'sw_registration', '백업 테스트 지표', 2,
+         12.5, 'SW 등록증', ${user.id}::uuid, ${user.id}::uuid)`;
+    await sql`
+      insert into public.tech_targets
+        (id, project_id, name, target_value, group_name, standard_basis, basis_rationale,
+         evaluation_environment, note, created_by, updated_by)
+      values
+        (${TECH_TARGET_ID}::uuid, ${SEED.projectId}::uuid, '백업 테스트 기술목표', 95,
+         '플랫폼', 'ISO/IEC 25023', '국내 최고 수준 대비', '실증 현장', '[원문] 최종 목표: LOD 2.5',
+         ${user.id}::uuid, ${user.id}::uuid)`;
+  });
+
+  it('내보내기 JSON의 deliverables·tech_targets 행에 새 7컬럼이 값 그대로 있다', async () => {
+    const file = jsonRoundtrip(await backup.exportAll(user.client, exportedBy(user)));
+    const deliverable = file.tables['deliverables']!.find(
+      (r) => (r as { id: string }).id === DELIVERABLE_ID
+    ) as Record<string, unknown>;
+    expect(deliverable).toBeDefined();
+    for (const col of DELIVERABLE_COLS) expect(deliverable, col).toHaveProperty(col);
+    expect(Number(deliverable['weight'])).toBe(12.5);
+    expect(deliverable['evidence_method']).toBe('SW 등록증');
+
+    const techTarget = file.tables['tech_targets']!.find(
+      (r) => (r as { id: string }).id === TECH_TARGET_ID
+    ) as Record<string, unknown>;
+    expect(techTarget).toBeDefined();
+    for (const col of TECH_TARGET_COLS) expect(techTarget, col).toHaveProperty(col);
+    expect(techTarget).toMatchObject({
+      group_name: '플랫폼',
+      standard_basis: 'ISO/IEC 25023',
+      basis_rationale: '국내 최고 수준 대비',
+      evaluation_environment: '실증 현장',
+      note: '[원문] 최종 목표: LOD 2.5',
+    });
+    // 앱 필드명(group)이 아니라 DB 원본 컬럼명(group_name)이다 — 백업은 매퍼를 거치지 않는다
+    expect(techTarget).not.toHaveProperty('group');
+  });
+
+  it('7컬럼을 뺀 옛 형식 행으로 복원하면 weight 0 · 문자열 6컬럼 \'\'이 된다', async () => {
+    const current = jsonRoundtrip(await backup.exportAll(user.client, exportedBy(user)));
+    const legacy = jsonRoundtrip(current);
+    legacy.tables['deliverables'] = current.tables['deliverables']!.map((r) => {
+      const row = { ...(r as Record<string, unknown>) };
+      for (const col of DELIVERABLE_COLS) delete row[col];
+      return row;
+    });
+    legacy.tables['tech_targets'] = current.tables['tech_targets']!.map((r) => {
+      const row = { ...(r as Record<string, unknown>) };
+      for (const col of TECH_TARGET_COLS) delete row[col];
+      return row;
+    });
+
+    try {
+      await backup.restoreBackup(user.client, legacy);
+
+      const deliverable = (await sql`
+        select weight::text as weight, evidence_method, name, target_total
+          from public.deliverables where id = ${DELIVERABLE_ID}::uuid`)[0];
+      expect(deliverable).toEqual({
+        weight: '0',
+        evidence_method: '',
+        name: '백업 테스트 지표',
+        target_total: 2,
+      });
+      const techTarget = (await sql`
+        select group_name, standard_basis, basis_rationale, evaluation_environment, note,
+               name, target_value::text as target_value
+          from public.tech_targets where id = ${TECH_TARGET_ID}::uuid`)[0];
+      expect(techTarget).toEqual({
+        group_name: '',
+        standard_basis: '',
+        basis_rationale: '',
+        evaluation_environment: '',
+        note: '',
+        name: '백업 테스트 기술목표',
+        target_value: '95',
+      });
+    } finally {
+      // 원복(현재 형식)으로 되돌린다 — 이후 테스트·dev DB가 새 컬럼 값을 기대한다
+      await backup.restoreBackup(user.client, current);
+    }
+
+    const back = (await sql`
+      select d.weight::text as weight, d.evidence_method, t.group_name, t.note
+        from public.deliverables d, public.tech_targets t
+       where d.id = ${DELIVERABLE_ID}::uuid and t.id = ${TECH_TARGET_ID}::uuid`)[0];
+    expect(back).toEqual({
+      weight: '12.5',
+      evidence_method: 'SW 등록증',
+      group_name: '플랫폼',
+      note: '[원문] 최종 목표: LOD 2.5',
+    });
+  });
+});
+
 describe('parseBackupFile — importAll 액션의 구조 검증 (Zod)', () => {
   it('BackupFile 형태가 아니면 ValidationError', () => {
     for (const junk of [null, undefined, 42, 'json', [], {}]) {

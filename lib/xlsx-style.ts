@@ -322,18 +322,56 @@ export function inlineListFormula(values: readonly string[]): string {
   return `"${joined}"`;
 }
 
+/** 엑셀 시트 이름에 쓸 수 없는 문자(`[]:*?/\`)와 길이 한도 31자 */
+const SHEET_NAME_FORBIDDEN = /[[\]:*?/\\]/;
+const SHEET_NAME_MAX_LENGTH = 31;
+/** 절대 참조 A1 범위(`$A$2:$A$14`) 또는 단일 셀(`$A$2`) */
+const ABSOLUTE_A1_RANGE = /^\$[A-Z]{1,3}\$[1-9]\d*(?::\$[A-Z]{1,3}\$[1-9]\d*)?$/;
+
+/**
+ * 범위 참조 목록 수식(`'_lists'!$A$2:$A$14`). 목표 양식의 기관·관여자처럼 인라인 한도를 넘을 수 있는 목록,
+ * 실적·측정 시트가 같은 파일의 성과목표·기술목표 이름 열을 가리키는 목록(GF-10)에 쓴다(F-9).
+ *
+ * 시트 이름은 **항상** 작은따옴표로 감싸고 안의 작은따옴표는 두 번 쓴다 — 한글·공백·숫자로 시작하는 이름은
+ * 따옴표 없이는 엑셀이 수식을 해석하지 못해 파일을 복구 대상으로 연다. 이름·범위가 엑셀 규칙을 어기면
+ * 드롭다운이 조용히 죽으므로 생성기 실수로 보고 throw한다. 범위가 상대 참조면 행마다 목록이 밀린다.
+ */
+export function rangeListFormula(sheet: string, range: string): string {
+  if (sheet === '') throw new Error('드롭다운 목록 시트 이름이 비어 있습니다.');
+  if (sheet.length > SHEET_NAME_MAX_LENGTH) {
+    throw new Error(`드롭다운 목록 시트 이름이 ${SHEET_NAME_MAX_LENGTH}자를 넘습니다: ${sheet}`);
+  }
+  if (SHEET_NAME_FORBIDDEN.test(sheet)) {
+    throw new Error(`드롭다운 목록 시트 이름에 쓸 수 없는 문자가 있습니다: ${sheet}`);
+  }
+  if (!ABSOLUTE_A1_RANGE.test(range)) {
+    throw new Error(`드롭다운 목록 범위는 절대 참조 A1 형식이어야 합니다 ($A$2:$A$14): ${range}`);
+  }
+  return `'${sheet.replace(/'/g, "''")}'!${range}`;
+}
+
+/** 'warning'은 목록 밖 값을 [예]로 받아들인다 — 관여자 `;` 다중 입력·새로 적은 지표명(GF-4·GF-10) */
+const LIST_ERROR_MESSAGE: Record<'stop' | 'warning', string> = {
+  stop: '드롭다운 목록에서 고르세요.',
+  warning: '목록에 없는 값입니다. 그대로 두려면 [예]를 누르세요 — 올릴 때 다시 검사합니다.',
+};
+
 /**
  * 셀 하나에 목록 유효성. 빈 칸은 허용한다 — 축처럼 비어도 되는 열이 있고(IN-11), 필수 여부는 파서가 판정한다.
  * 잘못된 값은 엑셀이 막지만 붙여넣기는 우회하므로 파서가 다시 검사한다(F-9).
  */
-export function applyListValidation(cell: ExcelJS.Cell, formula: string): void {
+export function applyListValidation(
+  cell: ExcelJS.Cell,
+  formula: string,
+  errorStyle: 'stop' | 'warning' = 'stop'
+): void {
   cell.dataValidation = {
     type: 'list',
     allowBlank: true,
     formulae: [formula],
     showErrorMessage: true,
-    errorStyle: 'stop',
+    errorStyle,
     errorTitle: '목록에 없는 값',
-    error: '드롭다운 목록에서 고르세요.',
+    error: LIST_ERROR_MESSAGE[errorStyle],
   };
 }

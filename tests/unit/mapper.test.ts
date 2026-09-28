@@ -4,10 +4,12 @@ import { describe, it, expect } from 'vitest';
 import { dbToApp, appToDb, dbToAppArray } from '@/lib/db/mapper';
 import {
   budgetExecutionRowSchema,
+  deliverableRowSchema,
   importKindSchema,
   importSnapshotRowSchema,
+  techTargetRowSchema,
 } from '@/lib/db/schema';
-import type { BudgetExecution, ImportSnapshot } from '@/types';
+import type { BudgetExecution, Deliverable, ImportSnapshot, TechTarget } from '@/types';
 
 describe('mapper: snake_case ↔ camelCase 기본 변환', () => {
   it('DB row(snake) → 앱 객체(camel)', () => {
@@ -382,5 +384,183 @@ describe('schema: ImportKind와 수행 양식 스냅샷 (§5.12.1, IN-14)', () =
   it('모르는 kind는 거부한다 — 조용히 총괄표로 취급하지 않는다', () => {
     const unknown = { ...executionSnapshot, kind: 'something_else' };
     expect(importSnapshotRowSchema.safeParse(snapshotRow(unknown)).success).toBe(false);
+  });
+});
+
+// ─── Phase 21: 목표 새 필드와 목표 양식 스냅샷 (§5.8·§5.9, N-9, GF-11) ─────
+
+describe('mapper: N-9 특례 group_name ↔ group (tech_targets, Phase 21)', () => {
+  it('DB group_name → 앱 group', () => {
+    expect(dbToApp({ group_name: '디지털 트윈 플랫폼' })).toEqual({ group: '디지털 트윈 플랫폼' });
+  });
+
+  it('앱 group → DB group_name', () => {
+    expect(appToDb({ group: '' })).toEqual({ group_name: '' });
+  });
+
+  it('jsonb 내부의 group·group_name 키는 바꾸지 않는다 (N-3)', () => {
+    const row = { target_by_year: { group_name: 1 }, snapshot: { group: 'x' } };
+    expect(dbToApp(row)).toEqual({ targetByYear: { group_name: 1 }, snapshot: { group: 'x' } });
+    expect(appToDb({ targetByYear: { group: 1 } })).toEqual({ target_by_year: { group: 1 } });
+  });
+});
+
+const UUID_TT = '88888888-8888-4888-8888-888888888888';
+const UUID_DV = '99999999-9999-4999-8999-999999999999';
+const UUID_YEAR = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+function goalBase(id: string): Record<string, unknown> {
+  return {
+    id,
+    version: 1,
+    created_at: '2026-09-29T00:00:00+00:00',
+    updated_at: '2026-09-29T00:00:00+00:00',
+    created_by: null,
+    updated_by: null,
+    project_id: UUID_PROJECT,
+  };
+}
+
+function techTargetRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...goalBase(UUID_TT),
+    name: '객체 인식 정확도',
+    group_name: '디지털 트윈 자율안전관리 플랫폼',
+    unit: '%',
+    direction: 'higher_better',
+    weight: 12.5,
+    target_value: 90,
+    target_by_year: { [UUID_YEAR]: 80 },
+    baseline_domestic: null,
+    world_best: 95,
+    world_best_holder: '미국',
+    measure_method: 'certified_lab',
+    measure_description: '공인시험',
+    standard_basis: 'KS X 0000',
+    basis_rationale: '국내 최고 수준 대비',
+    evaluation_environment: '실증 현장',
+    note: '[원문] 목표: LOD 2.5',
+    org_id: null,
+    sort_order: 0,
+    ...overrides,
+  };
+}
+
+function deliverableRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...goalBase(UUID_DV),
+    type: 'sw_registration',
+    name: 'SW 등록',
+    unit: '건',
+    weight: 7.5,
+    target_total: 2,
+    target_by_year: { [UUID_YEAR]: 1 },
+    org_id: null,
+    evidence_method: 'SW 등록증',
+    note: '',
+    sort_order: 1,
+    ...overrides,
+  };
+}
+
+describe('mapper·schema: TechTarget·Deliverable 새 필드 (§5.8·§5.9 Phase 21)', () => {
+  it('tech_targets 행이 스키마를 통과하고 새 컬럼이 camel 필드로 바뀐다', () => {
+    const app = dbToApp<TechTarget>(techTargetRowSchema.parse(techTargetRow()));
+    expect(app).toMatchObject({
+      group: '디지털 트윈 자율안전관리 플랫폼',
+      standardBasis: 'KS X 0000',
+      basisRationale: '국내 최고 수준 대비',
+      evaluationEnvironment: '실증 현장',
+      note: '[원문] 목표: LOD 2.5',
+      weight: 12.5,
+      order: 0,
+    });
+    expect(app).not.toHaveProperty('groupName');
+    expect(app).not.toHaveProperty('group_name');
+    expect(app.targetByYear).toEqual({ [UUID_YEAR]: 80 });
+  });
+
+  it('tech_targets DB → 앱 → DB 왕복이 원본과 같다', () => {
+    const row = techTargetRow();
+    expect(appToDb(dbToApp(row))).toEqual(row);
+  });
+
+  it('deliverables 행이 스키마를 통과하고 weight·evidenceMethod가 온다 (소수 가중치 허용)', () => {
+    const app = dbToApp<Deliverable>(deliverableRowSchema.parse(deliverableRow()));
+    expect(app).toMatchObject({ weight: 7.5, evidenceMethod: 'SW 등록증', order: 1 });
+    expect(appToDb(dbToApp(deliverableRow()))).toEqual(deliverableRow());
+  });
+
+  it('새 컬럼이 없는 응답(마이그레이션 누락)은 거부된다', () => {
+    const tt = techTargetRow();
+    delete tt.group_name;
+    expect(techTargetRowSchema.safeParse(tt).success).toBe(false);
+    const dv = deliverableRow();
+    delete dv.evidence_method;
+    expect(deliverableRowSchema.safeParse(dv).success).toBe(false);
+  });
+});
+
+describe('schema: 목표 양식 스냅샷 (§5.12.1, GF-11)', () => {
+  function snapshotRow(snapshot: Record<string, unknown>): Record<string, unknown> {
+    return {
+      id: UUID_SNAPSHOT,
+      version: 1,
+      created_at: '2026-09-29T00:00:00+00:00',
+      updated_at: '2026-09-29T00:00:00+00:00',
+      created_by: null,
+      updated_by: null,
+      project_id: UUID_PROJECT,
+      snapshot,
+    };
+  }
+
+  const goalSnapshot = {
+    schemaVersion: 1,
+    projectId: UUID_PROJECT,
+    capturedAt: '2026-09-29T00:00:00+00:00',
+    kind: 'goal_form',
+    source: { fileName: '목표양식.xlsx', sheetName: '', profileId: null, fileHash: 'def' },
+    items: [],
+    // commit_goal_form이 쓰는 형태 — 테이블 이름별. 행 형태는 검증하지 않는다
+    goals: {
+      added: { deliverables: [UUID_ADDED], deliverable_achievements: [], tech_targets: [], tech_target_records: [] },
+      before: {
+        deliverables: [deliverableRow()],
+        tech_targets: [techTargetRow()],
+        achievement_members: [{ achievement_id: UUID_EXEC, member_id: UUID_MEMBER }],
+      },
+      deleted: { deliverables: [UUID_DV], deliverable_achievements: [], tech_targets: [], tech_target_records: [] },
+    },
+  };
+
+  it('goal_form 스냅샷 행이 Zod를 통과하고, before 행은 snake_case 원본 그대로 남는다', () => {
+    const parsed = importSnapshotRowSchema.safeParse(snapshotRow(goalSnapshot));
+    expect(parsed.success).toBe(true);
+    const app = dbToApp<ImportSnapshot>(parsed.data as Record<string, unknown>);
+    expect(app.snapshot.kind).toBe('goal_form');
+    expect(app.snapshot.goals?.added.deliverables).toEqual([UUID_ADDED]);
+    expect(app.snapshot.goals?.deleted.deliverables).toEqual([UUID_DV]);
+    // group_name이 group으로 바뀌면 나중의 되돌리기가 원본을 잃는다 (N-3)
+    expect(app.snapshot.goals?.before.tech_targets?.[0]).toEqual(techTargetRow());
+  });
+
+  it('goals에 모르는 키가 더 있어도 통과하고 보존된다 (looseObject)', () => {
+    const snapshot = { ...goalSnapshot, goals: { ...goalSnapshot.goals, links: [] } };
+    const parsed = importSnapshotRowSchema.safeParse(snapshotRow(snapshot));
+    expect(parsed.success).toBe(true);
+    expect((parsed.data?.snapshot.goals as Record<string, unknown>).links).toEqual([]);
+  });
+
+  it('goals가 added·before·deleted 구조를 빠뜨리면 거부한다', () => {
+    const { deleted: _deleted, ...noDeleted } = goalSnapshot.goals;
+    void _deleted;
+    const broken = { ...goalSnapshot, goals: noDeleted };
+    expect(importSnapshotRowSchema.safeParse(snapshotRow(broken)).success).toBe(false);
+    const badAdded = { ...goalSnapshot, goals: { ...goalSnapshot.goals, added: { deliverables: ['not-uuid'] } } };
+    expect(importSnapshotRowSchema.safeParse(snapshotRow(badAdded)).success).toBe(false);
+    // 평면 배열(테이블 키 없음)은 RPC가 쓰는 형태가 아니다
+    const flat = { ...goalSnapshot, goals: { ...goalSnapshot.goals, added: [UUID_ADDED] } };
+    expect(importSnapshotRowSchema.safeParse(snapshotRow(flat)).success).toBe(false);
   });
 });

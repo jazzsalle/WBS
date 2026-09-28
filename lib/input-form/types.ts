@@ -70,6 +70,25 @@ export interface FormColumnValidation {
   column: number;
   /** 보이는 라벨 그대로. 쉼표를 담을 수 없다(인라인 목록 구분자) — 어댑터가 검사한다 */
   values: string[];
+  // ─ Phase 21 목표 양식(F-9). 둘 다 선택이다 — 없으면 Phase 20 인라인 목록 경로 그대로
+  /**
+   * 인라인 목록 대신 **범위 참조** 목록. `listRange`를 쓰면 `values`는 빈 배열이어야 한다(둘 다 있으면 어느 쪽이
+   * 의도였는지 알 수 없다). 기관·관여자 목록은 인라인 한도(255자)를 넘을 수 있고, 실적·측정 시트의 지표명 목록은
+   * 같은 파일의 다른 데이터 시트를 가리켜야 새로 적은 지표도 뜬다(GF-10).
+   */
+  listRange?: FormListRange;
+  /** 없으면 'stop'. 관여자(`;` 다중 입력)·지표명/평가항목 열만 'warning'이다 — 'stop'이면 엑셀이 입력을 막는다(GF-4) */
+  errorStyle?: 'stop' | 'warning';
+}
+
+/**
+ * 목록 범위. 시트 이름의 따옴표 처리는 어댑터 몫이다 — 여기는 이름과 A1 범위만 담는다.
+ * `range`는 절대 참조 A1 범위(`$A$2:$A$14`) — 드롭다운이 행마다 복사되므로 상대 참조면 목록이 밀린다.
+ */
+export interface FormListRange {
+  /** 대상 시트 이름(`_lists`·`성과목표` 등) */
+  sheet: string;
+  range: string;
 }
 
 export interface InputFormWorkbook {

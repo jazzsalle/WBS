@@ -595,3 +595,12 @@ export const AMBIGUOUS_ALIASES: Record<string, BudgetCategory[]> = {
   '연구장비재료비': ['facility_equipment', 'material'],
   '연구활동및과제추진비': ['activity', 'promotion'],
 };
+
+// 부록 C.3.4 값 방향 힌트 (GF-6). 양식·hwpx 공통 원본 — lib/goal-form/value.ts가 이 표만 본다
+export const GOAL_VALUE_HINT_KEYWORDS: Record<Exclude<Direction, 'target_exact'>, readonly string[]> = {
+  higher_better: ['≥', '이상', '↑', '초과'],
+  lower_better: ['≤', '이하', '미만', '이내', '↓'],
+};
+
+// 없음 기호 — 셀 전체가 이 문자일 때만 null이다. `-5`는 음수이므로 부분 일치로 쓰면 안 된다
+export const GOAL_VALUE_NONE_SYMBOLS: readonly string[] = ['-', '—', '없음'];
