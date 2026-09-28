@@ -1,7 +1,9 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
-2026-09-28 저녁 회사 PC (**Phase 20 구현 완료·검증 대기** — 코드·SOT 전부 커밋됨. 남은 것은 `db push` → 통합 테스트 → evaluator. 집 PC에서 이어서)
+2026-09-28 밤 집 PC (**Phase 20 완료** — 수행 양식. `db push` 적용, evaluator PASS 11/11, 테스트 2,747건 + 파괴적 9건. 다음 Phase 21 목표 양식)
+
+2026-09-28 저녁 회사 PC (Phase 20 구현 완료·검증 대기 — 집 PC에서 이어서)
 
 2026-09-28 (**Phase 19 완료** — 우리 양식 서식. evaluator PASS, 테스트 2,470건. 다음 Phase 20 수행 양식)
 
@@ -28,6 +30,12 @@
 > ⚠️ **회사 PC는 `git pull` 후 반드시 `db push`를 해야 앱에 진입할 수 있다.** Phase 9에서 `schema_version`이 1 → 2로 올라가 §8.8 게이트가 걸린다. 의도된 안전장치다. (Phase 12는 스키마 변경이 없다.)
 
 ## Done this session
+- **Phase 20 완료 (2026-09-28, evaluator PASS 11/11)** — 수행 양식 (SOT §5.12, §6.16 IN-9~IN-14, §7.9.7). 구현 내용은 아래 "In progress"에서 옮긴 요약과 `docs/plans/phase-20-plan.md` 참고:
+  - 집 PC에서 `20260928000000_execution_form.sql`을 dev DB에 적용(link 없이 `--db-url` 직결, `.env.test.local`의 URL). 7컬럼·`commit_execution_form`·`schema_version=4` 직접 조회로 확인
+  - 통합 테스트 초안(T9·T10) 39건이 **수정 없이 통과**. 백업 S-12 테스트 2건을 `tests/destructive/backup-roundtrip.test.ts`에 추가(내보내기 JSON 7컬럼, 7컬럼 뺀 옛 형식 복원 시 `spec=''`·나머지 null)
+  - evaluator 권고 반영: ① `buildExecutionSheets`의 `executions ?? []` 폴백 제거 → 없으면 throw(절대 규칙 5, Phase 19 테스트 2곳은 `executions: []` 명시) ② 스냅샷 복원이 새 스냅샷을 남기지 않음을 단언
+  - 사용자가 만든 테스트 데이터 4건(과제 "액화수소 인수기지"·To-Do 3건)은 사용자 확인 후 삭제 — 파괴적 테스트 가드가 막았던 것. **dev DB에는 이제 실데이터가 없다.** 시드는 `npm test`가 지우므로 화면 검증 전 `supabase/seed.sql` 재적용
+  - 수동 검증 URL 표는 실제 과제가 없어 생략 — 수동 검증 일괄 때 과제를 만들고 §7.9.7 수행 모드(내려받기·올리기·삭제 포함 토글·설정 스냅샷 복원)를 본다
 - **Phase 19 완료 (2026-09-28, evaluator PASS, 테스트 2,470건)** — 우리 양식 서식 (SOT v4.8 부록 F, IN-8):
   - `exceljs` 도입(쓰기만, `server-only` 어댑터 2파일에서만 import — boundary 테스트가 허용 목록을 정확히 고정). 읽기는 SheetJS 그대로. **SheetJS 커뮤니티판은 셀 서식을 쓰지 못한다** — Phase 17 양식·Phase 11 템플릿이 텍스트뿐이던 이유
   - `lib/xlsx-style.ts` — 부록 F 상수·헬퍼 9종(헤더·키 열·요약 행·작성안내·틀 고정·필터·인쇄·열 기본 글꼴). F-1 워크북 기본 글꼴은 exceljs에 API가 없어 **열 기본 스타일**로 충족(styles.xml 후처리 없음 — SOT에 명시)
@@ -286,7 +294,9 @@
   - 알려진 톤 반전(읽힘엔 문제 없음): 노트 코드 블록(다크에서 밝은 바탕), 마일스톤 오늘 선(흰 선)
 
 ## In progress
-**Phase 20 수행 양식 — 코드 전부 작성, DB 반영·통합 검증 전** (계획: `docs/plans/phase-20-plan.md`, T0~T15)
+없음. 다음은 Phase 21(`/phase-run 21`).
+
+(기록) **Phase 20 수행 양식 — 회사 PC 시점 상태, 이후 집 PC에서 완료** (계획: `docs/plans/phase-20-plan.md`, T0~T15)
 - 끝난 태스크: T0(SOT 보강) · T1(마이그레이션 SQL) · T2(타입·Zod·리포지토리) · T3(좌표 맵 mode 분기·_meta) · T4(생성기·작성안내·드롭다운) · T5(수행 파서) · T6(수행 미리보기·페이로드) · T7(어댑터 날짜 셀·인라인 드롭다운) · T8(왕복 테스트 + 결함 2건) · T9(서버 액션) · T10(집행 CRUD 새 필드) · T11a(집행 패널 "내역" 줄) · T11b(연구비 화면 수행 툴바·업로드 모달) · T12(설정 스냅샷 패널)
 - 현재 상태: `tsc` 0 · 단위 테스트 69파일 2,146건 통과 · `npm run build` 성공. **통합 테스트는 미실행**(새 컬럼이 DB에 없어 기존 집행 통합 테스트도 지금은 깨진다 — push 후 정상)
 - 마이그레이션 `supabase/migrations/20260928000000_execution_form.sql` **미적용**. 회사 PC는 Supabase CLI가 link 안 돼 있어 멈췄다. SQL은 PGlite(임시 Postgres)로 18개 마이그레이션 순차 적용 + 새 함수 전 경로를 검증했다(슈퍼유저라 RLS는 미검증)
@@ -295,7 +305,9 @@
 - 명세 밖 추가: `actions/budget.ts` `getExecutionDetailOptions(projectId)`(패널 인력·산출근거 선택지, 읽기 전용) · `tests/unit/input-form-boundary.test.ts` 산식 호출 허용 목록에 `parse-execution.ts`·`execution-preview.ts` 추가(IN-11 금액 보완 — 산식 재사용이지 재구현 아님)
 
 ## Next steps
-> ⚠️ **집 PC 인계 (2026-09-28 회사 PC에서 정리) — Phase 20 마무리 순서**:
+> **다음: Phase 21 목표 양식 — `/phase-run 21`.** 회사 PC로 옮기면 `git pull`만 하면 된다(DB는 공유라 `db push` 이미 적용됨).
+
+> (처리됨, 2026-09-28 밤) **집 PC 인계 (2026-09-28 회사 PC에서 정리) — Phase 20 마무리 순서**:
 > ① `git pull` → `npm install`(의존성 변경 없음, 확인용)
 > ② **앱에서 [지금 내보내기]로 백업**(K-6) — push 전 안전망이고 `npm test`가 시드를 지우는 것에도 대비
 > ③ `npx supabase db push` (집 PC는 link돼 있음) → 확인: `budget_executions` 7컬럼, `commit_execution_form` 함수, `app_settings.schema_version = 4` 그대로
@@ -396,7 +408,7 @@
 - 공통: 두 PC 동일 데이터 조회, 동료 첫 로그인 시 /pending→승인 흐름(두 번째 회사 계정 필요), Tauri 자동 백업 7일 경과 실동작
 
 ## Blockers
-- Phase 20 통합 검증은 `db push` 필요 — 회사 PC는 Supabase CLI 미연결(`supabase login` + `link --project-ref oqdcvdmodnpxmosnuitz` 필요). 집 PC에서 진행
+- 집 PC도 Supabase CLI가 link돼 있지 않았다(2026-09-28 확인). 마이그레이션은 아래 "DB 마이그레이션" 직결 방식으로 — `--db-url`에 `.env.test.local`의 `TEST_DATABASE_URL`을 그대로 쓰면 된다. Docker 경고(pg-delta catalog)는 무시해도 적용된다
 - 그 외 없음. (Supabase 일시정지는 Resume으로 해소 — Current goal의 주의 참고)
 
 ## 정리 중 드러난 것 (2026-08-10 후속 정리)

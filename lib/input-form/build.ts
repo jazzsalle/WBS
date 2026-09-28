@@ -685,9 +685,12 @@ function buildExecutionSheets(
   budget: FormSheet;
   meta: InputFormMeta;
 } {
-  // 없으면 집행 0건으로 본다 — Phase 19 호출부(안내 문장만 보던 테스트)가 executions 없이 수행 모드를 부른다.
-  // 실제 내려받기 경로(actions/input-form.ts)는 그 연차의 집행을 늘 채워 넘겨야 한다
-  const executions = data.executions ?? [];
+  // 빈 배열로 메우지 않는다 — 집행을 빠뜨린 호출이 "집행 0건 양식"으로 조용히 나가면
+  // 사용자가 그 양식을 올릴 때 _meta에 없는 집행이 삭제 후보가 된다(절대 규칙 5)
+  const executions = data.executions;
+  if (executions === undefined) {
+    throw new Error('수행 양식에는 그 연차의 집행 목록(executions)이 필요하다 — 없으면 빈 배열을 명시해 넘긴다');
+  }
   const detailIdSet = new Set(data.details.map((d) => d.id));
   // 양식에 실린 detailId가 _meta 목록 밖이면 손대지 않은 행이 다시 올릴 때 오류 행이 된다(IN-13)
   const strayDetail = executions.find((e) => e.detailId !== null && !detailIdSet.has(e.detailId));

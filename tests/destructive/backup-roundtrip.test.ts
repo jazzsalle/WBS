@@ -228,6 +228,93 @@ describe('K-5: schemaVersion 불일치·형식 위반 파일의 복원 거부', 
   });
 });
 
+// §5.12 Phase 20 내역 7컬럼 — 백업이 새 컬럼을 실어 나르고, 7컬럼이 없는 옛(Phase 20 이전)
+// 백업도 not null 위반 없이 복원돼야 한다(§8.8, S-12). restore_backup이 spec만 ''로 채운다.
+describe('§8.8 S-12: budget_executions 내역 7컬럼 백업·옛 형식 복원', () => {
+  const EXEC_ID = 'aaaa0000-0000-4000-8000-0000000000e1';
+  const MEMBER_ID = 'aaaa0000-0000-4000-8000-0000000000f1';
+  const NEW_COLS = [
+    'subcategory_code', 'spec', 'unit_price', 'factors', 'axis', 'member_id', 'detail_id',
+  ] as const;
+
+  beforeAll(async () => {
+    await sql`
+      insert into public.members (id, project_id, name, role, created_by, updated_by)
+      values (${MEMBER_ID}::uuid, ${SEED.projectId}::uuid, '백업 테스트 인력', 'researcher',
+              ${user.id}::uuid, ${user.id}::uuid)`;
+    const item = (await sql`
+      select id from public.budget_items
+       where year_id = ${SEED.year1Id}::uuid and category = 'activity'`)[0];
+    // 7컬럼 전부 값을 채운다 — null이면 "컬럼이 실렸는가"와 "값이 보존됐는가"를 가를 수 없다
+    await sql`
+      insert into public.budget_executions
+        (id, budget_item_id, date, amount, description, note,
+         subcategory_code, spec, unit_price, factors, axis, member_id, detail_id,
+         created_by, updated_by)
+      values
+        (${EXEC_ID}::uuid, ${item!.id}::uuid, '2026-05-10', 1200000, '착수 회의비', '',
+         'activity_meeting', '20인 × 4회', 300000,
+         ${sql.json([{ label: '회', value: 4, isPercent: false }])}::jsonb,
+         'cash', ${MEMBER_ID}::uuid, ${SEED_DETAIL_ID}::uuid,
+         ${user.id}::uuid, ${user.id}::uuid)`;
+  });
+
+  it('내보내기 JSON의 budget_executions 행에 7컬럼이 값 그대로 있다', async () => {
+    const file = jsonRoundtrip(await backup.exportAll(user.client, exportedBy(user)));
+    const row = file.tables['budget_executions']!.find(
+      (r) => (r as { id: string }).id === EXEC_ID
+    ) as Record<string, unknown>;
+    expect(row).toBeDefined();
+    for (const col of NEW_COLS) expect(row, col).toHaveProperty(col);
+    expect(row).toMatchObject({
+      subcategory_code: 'activity_meeting',
+      spec: '20인 × 4회',
+      axis: 'cash',
+      member_id: MEMBER_ID,
+      detail_id: SEED_DETAIL_ID,
+      factors: [{ label: '회', value: 4, isPercent: false }],
+    });
+    expect(Number(row['unit_price'])).toBe(300000);
+  });
+
+  it('7컬럼을 뺀 옛 형식 행으로 복원하면 spec은 \'\', 나머지 6컬럼은 null이 된다', async () => {
+    const current = jsonRoundtrip(await backup.exportAll(user.client, exportedBy(user)));
+    const legacy = jsonRoundtrip(current);
+    legacy.tables['budget_executions'] = current.tables['budget_executions']!.map((r) => {
+      const row = { ...(r as Record<string, unknown>) };
+      for (const col of NEW_COLS) delete row[col];
+      return row;
+    });
+
+    try {
+      await backup.restoreBackup(user.client, legacy);
+
+      const restored = (await sql`
+        select subcategory_code, spec, unit_price, factors, axis, member_id, detail_id,
+               amount::text as amount, description
+          from public.budget_executions where id = ${EXEC_ID}::uuid`)[0];
+      expect(restored).toEqual({
+        subcategory_code: null,
+        spec: '',
+        unit_price: null,
+        factors: null,
+        axis: null,
+        member_id: null,
+        detail_id: null,
+        amount: '1200000',
+        description: '착수 회의비',
+      });
+    } finally {
+      // 다음 테스트·원복이 새 컬럼 값을 기대하므로 현재 형식으로 되돌린다
+      await backup.restoreBackup(user.client, current);
+    }
+
+    const back = (await sql`
+      select spec, member_id from public.budget_executions where id = ${EXEC_ID}::uuid`)[0];
+    expect(back).toEqual({ spec: '20인 × 4회', member_id: MEMBER_ID });
+  });
+});
+
 describe('parseBackupFile — importAll 액션의 구조 검증 (Zod)', () => {
   it('BackupFile 형태가 아니면 ValidationError', () => {
     for (const junk of [null, undefined, 42, 'json', [], {}]) {

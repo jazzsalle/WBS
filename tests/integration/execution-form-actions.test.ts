@@ -711,8 +711,11 @@ describe('(g) 스냅샷 — 목록 Zod 통과 · 완전 되돌리기 (IN-14) · 
     const committed = unwrap(await commitExecutionForm(projectId, formOf(file, base.fileName), preview.fileHash, true));
     expect(committed).toMatchObject({ added: 1, updated: 1, deleted: 1 });
 
+    const snapshotsBeforeRestore = await countSnapshots();
     const restored = unwrap(await imports.restoreImportSnapshot(committed.snapshotId));
     expect(restored).toMatchObject({ executionsDeleted: 1, executionsReverted: 1, executionsRestored: 1 });
+    // 복원은 새 스냅샷을 남기지 않는다 — 되돌리기의 되돌리기를 만들지 않는다(IN-14)
+    expect(await countSnapshots()).toBe(snapshotsBeforeRestore);
     // version은 되돌린 행에서 달라질 수 있다 — 값·id만 본다
     const strip = (rows: ExecutionRow[]) => rows.map(({ version: _v, ...rest }) => rest);
     expect(strip(await readExecutions())).toEqual(strip(before));

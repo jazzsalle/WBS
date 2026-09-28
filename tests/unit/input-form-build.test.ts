@@ -784,7 +784,7 @@ describe('작성안내 시트 (F-8)', () => {
     expect(bodyOf(guide, '주의')).toContain('금액 열은 읽지 않는다');
     expect(bodyOf(guide, '주의')).not.toContain('금액 열을 읽는다');
 
-    const execution = buildInputForm(DATA, TODAY, 'execution').sheets[0]!;
+    const execution = buildInputForm({ ...DATA, executions: [] }, TODAY, 'execution').sheets[0]!;
     expect(execution.rows[1]![0]!.value).toBe('생성 2026-09-25 · 1차년도 · 수행');
     expect(bodyOf(execution, '주의')).toContain('금액 열을 읽는다');
     expect(bodyOf(execution, '주의')).not.toContain('금액 열은 읽지 않는다');
@@ -795,7 +795,7 @@ describe('작성안내 시트 (F-8)', () => {
     expect(principle).toContain('이름으로 찾지 않습니다');
     expect(principle).toContain('막지 않습니다');
     expect(principle).toContain('비목 단위');
-    const execution = buildInputForm(DATA, TODAY, 'execution').sheets[0]!;
+    const execution = buildInputForm({ ...DATA, executions: [] }, TODAY, 'execution').sheets[0]!;
     expect(bodyOf(execution, '원칙')).toContain('[삭제 포함]');
   });
 
