@@ -322,3 +322,82 @@ describe('writeInputFormWorkbook — 거부', () => {
     ).rejects.toThrow(/중복/);
   });
 });
+
+// ─── Phase 20: 날짜 셀·드롭다운 거부 (F-6·F-9) ──────────────────────────────────
+
+describe('writeInputFormWorkbook — 날짜·드롭다운 힌트 거부', () => {
+  const DATE_SHEET: FormSheet = {
+    name: 'x',
+    hidden: false,
+    hiddenColumns: [],
+    headerRow: 1,
+    dataStartRow: 2,
+    columnHints: [
+      { key: false, format: 'date', width: 12, align: 'center' },
+      { key: false, format: 'text', width: 10, align: 'center' },
+    ],
+    rows: [
+      [s('집행일'), s('축')],
+      [s('2025-04-01'), s('현금')],
+    ],
+  };
+  const withDate = (value: string): InputFormWorkbook => ({
+    sheets: [{ ...DATE_SHEET, rows: [DATE_SHEET.rows[0]!, [s(value), s('현금')]] }],
+    fileName: 'x.xlsx',
+  });
+  const withList = (values: string[], column = 1): InputFormWorkbook => ({
+    sheets: [{ ...DATE_SHEET, validations: [{ column, values }] }],
+    fileName: 'x.xlsx',
+  });
+
+  it('형식이 틀리거나 달력에 없는 날짜는 셀 주소와 함께 거부한다', async () => {
+    await expect(writeInputFormWorkbook(withDate('2025/04/01'))).rejects.toThrow(/'x'!A2.*yyyy-mm-dd/);
+    await expect(writeInputFormWorkbook(withDate('2025-4-1'))).rejects.toThrow(/yyyy-mm-dd/);
+    await expect(writeInputFormWorkbook(withDate('2025-04-01T00:00:00Z'))).rejects.toThrow(/yyyy-mm-dd/);
+    await expect(writeInputFormWorkbook(withDate('2025-02-30'))).rejects.toThrow(/존재하지 않는 날짜/);
+    await expect(writeInputFormWorkbook(withDate('2025-13-01'))).rejects.toThrow(/존재하지 않는 날짜/);
+  });
+
+  it('쉼표·큰따옴표가 든 값, 빈 목록·빈 값은 거부한다', async () => {
+    await expect(writeInputFormWorkbook(withList(['현금', '현물,기타']))).rejects.toThrow(/쉼표/);
+    await expect(writeInputFormWorkbook(withList(['"현금"']))).rejects.toThrow(/큰따옴표/);
+    await expect(writeInputFormWorkbook(withList([]))).rejects.toThrow(/비어 있습니다/);
+    await expect(writeInputFormWorkbook(withList(['현금', '']))).rejects.toThrow(/빈 값/);
+  });
+
+  it('255자 경계: 쉼표 포함 255자는 통과, 256자는 거부한다', async () => {
+    // 'a'×127 + ',' + 'b'×127 = 255자
+    await expect(writeInputFormWorkbook(withList(['a'.repeat(127), 'b'.repeat(127)]))).resolves.toBeInstanceOf(Buffer);
+    await expect(writeInputFormWorkbook(withList(['a'.repeat(128), 'b'.repeat(127)]))).rejects.toThrow(/255자/);
+  });
+
+  it('열 인덱스가 범위 밖이거나 같은 열이 두 번이면 거부한다', async () => {
+    await expect(writeInputFormWorkbook(withList(['현금'], 2))).rejects.toThrow(/드롭다운 열 인덱스/);
+    await expect(writeInputFormWorkbook(withList(['현금'], -1))).rejects.toThrow(/드롭다운 열 인덱스/);
+    await expect(
+      writeInputFormWorkbook({
+        sheets: [
+          {
+            ...DATE_SHEET,
+            validations: [
+              { column: 1, values: ['현금'] },
+              { column: 1, values: ['현물'] },
+            ],
+          },
+        ],
+        fileName: 'x.xlsx',
+      })
+    ).rejects.toThrow(/중복/);
+  });
+
+  it('date 힌트가 없는 열의 날짜 모양 문자열은 문자열로 남는다 — 힌트 없는 경로 불변', async () => {
+    const out = await writeInputFormWorkbook({
+      sheets: [{ name: 'x', hidden: false, hiddenColumns: [], rows: [[s('집행일')], [s('2025-04-01')]] }],
+      fileName: 'x.xlsx',
+    });
+    const cell = readWorkbook(new Uint8Array(out))[0]?.cells[1]?.[0];
+    expect(cell?.value).toBe('2025-04-01');
+    const wb = await reload(out);
+    expect(wb.getWorksheet('x')?.getCell('A2').dataValidation).toBeFalsy();
+  });
+});

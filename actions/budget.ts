@@ -11,20 +11,24 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { ActionResult, BudgetExecution, BudgetItem, Settings, Year } from '@/types';
+import type { ActionResult, BudgetDetail, BudgetExecution, BudgetItem, Member, Settings, Year } from '@/types';
 import { requireApprovedUser } from '@/lib/auth/guard';
 import * as appUsers from '@/lib/db/app-users';
+import * as budgetDetailsRepo from '@/lib/db/budget-details';
 import * as budgetItemsRepo from '@/lib/db/budget-items';
+import * as membersRepo from '@/lib/db/members';
 import * as projectsRepo from '@/lib/db/projects';
 import * as settingsRepo from '@/lib/db/settings';
 import * as yearsRepo from '@/lib/db/years';
 import {
+  NotFoundError,
   RuleViolationError,
   StaleDataError,
   ValidationError,
   toActionFailure,
 } from '@/lib/db/errors';
-import { budgetCategorySchema } from '@/lib/db/schema';
+import { budgetCategorySchema, detailAxisSchema } from '@/lib/db/schema';
+import { SUBCATEGORY_PRESETS } from '@/lib/constants';
 import { buildBudgetMatrix, type BudgetMatrix, type YearBudgetMismatch } from '@/lib/budget';
 import { todayISO } from '@/lib/dates';
 
@@ -79,12 +83,42 @@ const amountSchema = z
 const descriptionSchema = z.string().trim().max(200, '적요는 200자 이내여야 합니다.');
 const noteSchema = z.string().max(10_000);
 
+// §5.12 Phase 20 내역 필드 — 산출근거(§5.17)와 같은 형이라 actions/budget-plan.ts와 같은 제약을 둔다.
+// 'use server' 파일은 async 함수만 내보낼 수 있어 스키마를 공유하지 못하고 여기서 다시 선언한다.
+const unitPriceSchema = z
+  .int('단가는 원 단위 정수로 입력하세요.')
+  .min(0, '단가는 0 이상이어야 합니다.');
+
+// PL-3과 같다: 인자 값은 소수를 허용하고(참여율 10.0) 음수는 막는다
+const factorSchema = z.object({
+  label: z.string().trim().max(20, '인자 라벨은 20자 이내여야 합니다.'),
+  value: z
+    .number()
+    .finite('인자 값이 올바르지 않습니다.')
+    .min(0, '인자 값은 0 이상이어야 합니다.'),
+  isPercent: z.boolean(),
+});
+
+const factorsSchema = z.array(factorSchema).max(3, '인자는 3개까지 넣을 수 있습니다.');
+
 const executionFieldsSchema = z.object({
   date: isoDateSchema,
   amount: amountSchema,
   description: descriptionSchema,
   note: noteSchema,
+  // 전부 null 허용 — 손으로 넣는 집행은 내역 없이도 성립한다(§5.12 "전부 선택")
+  subcategoryCode: z.string().nullable(),
+  spec: noteSchema,
+  unitPrice: unitPriceSchema.nullable(),
+  factors: factorsSchema.nullable(),
+  axis: detailAxisSchema.nullable(), // 집행은 축 없음을 허용한다(§5.12, 산출근거와 다르다)
+  memberId: z.uuid('인력 ID 형식이 올바르지 않습니다.').nullable(),
+  detailId: z.uuid('산출근거 ID 형식이 올바르지 않습니다.').nullable(),
 });
+
+type ExecutionRefs = Partial<
+  Pick<z.infer<typeof executionFieldsSchema>, 'subcategoryCode' | 'memberId' | 'detailId'>
+>;
 
 // date는 DB에 기본값이 없고(not null), amount 없는 집행은 집행액 합계(§6.4)에 아무 의미가 없다 —
 // 둘은 생성 시 반드시 받는다. 적요·비고는 생략 가능하다 (N-11 미입력 = 빈 문자열).
@@ -115,6 +149,52 @@ function assertPlanSplit(
   if (cashAmount === null && inKindAmount === null) return;
   if ((cashAmount ?? 0) + (inKindAmount ?? 0) !== plannedAmount) {
     throw new ValidationError('현금과 현물의 합이 계획액과 같아야 합니다.');
+  }
+}
+
+/**
+ * §5.12 참조 필드 검증. FK는 "존재하는 행"만 보장하고 과제·연차 경계는 막지 못한다
+ * (IN-13 — N-13·PL-D2와 같은 경계). 비워 두는(null·생략) 값은 검사하지 않는다.
+ *
+ * - subcategoryCode: 부록 A.5에서 그 비목의 세목이어야 한다(PL-D4와 같은 이유 — 자유 문자열이면
+ *   세목이 오타로 갈라진다). 입력값 형식 문제라 VALIDATION이다.
+ * - memberId: 그 과제의 인력이어야 한다 → 위반 RULE.
+ * - detailId: 그 과제 **같은 연차**의 산출근거여야 한다 → 위반 RULE. 비목은 묻지 않는다(§5.12에 없다).
+ */
+async function assertExecutionRefs(
+  client: SupabaseClient,
+  item: BudgetItem,
+  refs: ExecutionRefs
+): Promise<void> {
+  const { subcategoryCode, memberId, detailId } = refs;
+
+  if (typeof subcategoryCode === 'string') {
+    if (!SUBCATEGORY_PRESETS[item.category].some((def) => def.code === subcategoryCode)) {
+      throw new ValidationError('이 비목에 없는 세목입니다.');
+    }
+  }
+
+  if (typeof memberId === 'string') {
+    const members = await membersRepo.listMembers(client, item.projectId);
+    if (!members.some((m) => m.id === memberId)) {
+      throw new RuleViolationError('이 과제에 속하지 않은 인력은 집행에 지정할 수 없습니다.');
+    }
+  }
+
+  if (typeof detailId === 'string') {
+    let detail;
+    try {
+      detail = await budgetDetailsRepo.getDetailById(client, detailId);
+    } catch (e) {
+      // 없는 id도 경계 밖이다 — 그대로 두면 FK 위반이 SA-4의 뭉뚱그린 실패로 바뀌어 사유가 사라진다
+      if (e instanceof NotFoundError) {
+        throw new RuleViolationError('이 과제·연차의 산출근거가 아닙니다.');
+      }
+      throw e;
+    }
+    if (detail.projectId !== item.projectId || detail.yearId !== item.yearId) {
+      throw new RuleViolationError('이 과제·연차의 산출근거가 아닙니다.');
+    }
   }
 }
 
@@ -211,7 +291,9 @@ export async function addExecution(
 
     // 화면 갱신 대상 과제를 알아야 하고, 없는 비목은 삽입보다 먼저 NotFound로 걸러진다
     const item = await budgetItemsRepo.getBudgetItemById(client, bid);
+    await assertExecutionRefs(client, item, fields);
 
+    // 내역 필드는 넘어온 것만 싣는다 — 생략하면 리포지토리가 키를 빼서 DB 기본값이 들어간다
     const created = await budgetItemsRepo.addExecution(
       client,
       bid,
@@ -220,6 +302,13 @@ export async function addExecution(
         amount: fields.amount,
         description: fields.description ?? '',
         note: fields.note ?? '',
+        subcategoryCode: fields.subcategoryCode,
+        spec: fields.spec,
+        unitPrice: fields.unitPrice,
+        factors: fields.factors,
+        axis: fields.axis,
+        memberId: fields.memberId,
+        detailId: fields.detailId,
         createdBy: user.id,
         updatedBy: user.id,
       }
@@ -249,6 +338,7 @@ export async function updateExecution(
     client = ctx.client;
 
     const item = await budgetItemsRepo.getBudgetItemById(client, bid);
+    await assertExecutionRefs(client, item, parsed);
 
     // 다른 비목의 집행을 가리키면 리포지토리가 0행 갱신 → NotFound로 구분해 던진다
     const updated = await budgetItemsRepo.updateExecution(
@@ -331,6 +421,34 @@ export async function getBudgetMatrix(projectId: string): Promise<ActionResult<B
         currencyUnit: settings.currencyUnit,
       },
     };
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
+/** 집행 내역 패널의 "내역" 줄 선택지 (§7.9.7 수행 모드 마지막 문장, §5.11·§5.17) */
+export interface ExecutionDetailOptions {
+  members: Member[];
+  /** 과제 전체. 같은 연차만 고르게 하는 것은 패널의 몫이다(IN-13) */
+  details: BudgetDetail[];
+}
+
+/**
+ * 수행 모드 집행 패널의 인력·산출근거 선택지. getBudgetMatrix에 싣지 않는 이유는 선택지일 뿐
+ * 집계와 같은 시점일 필요가 없어서다 — 매트릭스 조회의 계약(집계와 원본이 같은 시점)을 넓히지 않는다.
+ * 선택지에 없는 id도 패널이 "목록에 없음"으로 드러내므로 시점 차이가 값을 바꾸지 않는다.
+ */
+export async function getExecutionDetailOptions(
+  projectId: string
+): Promise<ActionResult<ExecutionDetailOptions>> {
+  try {
+    const pid = parseOrThrow(uuidSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
+    const { client } = await requireApprovedUser();
+    const [members, details] = await Promise.all([
+      membersRepo.listMembers(client, pid),
+      budgetDetailsRepo.listByProject(client, pid),
+    ]);
+    return { ok: true, data: { members, details } };
   } catch (e) {
     return toFailure(e);
   }

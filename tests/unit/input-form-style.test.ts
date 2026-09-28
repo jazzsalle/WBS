@@ -22,6 +22,9 @@ import type { InputFormData } from '@/lib/input-form';
 import { writeInputFormWorkbook } from '@/lib/input-form-adapter';
 import { XLSX_STYLE, argb } from '@/lib/xlsx-style';
 import type { BudgetDetail, DetailAxis, Member } from '@/types';
+import { beforeAll } from 'vitest';
+import type { FormSheet } from '@/lib/input-form';
+import { readWorkbook } from '@/lib/import-adapter';
 
 const PROJECT = { id: 'proj-1', name: '스마트 건설 플랫폼' };
 const YEAR = { id: 'year-1', name: '1차년도', startDate: '2025-04-01', endDate: '2025-12-31', order: 0 };
@@ -579,5 +582,118 @@ describe('_meta 시트는 값만 있고 서식이 새어 들지 않는다', () =
     const views = meta.views ?? [];
     expect(views.length === 0 || views[0]?.state !== 'frozen').toBe(true);
     expect(meta.autoFilter).toBeFalsy();
+  });
+});
+
+// ═══ Phase 20: 날짜 셀·드롭다운 (F-6·F-9, IN-8) ═════════════════════════════
+//
+// 수행 양식 생성기(T4)와 독립으로 **손으로 만든** FormSheet를 쓴다 — 어댑터가 date 힌트·validations를
+// 파일에 어떻게 옮기는지만 본다. 열: A detailId(숨김) · B 품명 · C 집행일(date) · D 축(드롭다운) · E 금액(int)
+
+describe('수행 양식형 시트 — 날짜 셀·인라인 드롭다운 (F-6·F-9)', () => {
+  const AXIS_VALUES = ['현금', '현물'];
+  const EXEC: FormSheet = {
+    name: '사업비',
+    hidden: false,
+    hiddenColumns: [0],
+    kind: 'data',
+    headerRow: 1,
+    dataStartRow: 2,
+    columnHints: [
+      { key: false, format: 'text', width: 10, align: 'left' },
+      { key: false, format: 'text', width: 26, align: 'left' },
+      { key: false, format: 'date', width: 12, align: 'center' },
+      { key: false, format: 'text', width: 10, align: 'center' },
+      { key: false, format: 'int', width: 14, align: 'right' },
+    ],
+    rowRoles: ['header', 'data', 'data', 'data', 'total'],
+    rows: [
+      [{ value: 'detailId' }, { value: '품명' }, { value: '집행일' }, { value: '축' }, { value: '금액' }],
+      [{ value: 'd-1' }, { value: '시약' }, { value: '2025-04-01' }, { value: '현금' }, { value: 150_000 }],
+      // 연말·윤일 — 시간대 때문에 하루 밀리면 여기서 드러난다
+      [{ value: 'd-2' }, { value: '장비' }, { value: '2024-02-29' }, { value: '현물' }, { value: 2_000_000 }],
+      // 집행일 빈 값은 빈 셀(파서가 오류 행으로 판정한다 — IN-11)
+      [{ value: 'd-3' }, { value: '소모품' }, { value: '' }, { value: null }, { value: 0 }],
+      [{}, { value: '총액' }, {}, {}, { formula: 'SUM(E2:E4)' }],
+    ],
+    validations: [{ column: 3, values: AXIS_VALUES }],
+  };
+
+  let exec: ExcelJS.Workbook;
+  let buffer: Buffer;
+  beforeAll(async () => {
+    buffer = await writeInputFormWorkbook({ sheets: [EXEC], fileName: 'x.xlsx' });
+    exec = new ExcelJS.Workbook();
+    await exec.xlsx.load(buffer as unknown as ArrayBuffer);
+  });
+
+  function sheet(): ExcelJS.Worksheet {
+    const ws = exec.getWorksheet('사업비');
+    if (ws === undefined) throw new Error('사업비 시트 없음');
+    return ws;
+  }
+
+  it('date 열 ISO 문자열은 날짜 셀 + yyyy-mm-dd, 값은 UTC 자정(하루 밀림 없음)', () => {
+    const c2 = sheet().getCell('C2');
+    expect(c2.value).toBeInstanceOf(Date);
+    expect((c2.value as Date).toISOString()).toBe('2025-04-01T00:00:00.000Z');
+    expect(c2.numFmt).toBe(XLSX_STYLE.numFmt.date);
+    expect(c2.numFmt).toBe('yyyy-mm-dd');
+    expect((sheet().getCell('C3').value as Date).toISOString()).toBe('2024-02-29T00:00:00.000Z');
+  });
+
+  it('헤더(집행일)·빈 날짜·총액 행의 date 열은 날짜로 바뀌지 않는다', () => {
+    expect(sheet().getCell('C1').value).toBe('집행일');
+    expect(sheet().getCell('C4').value).toBeNull();
+    expect(sheet().getCell('C5').value).toBeNull();
+  });
+
+  it('축 열 데이터 행마다 인라인 목록 유효성 "현금,현물" — 헤더·총액 행과 다른 열에는 없다', () => {
+    for (const r of [2, 3, 4]) {
+      const dv = sheet().getCell(r, 4).dataValidation;
+      expect(dv?.type).toBe('list');
+      expect(dv?.formulae).toEqual(['"현금,현물"']);
+      expect(dv?.allowBlank).toBe(true);
+      expect(dv?.showErrorMessage).toBe(true);
+    }
+    expect(sheet().getCell(1, 4).dataValidation).toBeFalsy();
+    expect(sheet().getCell(5, 4).dataValidation).toBeFalsy();
+    expect(sheet().getCell(2, 3).dataValidation).toBeFalsy();
+  });
+
+  it("전 셀에 '%'가 든 numFmt가 0개다 (X-7)", () => {
+    const offenders: string[] = [];
+    let visited = 0;
+    exec.eachSheet((ws) => {
+      ws.eachRow({ includeEmpty: true }, (row, r) => {
+        row.eachCell({ includeEmpty: true }, (cell, c) => {
+          visited += 1;
+          if (typeof cell.numFmt === 'string' && cell.numFmt.includes('%')) offenders.push(`${ws.name}!${r},${c}`);
+        });
+      });
+    });
+    expect(visited).toBeGreaterThan(20);
+    expect(offenders).toEqual([]);
+  });
+
+  it('올리기 경로(readWorkbook, cellDates:false)로 읽으면 날짜는 1900 체계 정수 직렬값이다 (F-6 → IN-11 파서)', () => {
+    const raw = readWorkbook(new Uint8Array(buffer)).find((s) => s.name === '사업비');
+    // 2025-04-01 = 45748, 2024-02-29 = 45351 (엑셀 1900 체계, 1900-02-29 버그 포함 25569 = 1970-01-01)
+    expect(raw?.cells[1]?.[2]?.value).toBe(45748);
+    expect(raw?.cells[2]?.[2]?.value).toBe(45351);
+    expect(raw?.cells[3]?.[2]?.value ?? null).toBeNull();
+    expect(raw?.cells[0]?.[2]?.value).toBe('집행일');
+  });
+
+  it('rowRoles가 없으면 dataStartRow부터 끝까지 드롭다운을 건다', async () => {
+    const { rowRoles: _omit, ...rest } = EXEC;
+    const noRoles: FormSheet = { ...rest, rows: EXEC.rows.slice(0, 4) };
+    const out = await writeInputFormWorkbook({ sheets: [noRoles], fileName: 'x.xlsx' });
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(out as unknown as ArrayBuffer);
+    const ws = wb.getWorksheet('사업비');
+    expect(ws?.getCell(1, 4).dataValidation).toBeFalsy();
+    for (const r of [2, 3, 4]) expect(ws?.getCell(r, 4).dataValidation?.formulae).toEqual(['"현금,현물"']);
+    expect((ws?.getCell('C2').value as Date).toISOString()).toBe('2025-04-01T00:00:00.000Z');
   });
 });

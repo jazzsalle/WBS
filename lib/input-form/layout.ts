@@ -19,7 +19,13 @@ export const EMPTY_ROWS_PER_SUBCATEGORY = 3;
  * 참여율은 `percent`가 아니라 `decimal`이다 — 백분율 서식 셀은 `10`을 `1000%`로 보이게 하고(X-7),
  * 읽을 때는 D-22의 ×100 되돌리기가 필요해진다. 일반 숫자로 두면 양방향 모두 함정이 없다.
  */
-export type FormCellFormat = 'int' | 'decimal' | 'percent' | 'text' | 'formula';
+export type FormCellFormat = 'int' | 'decimal' | 'percent' | 'text' | 'formula' | 'date';
+
+/**
+ * 양식 모드(IN-9). 좌표 맵은 하나이고 수행 모드 열은 제안 맵에서 파생한다 — 맵을 둘로 두면
+ * 두 모드의 같은 열이 서로 다른 자리로 흘러갈 수 있다(IN-1).
+ */
+export type InputFormMode = 'plan' | 'execution';
 
 export interface InputFormColumnDef {
   role: string;
@@ -51,12 +57,14 @@ export type InputFormSheetKey = 'personnel' | 'budget' | 'meta';
 export type PersonnelColumnRole =
   | 'memberId'
   | 'detailId'
+  | 'executionId'
   | 'name'
   | 'position'
   | 'staff'
   | 'salaryBasis'
   | 'annualSalary'
   | 'monthlySalary'
+  | 'executionDate'
   | 'subcategory'
   | 'participation'
   | 'months'
@@ -69,8 +77,10 @@ export type PersonnelColumnRole =
 export type BudgetColumnRole =
   | 'subcategory'
   | 'detailId'
+  | 'executionId'
   | 'category'
   | 'subcategoryLabel'
+  | 'executionDate'
   | 'name'
   | 'spec'
   | 'unitPrice'
@@ -84,16 +94,24 @@ export type BudgetColumnRole =
 
 export type MetaColumnRole = 'key' | 'value';
 
-/** `_meta` 시트의 고정 키. 목록 항목은 `subcategory:<code>`·`member:<memberId>` 접두 행으로 잇는다 */
+/**
+ * `_meta` 시트의 고정 키. 목록 항목은 `subcategory:<code>`·`member:<memberId>` 접두 행으로 잇는다.
+ * `mode`는 수행 양식에만 적는다 — 없으면 제안 양식이다(IN-2). 제안 양식에 적으면 Phase 19 파일과 바이트가 달라진다.
+ */
 export const META_KEYS = {
   formVersion: 'formVersion',
   projectId: 'projectId',
   yearId: 'yearId',
   generatedAt: 'generatedAt',
+  mode: 'mode',
 } as const;
 
 export const META_SUBCATEGORY_PREFIX = 'subcategory:';
 export const META_MEMBER_PREFIX = 'member:';
+/** 수행 양식 전용. 값은 내려받을 때의 `version` — 충돌·삭제 판정 기준(IN-10) */
+export const META_EXECUTION_PREFIX = 'execution:';
+/** 수행 양식 전용. 그 연차의 산출근거 id — 경계 목록(IN-13) */
+export const META_DETAIL_PREFIX = 'detail:';
 
 type ColumnDefOf<R extends string> = Omit<InputFormColumnDef, 'role'> & { role: R };
 
@@ -141,11 +159,87 @@ const META_COLUMNS: readonly ColumnDefOf<MetaColumnRole>[] = [
   { role: 'value', label: '값', hidden: false, read: true, format: 'text' },
 ];
 
-export const INPUT_FORM_SHEETS: Readonly<Record<InputFormSheetKey, InputFormSheetDef>> = {
+// ─── 수행 모드 파생 (IN-9) ───────────────────────────────────
+
+// 행을 기존 집행(`BudgetExecution.id`)과 잇는 키. 비면 새 행이다(IN-10)
+const EXECUTION_ID_COLUMN = { label: 'executionId', hidden: true, read: true, format: 'text' } as const;
+const EXECUTION_DATE_COLUMN = { label: '집행일', hidden: false, read: true, format: 'date' } as const;
+
+/**
+ * 제안 맵 → 수행 맵. 열을 **더하고 플래그만 바꾼다** — 제안 양식의 보이는 열 순서가 그대로 남아야
+ * "같은 시트·열 + 집행일"이 된다(IN-9).
+ * - `executionId`는 숨김 키 열 묶음 끝에, `집행일`은 사용자가 적는 첫 열 앞에 둔다.
+ * - 금액은 입력값이다(IN-11) — 수식이 아니므로 `int`로 읽는다.
+ * - 조정액·인건비 산식 금액은 `BudgetExecution`에 담을 곳이 없어 자리만 남기고 읽지 않는다(IN-9).
+ */
+function deriveExecutionColumns<R extends string>(
+  columns: readonly ColumnDefOf<R>[],
+  anchors: { executionIdAfter: R; executionDateBefore: R },
+  overrides: Partial<Record<R, Pick<InputFormColumnDef, 'read' | 'format'>>>
+): ColumnDefOf<R | 'executionId' | 'executionDate'>[] {
+  const out: ColumnDefOf<R | 'executionId' | 'executionDate'>[] = [];
+  let placedId = false;
+  let placedDate = false;
+  for (const column of columns) {
+    if (column.role === anchors.executionDateBefore) {
+      out.push({ role: 'executionDate', ...EXECUTION_DATE_COLUMN });
+      placedDate = true;
+    }
+    const override = overrides[column.role];
+    out.push(override === undefined ? column : { ...column, ...override });
+    if (column.role === anchors.executionIdAfter) {
+      out.push({ role: 'executionId', ...EXECUTION_ID_COLUMN });
+      placedId = true;
+    }
+  }
+  // 앵커 오타는 열이 조용히 빠진 맵을 만든다 — 모듈 로드 시점에 터뜨린다
+  if (!placedId || !placedDate) {
+    throw new Error(`수행 모드 열 파생 실패: 앵커 역할이 없다 (${anchors.executionIdAfter}, ${anchors.executionDateBefore})`);
+  }
+  return out;
+}
+
+const PERSONNEL_EXECUTION_COLUMNS = deriveExecutionColumns(
+  PERSONNEL_COLUMNS,
+  { executionIdAfter: 'detailId', executionDateBefore: 'subcategory' },
+  {
+    adjustment: { read: false, format: 'int' },
+    formulaAmount: { read: false, format: 'int' },
+    amount: { read: true, format: 'int' },
+  }
+);
+
+const BUDGET_EXECUTION_COLUMNS = deriveExecutionColumns(
+  BUDGET_COLUMNS,
+  { executionIdAfter: 'detailId', executionDateBefore: 'name' },
+  {
+    adjustment: { read: false, format: 'int' },
+    amount: { read: true, format: 'int' },
+  }
+);
+
+type InputFormSheets = Readonly<Record<InputFormSheetKey, InputFormSheetDef>>;
+
+const PLAN_SHEETS: InputFormSheets = {
   personnel: { name: '인건비', hidden: false, headerRow: 1, dataStartRow: 2, columns: PERSONNEL_COLUMNS },
   budget: { name: '사업비', hidden: false, headerRow: 1, dataStartRow: 2, columns: BUDGET_COLUMNS },
   meta: { name: '_meta', hidden: true, headerRow: 1, dataStartRow: 2, columns: META_COLUMNS },
 };
+
+// 시트 이름·행 좌표·`_meta`는 두 모드가 같다 — 다른 것은 열뿐이다
+const EXECUTION_SHEETS: InputFormSheets = {
+  personnel: { ...PLAN_SHEETS.personnel, columns: PERSONNEL_EXECUTION_COLUMNS },
+  budget: { ...PLAN_SHEETS.budget, columns: BUDGET_EXECUTION_COLUMNS },
+  meta: PLAN_SHEETS.meta,
+};
+
+/** mode별 좌표 맵. 호출마다 같은 객체를 돌려준다 */
+export function sheetsFor(mode: InputFormMode): InputFormSheets {
+  return mode === 'execution' ? EXECUTION_SHEETS : PLAN_SHEETS;
+}
+
+/** 제안 모드 맵. Phase 17·19 호출부를 위한 별칭이다 — `sheetsFor('plan')`과 같은 객체 */
+export const INPUT_FORM_SHEETS: InputFormSheets = PLAN_SHEETS;
 
 function sheetDef(sheet: InputFormSheetDef | InputFormSheetKey): InputFormSheetDef {
   return typeof sheet === 'string' ? INPUT_FORM_SHEETS[sheet] : sheet;

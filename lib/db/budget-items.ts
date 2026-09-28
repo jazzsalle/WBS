@@ -23,8 +23,10 @@ const CHILD_TABLE = 'budget_executions';
 
 // 앱의 BudgetExecution(§5.12)이 노출하는 필드만 읽는다.
 // version을 함께 싣는 이유: 집행 편집 폼이 expectedVersion을 걸려면 읽은 버전을 알아야 한다 (§8.4 O-1).
-// (snake/camel 표기가 동일한 컬럼들이라 매퍼 변환 결과도 같다)
-const EXECUTION_COLUMNS = 'id, version, date, amount, description, note';
+// snake 컬럼(subcategory_code 등)의 camel 변환은 매퍼가 한다. factors 내부 키는 변환되지 않는다(N-3)
+const EXECUTION_COLUMNS =
+  'id, version, date, amount, description, note, ' +
+  'subcategory_code, spec, unit_price, factors, axis, member_id, detail_id';
 // 집행 내역은 임베드(`executions:budget_executions(...)`)로 읽지 않는다:
 // PostgREST는 임베드 자식이 max-rows(기본 1000)에 걸려도 에러 없이 잘린 배열을 준다.
 // 그러면 집행액 합계가 조용히 작아지고 집행률(§6.4)이 틀린 값으로 표시된다 (절대 규칙 5, §12).
@@ -39,6 +41,13 @@ const executionEmbedSchema = budgetExecutionRowSchema.pick({
   amount: true,
   description: true,
   note: true,
+  subcategory_code: true,
+  spec: true,
+  unit_price: true,
+  factors: true,
+  axis: true,
+  member_id: true,
+  detail_id: true,
 });
 // 자식을 따로 읽으므로 어느 비목의 집행인지 알아야 병합할 수 있다
 const executionWithParentSchema = executionEmbedSchema.extend({
@@ -62,8 +71,14 @@ export type BudgetPlanPatch = {
   updatedBy?: string | null; // 서버 액션이 세션 사용자로 채운다 (SA-2)
 };
 
-// version은 DB 트리거가 올린다(N-4, N-5) — 입력으로 받지 않고 조회에만 실어 보낸다 (§8.4 O-1)
-export type BudgetExecutionInput = Omit<BudgetExecution, 'id' | 'version'> & {
+// Phase 20 내역 필드(§5.12). 전부 선택 — 화면에서 손으로 넣는 집행은 비워 둘 수 있다
+type ExecutionDetailKeys =
+  | 'subcategoryCode' | 'spec' | 'unitPrice' | 'factors' | 'axis' | 'memberId' | 'detailId';
+
+// version은 DB 트리거가 올린다(N-4, N-5) — 입력으로 받지 않고 조회에만 실어 보낸다 (§8.4 O-1).
+// 내역 필드를 생략하면 insert payload에서 키가 빠져 DB 기본값(spec '' · 나머지 null)이 들어간다
+export type BudgetExecutionInput = Omit<BudgetExecution, 'id' | 'version' | ExecutionDetailKeys> &
+  Partial<Pick<BudgetExecution, ExecutionDetailKeys>> & {
   createdBy?: string | null;
   updatedBy?: string | null;
 };
@@ -268,7 +283,7 @@ export async function addExecution(
 ): Promise<BudgetExecution> {
   const { data, error } = await client
     .from(CHILD_TABLE)
-    .insert(appToDb({ ...input, budgetItemId }))
+    .insert(definedOnly(appToDb({ ...input, budgetItemId }))) // 생략한 내역 필드는 DB 기본값
     .select(EXECUTION_COLUMNS)
     .single();
   if (error) throwDbError(error);

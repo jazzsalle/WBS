@@ -12,10 +12,19 @@
 //    저장 버튼을 비활성화하고 이유와 갈 곳(제안 모드 산출근거 패널)을 밝힌다.
 //    **집행 내역은 잠기지 않는다.** 잠기는 것은 계획액이지 집행이 아니다.
 //  - R-4: 패널이 열려 있는 동안 자동 새로고침을 보류한다.
+//  - Phase 20: 집행 행마다 접힌 "내역" 줄(세목·규격·단가·인자·축·인력·산출근거, 전부 선택)을
+//    둔다 (§7.9.7 수행 모드). 저장은 같은 updateExecution + expectedVersion 경로다 (O-1·O-3).
 // 쓰기는 전부 actions/budget.ts를 거친다 (§8.2 C-2).
 
-import { useEffect, useState } from 'react';
-import type { ActionResult, BudgetExecution, BudgetItem, Settings } from '@/types';
+import { Fragment, useEffect, useState } from 'react';
+import type {
+  ActionResult,
+  BudgetDetail,
+  BudgetExecution,
+  BudgetItem,
+  Member,
+  Settings,
+} from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import type { BudgetMatrixCell } from '@/lib/budget';
 import {
@@ -30,6 +39,7 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { setRealtimePaused } from '@/components/RealtimeRefresher';
+import ExecutionDetailRow, { type ExecutionDetailPatch } from './ExecutionDetailRow';
 
 /** 저장 성공·실패를 부모(BudgetScreen)가 한 곳에서 다루기 위한 공통 계약 */
 export interface BudgetActionCallbacks {
@@ -49,6 +59,10 @@ export interface BudgetDetailPanelProps extends BudgetActionCallbacks {
   /** 이 (연차, 비목)의 원본 행. 유일 제약(§5.12)상 1개다 */
   items: BudgetItem[];
   currencyUnit: Settings['currencyUnit'];
+  /** "내역" 줄의 인력 선택지(§5.11). 없으면 인력은 표시·유지만 한다 */
+  members?: Member[];
+  /** "내역" 줄의 산출근거 선택지(§5.17). 같은 연차만 쓴다. 없으면 표시·유지만 한다 */
+  details?: BudgetDetail[];
   onClose: () => void;
 }
 
@@ -76,6 +90,8 @@ export default function BudgetDetailPanel({
   categoryLabel,
   items,
   currencyUnit,
+  members,
+  details,
   busy,
   onBusyChange,
   onError,
@@ -258,6 +274,16 @@ export default function BudgetDetailPanel({
         ),
       () => setEditingId(null)
     );
+  };
+
+  // 내역 필드만 바꾼다. 일자·금액·적요는 보내지 않으므로 그 편집 경로와 섞이지 않는다
+  const handleDetailSave = (
+    execution: BudgetExecution,
+    patch: ExecutionDetailPatch,
+    onSaved: () => void
+  ): void => {
+    if (!item) return;
+    void run(() => updateExecution(item.id, execution.id, patch, execution.version), onSaved);
   };
 
   return (
@@ -459,89 +485,108 @@ export default function BudgetDetailPanel({
                     <th className="py-1 text-right font-medium">동작</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-grey-100">
-                  {item.executions.map((execution) =>
-                    editingId === execution.id ? (
-                      <tr key={execution.id} className="align-top">
-                        <td className="py-1.5 pr-2">
-                          <input
-                            type="date"
-                            value={editDate}
-                            disabled={busy}
-                            onChange={(e) => setEditDate(e.target.value)}
-                            aria-label="집행일"
-                            className={inputClass}
-                          />
-                        </td>
-                        <td className="py-1.5 pr-2">
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            min={0}
-                            step={1}
-                            value={editAmount}
-                            disabled={busy}
-                            onChange={(e) => setEditAmount(e.target.value)}
-                            aria-label="집행액(원)"
-                            className={`${inputClass} text-right`}
-                          />
-                        </td>
-                        <td className="py-1.5 pr-2">
-                          <input
-                            type="text"
-                            maxLength={200}
-                            value={editDescription}
-                            disabled={busy}
-                            onChange={(e) => setEditDescription(e.target.value)}
-                            aria-label="적요"
-                            className={inputClass}
-                          />
-                        </td>
-                        <td className="py-1.5 text-right">
-                          <div className="flex flex-wrap justify-end gap-1">
-                            <Button
-                              size="sm"
-                              variant="primary"
+                {/* 집행 행과 그 "내역" 줄이 한 묶음이라 구분선은 집행 행 위에만 긋는다 */}
+                <tbody>
+                  {item.executions.map((execution) => (
+                    <Fragment key={execution.id}>
+                      {editingId === execution.id ? (
+                        <tr className="border-t border-grey-100 align-top">
+                          <td className="py-1.5 pr-2">
+                            <input
+                              type="date"
+                              value={editDate}
                               disabled={busy}
-                              onClick={() => handleEditSave(execution)}
-                            >
-                              저장
-                            </Button>
-                            <Button size="sm" disabled={busy} onClick={() => setEditingId(null)}>
-                              취소
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr key={execution.id} className="align-top">
-                        <td className="py-1.5 pr-2 tabular-nums text-grey-600">
-                          {execution.date}
-                        </td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums text-grey-800">
-                          {formatAmount(execution.amount, currencyUnit)}
-                        </td>
-                        <td className="py-1.5 pr-2 text-grey-600">
-                          {execution.description === '' ? '—' : execution.description}
-                        </td>
-                        <td className="py-1.5 text-right">
-                          <div className="flex flex-wrap justify-end gap-1">
-                            <Button size="sm" disabled={busy} onClick={() => startEdit(execution)}>
-                              수정
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="danger"
+                              onChange={(e) => setEditDate(e.target.value)}
+                              aria-label="집행일"
+                              className={inputClass}
+                            />
+                          </td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              step={1}
+                              value={editAmount}
                               disabled={busy}
-                              onClick={() => setDeleting(execution)}
-                            >
-                              삭제
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  )}
+                              onChange={(e) => setEditAmount(e.target.value)}
+                              aria-label="집행액(원)"
+                              className={`${inputClass} text-right`}
+                            />
+                          </td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              type="text"
+                              maxLength={200}
+                              value={editDescription}
+                              disabled={busy}
+                              onChange={(e) => setEditDescription(e.target.value)}
+                              aria-label="적요"
+                              className={inputClass}
+                            />
+                          </td>
+                          <td className="py-1.5 text-right">
+                            <div className="flex flex-wrap justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                disabled={busy}
+                                onClick={() => handleEditSave(execution)}
+                              >
+                                저장
+                              </Button>
+                              <Button size="sm" disabled={busy} onClick={() => setEditingId(null)}>
+                                취소
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        <tr className="border-t border-grey-100 align-top">
+                          <td className="py-1.5 pr-2 tabular-nums text-grey-600">
+                            {execution.date}
+                          </td>
+                          <td className="py-1.5 pr-2 text-right tabular-nums text-grey-800">
+                            {formatAmount(execution.amount, currencyUnit)}
+                          </td>
+                          <td className="py-1.5 pr-2 text-grey-600">
+                            {execution.description === '' ? '—' : execution.description}
+                          </td>
+                          <td className="py-1.5 text-right">
+                            <div className="flex flex-wrap justify-end gap-1">
+                              <Button
+                                size="sm"
+                                disabled={busy}
+                                onClick={() => startEdit(execution)}
+                              >
+                                수정
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="danger"
+                                disabled={busy}
+                                onClick={() => setDeleting(execution)}
+                              >
+                                삭제
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      <ExecutionDetailRow
+                        execution={execution}
+                        category={item.category}
+                        yearId={item.yearId}
+                        members={members}
+                        details={details}
+                        currencyUnit={currencyUnit}
+                        busy={busy}
+                        colSpan={4}
+                        onValidationError={(message) => onError(message, 'VALIDATION')}
+                        onSave={(patch, onSaved) => handleDetailSave(execution, patch, onSaved)}
+                      />
+                    </Fragment>
+                  ))}
                 </tbody>
               </table>
             )}
@@ -613,7 +658,10 @@ export default function BudgetDetailPanel({
                 variant="danger"
                 disabled={busy}
                 onClick={() =>
-                  void run(() => deleteExecution(item.id, deleting.id), () => setDeleting(null))
+                  void run(
+                    () => deleteExecution(item.id, deleting.id),
+                    () => setDeleting(null)
+                  )
                 }
               >
                 {busy ? '삭제 중…' : '삭제'}

@@ -13,7 +13,10 @@ import { cellAt, cellText } from '@/lib/import/grid';
 import type { RawCell, RawSheet } from '@/lib/import/types';
 import type { BudgetCategory, DetailAxis } from '@/types';
 import { INPUT_FORM_SHEETS, columnOf } from './layout';
-import { NO_META_MESSAGE, checkMeta, parseMeta } from './meta';
+import type { InputFormMode } from './layout';
+import { NO_META_MESSAGE, checkMeta, isExecutionMeta, parseMeta } from './meta';
+import { parseExecutionSheets } from './parse-execution';
+import type { ParseExecutionFormResult } from './parse-execution';
 import type {
   InputFormRejection,
   ParseIssue,
@@ -26,12 +29,16 @@ export type ParseInputFormResult =
   | { ok: true; parsed: ParsedInputForm }
   | { ok: false; rejection: InputFormRejection };
 
+export type { ParseExecutionFormResult } from './parse-execution';
+
 // ─── 숫자 읽기 ───────────────────────────────────────────────
+
+// 숫자·라벨 읽기 헬퍼는 수행 파서(parse-execution.ts)도 쓴다 — 두 모드의 같은 열이 다른 규칙으로 읽히면 안 된다(IN-9)
 
 // 소수 인자를 정수 산술로 읽기 위한 배수 (lib/import/detail-sheet.ts의 FACTOR_SCALE과 같은 이유)
 const DECIMAL_SCALE = 1_000_000;
 
-type NumberRead =
+export type NumberRead =
   | { kind: 'empty' }
   | { kind: 'invalid'; text: string }
   | { kind: 'not-integer'; text: string }
@@ -42,7 +49,7 @@ type NumberRead =
  * D-22: 백분율 서식 셀은 저장값이 100배 작다(`28.0%` → `0.28`). 어댑터가 알려 준 `percentFormat`일 때만
  * ×100 한다 — 휴리스틱 없음. 곱셈을 나눗셈보다 먼저 해서 부동소수점 오차를 만들지 않는다.
  */
-function readDecimal(cell: RawCell): NumberRead {
+export function readDecimal(cell: RawCell): NumberRead {
   if (cellText(cell) === '') return { kind: 'empty' };
   const parsed = parseAmountCell(cell, DECIMAL_SCALE);
   if (!parsed.ok || parsed.amount === null) return { kind: 'invalid', text: parsed.rawText };
@@ -51,7 +58,7 @@ function readDecimal(cell: RawCell): NumberRead {
 }
 
 /** 원 단위 정수(단가·조정액). 소수는 반올림해 삼키지 않고 거부한다 — 금액 자리의 소수는 입력 실수다 */
-function readInteger(cell: RawCell): NumberRead {
+export function readInteger(cell: RawCell): NumberRead {
   if (cellText(cell) === '') return { kind: 'empty' };
   const parsed = parseAmountCell(cell, 1);
   if (!parsed.ok || parsed.amount === null) return { kind: 'invalid', text: parsed.rawText };
@@ -62,11 +69,11 @@ function readInteger(cell: RawCell): NumberRead {
 // ─── 라벨 → 코드 ─────────────────────────────────────────────
 
 /** 우리가 쓴 라벨이라 정규화는 공백 제거뿐이다. 부처 서식의 별칭 사전(부록 C)을 타지 않는다 */
-function labelKey(text: string): string {
+export function labelKey(text: string): string {
   return text.replace(/\s+/g, '');
 }
 
-const AXIS_BY_LABEL: ReadonlyMap<string, DetailAxis> = new Map(
+export const AXIS_BY_LABEL: ReadonlyMap<string, DetailAxis> = new Map(
   (Object.entries(DETAIL_AXIS_LABELS) as [DetailAxis, string][]).map(([axis, label]) => [
     labelKey(label),
     axis,
@@ -76,7 +83,7 @@ const AXIS_BY_LABEL: ReadonlyMap<string, DetailAxis> = new Map(
 // IN-3: 인건비 시트의 보이는 `세목` 열은 인건비 2비목(인건비·학생인건비) 프리셋 라벨 5종만 받는다
 const PERSONNEL_CATEGORIES: readonly BudgetCategory[] = ['personnel', 'student_personnel'];
 
-const PERSONNEL_CODE_BY_LABEL: ReadonlyMap<string, string> = new Map(
+export const PERSONNEL_CODE_BY_LABEL: ReadonlyMap<string, string> = new Map(
   PERSONNEL_CATEGORIES.flatMap((category) =>
     SUBCATEGORY_PRESETS[category].map((def) => [labelKey(def.label), def.code] as const)
   )
@@ -348,19 +355,36 @@ function findSheet(sheets: readonly RawSheet[], name: string): RawSheet | undefi
 
 /**
  * 워크북(어댑터가 만든 RawSheet 목록) → 파싱 결과.
- * 순서: `_meta` → 거부 3종(IN-2) → 시트 존재 → 인건비·사업비.
+ * 순서: `_meta` → 거부 4종(IN-2·IN-9) → 시트 존재 → 인건비·사업비.
  * 거부는 파일째 돌려보내는 것이고, 통과한 뒤의 문제는 전부 행별 `issues`로 남긴다 — 버리는 행이 없다.
+ * `mode`를 생략하면 제안 모드다(Phase 17·19 호출부). 수행 모드 행 읽기는 `parse-execution.ts`다.
  */
 export function parseInputForm(
   sheets: readonly RawSheet[],
-  expected: { projectId: string; formVersion: number }
-): ParseInputFormResult {
+  expected: { projectId: string; formVersion: number },
+  mode?: 'plan'
+): ParseInputFormResult;
+export function parseInputForm(
+  sheets: readonly RawSheet[],
+  expected: { projectId: string; formVersion: number },
+  mode: 'execution'
+): ParseExecutionFormResult;
+export function parseInputForm(
+  sheets: readonly RawSheet[],
+  expected: { projectId: string; formVersion: number },
+  mode: InputFormMode
+): ParseInputFormResult | ParseExecutionFormResult;
+export function parseInputForm(
+  sheets: readonly RawSheet[],
+  expected: { projectId: string; formVersion: number },
+  mode: InputFormMode = 'plan'
+): ParseInputFormResult | ParseExecutionFormResult {
   const metaSheet = findSheet(sheets, INPUT_FORM_SHEETS.meta.name);
   if (metaSheet === undefined) {
     return { ok: false, rejection: { kind: 'no-meta', message: NO_META_MESSAGE } };
   }
   const meta = parseMeta(metaSheet);
-  const rejection = checkMeta(meta, expected);
+  const rejection = checkMeta(meta, { ...expected, mode });
   if (rejection !== null || meta === null) {
     return {
       ok: false,
@@ -368,6 +392,7 @@ export function parseInputForm(
     };
   }
 
+  // 시트 이름은 두 모드가 같다(layout.ts) — 다른 것은 열뿐이다
   const personnelSheet = findSheet(sheets, INPUT_FORM_SHEETS.personnel.name);
   const budgetSheet = findSheet(sheets, INPUT_FORM_SHEETS.budget.name);
   const missing = [
@@ -382,6 +407,14 @@ export function parseInputForm(
         message: `양식에 '${missing.join("', '")}' 시트가 없습니다 — 시트를 지우거나 이름을 바꾸지 마세요`,
       },
     };
+  }
+
+  if (mode === 'execution') {
+    // checkMeta를 통과한 수행 파일이면 parseMeta가 목록 둘을 늘 채운다. 아니면 경계 목록 없이 읽게 되므로 거부한다
+    if (!isExecutionMeta(meta)) {
+      return { ok: false, rejection: { kind: 'no-meta', message: NO_META_MESSAGE } };
+    }
+    return { ok: true, parsed: parseExecutionSheets(personnelSheet, budgetSheet, meta) };
   }
 
   return {

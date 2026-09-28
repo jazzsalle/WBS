@@ -5,7 +5,7 @@
 
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/actions/auth';
-import { getBudgetMatrix } from '@/actions/budget';
+import { getBudgetMatrix, getExecutionDetailOptions } from '@/actions/budget';
 import { getBudgetPlanData } from '@/actions/budget-plan';
 import { listImportProfiles } from '@/actions/import';
 import ErrorBanner from '@/components/ui/ErrorBanner';
@@ -36,7 +36,7 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
   // 집행 패널·현금/현물 편집이 쓰는 budget_items 원본 행은 getBudgetMatrix가 집계와 **함께**
   // 내린다 (BudgetMatrixData.items). 여기서 따로 읽으면 두 조회 사이의 저장이 매트릭스와
   // 원본 행을 다른 시점으로 갈라놓는다
-  const [matrix, plan, profiles] = await Promise.all([
+  const [matrix, plan, profiles, executionOptions] = await Promise.all([
     getBudgetMatrix(projectId),
     // §7.9 제안 모드 한 벌 (§6.10). 모드는 화면 로컬 상태라 서버가 어느 쪽인지 알 수 없으므로
     // 두 벌을 함께 내린다 — 토글이 왕복 없이 즉시 바뀌어야 "같은 표의 두 관점"이 성립한다.
@@ -48,6 +48,9 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
     // §7.9.1 Step 1: 저장된 프로파일 목록. 실패해도 매트릭스는 보여야 하므로 화면을 막지 않고
     // 마법사 안에서 이유를 드러낸다 (절대 규칙 5 — 조용히 빈 목록으로 대체하지 않는다)
     listImportProfiles('budget_plan', projectId),
+    // §7.9.7 수행 모드 집행 패널의 "내역" 줄 선택지(인력·산출근거). 실패해도 매트릭스는 보여야 하므로
+    // 화면을 막지 않고 수행 모드에서 이유를 드러낸다 (절대 규칙 5)
+    getExecutionDetailOptions(projectId),
   ]);
 
   // 절대 규칙 5: 빈 매트릭스로 대체하면 예산이 0원인 것처럼 보이고, 그 화면에서 저장하면
@@ -75,6 +78,10 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
         // 대신 빈 계획으로 대체하지 않고 제안 모드에서 이유를 드러낸다 (절대 규칙 5)
         plan={plan.ok ? plan.data : null}
         planError={plan.ok ? null : { message: plan.error, code: plan.code }}
+        executionOptions={executionOptions.ok ? executionOptions.data : null}
+        executionOptionsError={
+          executionOptions.ok ? null : { message: executionOptions.error, code: executionOptions.code }
+        }
       />
     </main>
   );

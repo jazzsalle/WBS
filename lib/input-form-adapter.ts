@@ -7,7 +7,7 @@
 // 만든 RawSheet(숨김 시트 포함)를 파서가 고정 좌표로 읽는다(IN-1).
 //
 // 보이는 규칙(글꼴·채움·테두리·너비)은 전부 `lib/xlsx-style.ts`(부록 F)에 있다. 여기는 FormSheet의
-// **힌트**(kind·headerRow·dataStartRow·columnHints·rowRoles)를 그 헬퍼 호출로 옮길 뿐, 색·서식 문자열을
+// **힌트**(kind·headerRow·dataStartRow·columnHints·rowRoles·validations)를 그 헬퍼 호출로 옮길 뿐, 색·서식 문자열을
 // 직접 쓰지 않는다. 힌트가 없는 FormSheet는 값·수식·숨김만 쓴다(`_meta`가 그렇다).
 //
 // I-13: `import 'server-only'`로 클라이언트 번들 유입을 컴파일 타임에 막는다.
@@ -16,9 +16,12 @@ import 'server-only';
 import ExcelJS from 'exceljs';
 import type { FormCell, FormRowRole, FormSheet, InputFormWorkbook } from '@/lib/input-form/types';
 import {
+  applyListValidation,
   createStyledWorkbook,
+  excelDateFromIso,
   finishDataSheet,
   finishGuideSheet,
+  inlineListFormula,
   styleDataCell,
   styleGuideSheet,
   styleHeaderRow,
@@ -42,7 +45,7 @@ import {
  * 테스트가 SheetJS로 `f`를 확인하려면 `sheetStubs`(또는 `cellStyles`)가 필요하다 — 없으면 SheetJS가 v=0을
  * 합성한 뒤 빈 숫자로 보고 레코드째 버린다.
  */
-function writeCellValue(target: ExcelJS.Cell, cell: FormCell, where: string): void {
+function writeCellValue(target: ExcelJS.Cell, cell: FormCell, where: string, asDate: boolean): void {
   if (typeof cell.formula === 'string') {
     const formula = cell.formula.trim();
     if (formula === '') throw new Error(`${where}: 수식이 비어 있습니다.`);
@@ -64,6 +67,17 @@ function writeCellValue(target: ExcelJS.Cell, cell: FormCell, where: string): vo
     target.value = value;
     return;
   }
+  if (asDate && value !== '') {
+    // F-6 날짜 셀. 문자열로 두면 엑셀이 날짜로 정렬·필터하지 못한다. 형식이 틀리면 조용히 텍스트로 남기지 않는다
+    try {
+      target.value = excelDateFromIso(value);
+    } catch (e) {
+      throw new Error(`${where}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    return;
+  }
+  // 날짜 열의 빈 문자열은 빈 셀이다 — ''를 쓰면 빈 문자열 셀이 생겨 파서가 "값 있음"으로 오인할 수 있다
+  if (asDate) return;
   target.value = value;
 }
 
@@ -87,6 +101,42 @@ function assertHints(sheet: FormSheet, columnCount: number): void {
   }
   if (dataStartRow !== undefined && (!Number.isInteger(dataStartRow) || dataStartRow <= (headerRow ?? 1))) {
     throw new Error(`'${sheet.name}' 시트의 데이터 시작 행이 올바르지 않습니다: ${dataStartRow}`);
+  }
+}
+
+/**
+ * 드롭다운을 걸 0-based 행(F-9, types.ts `validations`). rowRoles가 있으면 'data' 행만, 없으면 dataStartRow부터 끝까지.
+ * 소계·총액 행은 수식이라 목록이 의미 없고, 헤더에 걸면 라벨이 "목록에 없는 값"이 된다.
+ */
+function validationRows(sheet: FormSheet): number[] {
+  if (sheet.rowRoles !== undefined) {
+    return sheet.rowRoles.flatMap((role, r) => (role === 'data' ? [r] : []));
+  }
+  const start = (sheet.dataStartRow ?? (sheet.headerRow ?? 1) + 1) - 1;
+  const out: number[] = [];
+  for (let r = start; r < sheet.rows.length; r += 1) out.push(r);
+  return out;
+}
+
+function applyValidations(ws: ExcelJS.Worksheet, sheet: FormSheet, columnCount: number): void {
+  if (sheet.validations === undefined) return;
+  const seen = new Set<number>();
+  const rows = validationRows(sheet);
+  for (const validation of sheet.validations) {
+    const { column } = validation;
+    if (!Number.isInteger(column) || column < 0 || column >= columnCount) {
+      throw new Error(`'${sheet.name}' 시트의 드롭다운 열 인덱스가 올바르지 않습니다: ${column}`);
+    }
+    // 같은 열에 두 목록이면 뒤의 것이 앞을 덮는다 — 어느 쪽이 의도였는지 여기서는 알 수 없다
+    if (seen.has(column)) throw new Error(`'${sheet.name}' 시트의 드롭다운 열이 중복됩니다: ${column}`);
+    seen.add(column);
+    let formula: string;
+    try {
+      formula = inlineListFormula(validation.values);
+    } catch (e) {
+      throw new Error(`'${sheet.name}' 시트 ${column}번 열: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    for (const r of rows) applyListValidation(ws.getCell(r + 1, column + 1), formula);
   }
 }
 
@@ -159,12 +209,16 @@ function writeSheet(wb: ExcelJS.Workbook, sheet: FormSheet): void {
   // 숨김: 사용자가 필요하면 볼 수 있어야 하므로 'hidden'(veryHidden은 VBA로만 해제된다)
   const ws = sheet.hidden ? wb.addWorksheet(sheet.name, { state: 'hidden' }) : wb.addWorksheet(sheet.name);
 
+  const headerRow = sheet.headerRow ?? 1;
   let columnCount = 0;
   sheet.rows.forEach((row, r) => {
     columnCount = Math.max(columnCount, row.length);
+    // 날짜 변환은 데이터 행만 — 헤더(`집행일`)·소계 행의 라벨은 날짜가 아니다
+    const isDataRow = sheet.kind !== 'guide' && rowRoleOf(sheet, r, headerRow) === 'data';
     row.forEach((cell, c) => {
       const target = ws.getCell(r + 1, c + 1);
-      writeCellValue(target, cell, `'${sheet.name}'!${target.address}`);
+      const asDate = isDataRow && sheet.columnHints?.[c]?.format === 'date';
+      writeCellValue(target, cell, `'${sheet.name}'!${target.address}`, asDate);
     });
   });
 
@@ -180,6 +234,7 @@ function writeSheet(wb: ExcelJS.Workbook, sheet: FormSheet): void {
     styleGuide(ws, sheet);
   } else {
     styleDataSheet(ws, sheet, columnCount);
+    applyValidations(ws, sheet, columnCount);
   }
 }
 

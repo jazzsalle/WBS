@@ -304,8 +304,18 @@ export interface BudgetExecution {
   date: string;              // 집행일
   amount: number;            // 집행액 (원). 0 이상 정수만 — 실무에서 집행액을 음수로 잡는 경우가 없다(사용자 확인).
                              // 환불·감액은 별도 행이 아니라 원래 집행 행을 수정한다.
-  description: string;       // 적요
+  description: string;       // 적요 = 품명/내역명. 수행 양식의 `품명` 열이 여기로 (IN-9)
   note: string;
+
+  // ─ Phase 20 추가 — 수행 양식이 제안 양식과 같은 열을 갖기 위한 내역 필드 (§6.16 IN-9). 전부 선택이다.
+  //   화면에서 손으로 넣을 때는 비워 둘 수 있고, 양식으로 올리면 채워진다.
+  subcategoryCode: string | null;   // 세목 코드(부록 A.5). 비목은 부모 BudgetItem이 정한다. `세목 미지정` 슬롯은 null(IN-4)
+  spec: string;                     // 규격 / 산출내역 메모. DB not null default ''
+  unitPrice: number | null;         // 단가(원 단위 정수). 인자와 함께 있으면 금액을 보완·검증한다(IN-11)
+  factors: DetailFactor[] | null;   // §5.17과 같은 형, 0~3개. 인건비 집행의 참여율·개월도 여기(IN-12)
+  axis: DetailAxis | null;          // 현금/현물. 집행은 null 허용 — §5.17과 다르다(집행 시점엔 축이 없는 실무가 있다)
+  memberId: string | null;          // 인건비 집행의 인력(§5.11). 과제 경계 검증 대상(IN-13). 인력 삭제 시 set null
+  detailId: string | null;          // 어느 산출근거(§5.17)의 집행인지. 산출근거 삭제 시 set null. 집행률 외 집계에 쓰지 않는다
 }
 
 export interface BudgetItem extends BaseEntity {
@@ -327,8 +337,9 @@ export interface BudgetItem extends BaseEntity {
 // ─── §5.12.1 ImportProfile (엑셀 매핑 프로파일 = 부처 템플릿) ─
 
 // 'budget_plan' = 총괄표(셀 총액, §6.8) / 'budget_detail' = 산출근거 시트(행 내역, §6.11)
-// 집행내역 임포트는 여전히 제외 (§13 12-a)
-export type ImportKind = 'budget_plan' | 'budget_detail';
+// 'execution_form' = 수행 양식(§6.16 IN-10) / 'goal_form' = 목표 양식·hwpx(§6.17 GF-5, §6.18 HX-8) —
+// 스냅샷 종류로만 쓴다(프로파일은 만들지 않는다). DB check 제약(import_profiles.kind)과 맞추려고 네 값 전부를 둔다
+export type ImportKind = 'budget_plan' | 'budget_detail' | 'execution_form' | 'goal_form';
 
 export interface ImportProfile extends BaseEntity {
   name: string;                   // 예: '산자부 사업비 총괄표'
@@ -397,12 +408,28 @@ export interface ImportSnapshotPayload {
   schemaVersion: number;             // 스냅샷 jsonb 자체의 형식 버전 (RPC가 채운다)
   projectId: string;
   capturedAt: string;
-  // D-17: 산출근거 임포트(commit_detail_import)가 남긴 스냅샷만 'budget_detail'이다.
+  // D-17: 산출근거 임포트(commit_detail_import)가 남긴 스냅샷은 'budget_detail',
+  // 수행 양식(commit_execution_form, IN-10)은 'execution_form'이다.
   // 총괄표 스냅샷(schemaVersion 1)에는 이 키가 없어 undefined다 — 설정 화면이 종류를 가르는 근거다
-  kind?: 'budget_detail';
+  kind?: 'budget_detail' | 'execution_form';
   source: ImportSnapshotSource;
-  items: ImportSnapshotItem[];       // 파일에 등장한 (연차, 비목)만 담긴다 (S-9)
+  items: ImportSnapshotItem[];       // 파일에 등장한 (연차, 비목)만 담긴다 (S-9). 수행 스냅샷은 빈 배열
+  executions?: ImportSnapshotExecutions; // IN-14: 수행 스냅샷에만 있다
 }
+
+// IN-14 — 수행 양식 반영이 바꾼 집행 행. 복원(완전 되돌리기)은 RPC가 이 값으로 한다.
+// before는 DB 행 원본(snake_case) 그대로다 — snapshot jsonb는 매퍼가 변환하지 않는다(N-3)
+export interface ImportSnapshotExecutions {
+  added: string[];                   // 반영이 추가한 집행 id
+  before: ImportSnapshotExecutionRow[]; // 변경·삭제 전 행 원본
+  deleted?: string[];                // 반영이 지운 id (before 중 삭제분)
+}
+
+export type ImportSnapshotExecutionRow = {
+  id: string;
+  budget_item_id: string;
+  version: number;
+} & Record<string, unknown>;
 
 export interface ImportSnapshot extends BaseEntity {
   projectId: string;

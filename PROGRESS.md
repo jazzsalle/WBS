@@ -1,6 +1,8 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
+2026-09-28 저녁 회사 PC (**Phase 20 구현 완료·검증 대기** — 코드·SOT 전부 커밋됨. 남은 것은 `db push` → 통합 테스트 → evaluator. 집 PC에서 이어서)
+
 2026-09-28 (**Phase 19 완료** — 우리 양식 서식. evaluator PASS, 테스트 2,470건. 다음 Phase 20 수행 양식)
 
 2026-09-27 (**Tauri 프로덕션 번들 실검증** — 번들에서만 나던 결함 3건 수정, 실로그인·진입 확인. 이전: 2026-09-25 Phase 18 완료)
@@ -284,12 +286,27 @@
   - 알려진 톤 반전(읽힘엔 문제 없음): 노트 코드 블록(다크에서 밝은 바탕), 마일스톤 오늘 선(흰 선)
 
 ## In progress
-없음
+**Phase 20 수행 양식 — 코드 전부 작성, DB 반영·통합 검증 전** (계획: `docs/plans/phase-20-plan.md`, T0~T15)
+- 끝난 태스크: T0(SOT 보강) · T1(마이그레이션 SQL) · T2(타입·Zod·리포지토리) · T3(좌표 맵 mode 분기·_meta) · T4(생성기·작성안내·드롭다운) · T5(수행 파서) · T6(수행 미리보기·페이로드) · T7(어댑터 날짜 셀·인라인 드롭다운) · T8(왕복 테스트 + 결함 2건) · T9(서버 액션) · T10(집행 CRUD 새 필드) · T11a(집행 패널 "내역" 줄) · T11b(연구비 화면 수행 툴바·업로드 모달) · T12(설정 스냅샷 패널)
+- 현재 상태: `tsc` 0 · 단위 테스트 69파일 2,146건 통과 · `npm run build` 성공. **통합 테스트는 미실행**(새 컬럼이 DB에 없어 기존 집행 통합 테스트도 지금은 깨진다 — push 후 정상)
+- 마이그레이션 `supabase/migrations/20260928000000_execution_form.sql` **미적용**. 회사 PC는 Supabase CLI가 link 안 돼 있어 멈췄다. SQL은 PGlite(임시 Postgres)로 18개 마이그레이션 순차 적용 + 새 함수 전 경로를 검증했다(슈퍼유저라 RLS는 미검증)
+- 사용자 결정(2026-09-28, SOT 반영됨): S-2 드롭다운은 인라인 목록(`_lists` 없음, 목표 양식은 `_lists` 유지) · S-8 비목 이동은 `category-moved` 오류 · S-10 수행 스냅샷 복원은 완전 되돌리기(IN-14 신설) · S-12 옛 백업은 `restore_backup`이 `spec=''` 채움 · executionId 중복은 투영과 같은 행이 하나면 원본·나머지 추가, 아니면 `duplicate-execution` · 집행 `memberId`는 비목 제한 없음
+- 진행 중 추가된 SOT 규칙: IN-10 **투영 비교**(양식이 표현 못 하는 값은 왕복으로 안 바뀐다 — 그대로 올리면 전 행 unchanged), IN-4 수행 모드는 `_meta`의 세목 키 수용(프리셋 밖 코드), IN-11 `amount-mismatch`·`factor-without-preset` 경고는 추가·변경 행에만, IN-14 스냅샷에 `deleted:[id]`·끊긴 참조는 null
+- 명세 밖 추가: `actions/budget.ts` `getExecutionDetailOptions(projectId)`(패널 인력·산출근거 선택지, 읽기 전용) · `tests/unit/input-form-boundary.test.ts` 산식 호출 허용 목록에 `parse-execution.ts`·`execution-preview.ts` 추가(IN-11 금액 보완 — 산식 재사용이지 재구현 아님)
 
 ## Next steps
-> ⚠️ **회사 PC 인계 (2026-09-28 집 PC에서 정리)**: ① `git pull` (마이그레이션 없음 — Phase 19까지는 `db push` 불필요, Phase 20에서 생긴다) ② `npm install` (`exceljs` 추가됨) ③ **`samples/` 폴더를 집 PC에서 복사**해 올 것 — gitignore라 저장소에 없다. Phase 19 스타일 원본 `exel style.xlsx`, Phase 22 실측 테스트용 계획서 hwpx(108MB, `2. (협약변경_KGS_유엔이)_2026_수정 연구개발계획서_에너지R&D(일반)_유엔이_260427_0511.hwpx`), 같은 문서의 PDF, 실측 예산 엑셀 2종. 없으면 Phase 22 실측 테스트가 건너뛰어지고 Phase 5.5 실측 검증도 건너뛴다 ④ Phase 20 planner는 집 PC에서 띄웠다가 **결과 없이 중단**했다 — 회사 PC에서 `/phase-run 20`으로 처음부터. evaluation_criteria.md Phase 20 체크리스트는 커밋돼 있다 ⑤ Tauri 설치기 검증·수동 검증 일괄은 여전히 회사 PC 몫(사용자 결정)
+> ⚠️ **집 PC 인계 (2026-09-28 회사 PC에서 정리) — Phase 20 마무리 순서**:
+> ① `git pull` → `npm install`(의존성 변경 없음, 확인용)
+> ② **앱에서 [지금 내보내기]로 백업**(K-6) — push 전 안전망이고 `npm test`가 시드를 지우는 것에도 대비
+> ③ `npx supabase db push` (집 PC는 link돼 있음) → 확인: `budget_executions` 7컬럼, `commit_execution_form` 함수, `app_settings.schema_version = 4` 그대로
+> ④ **T14 통합 테스트**: 초안 `tests/integration/execution-form-actions.test.ts`(T9 작성, 미실행) + `tests/integration/budget-actions.test.ts` 끝 describe(T10, 미실행)를 돌려 고친다. 백업 새 컬럼 테스트(내보내기 JSON에 7컬럼, 옛 형식 복원 시 `spec=''`)는 **아직 없다** — 새로 쓴다. `restore_import_snapshot` 반환 필드명(`executionsDeleted/Reverted/Restored`) 실동작 확인
+> ⑤ `npm test`·`tsc`·`build` 전체 통과 → **evaluator로 Phase 20 채점** (`evaluation_criteria.md` Phase 20) → FAIL이면 수정 최대 3회
+> ⑥ T15: PROGRESS에 결과·수동 검증 URL 표(실제 과제 id), SOT §13 12-a 해소 표기 확인 → 커밋
+> ⑦ 다음은 Phase 21 목표 양식(`/phase-run 21`)
 
--1. **`/phase-run 20`** — 수행 양식: `budget_executions` 컬럼 7종 마이그레이션(schema 4 유지) + `commit_execution_form` RPC → `lib/input-form/` mode 분기(IN-9~IN-13, `guide.ts`의 `unreadColumnsText`가 mode별 맵을 받게) → `commitExecutionForm` 액션 → §7.9.7 수행 모드 UI·집행 내역 패널 내역 줄. evaluation_criteria.md에 Phase 20 체크리스트를 먼저 쓴다
+> (지난 인계, 처리됨) **회사 PC 인계 (2026-09-28 집 PC에서 정리)**: ① `git pull` (마이그레이션 없음 — Phase 19까지는 `db push` 불필요, Phase 20에서 생긴다) ② `npm install` (`exceljs` 추가됨) ③ **`samples/` 폴더를 집 PC에서 복사**해 올 것 — gitignore라 저장소에 없다. Phase 19 스타일 원본 `exel style.xlsx`, Phase 22 실측 테스트용 계획서 hwpx(108MB, `2. (협약변경_KGS_유엔이)_2026_수정 연구개발계획서_에너지R&D(일반)_유엔이_260427_0511.hwpx`), 같은 문서의 PDF, 실측 예산 엑셀 2종. 없으면 Phase 22 실측 테스트가 건너뛰어지고 Phase 5.5 실측 검증도 건너뛴다 ④ Phase 20 planner는 집 PC에서 띄웠다가 **결과 없이 중단**했다 — 회사 PC에서 `/phase-run 20`으로 처음부터. evaluation_criteria.md Phase 20 체크리스트는 커밋돼 있다 ⑤ Tauri 설치기 검증·수동 검증 일괄은 여전히 회사 PC 몫(사용자 결정)
+
+-1. ~~**`/phase-run 20`**~~ — 2026-09-28 구현 완료, 검증 대기(위 집 PC 인계) — 수행 양식: `budget_executions` 컬럼 7종 마이그레이션(schema 4 유지) + `commit_execution_form` RPC → `lib/input-form/` mode 분기(IN-9~IN-13, `guide.ts`의 `unreadColumnsText`가 mode별 맵을 받게) → `commitExecutionForm` 액션 → §7.9.7 수행 모드 UI·집행 내역 패널 내역 줄. evaluation_criteria.md에 Phase 20 체크리스트를 먼저 쓴다
 0. ~~`/phase-run 13`~~ — **2026-09-24 완료.** 다음은 Current goal의 1→2→3 순서
 1. **Phase 10 후속 (남은 것, 블로킹 아님)**:
    - **Step 2 트리 숫자가 컬럼 role 재지정 후 갱신되지 않는다** — `inspectDetailSheet`가 draft를 받지 않기 때문이다(§9 시그니처). 실제 반영값은 Step 4가 정확히 낸다
@@ -379,7 +396,8 @@
 - 공통: 두 PC 동일 데이터 조회, 동료 첫 로그인 시 /pending→승인 흐름(두 번째 회사 계정 필요), Tauri 자동 백업 7일 경과 실동작
 
 ## Blockers
-없음. (Supabase 일시정지는 Resume으로 해소 — Current goal의 주의 참고)
+- Phase 20 통합 검증은 `db push` 필요 — 회사 PC는 Supabase CLI 미연결(`supabase login` + `link --project-ref oqdcvdmodnpxmosnuitz` 필요). 집 PC에서 진행
+- 그 외 없음. (Supabase 일시정지는 Resume으로 해소 — Current goal의 주의 참고)
 
 ## 정리 중 드러난 것 (2026-08-10 후속 정리)
 1. **`npm run lint`는 한 번도 돌아간 적이 없다.** `package.json`의 `lint: next lint`는 있는데 **ESLint 설정 파일이 없어**(`.eslintrc*`·`eslint.config.*` 부재) 실행하면 대화형 설정 프롬프트가 뜬다. 그동안 여러 작업이 "린트 통과"로 보고했지만 **실제로 검증된 적이 없다.** 타입 체크(`tsc`)와 테스트는 실제로 돌고 있어 안전망이 없는 상태는 아니다.

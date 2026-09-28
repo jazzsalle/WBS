@@ -18,6 +18,11 @@
 //   PL-10a 금액 산식이 이 파일에 없다 — buildInputFormPreview가 computeDetailAmount로 계산해 둔 값만 옮긴다.
 //   RL-1·PL-15 규칙 findings·개월 초과·연봉 없음·유지 비목은 **알림**이다. 반영을 막는 것은 `blocked`뿐이다.
 //
+// 수행 모드(Phase 20, IN-9~IN-13)는 반영 경로가 다르다 — id 기반 추가·변경·(선택)삭제, `commit_execution_form` RPC:
+//   IN-6  previewInputForm(…, 'execution')과 commitExecutionForm은 runExecutionFormPipeline 하나를 탄다.
+//   IN-10 충돌·삭제 후보는 파일의 `_meta`(내려받을 때 version)로 정해진다 — 반영 시점 DB로 다시 정하지 않는다.
+//         충돌 행은 건너뛰고(전체 롤백 아님) 그 목록을 결과에 **그대로** 싣는다.
+//
 // supabase 직접 호출 금지 — 반드시 lib/db/ 리포지토리를 거친다 (절대 규칙 3, §8.6).
 
 import { revalidatePath } from 'next/cache';
@@ -27,8 +32,11 @@ import type {
   ActionResult,
   BudgetCategory,
   BudgetDetail,
+  BudgetItem,
   DetailAxis,
   Member,
+  Project,
+  Staff,
   RuleCode,
   RuleSeverity,
   Year,
@@ -37,6 +45,7 @@ import { requireApprovedUser } from '@/lib/auth/guard';
 import { RuleViolationError, ValidationError, toActionFailure } from '@/lib/db/errors';
 import { budgetCategorySchema } from '@/lib/db/schema';
 import * as budgetDetailsRepo from '@/lib/db/budget-details';
+import * as budgetItemsRepo from '@/lib/db/budget-items';
 import * as budgetRulesRepo from '@/lib/db/budget-rules';
 import * as membersRepo from '@/lib/db/members';
 import * as projectsRepo from '@/lib/db/projects';
@@ -49,18 +58,35 @@ import { monthSpan, todayISO } from '@/lib/dates';
 import {
   INPUT_FORM_VERSION,
   buildInputForm as buildInputFormWorkbook,
+  INPUT_FORM_SHEETS,
+  buildExecutionPreview,
   buildInputFormPreview,
+  executionCommitPayload,
   parseInputForm,
 } from '@/lib/input-form';
 import type {
+  ExecutionConflictReason,
+  ExecutionField,
+  ExecutionFormPreview,
+  ExecutionPreviewBudgetItem,
+  ExecutionPreviewCounts,
+  ExecutionPreviewCurrent,
+  ExecutionRowStatus,
+  ExecutionValues,
+  ExecutionYearSummary,
   InputFormData,
+  InputFormExecution,
+  InputFormMode,
   InputFormDeletedRow,
   InputFormPreview,
   InputFormRowStatus,
   InputFormUntouchedCategory,
   InputFormWarning,
   ParseIssue,
+  ParsedExecutionForm,
+  ParsedExecutionRow,
 } from '@/lib/input-form';
+import type { ExecutionFormConflict } from '@/lib/db/import-snapshots';
 import { writeInputFormWorkbook } from '@/lib/input-form-adapter';
 import { readUploadedWorkbook } from '@/lib/import-adapter';
 
@@ -143,6 +169,85 @@ export interface InputFormCommitResult {
   summary: InputFormPreview['summary'];
 }
 
+// ─── 수행 모드 화면 계약 (§7.9.7 수행 모드, IN-10) ─────────────────────────────
+// 전부 직렬화 가능한 값이다(클라이언트 컴포넌트로 그대로 넘어간다) — Map·Date·함수를 싣지 않는다
+
+/** 수행 미리보기 행. 반영될 값(`values`)은 add·update·unchanged에서만 있다 */
+export interface ExecutionFormPreviewRowView {
+  /** `사업비:12`처럼 시트 이름과 1-based 행 번호. React key용 */
+  key: string;
+  sheet: 'personnel' | 'budget';
+  rowIndex: number;
+  /** 시트의 숨김 id 그대로. 새 행이면 null */
+  executionId: string | null;
+  status: ExecutionRowStatus;
+  /** 인건비 시트는 성명, 사업비 시트는 품명. 오류 행도 시트에 적힌 값으로 이름을 붙인다 */
+  label: string;
+  category: BudgetCategory | null;
+  values: ExecutionValues | null;
+  /** update에서만 비어 있지 않다 */
+  changedFields: ExecutionField[];
+  /** IN-10: 같은 executionId의 복사 행이라 추가로 본 경우 원본 id */
+  copiedFrom: string | null;
+  /** status='conflict'일 때 사유. 반영에서 이 행만 건너뛴다 */
+  conflict: ExecutionConflictReason | null;
+  /** blocking이 하나라도 있으면 error 행이다. 나머지는 경고(연차 기간 밖·금액 불일치 등) */
+  issues: ParseIssue[];
+}
+
+/** 양식에서 사라진 집행(IN-10). `[삭제 포함]`을 켜야 지워진다. conflict가 있으면 켜도 지우지 않는다 */
+export interface ExecutionFormDeleteCandidateView {
+  id: string;
+  label: string;
+  /** 이미 지워진 집행(conflict 'deleted')이면 현재 값이 없어 null */
+  category: BudgetCategory | null;
+  date: string | null;
+  amount: number | null;
+  conflict: ExecutionConflictReason | null;
+}
+
+export interface ExecutionFormPreviewResult {
+  fileName: string;
+  /** sha256 hex. commitExecutionForm이 대조한다 (IN-6) */
+  fileHash: string;
+  yearId: string;
+  yearLabel: string;
+  counts: ExecutionPreviewCounts;
+  rows: ExecutionFormPreviewRowView[];
+  deleteCandidates: ExecutionFormDeleteCandidateView[];
+  /** 반영에서 건너뛸 id와 사유(충돌 행 + 충돌 삭제 후보). 반영 결과에도 그대로 다시 실린다 */
+  conflicts: ExecutionFormConflict[];
+  /** 행에 매이지 않는 파일 단위 문제(파서) */
+  fileIssues: ParseIssue[];
+  /** `[삭제 포함]` 꺼짐 기준 집행률 전후·B-2 초과 셀·B-1 예산 외 집행 */
+  summary: ExecutionYearSummary;
+  /** `[삭제 포함]` 켜짐 기준 — 토글마다 서버를 다시 부르지 않는다 */
+  summaryWithDeletes: ExecutionYearSummary;
+  /** true면 commitExecutionForm이 거부한다 */
+  blocked: boolean;
+  /** 반영을 막은 첫 이유(`인건비 시트 5행: …`). blocked가 false면 null */
+  blockingReason: string | null;
+}
+
+export interface ExecutionFormCommitOutcome {
+  snapshotId: string;
+  /** RPC가 실제로 반영한 건수 — 미리보기 시점이 아니라 DB가 맞다 */
+  added: number;
+  updated: number;
+  deleted: number;
+  /** 미리보기 단계에서 이미 충돌로 판정돼 페이로드에 넣지 않은 행 (IN-10) */
+  previewConflicts: ExecutionFormConflict[];
+  /** 미리보기 뒤 반영 사이에 바뀌어 RPC가 건너뛴 행 (O-1). 오류가 아니라 결과의 일부다 */
+  commitConflicts: ExecutionFormConflict[];
+  /** `includeDeletes`가 꺼져 지우지 않은 삭제 후보 수 */
+  skippedDeletes: number;
+}
+
+/** mode 인자에 따른 미리보기 반환 타입. mode를 생략하면 제안 모드 — Phase 17·19 호출부의 타입이 그대로다 */
+export type InputFormPreviewResultOf<M extends InputFormMode> = M extends 'execution'
+  ? ExecutionFormPreviewResult
+  : InputFormPreviewResult;
+
 // ─── 입력 검증 (§9: 모든 액션은 Zod로 입력 검증) ──────────────────────────────
 
 const uuidSchema = z.uuid();
@@ -151,6 +256,10 @@ const fileHashSchema = z.string().trim().min(1, '미리보기를 먼저 실행�
 const replaceCategoriesSchema = z
   .array(budgetCategorySchema)
   .refine((list) => new Set(list).size === list.length, '교체 비목 목록에 중복이 있습니다.');
+
+const modeSchema = z.enum(['plan', 'execution'], '양식 종류(제안/수행)가 올바르지 않습니다.');
+// 문자열 'false'가 truthy로 삭제를 켜는 일이 없도록 boolean만 받는다 — 집행 삭제는 되돌리기 어렵다(IN-10)
+const includeDeletesSchema = z.boolean('삭제 포함 여부가 올바르지 않습니다.');
 
 function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, fallback: string): T {
   const parsed = schema.safeParse(value);
@@ -433,19 +542,78 @@ function firstBlockingReason(preview: InputFormPreview, parsedIssues: readonly P
 // ─── §9 buildInputForm ────────────────────────────────────────────────────────
 
 /**
+ * 생성기 입력. 내려받기와 수행 미리보기의 투영(IN-10)이 **같은 조립**을 써야 한다 — 한쪽만 명부 표시값이
+ * 다르면 손대지 않은 파일이 "변경"으로 보인다. `details`는 그 연차의 산출근거만(양식은 연차 단위).
+ */
+function formDataOf(
+  project: Project,
+  year: Year,
+  members: readonly Member[],
+  staff: readonly Staff[],
+  details: readonly BudgetDetail[]
+): InputFormData {
+  const staffNameById = new Map(staff.map((person) => [person.id, person.name]));
+  return {
+    project: { id: project.id, name: project.name },
+    year: {
+      id: year.id,
+      name: year.name,
+      startDate: year.startDate,
+      endDate: year.endDate,
+      order: year.order,
+    },
+    members: members.map((member) => ({
+      ...member,
+      staffName: member.staffId === null ? null : (staffNameById.get(member.staffId) ?? null),
+    })),
+    details: details.filter((detail) => detail.yearId === year.id),
+  };
+}
+
+/**
+ * 그 연차 12비목의 집행 **전부** + 부모 비목(IN-4 — 생성기는 한 건도 빠뜨리지 않고 싣는다).
+ * 집행 행 자체는 비목을 모르므로 부모 BudgetItem에서 붙인다.
+ */
+function yearExecutionsOf(items: readonly BudgetItem[]): InputFormExecution[] {
+  return items.flatMap((item) =>
+    item.executions.map((execution) => ({
+      id: execution.id,
+      version: execution.version,
+      date: execution.date,
+      amount: execution.amount,
+      description: execution.description,
+      note: execution.note,
+      category: item.category,
+      subcategoryCode: execution.subcategoryCode,
+      spec: execution.spec,
+      unitPrice: execution.unitPrice,
+      factors: execution.factors,
+      axis: execution.axis,
+      memberId: execution.memberId,
+      detailId: execution.detailId,
+    }))
+  );
+}
+
+/**
  * 연차 하나의 입력 양식 xlsx (§7.9.7 [입력 양식 내려받기]). **읽기 전용이다** — 앱 데이터를 바꾸지 않는다.
  * 파일 저장은 호출자(셸)의 몫이라 base64로 돌려준다 — 서버는 디스크에 쓰지 않는다.
  *
  * 명부는 비활성 인력까지 전부 싣는다 — 생성기는 명부에 없는 memberId를 가진 인건비 행을 만나면 던진다
  * (조용히 빠뜨리지 않는다). 활성 여부로 거르면 참여 종료자의 산출근거가 양식에서 사라진다.
+ *
+ * `mode = 'execution'`(IN-9)이면 그 연차의 집행 전부와 산출근거 id 목록(IN-13 `_meta` `detail:`)을 싣는다.
+ * 집행을 비우면 생성기는 집행 0건 양식을 만들고, 그 파일을 올리면 기존 집행이 전부 "새 행"과 겹친다.
  */
 export async function buildInputForm(
   projectId: string,
-  yearId: string
+  yearId: string,
+  mode: InputFormMode = 'plan'
 ): Promise<ActionResult<{ fileName: string; contentBase64: string }>> {
   try {
     const pid = parseOrThrow(uuidSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
     const yid = parseOrThrow(uuidSchema, yearId, '연차 ID 형식이 올바르지 않습니다.');
+    const formMode = parseOrThrow(modeSchema, mode, '양식 종류(제안/수행)가 올바르지 않습니다.');
     const { client } = await requireApprovedUser();
 
     const [project, years, details, members, staff] = await Promise.all([
@@ -457,25 +625,15 @@ export async function buildInputForm(
       staffRepo.listStaff(client, { includeRetired: true }),
     ]);
     const year = requireYearOfProject(years, yid);
-    const staffNameById = new Map(staff.map((person) => [person.id, person.name]));
 
-    const data: InputFormData = {
-      project: { id: project.id, name: project.name },
-      year: {
-        id: year.id,
-        name: year.name,
-        startDate: year.startDate,
-        endDate: year.endDate,
-        order: year.order,
-      },
-      members: members.map((member) => ({
-        ...member,
-        staffName: member.staffId === null ? null : (staffNameById.get(member.staffId) ?? null),
-      })),
-      details: details.filter((detail) => detail.yearId === year.id),
-    };
+    const data = formDataOf(project, year, members, staff, details);
+    if (formMode === 'execution') {
+      // 연차 경계를 확인한 뒤에 읽는다 — 다른 과제의 연차 집행을 조회할 이유가 없다
+      const items = await budgetItemsRepo.listBudgetItemsByYear(client, year.id);
+      data.executions = yearExecutionsOf(items);
+    }
 
-    const workbook = buildInputFormWorkbook(data, todayISO(new Date()));
+    const workbook = buildInputFormWorkbook(data, todayISO(new Date()), formMode);
     const buffer = await writeInputFormWorkbook(workbook);
 
     return {
@@ -492,14 +650,26 @@ export async function buildInputForm(
 /**
  * 추가·변경·삭제·유지 건수 + 합계 + 경고 + 규칙 findings (§7.9.7 [입력 양식 올리기] 미리보기).
  * **저장하는 것은 없다.** 리포지토리 호출은 전부 읽기다.
+ *
+ * `mode = 'execution'`이면 수행 미리보기(IN-10): 추가·변경·유지·충돌·삭제 후보와 연차 집행률 전후.
+ * 반환 타입은 mode로 갈린다(`InputFormPreviewResultOf`) — 오버로드 대신 제네릭인 이유는 'use server' 파일의
+ * export가 전부 본문 있는 async 함수여야 해서다. mode를 생략한 기존 호출부의 타입·값은 그대로다.
  */
-export async function previewInputForm(
+export async function previewInputForm<M extends InputFormMode = 'plan'>(
   projectId: string,
-  formData: FormData
-): Promise<ActionResult<InputFormPreviewResult>> {
+  formData: FormData,
+  mode?: M
+): Promise<ActionResult<InputFormPreviewResultOf<M>>> {
   try {
     const pid = parseOrThrow(uuidSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
+    const formMode = parseOrThrow(modeSchema, mode ?? 'plan', '양식 종류(제안/수행)가 올바르지 않습니다.');
     const { client } = await requireApprovedUser();
+
+    if (formMode === 'execution') {
+      const execution = await runExecutionFormPipeline(client, pid, formData);
+      const data: ExecutionFormPreviewResult = toExecutionPreviewResult(execution);
+      return { ok: true, data: data as InputFormPreviewResultOf<M> };
+    }
 
     const result = await runInputFormPipeline(client, pid, formData);
     const { preview, members } = result;
@@ -532,7 +702,7 @@ export async function previewInputForm(
         warnings: preview.warnings,
         notices: result.notices,
         blocked: preview.blocked,
-      },
+      } satisfies InputFormPreviewResult as InputFormPreviewResultOf<M>,
     };
   } catch (e) {
     return toInputFormFailure(e);
@@ -613,6 +783,240 @@ export async function commitInputForm(
         cells: committed.cells,
         skippedLocked: committed.skippedLocked,
         summary: preview.summary,
+      },
+    };
+  } catch (e) {
+    return toInputFormFailure(e);
+  }
+}
+
+// ─── 수행 모드 파이프라인 (미리보기·반영이 같은 경로를 쓴다 — IN-6) ─────────
+
+interface ExecutionFormPipelineResult {
+  fileName: string;
+  fileHash: string;
+  year: Year;
+  /** 미리보기에 쓴 명부 그대로 — 라벨을 만들 때 다시 조회하면 그 사이 바뀐 명부를 보게 된다 */
+  members: Member[];
+  parsed: ParsedExecutionForm;
+  preview: ExecutionFormPreview;
+}
+
+/** §6.4 집행률 계산 입력. 집행은 buildExecutionPreview가 current.executions에서 모은다 */
+function budgetItemInputOf(item: BudgetItem): ExecutionPreviewBudgetItem {
+  return {
+    yearId: item.yearId,
+    category: item.category,
+    plannedAmount: item.plannedAmount,
+    cashAmount: item.cashAmount,
+    inKindAmount: item.inKindAmount,
+  };
+}
+
+/**
+ * previewInputForm(…, 'execution')과 commitExecutionForm이 **공유하는 유일한 파싱 경로**.
+ *
+ * 순서: 파일 읽기(어댑터) → 고정 좌표 파싱 + `_meta` 거부 4종(IN-2·IN-9 — mode 불일치 포함) → 연차 과제 경계(N-13) →
+ * 명부·산출근거·그 연차 집행 전부 → buildExecutionPreview(IN-10~IN-13).
+ * 충돌·삭제 후보는 파일의 `_meta` version으로 정해지므로(IN-10) 같은 파일이면 미리보기와 반영이 같은 판정을 낸다 —
+ * 다른 것은 그 사이 DB가 바뀐 행뿐이고, 그것은 RPC가 O-1로 한 번 더 잡는다.
+ * buildExecutionPreview가 던지는 `Error`(현재 데이터 손상·투영 불변식 위반)는 toInputFormFailure가 문구째 올린다.
+ */
+async function runExecutionFormPipeline(
+  client: SupabaseClient,
+  projectId: string,
+  formData: FormData
+): Promise<ExecutionFormPipelineResult> {
+  const upload = await readUploadedWorkbook(formData); // I-13·I-14·I-15는 어댑터가 지킨다
+
+  const parsed = parseInputForm(upload.sheets, { projectId, formVersion: INPUT_FORM_VERSION }, 'execution');
+  // 거부 문구는 파서가 정한다("제안 양식입니다 — 제안 모드에서 올리세요" 등). 여기서 다시 쓰면 두 사전이 갈린다
+  if (!parsed.ok) throw new RuleViolationError(parsed.rejection.message);
+
+  // 하나라도 실패하면 실패를 그대로 올린다 — 빈 배열 폴백은 집행이 사라진 것을 감춘다 (절대 규칙 5)
+  const [project, years, details, members, staff] = await Promise.all([
+    projectsRepo.getProjectById(client, projectId),
+    yearsRepo.listYears(client, projectId),
+    budgetDetailsRepo.listByProject(client, projectId),
+    membersRepo.listMembers(client, projectId),
+    // buildInputForm과 같은 명부 조립이어야 투영이 내려받은 파일과 같다(formDataOf)
+    staffRepo.listStaff(client, { includeRetired: true }),
+  ]);
+  const year = requireYearOfProject(years, parsed.parsed.meta.yearId);
+  const items = await budgetItemsRepo.listBudgetItemsByYear(client, year.id);
+
+  const current: ExecutionPreviewCurrent = {
+    ...formDataOf(project, year, members, staff, details),
+    executions: yearExecutionsOf(items),
+  };
+  const preview = buildExecutionPreview({
+    parsed: parsed.parsed,
+    current,
+    budgetItems: items.map(budgetItemInputOf),
+  });
+
+  return {
+    fileName: upload.fileName,
+    fileHash: upload.fileHash,
+    year,
+    members,
+    parsed: parsed.parsed,
+    preview,
+  };
+}
+
+function memberName(memberId: string | null, members: readonly Member[]): string {
+  if (memberId === null) return '(인력 미지정)';
+  return members.find((candidate) => candidate.id === memberId)?.name ?? '(알 수 없는 인력)';
+}
+
+/**
+ * 미리보기 행의 이름. 인건비 시트는 성명, 사업비 시트는 품명이다. 오류 행에는 반영 값이 없으므로
+ * 시트에 적힌 값(파싱 행)으로 이름을 붙인다 — "3행이 틀렸다"만으로는 어느 집행인지 알기 어렵다.
+ */
+function executionRowLabel(
+  sheet: 'personnel' | 'budget',
+  values: ExecutionValues | null,
+  parsedRow: ParsedExecutionRow | undefined,
+  members: readonly Member[]
+): string {
+  if (sheet === 'personnel') return memberName(values?.memberId ?? parsedRow?.memberId ?? null, members);
+  const description = values?.description ?? parsedRow?.description ?? '';
+  return description === '' ? '(품명 없음)' : description;
+}
+
+/** 삭제 후보는 시트에 없는 행이다 — 품명이 있으면 품명, 없으면 인력 이름 */
+function deleteCandidateLabel(existing: InputFormExecution | null, members: readonly Member[]): string {
+  if (existing === null) return '(이미 삭제된 집행)';
+  if (existing.description !== '') return existing.description;
+  return existing.memberId === null ? '(품명 없음)' : memberName(existing.memberId, members);
+}
+
+/** 반영을 막은 첫 이유. "안 됩니다"만으로는 어느 행을 고칠지 알 수 없다 */
+function firstExecutionBlockingReason(preview: ExecutionFormPreview): string {
+  const fileIssue = preview.issues.find((issue) => issue.blocking);
+  if (fileIssue) return fileIssue.message;
+  for (const row of preview.rows) {
+    const issue = row.issues.find((candidate) => candidate.blocking);
+    if (issue) return `${INPUT_FORM_SHEETS[row.sheet].name} 시트 ${row.rowIndex}행: ${issue.message}`;
+  }
+  // blocked인데 이유를 못 찾으면 판정과 설명이 어긋난 것이다 — 이유 없이 막았다고 말하지 않는다
+  throw new Error('수행 양식이 차단됐지만 차단 사유를 찾지 못했습니다.');
+}
+
+function toExecutionPreviewResult(result: ExecutionFormPipelineResult): ExecutionFormPreviewResult {
+  const { preview, members, parsed } = result;
+  const parsedByKey = new Map<string, ParsedExecutionRow>();
+  for (const row of parsed.personnel) parsedByKey.set(`personnel:${row.rowIndex}`, row);
+  for (const row of parsed.budget) parsedByKey.set(`budget:${row.rowIndex}`, row);
+
+  return {
+    fileName: result.fileName,
+    fileHash: result.fileHash,
+    yearId: result.year.id,
+    yearLabel: yearLabel(result.year),
+    counts: preview.counts,
+    rows: preview.rows.map((row) => ({
+      key: row.key,
+      sheet: row.sheet,
+      rowIndex: row.rowIndex,
+      executionId: row.executionId,
+      status: row.status,
+      label: executionRowLabel(row.sheet, row.values, parsedByKey.get(`${row.sheet}:${row.rowIndex}`), members),
+      category: row.category,
+      values: row.values,
+      changedFields: row.changedFields,
+      copiedFrom: row.copiedFrom,
+      conflict: row.conflict,
+      issues: row.issues,
+    })),
+    deleteCandidates: preview.deleteCandidates.map((candidate) => ({
+      id: candidate.id,
+      label: deleteCandidateLabel(candidate.existing, members),
+      category: candidate.existing?.category ?? null,
+      date: candidate.existing?.date ?? null,
+      amount: candidate.existing?.amount ?? null,
+      conflict: candidate.conflict,
+    })),
+    conflicts: preview.conflicts,
+    fileIssues: preview.issues,
+    summary: preview.summary,
+    summaryWithDeletes: preview.summaryWithDeletes,
+    blocked: preview.blocked,
+    blockingReason: preview.blocked ? firstExecutionBlockingReason(preview) : null,
+  };
+}
+
+// ─── §9 commitExecutionForm ───────────────────────────────────────────────────
+
+/**
+ * 수행 양식 반영(IN-10): id 기반 추가·변경·(`includeDeletes`일 때만)삭제 + 스냅샷(`kind: 'execution_form'`, IN-14)이
+ * `commit_execution_form` RPC **한 트랜잭션**이다. 액션은 미리보기 결과를 페이로드로 옮기기만 한다 —
+ * 판정은 executionCommitPayload(순수)가 하고, version 인자는 받지 않는다(기준은 파일의 `_meta`, IN-10).
+ *
+ * 막는 것: 미리보기와 다른 파일(fileHash), `blocked`, 반영할 행 0건. 경고는 통과한다.
+ * 충돌은 막지 않는다 — 그 행만 건너뛰고 미리보기 단계 충돌과 RPC 단계 충돌을 **둘 다 그대로** 돌려준다(절대 규칙 5).
+ */
+export async function commitExecutionForm(
+  projectId: string,
+  formData: FormData,
+  fileHash: string,
+  includeDeletes: boolean
+): Promise<ActionResult<ExecutionFormCommitOutcome>> {
+  try {
+    const pid = parseOrThrow(uuidSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
+    const expectedHash = parseOrThrow(fileHashSchema, fileHash, '미리보기를 먼저 실행해야 반영할 수 있습니다.');
+    const withDeletes = parseOrThrow(includeDeletesSchema, includeDeletes, '삭제 포함 여부가 올바르지 않습니다.');
+    const { client } = await requireApprovedUser();
+
+    // previewInputForm(…, 'execution')과 같은 경로 (IN-6)
+    const result = await runExecutionFormPipeline(client, pid, formData);
+    if (result.fileHash !== expectedHash) {
+      throw new ValidationError('파일이 미리보기 때와 다릅니다 — 다시 올리세요');
+    }
+
+    const { preview } = result;
+    if (preview.blocked) {
+      throw new RuleViolationError(`반영할 수 없습니다 — ${firstExecutionBlockingReason(preview)}`);
+    }
+
+    const payload = executionCommitPayload(preview, withDeletes);
+    const skippedDeletes = withDeletes ? 0 : preview.counts.deleteCandidates;
+    if (payload.adds.length + payload.updates.length + payload.deleteIds.length === 0) {
+      // RPC는 빈 반영을 '반영할 집행 행이 없습니다'로 거부한다 — 그 전에 왜 비었는지를 사용자 말로 알린다.
+      // 충돌 건수도 문구에 넣는다: 실패 결과에는 목록을 실을 자리가 없고, 목록은 미리보기에 이미 보였다
+      const reasons = [
+        `변경 없음 ${preview.counts.unchanged}행`,
+        preview.conflicts.length > 0
+          ? `충돌 ${preview.conflicts.length}건은 내려받은 뒤 바뀌어 건너뜁니다 — 다시 내려받아 고치세요`
+          : null,
+        skippedDeletes > 0 ? `삭제 후보 ${skippedDeletes}건은 [삭제 포함]을 켜야 반영됩니다` : null,
+      ].filter((reason): reason is string => reason !== null);
+      throw new RuleViolationError(`반영할 집행 행이 없습니다 (${reasons.join(' · ')}).`);
+    }
+
+    const committed = await snapshotsRepo.commitExecutionForm(
+      client,
+      pid,
+      result.year.id,
+      payload.adds,
+      payload.updates,
+      payload.deleteIds,
+      payload.expected,
+      { fileName: result.fileName, sheetName: SOURCE_SHEET_NAME, fileHash: result.fileHash }
+    );
+
+    revalidateInputForm(pid);
+    return {
+      ok: true,
+      data: {
+        snapshotId: committed.snapshotId,
+        added: committed.added,
+        updated: committed.updated,
+        deleted: committed.deleted,
+        previewConflicts: preview.conflicts,
+        commitConflicts: committed.conflicts,
+        skippedDeletes,
       },
     };
   } catch (e) {

@@ -20,6 +20,7 @@ import { connectDirectDb, createTestUser, destroyTestUser, type TestUser } from 
 import type { ActionResult, BudgetCategory } from '@/types';
 import { BUDGET_CATEGORY_ORDER } from '@/lib/constants';
 import * as budgetItemsRepo from '@/lib/db/budget-items';
+import * as membersRepo from '@/lib/db/members';
 import * as stagesRepo from '@/lib/db/stages';
 import * as yearsRepo from '@/lib/db/years';
 
@@ -33,6 +34,7 @@ vi.mock('next/cache', () => ({ revalidatePath: () => undefined }));
 const budget = await import('@/actions/budget');
 const { createProject } = await import('@/actions/projects');
 const { createYear, updateYear } = await import('@/actions/years');
+const plan = await import('@/actions/budget-plan');
 
 let sql: Sql;
 let user: TestUser;
@@ -474,6 +476,256 @@ describe('getBudgetMatrix (§7.9, §6.4, 부록 A.1)', () => {
     expect(personnel).toBeDefined();
     expect(personnel!.version).toBeGreaterThan(0);
     expect(personnel!.executions.map((e) => e.id)).toContain(created.id);
+
+    unwrap(await budget.deleteExecution(personnelItemId, created.id));
+  });
+});
+
+// ─── Phase 20 내역 필드 (§5.12, §9 add/updateExecution, IN-13) ────────────────
+// 손으로 넣는 경로도 7필드를 받는다. 필수가 아니므로 4필드 호출은 이전과 같아야 하고,
+// 참조 id(인력·산출근거)는 FK가 막지 못하는 과제·연차 경계를 액션이 RULE로 막는다.
+// 거부 뒤 상태는 반환이 아니라 저장된 행으로 확인한다 — 경계 밖 id가 몰래 저장됐는지는 DB만 답한다.
+
+describe('집행 내역 필드 (§5.12 Phase 20, IN-13)', () => {
+  let personnelItemId: string;
+  let materialItemId: string;
+  let memberId: string;
+  let detailId: string; // 1차년도 연구재료비 산출근거
+  let year2DetailId: string; // 같은 과제 2차년도 — 연차 경계 검사용
+  let otherMemberId: string; // 다른 과제
+  let otherDetailId: string; // 다른 과제
+
+  function newMember(pid: string, name: string) {
+    return membersRepo.createMember(
+      user.client,
+      {
+        projectId: pid,
+        orgId: null,
+        name,
+        role: 'researcher',
+        position: '선임연구원',
+        field: '',
+        email: '',
+        phone: '',
+        active: true,
+        order: 0,
+        annualSalary: null,
+        hireType: 'existing',
+      },
+      user.id
+    );
+  }
+
+  function newMaterialDetail(yearId: string) {
+    return plan.createBudgetDetail(yearId, 'material', 'material_purchase', {
+      axis: 'cash',
+      name: '시약',
+      unitPrice: 100_000,
+      factors: [{ label: '수량', value: 2, isPercent: false }],
+    });
+  }
+
+  interface ExecutionRow {
+    unit_price: string | null;
+    member_id: string | null;
+    detail_id: string | null;
+  }
+
+  async function readExecutionRow(id: string): Promise<ExecutionRow> {
+    const rows = await sql`
+      select unit_price::text as unit_price, member_id::text as member_id,
+             detail_id::text as detail_id
+        from public.budget_executions where id = ${id}::uuid`;
+    const row = rows[0] as ExecutionRow | undefined;
+    if (!row) throw new Error(`집행 행(${id})을 찾을 수 없습니다.`);
+    return row;
+  }
+
+  beforeAll(async () => {
+    personnelItemId = await itemId(year1Id, 'personnel');
+    materialItemId = await itemId(year1Id, 'material');
+    memberId = (await newMember(projectId, '집행 인력')).id;
+    detailId = unwrap(await newMaterialDetail(year1Id)).id;
+    year2DetailId = unwrap(await newMaterialDetail(year2Id)).id;
+
+    const other = unwrap(
+      await createProject({ name: '연구비 액션 테스트 과제(경계)', contractStartDate: '2026-01-01' })
+    );
+    tempProjectIds.push(other.id);
+    const otherYear = (await yearsRepo.listYears(user.client, other.id))[0];
+    if (!otherYear) throw new Error('createProject가 연차를 만들지 않았습니다.');
+    otherMemberId = (await newMember(other.id, '다른 과제 인력')).id;
+    otherDetailId = unwrap(await newMaterialDetail(otherYear.id)).id;
+  });
+
+  afterAll(async () => {
+    // 산출근거는 매트릭스 계획액을 잠근다(PL-9) — 이 과제에 남기지 않는다
+    unwrap(await plan.deleteBudgetDetail(detailId));
+    unwrap(await plan.deleteBudgetDetail(year2DetailId));
+  });
+
+  it('4필드만 넣으면 내역 필드는 DB 기본값이다 (기존 호출 불변)', async () => {
+    const created = unwrap(
+      await budget.addExecution(materialItemId, {
+        date: '2026-03-02',
+        amount: 120_000,
+        description: '시약 구입',
+        note: '',
+      })
+    );
+    expect(created).toMatchObject({
+      subcategoryCode: null,
+      spec: '',
+      unitPrice: null,
+      factors: null,
+      axis: null,
+      memberId: null,
+      detailId: null,
+    });
+
+    // 4필드 수정이 내역 필드를 건드리지 않는다
+    const updated = unwrap(
+      await budget.updateExecution(materialItemId, created.id, { amount: 130_000 }, created.version)
+    );
+    expect(updated.amount).toBe(130_000);
+    expect(updated.spec).toBe('');
+    expect(updated.factors).toBeNull();
+
+    unwrap(await budget.deleteExecution(materialItemId, created.id));
+  });
+
+  it('7필드를 받아 저장하고, 인자의 isPercent를 보존한다', async () => {
+    const factors = [
+      { label: '참여율(%)', value: 28, isPercent: true },
+      { label: '참여기간(월)', value: 1, isPercent: false },
+    ];
+    const created = unwrap(
+      await budget.addExecution(personnelItemId, {
+        date: '2026-03-25',
+        amount: 2_800_000,
+        description: '3월 인건비',
+        subcategoryCode: 'personnel_internal',
+        spec: '3월분',
+        unitPrice: 10_000_000,
+        factors,
+        axis: 'cash',
+        memberId,
+        detailId: null,
+      })
+    );
+    expect(created).toMatchObject({
+      subcategoryCode: 'personnel_internal',
+      spec: '3월분',
+      unitPrice: 10_000_000,
+      axis: 'cash',
+      memberId,
+      detailId: null,
+    });
+    expect(created.factors).toEqual(factors);
+
+    const row = await readExecutionRow(created.id);
+    expect(row.unit_price).toBe('10000000');
+    expect(row.member_id).toBe(memberId);
+
+    // 비우기(null)는 경계 검사 없이 허용된다
+    const cleared = unwrap(
+      await budget.updateExecution(
+        personnelItemId,
+        created.id,
+        { memberId: null, subcategoryCode: null, factors: null },
+        created.version
+      )
+    );
+    expect(cleared).toMatchObject({ memberId: null, subcategoryCode: null, factors: null });
+    expect(cleared.spec).toBe('3월분'); // patch에 없는 필드는 그대로
+
+    unwrap(await budget.deleteExecution(personnelItemId, created.id));
+  });
+
+  it('같은 과제·연차의 산출근거를 detailId로 지정할 수 있다', async () => {
+    const created = unwrap(
+      await budget.addExecution(materialItemId, {
+        date: '2026-04-10',
+        amount: 200_000,
+        subcategoryCode: 'material_purchase',
+        detailId,
+      })
+    );
+    expect(created.detailId).toBe(detailId);
+    unwrap(await budget.deleteExecution(materialItemId, created.id));
+  });
+
+  it('형식 위반은 VALIDATION: 단가 음수·소수, 인자 4개, 축 값, 다른 비목의 세목', async () => {
+    const base = { date: '2026-04-11', amount: 1_000 };
+    expectCode(await budget.addExecution(materialItemId, { ...base, unitPrice: -1 }), 'VALIDATION');
+    expectCode(await budget.addExecution(materialItemId, { ...base, unitPrice: 1.5 }), 'VALIDATION');
+    const factor = { label: '수량', value: 1, isPercent: false };
+    expectCode(
+      await budget.addExecution(materialItemId, { ...base, factors: [factor, factor, factor, factor] }),
+      'VALIDATION'
+    );
+    expectCode(await budget.addExecution(materialItemId, { ...base, axis: 'gov' }), 'VALIDATION');
+    // personnel_internal은 인건비의 세목이다 — 연구재료비 집행에 쓰면 세목 집계가 갈라진다 (부록 A.5)
+    expectCode(
+      await budget.addExecution(materialItemId, { ...base, subcategoryCode: 'personnel_internal' }),
+      'VALIDATION'
+    );
+
+    const item = await budgetItemsRepo.getBudgetItemById(user.client, materialItemId);
+    expect(item.executions).toEqual([]);
+  });
+
+  it('다른 과제의 인력·산출근거, 다른 연차의 산출근거는 RULE로 거부하고 저장하지 않는다', async () => {
+    const base = { date: '2026-04-12', amount: 1_000 };
+    expectCode(
+      await budget.addExecution(personnelItemId, { ...base, memberId: otherMemberId }),
+      'RULE'
+    );
+    expectCode(
+      await budget.addExecution(materialItemId, { ...base, detailId: otherDetailId }),
+      'RULE'
+    );
+    expectCode(
+      await budget.addExecution(materialItemId, { ...base, detailId: year2DetailId }),
+      'RULE'
+    );
+    // 없는 id도 경계 밖이다 — FK 위반의 뭉뚱그린 실패가 아니라 사유를 보인다
+    expectCode(
+      await budget.addExecution(materialItemId, {
+        ...base,
+        detailId: '00000000-0000-4000-8000-000000000000',
+      }),
+      'RULE'
+    );
+
+    const personnel = await budgetItemsRepo.getBudgetItemById(user.client, personnelItemId);
+    expect(personnel.executions).toEqual([]);
+    const material = await budgetItemsRepo.getBudgetItemById(user.client, materialItemId);
+    expect(material.executions).toEqual([]);
+
+    // 수정 경로도 같은 경계다 — 거부 뒤 행이 그대로인지 저장값으로 본다
+    const created = unwrap(await budget.addExecution(personnelItemId, base));
+    expectCode(
+      await budget.updateExecution(
+        personnelItemId,
+        created.id,
+        { memberId: otherMemberId },
+        created.version
+      ),
+      'RULE'
+    );
+    expectCode(
+      await budget.updateExecution(
+        personnelItemId,
+        created.id,
+        { detailId: otherDetailId },
+        created.version
+      ),
+      'RULE'
+    );
+    const row = await readExecutionRow(created.id);
+    expect(row.member_id).toBeNull();
+    expect(row.detail_id).toBeNull();
 
     unwrap(await budget.deleteExecution(personnelItemId, created.id));
   });

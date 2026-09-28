@@ -29,6 +29,7 @@ import {
   inputFormFileName,
 } from '@/lib/input-form/build';
 import { subcategoryKeyOf } from '@/lib/input-form/parse';
+import { unreadColumnsText } from '@/lib/input-form/guide';
 import { BUDGET_CATEGORY_ORDER, SUBCATEGORY_PRESETS } from '@/lib/constants';
 import { columnLetter } from '@/lib/export/layouts';
 import type { RawCell, RawSheet } from '@/lib/import/types';
@@ -844,5 +845,31 @@ describe('경계', () => {
     for (const row of dataRows(budgetSheet, BUDGET_DEF)) {
       expect(cellOf(row, BUDGET_DEF, 'amount').value).toBeUndefined();
     }
+  });
+});
+
+// ─── Phase 20: mode 분기 뒤에도 제안 양식은 그대로 (제안 모드 불변 제약) ─────
+
+describe('Phase 20 — 제안 모드 불변', () => {
+  it("unreadColumnsText('plan')은 Phase 19 문자열과 같다(mode 생략도 같다)", () => {
+    const phase19 = [
+      '「인건비」 성명 · 직위 · 조직원 · 급여 기준 · 연봉 · 월급 · 산식 금액 · 금액',
+      '「사업비」 비목 · 세목 · 금액',
+      '위 열은 연한 베이지 바탕이며 값을 고쳐도 반영되지 않습니다(앱의 값이 원본입니다).',
+      '숨김 열(memberId · detailId · subcategory)은 행을 앱의 데이터와 잇는 키입니다 — 지우거나 옮기지 마세요.',
+    ].join('\n');
+    expect(unreadColumnsText('plan')).toBe(phase19);
+    expect(unreadColumnsText()).toBe(phase19);
+  });
+
+  it('제안 양식 데이터 시트에 더해진 것은 validations(F-9)뿐이다 — _meta에 mode 행이 없다(IN-2)', () => {
+    for (const sheet of [personnelSheet, budgetSheet]) {
+      expect(Object.keys(sheet).sort()).toEqual(
+        ['columnHints', 'dataStartRow', 'headerRow', 'hidden', 'hiddenColumns', 'kind', 'name', 'rowRoles', 'rows', 'validations']
+      );
+    }
+    expect(metaSheet.validations).toBeUndefined();
+    expect(metaSheet.rows.some((r) => r[0]?.value === 'mode')).toBe(false);
+    expect(parseMeta(toRawSheet(metaSheet))!.mode).toBeUndefined();
   });
 });

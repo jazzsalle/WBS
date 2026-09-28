@@ -269,3 +269,71 @@ export function finishGuideSheet(ws: ExcelJS.Worksheet): void {
   ws.pageSetup = { ...ws.pageSetup, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
   ws.properties.tabColor = { argb: argb(XLSX_STYLE.tab.guide) };
 }
+
+// ─── 날짜 셀 (F-6) ────────────────────────────────────────────────────────────
+
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * `yyyy-mm-dd` → 날짜 셀에 넣을 Date. **UTC 자정**으로 만든다.
+ *
+ * exceljs는 Date를 `25569 + getTime()/86400000`(UTC 기준)으로 직렬값화한다. 로컬 자정(`new Date(y, m, d)`)을 넣으면
+ * KST에서는 전날 15:00이 되어 직렬값이 소수(…​.625)로 떨어지고 `yyyy-mm-dd`로 보면 **하루 앞당겨진다**.
+ * UTC 자정이면 직렬값이 정수라 시간대와 무관하게 같은 날짜다. 달력에 없는 날(`2025-02-30`)은 Date가
+ * 조용히 3월로 넘기므로 되돌려 비교해 막는다 — 틀린 날짜를 파일에 쓰면 사용자는 알아챌 방법이 없다.
+ */
+export function excelDateFromIso(iso: string): Date {
+  const m = ISO_DATE.exec(iso);
+  if (m === null) throw new Error(`날짜가 yyyy-mm-dd 형식이 아닙니다: ${iso}`);
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new Error(`존재하지 않는 날짜입니다: ${iso}`);
+  }
+  return date;
+}
+
+// ─── 데이터 유효성 (F-9) ──────────────────────────────────────────────────────
+
+/** 엑셀 인라인 목록 유효성의 한도 — 쉼표 포함 목록 문자열 길이 */
+export const INLINE_LIST_MAX_LENGTH = 255;
+
+/**
+ * 인라인 목록 수식(`"현금,현물"`). 입력 양식은 `_lists` 시트 없이 이것만 쓴다(F-9).
+ *
+ * 쉼표는 목록 구분자라 값에 들어가면 한 항목이 둘로 쪼개지고, `"`는 수식 문자열을 닫아 파일이 깨진다.
+ * 255자를 넘기면 엑셀이 파일을 복구 대상으로 연다. 셋 다 생성기 실수이므로 조용히 자르지 않고 throw한다.
+ */
+export function inlineListFormula(values: readonly string[]): string {
+  if (values.length === 0) throw new Error('드롭다운 목록이 비어 있습니다.');
+  for (const value of values) {
+    if (value === '') throw new Error('드롭다운 목록에 빈 값이 있습니다.');
+    if (value.includes(',')) throw new Error(`드롭다운 값에 쉼표를 쓸 수 없습니다: ${value}`);
+    if (value.includes('"')) throw new Error(`드롭다운 값에 큰따옴표를 쓸 수 없습니다: ${value}`);
+  }
+  const joined = values.join(',');
+  if (joined.length > INLINE_LIST_MAX_LENGTH) {
+    throw new Error(
+      `드롭다운 목록이 ${joined.length}자로 인라인 한도 ${INLINE_LIST_MAX_LENGTH}자를 넘습니다.`
+    );
+  }
+  return `"${joined}"`;
+}
+
+/**
+ * 셀 하나에 목록 유효성. 빈 칸은 허용한다 — 축처럼 비어도 되는 열이 있고(IN-11), 필수 여부는 파서가 판정한다.
+ * 잘못된 값은 엑셀이 막지만 붙여넣기는 우회하므로 파서가 다시 검사한다(F-9).
+ */
+export function applyListValidation(cell: ExcelJS.Cell, formula: string): void {
+  cell.dataValidation = {
+    type: 'list',
+    allowBlank: true,
+    formulae: [formula],
+    showErrorMessage: true,
+    errorStyle: 'stop',
+    errorTitle: '목록에 없는 값',
+    error: '드롭다운 목록에서 고르세요.',
+  };
+}

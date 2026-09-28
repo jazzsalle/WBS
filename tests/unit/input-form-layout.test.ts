@@ -229,3 +229,27 @@ describe('경계 (IN-8)', () => {
     }
   });
 });
+
+// ─── Phase 20 추가: mode 분기 (IN-9) ─────────────────────────
+// 수행 모드의 상세 검증은 input-form-execution-layout.test.ts. 여기는 제안 경로가 그대로인지만 본다.
+
+describe('mode 분기 후에도 제안 경로 불변 (IN-2·IN-9)', () => {
+  it('INPUT_FORM_SHEETS는 sheetsFor(plan)과 같은 값이다', async () => {
+    const { sheetsFor } = await import('@/lib/input-form');
+    expect(JSON.stringify(INPUT_FORM_SHEETS)).toBe(JSON.stringify(sheetsFor('plan')));
+  });
+
+  it('제안 메타에는 mode 행이 없고, 왕복 결과에도 mode 키가 없다', () => {
+    const rows = buildMetaRows(META);
+    const keyCol = columnOf('meta', 'key');
+    expect(rows.some((r) => r[keyCol]?.value === 'mode')).toBe(false);
+    expect(parseMeta(toRawSheet('_meta', rows))).toStrictEqual(META);
+  });
+
+  it("checkMeta: mode를 생략하면 'plan'으로 본다", () => {
+    const expected = { projectId: 'proj-1', formVersion: INPUT_FORM_VERSION };
+    expect(checkMeta(META, expected)).toBeNull();
+    expect(checkMeta(META, { ...expected, mode: 'plan' })).toBeNull();
+    expect(checkMeta(META, { ...expected, mode: 'execution' })?.kind).toBe('mode-mismatch');
+  });
+});

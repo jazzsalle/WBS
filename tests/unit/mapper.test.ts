@@ -2,6 +2,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { dbToApp, appToDb, dbToAppArray } from '@/lib/db/mapper';
+import {
+  budgetExecutionRowSchema,
+  importKindSchema,
+  importSnapshotRowSchema,
+} from '@/lib/db/schema';
+import type { BudgetExecution, ImportSnapshot } from '@/types';
 
 describe('mapper: snake_case ↔ camelCase 기본 변환', () => {
   it('DB row(snake) → 앱 객체(camel)', () => {
@@ -205,5 +211,176 @@ describe('mapper: 왕복(round-trip) 동일성', () => {
       use_count: 7,
     };
     expect(appToDb(dbToApp(row))).toEqual(row);
+  });
+});
+
+// ─── Phase 20: 집행 내역 7필드와 수행 양식 스냅샷 (§5.12, §6.16 IN-10·IN-14) ─────
+
+const UUID_EXEC = '11111111-1111-4111-8111-111111111111';
+const UUID_ITEM = '22222222-2222-4222-8222-222222222222';
+const UUID_MEMBER = '33333333-3333-4333-8333-333333333333';
+const UUID_DETAIL = '44444444-4444-4444-8444-444444444444';
+const UUID_PROJECT = '55555555-5555-4555-8555-555555555555';
+const UUID_SNAPSHOT = '66666666-6666-4666-8666-666666666666';
+const UUID_ADDED = '77777777-7777-4777-8777-777777777777';
+
+function executionRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: UUID_EXEC,
+    version: 2,
+    created_at: '2026-09-28T00:00:00+00:00',
+    updated_at: '2026-09-28T00:00:00+00:00',
+    created_by: null,
+    updated_by: null,
+    budget_item_id: UUID_ITEM,
+    date: '2026-05-10',
+    amount: 1_500_000,
+    description: '책임연구원 5월 인건비',
+    note: '',
+    subcategory_code: 'internal',
+    spec: '월 지급',
+    unit_price: 60_000_000,
+    factors: [
+      { label: '참여율(%)', value: 30, isPercent: true },
+      { label: '참여기간(월)', value: 1, isPercent: false },
+    ],
+    axis: 'cash',
+    member_id: UUID_MEMBER,
+    detail_id: UUID_DETAIL,
+    ...overrides,
+  };
+}
+
+describe('mapper: BudgetExecution 내역 필드 (§5.12 Phase 20)', () => {
+  it('snake 컬럼 7종이 camel 필드로 바뀐다', () => {
+    const app = dbToApp<BudgetExecution>(budgetExecutionRowSchema.parse(executionRow()));
+    expect(app).toMatchObject({
+      subcategoryCode: 'internal',
+      spec: '월 지급',
+      unitPrice: 60_000_000,
+      axis: 'cash',
+      memberId: UUID_MEMBER,
+      detailId: UUID_DETAIL,
+    });
+    expect(app).not.toHaveProperty('member_id');
+    expect(app).not.toHaveProperty('unit_price');
+  });
+
+  it('factors 내부의 isPercent는 양방향 모두 camelCase 그대로다 (N-3)', () => {
+    const app = dbToApp<BudgetExecution>(executionRow());
+    expect(app.factors).toEqual([
+      { label: '참여율(%)', value: 30, isPercent: true },
+      { label: '참여기간(월)', value: 1, isPercent: false },
+    ]);
+    const back = appToDb(app as unknown as Record<string, unknown>);
+    expect(back.factors).toEqual(executionRow().factors);
+    expect(JSON.stringify(back)).not.toContain('is_percent');
+  });
+
+  it('앱 → DB에서 memberId·detailId·subcategoryCode·unitPrice가 snake로 간다', () => {
+    const db = appToDb({ memberId: UUID_MEMBER, detailId: null, subcategoryCode: null, unitPrice: 0 });
+    expect(db).toEqual({ member_id: UUID_MEMBER, detail_id: null, subcategory_code: null, unit_price: 0 });
+  });
+
+  it('DB → 앱 → DB 왕복이 원본과 같다', () => {
+    const row = executionRow();
+    expect(appToDb(dbToApp(row))).toEqual(row);
+  });
+
+  it('내역이 비어 있는 기존 집행(null·빈 spec)도 스키마를 통과한다', () => {
+    const row = executionRow({
+      subcategory_code: null,
+      spec: '',
+      unit_price: null,
+      factors: null,
+      axis: null,
+      member_id: null,
+      detail_id: null,
+    });
+    expect(budgetExecutionRowSchema.safeParse(row).success).toBe(true);
+  });
+
+  it('새 컬럼이 없는 응답(마이그레이션 누락)은 스키마에서 거부된다', () => {
+    const row = executionRow();
+    delete row.spec;
+    delete row.member_id;
+    expect(budgetExecutionRowSchema.safeParse(row).success).toBe(false);
+  });
+
+  it('factors 원소가 isPercent를 빠뜨리면 거부된다 — is_percent로 저장된 행도 마찬가지다', () => {
+    const row = executionRow({ factors: [{ label: '수량', value: 2, is_percent: false }] });
+    expect(budgetExecutionRowSchema.safeParse(row).success).toBe(false);
+  });
+
+  it('axis는 cash/in_kind/null만 받는다', () => {
+    expect(budgetExecutionRowSchema.safeParse(executionRow({ axis: 'in_kind' })).success).toBe(true);
+    expect(budgetExecutionRowSchema.safeParse(executionRow({ axis: 'unassigned' })).success).toBe(false);
+  });
+});
+
+describe('schema: ImportKind와 수행 양식 스냅샷 (§5.12.1, IN-14)', () => {
+  it('ImportKind는 네 값을 받는다', () => {
+    for (const kind of ['budget_plan', 'budget_detail', 'execution_form', 'goal_form']) {
+      expect(importKindSchema.safeParse(kind).success).toBe(true);
+    }
+    expect(importKindSchema.safeParse('execution').success).toBe(false);
+  });
+
+  function snapshotRow(snapshot: Record<string, unknown>): Record<string, unknown> {
+    return {
+      id: UUID_SNAPSHOT,
+      version: 1,
+      created_at: '2026-09-28T00:00:00+00:00',
+      updated_at: '2026-09-28T00:00:00+00:00',
+      created_by: null,
+      updated_by: null,
+      project_id: UUID_PROJECT,
+      snapshot,
+    };
+  }
+
+  const executionSnapshot = {
+    schemaVersion: 1,
+    projectId: UUID_PROJECT,
+    capturedAt: '2026-09-28T00:00:00+00:00',
+    kind: 'execution_form',
+    source: { fileName: '수행양식.xlsx', sheetName: '사업비', profileId: null, fileHash: 'abc' },
+    items: [],
+    executions: { added: [UUID_ADDED], before: [executionRow()] },
+  };
+
+  it('수행 스냅샷 행이 Zod를 통과하고, before 행은 snake_case 원본 그대로 남는다', () => {
+    const parsed = importSnapshotRowSchema.safeParse(snapshotRow(executionSnapshot));
+    expect(parsed.success).toBe(true);
+    const app = dbToApp<ImportSnapshot>(parsed.data as Record<string, unknown>);
+    expect(app.snapshot.kind).toBe('execution_form');
+    expect(app.snapshot.executions?.added).toEqual([UUID_ADDED]);
+    // 복원은 RPC가 이 원본으로 하므로 키가 변환되면 안 된다 (N-3)
+    expect(app.snapshot.executions?.before[0]).toEqual(executionRow());
+  });
+
+  it('before 행은 식별 키(id·budget_item_id·version)만 요구한다 — 이후 컬럼 추가로 옛 스냅샷이 깨지지 않는다', () => {
+    const snapshot = {
+      ...executionSnapshot,
+      executions: { added: [], before: [{ id: UUID_EXEC, budget_item_id: UUID_ITEM, version: 3 }] },
+    };
+    expect(importSnapshotRowSchema.safeParse(snapshotRow(snapshot)).success).toBe(true);
+    const broken = {
+      ...executionSnapshot,
+      executions: { added: [], before: [{ id: UUID_EXEC, version: 3 }] },
+    };
+    expect(importSnapshotRowSchema.safeParse(snapshotRow(broken)).success).toBe(false);
+  });
+
+  it('기존 총괄표(kind 없음)·산출근거 스냅샷은 그대로 통과한다', () => {
+    const plan = { ...executionSnapshot, kind: undefined, executions: undefined };
+    const detail = { ...executionSnapshot, kind: 'budget_detail', executions: undefined };
+    expect(importSnapshotRowSchema.safeParse(snapshotRow(plan)).success).toBe(true);
+    expect(importSnapshotRowSchema.safeParse(snapshotRow(detail)).success).toBe(true);
+  });
+
+  it('모르는 kind는 거부한다 — 조용히 총괄표로 취급하지 않는다', () => {
+    const unknown = { ...executionSnapshot, kind: 'something_else' };
+    expect(importSnapshotRowSchema.safeParse(snapshotRow(unknown)).success).toBe(false);
   });
 });

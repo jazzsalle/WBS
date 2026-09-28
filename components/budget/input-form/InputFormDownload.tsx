@@ -7,9 +7,11 @@
 //  - 내려받기는 읽기 전용이다 — 앱 데이터를 바꾸지 않고 스냅샷도 남기지 않는다
 //  - 파일 내용(좌표·수식·_meta)은 전부 서버(actions/input-form → lib/input-form)가 만든다.
 //    SheetJS를 클라이언트에서 import하지 않는다 (IN-8·I-13)
+//  - 수행 모드(IN-9)는 같은 모달이다. 서버에 mode만 넘기면 `집행일` 열과 기존 집행 내역이 채워진 양식이 온다
 
 import { useState } from 'react';
 import type { Year } from '@/types';
+import type { InputFormMode } from '@/lib/input-form';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import { buildInputForm } from '@/actions/input-form';
 import Button from '@/components/ui/Button';
@@ -44,10 +46,27 @@ export interface InputFormDownloadProps {
   projectId: string;
   /** 양식은 연차 단위다 (§7.9.7). 이 목록에서 고른다 */
   years: Year[];
+  /** 화면 모드 그대로. 올린 파일의 mode가 화면 모드와 다르면 서버가 거부하므로(IN-9) 같은 모드로 받아야 한다 */
+  mode?: InputFormMode;
   onClose: () => void;
 }
 
-export default function InputFormDownload({ projectId, years, onClose }: InputFormDownloadProps) {
+const MODE_TEXT: Record<InputFormMode, { description: string; guide: string }> = {
+  plan: {
+    description:
+      '고른 연차의 인건비·사업비 시트가 든 입력 양식(xlsx)을 내려받습니다. 앱의 데이터는 바뀌지 않습니다.',
+    guide:
+      '받은 파일의 인건비·사업비 시트에 값을 적고 [입력 양식 올리기]로 올리면 산출근거가 만들어집니다. 금액 열은 참고용 수식이며 앱이 다시 계산합니다.',
+  },
+  execution: {
+    description:
+      '고른 연차의 기존 집행 내역이 채워진 수행 양식(xlsx)을 내려받습니다. 앱의 데이터는 바뀌지 않습니다.',
+    guide:
+      '받은 파일에 집행 내역을 고치거나 빈 줄에 새로 적고, 수행 모드의 [입력 양식 올리기]로 올리세요. 금액 열은 입력값으로 읽고 집행일은 필수입니다. 올리기 전에 다른 경로로 바뀐 행은 충돌로 건너뛰므로, 오래 묵힌 파일보다 방금 내려받은 파일을 쓰세요.',
+  },
+};
+
+export default function InputFormDownload({ projectId, years, mode = 'plan', onClose }: InputFormDownloadProps) {
   const [yearId, setYearId] = useState(years[0]?.id ?? '');
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -59,7 +78,7 @@ export default function InputFormDownload({ projectId, years, onClose }: InputFo
     setFailure(null);
     setDone(null);
     try {
-      const res = await buildInputForm(projectId, yearId);
+      const res = await buildInputForm(projectId, yearId, mode);
       if (!res.ok) {
         // 절대 규칙 5: 실패를 조용히 삼키지 않는다
         setFailure({ message: res.error, code: res.code });
@@ -84,8 +103,8 @@ export default function InputFormDownload({ projectId, years, onClose }: InputFo
       open
       size="md"
       closeOnBackdrop={false}
-      title="입력 양식 내려받기"
-      description="고른 연차의 인건비·사업비 시트가 든 입력 양식(xlsx)을 내려받습니다. 앱의 데이터는 바뀌지 않습니다."
+      title={mode === 'execution' ? '입력 양식 내려받기 (수행)' : '입력 양식 내려받기'}
+      description={MODE_TEXT[mode].description}
       onClose={() => {
         if (!busy) onClose();
       }}
@@ -145,8 +164,7 @@ export default function InputFormDownload({ projectId, years, onClose }: InputFo
             )}
 
             <p className="rounded-xl border border-grey-200 bg-grey-50 px-3 py-2 text-t7 text-grey-600">
-              받은 파일의 인건비·사업비 시트에 값을 적고 [입력 양식 올리기]로 올리면 산출근거가 만들어집니다.
-              금액 열은 참고용 수식이며 앱이 다시 계산합니다.
+              {MODE_TEXT[mode].guide}
             </p>
 
             {failure && (

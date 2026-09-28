@@ -194,15 +194,16 @@ describe('실측 세목 헤더 변형 해석', () => {
 });
 
 describe('ImportKind (§5.12.1)', () => {
-  it('두 값이 Zod를 통과한다', () => {
-    const kinds: ImportKind[] = ['budget_plan', 'budget_detail'];
+  // Phase 20·21: 'execution_form'·'goal_form'은 스냅샷 종류로만 쓴다 (§5.12.1)
+  it('네 값이 Zod를 통과한다', () => {
+    const kinds: ImportKind[] = ['budget_plan', 'budget_detail', 'execution_form', 'goal_form'];
     for (const kind of kinds) {
       expect(importKindSchema.parse(kind)).toBe(kind);
     }
-    expect(importKindSchema.options).toEqual(['budget_plan', 'budget_detail']);
+    expect(importKindSchema.options).toEqual(['budget_plan', 'budget_detail', 'execution_form', 'goal_form']);
   });
 
-  it('집행내역 임포트는 여전히 제외다 (§13 12-a)', () => {
+  it('정의되지 않은 값은 거부한다', () => {
     expect(importKindSchema.safeParse('execution').success).toBe(false);
   });
 });

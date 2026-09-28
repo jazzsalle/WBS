@@ -275,17 +275,9 @@ export const budgetItemRowSchema = z.object({
   note: z.string(),
 });
 
-export const budgetExecutionRowSchema = z.object({
-  ...baseRow,
-  budget_item_id: z.uuid(),
-  date: isoDate,
-  amount: z.number(),
-  description: z.string(),
-  note: z.string(),
-});
-
 // ─── §5.17 budget_details (산출근거) ─────────────────────────
 // budget_items에는 detail_count 컬럼이 없다 — 조회 시 세어 싣는 파생 값이다 (§5.12 주석).
+// 축·인자 스키마를 먼저 둔다 — 집행 내역(Phase 20)도 같은 형을 쓴다.
 
 export const detailAxisSchema = z.enum(['cash', 'in_kind']);
 export const detailFormulaSchema = z.enum(['personnel', 'quantity']);
@@ -296,6 +288,23 @@ export const detailFactorSchema = z.object({
   label: z.string(),
   value: z.number(),
   isPercent: z.boolean(),
+});
+
+export const budgetExecutionRowSchema = z.object({
+  ...baseRow,
+  budget_item_id: z.uuid(),
+  date: isoDate,
+  amount: z.number(),
+  description: z.string(),
+  note: z.string(),
+  // Phase 20 내역 필드 (§5.12, IN-9). spec만 not null default '' 이고 나머지는 nullable
+  subcategory_code: z.string().nullable(),
+  spec: z.string(),
+  unit_price: z.number().nullable(),
+  factors: z.array(detailFactorSchema).nullable(),
+  axis: detailAxisSchema.nullable(), // 산출근거와 달리 집행은 축 없음을 허용한다
+  member_id: z.uuid().nullable(),
+  detail_id: z.uuid().nullable(),
 });
 
 export const budgetDetailRowSchema = z.object({
@@ -448,9 +457,10 @@ export const appSettingsRowSchema = z.object({
 
 // ─── §5.12.1 import_profiles ─────────────────────────────────
 
-// §5.12.1 — 'budget_detail'은 산출근거 시트 임포트(§6.11). DB check 제약과 값이 같아야 한다
-// (supabase/migrations/20260815000000_import_kind_budget_detail.sql)
-export const importKindSchema = z.enum(['budget_plan', 'budget_detail']);
+// §5.12.1 — 'budget_detail'은 산출근거 시트 임포트(§6.11), 'execution_form'·'goal_form'은
+// 스냅샷 종류로만 쓴다(Phase 20·21). DB check 제약과 값이 같아야 한다
+// (supabase/migrations/20260928000000_execution_form.sql)
+export const importKindSchema = z.enum(['budget_plan', 'budget_detail', 'execution_form', 'goal_form']);
 
 export const importProfileRowSchema = z.object({
   ...baseRow,
@@ -487,13 +497,30 @@ export const importSnapshotItemSchema = z.object({
   existed: z.boolean(),
 });
 
+// IN-14 — before는 DB 행 원본(snake_case)이다. 행을 식별하는 키만 검증하고 나머지 컬럼은
+// 그대로 둔다: 복원은 RPC가 DB에서 하고 앱은 건수만 읽는다. 전 컬럼을 요구하면 이후 Phase가
+// budget_executions에 컬럼을 하나 더할 때 옛 수행 스냅샷 때문에 그 과제의 스냅샷 목록이 통째로 깨진다
+export const importSnapshotExecutionsSchema = z.object({
+  added: z.array(z.uuid()),
+  before: z.array(
+    z.looseObject({
+      id: z.uuid(),
+      budget_item_id: z.uuid(),
+      version: z.number(),
+    })
+  ),
+  // 양식이 지운 id. 없으면 복원이 "양식이 지운 행"과 "양식이 바꾼 뒤 남이 지운 행"을 구별 못 한다
+  deleted: z.array(z.uuid()).optional(),
+});
+
 export const importSnapshotPayloadSchema = z.object({
   schemaVersion: z.number(),
   projectId: z.uuid(),
   capturedAt: isoTimestamp,
-  // D-17: 산출근거 스냅샷(commit_detail_import)에만 있다. Zod가 모르는 키를 지우므로
-  // 여기 적지 않으면 설정 화면이 스냅샷 종류를 영영 알 수 없다 (총괄표 스냅샷은 undefined)
-  kind: z.literal('budget_detail').optional(),
+  // D-17: 산출근거 스냅샷(commit_detail_import)은 'budget_detail', 수행 양식(commit_execution_form,
+  // IN-10)은 'execution_form'. Zod가 모르는 키를 지우므로 여기 적지 않으면 설정 화면이 스냅샷
+  // 종류를 영영 알 수 없다 (총괄표 스냅샷은 undefined). 값을 빠뜨리면 그 과제의 목록 전체가 깨진다
+  kind: z.enum(['budget_detail', 'execution_form']).optional(),
   source: z.object({
     fileName: z.string(),
     sheetName: z.string(),
@@ -501,6 +528,7 @@ export const importSnapshotPayloadSchema = z.object({
     fileHash: z.string(),
   }),
   items: z.array(importSnapshotItemSchema),
+  executions: importSnapshotExecutionsSchema.optional(), // IN-14: 수행 스냅샷에만 있다
 });
 
 export const importSnapshotRowSchema = z.object({

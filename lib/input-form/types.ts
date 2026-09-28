@@ -4,8 +4,11 @@
 // 워크북을 쓰는 것은 `lib/input-form-adapter.ts`의 몫이고, 읽기는 `lib/import-adapter.ts`가 만든
 // `RawSheet`를 그대로 받는다. 여기는 **어느 값이 어느 칸에 있는가**만 다룬다.
 
-import type { BudgetCategory, BudgetDetail, DetailAxis, Member, Project, Year } from '@/types';
-import type { FormCellFormat } from './layout';
+import type { BudgetCategory, BudgetDetail, DetailAxis, DetailFactor, Member, Project, Year } from '@/types';
+import type { FormCellFormat, InputFormMode } from './layout';
+
+// 좌표 맵과 같은 곳에 정의한다(layout.ts) — mode가 열을 파생하므로(IN-9). 기존 import 경로를 위해 여기서도 내보낸다
+export type { InputFormMode } from './layout';
 
 // ─── 생성기 → 어댑터 (쓰기) ─────────────────────────────────
 
@@ -17,9 +20,6 @@ export interface FormCell {
   value?: string | number | null;
   formula?: string;
 }
-
-/** 양식 모드(IN-9). Phase 19는 'plan'만 만들고 'execution'은 Phase 20이 잇는다 — 작성안내 문장만 먼저 분기한다 */
-export type InputFormMode = 'plan' | 'execution';
 
 /** 행 역할. 어댑터가 부록 F-2(헤더)·F-4(소계·합계) 서식을 고를 때 쓴다 */
 export type FormRowRole = 'header' | 'data' | 'subtotal' | 'total';
@@ -56,6 +56,20 @@ export interface FormSheet {
   columnHints?: FormColumnHint[];
   /** `rows`와 같은 길이. 없으면 `headerRow` 이전은 header, 나머지 data */
   rowRoles?: FormRowRole[];
+  // ─ Phase 20 드롭다운(부록 F-9). 선택이다 — 없으면 유효성 없음
+  /**
+   * 열별 **인라인 목록** 유효성(`"현금,현물"`). `_lists` 시트를 만들지 않는다(F-9 — 제안 양식 시트 목록 불변).
+   * 데이터 행(`rowRoles`가 'data'인 행, `rowRoles`가 없으면 `dataStartRow`부터 끝까지)에만 건다 —
+   * 소계·총액 행은 수식이라 목록이 의미 없다. 파서는 목록과 무관하게 값을 다시 검사한다(붙여넣기는 유효성을 우회한다).
+   */
+  validations?: FormColumnValidation[];
+}
+
+export interface FormColumnValidation {
+  /** 0-based 열 */
+  column: number;
+  /** 보이는 라벨 그대로. 쉼표를 담을 수 없다(인라인 목록 구분자) — 어댑터가 검사한다 */
+  values: string[];
 }
 
 export interface InputFormWorkbook {
@@ -76,7 +90,21 @@ export interface InputFormMeta {
   subcategoryCodes: string[];
   /** 인건비 시트에 깔린 인력 id. 시트 순서 그대로 — 이름 매칭을 하지 않는 근거다(IN-3) */
   memberIds: string[];
+  // ─ 수행 양식(Phase 20)만 싣는다(IN-2). 제안 양식에서는 셋 다 없다 — Phase 19 파일과 같은 모양이어야 한다
+  /** 없으면 제안 양식이다. `parseMeta`는 제안 파일에서 이 키를 만들지 않는다 — `metaMode()`로 읽는다 */
+  mode?: InputFormMode;
+  /** executionId → 내려받을 때의 version. 충돌·삭제 후보 판정의 기준(IN-10). 시트 순서 그대로 */
+  executions?: Record<string, number>;
+  /** 그 연차의 산출근거 id. 숨김 `detailId`의 경계 목록(IN-13) */
+  detailIds?: string[];
 }
+
+/** 수행 양식의 `_meta`. `parseMeta`가 mode 'execution'을 읽으면 목록 두 개를 늘 채운다(비어도 빈 값) */
+export type ExecutionFormMeta = InputFormMeta & {
+  mode: 'execution';
+  executions: Record<string, number>;
+  detailIds: string[];
+};
 
 // ─── 생성기 입력 ─────────────────────────────────────────────
 
@@ -90,6 +118,31 @@ export interface InputFormData {
   /** `staffName`은 조직원 연결(§5.19) 표시용. 연결이 없으면 null */
   members: (Member & { staffName: string | null })[];
   details: BudgetDetail[];
+  /** 수행 모드(IN-9)만 쓴다. 그 연차 budget_items의 집행 전부 — 생성기는 하나도 빠뜨리지 않고 한 행씩 싣는다(IN-4) */
+  executions?: InputFormExecution[];
+}
+
+/**
+ * 생성기가 쓰는 집행 한 건. `BudgetExecution`(§5.12)의 필요한 필드 + 부모 비목이다 — 집행은 비목(BudgetItem)
+ * 아래에 달려 있어 행 자체로는 비목을 모른다. 앱 타입을 그대로 import하지 않고 구조만 적어
+ * 리포지토리 타입이 늘어도 이 경계가 흔들리지 않게 한다.
+ */
+export interface InputFormExecution {
+  id: string;
+  version: number;
+  /** ISO `yyyy-mm-dd` */
+  date: string;
+  amount: number;
+  description: string;
+  note: string;
+  category: BudgetCategory;
+  subcategoryCode: string | null;
+  spec: string;
+  unitPrice: number | null;
+  factors: DetailFactor[] | null;
+  axis: DetailAxis | null;
+  memberId: string | null;
+  detailId: string | null;
 }
 
 // ─── 파서 출력 ───────────────────────────────────────────────
@@ -148,8 +201,119 @@ export interface ParsedInputForm {
   issues: ParseIssue[];
 }
 
-/** 파싱에 들어가기 전에 파일째로 거부하는 이유 (IN-2) */
+// ─── 수행 모드 파서 출력 (IN-9~IN-13) ────────────────────────
+
+/**
+ * 수행 양식 한 행 = `BudgetExecution` 한 건의 후보. 인건비·사업비 시트 모두 이 모양으로 모은다 —
+ * 반영이 id 기반이라(IN-10) 두 시트를 구별할 필요가 diff 단계에 없다.
+ */
+export interface ParsedExecutionRow {
+  /** 1-based 엑셀 행 번호 */
+  rowIndex: number;
+  /** 숨김 열. 비면 새 행(add). `_meta.executions` 밖이면 'unknown-execution'(IN-13) */
+  executionId: string | null;
+  /** 세목 코드로 정한 비목. 세목 키를 해석하지 못하면 null(그 행은 blocking 오류) */
+  category: BudgetCategory | null;
+  /** 부록 A.5 세목 코드. `세목 미지정` 슬롯(키 `비목:`)은 null(IN-4) */
+  subcategoryCode: string | null;
+  /** 인건비 시트 행만. `_meta.memberIds` 밖이면 blocking(IN-13) */
+  memberId: string | null;
+  /** 숨김 열. `_meta.detailIds` 밖이면 blocking(IN-13) */
+  detailId: string | null;
+  /** ISO `yyyy-mm-dd`. 비었거나 해석하지 못하면 null이고 그 행은 blocking(IN-11) */
+  date: string | null;
+  /** 품명(사업비). 인건비 시트에는 품명 열이 없어 빈 문자열이다 */
+  description: string;
+  spec: string;
+  unitPrice: number | null;
+  /** 사업비는 인자1~3(프리셋 라벨, IN-4), 인건비는 `참여율(%)`·`참여기간(월)`(IN-12). 없으면 null */
+  factors: DetailFactor[] | null;
+  /** 비어도 된다(IN-11) — 제안 모드처럼 현금으로 채우지 않는다 */
+  axis: DetailAxis | null;
+  /**
+   * 원 단위 정수. 사업비는 비어 있으면 파서가 단가 × 인자로 채운 값이다(IN-11).
+   * 인건비는 입력값 그대로(비면 null) — 연봉이 필요한 보완은 미리보기가 한다
+   */
+  amount: number | null;
+  note: string;
+  issues: ParseIssue[];
+}
+
+export interface ParsedExecutionForm {
+  meta: ExecutionFormMeta;
+  personnel: ParsedExecutionRow[];
+  budget: ParsedExecutionRow[];
+  /** 행에 매이지 않는 파일 단위 문제 */
+  issues: ParseIssue[];
+}
+
+/**
+ * 수행 모드 행 문제의 사유 코드. 숫자 칸 읽기 실패처럼 제안 모드와 같은 검사(`unknown-subcategory`·
+ * `unit-price-*`·`factor-invalid` 등)는 제안 모드 코드를 그대로 쓰고, 여기는 수행 모드에서 새로 생긴 것만 둔다.
+ */
+export type ExecutionIssueKind =
+  | 'no-date'
+  | 'invalid-date'
+  | 'date-out-of-year'
+  | 'amount-invalid'
+  | 'amount-negative'
+  | 'amount-not-integer'
+  | 'no-amount'
+  | 'amount-mismatch'
+  | 'description-too-long'
+  | 'unknown-execution'
+  | 'unknown-member'
+  | 'unknown-detail'
+  | 'category-moved'
+  | 'duplicate-execution';
+
+/** 품명(`BudgetExecution.description`) 상한 — 화면 CRUD의 적요 검증과 같다(IN-11) */
+export const EXECUTION_DESCRIPTION_MAX = 200;
+
+/**
+ * 사유별 기본 문구와 반영 차단 여부(SOT §6.16 IN-10·IN-11·IN-13). 파서는 셀 값을 덧붙일 수 있지만
+ * 차단 여부는 여기서만 정한다 — 같은 사유가 행마다 다르게 막히면 미리보기와 반영이 어긋난다.
+ */
+export const EXECUTION_ISSUES: Readonly<Record<ExecutionIssueKind, { message: string; blocking: boolean }>> = {
+  'no-date': { message: '집행일이 비어 있습니다 — 집행일은 필수입니다', blocking: true },
+  'invalid-date': { message: '집행일을 날짜로 읽을 수 없습니다', blocking: true },
+  'date-out-of-year': { message: '집행일이 연차 기간 밖입니다', blocking: false },
+  'amount-invalid': { message: '금액을 숫자로 읽을 수 없습니다', blocking: true },
+  'amount-negative': { message: '금액은 0 이상이어야 합니다', blocking: true },
+  'amount-not-integer': { message: '금액은 원 단위 정수여야 합니다', blocking: true },
+  'no-amount': { message: '금액이 비어 있고 단가 × 인자로도 채울 수 없습니다', blocking: true },
+  'amount-mismatch': {
+    message: '입력 금액이 단가 × 인자와 다릅니다 — 입력 금액으로 반영합니다',
+    blocking: false,
+  },
+  'description-too-long': {
+    message: `품명은 ${EXECUTION_DESCRIPTION_MAX}자 이내여야 합니다`,
+    blocking: true,
+  },
+  'unknown-execution': {
+    message: '이 양식에 없던 executionId입니다 — 다른 양식에서 복사한 행은 올릴 수 없습니다',
+    blocking: true,
+  },
+  'unknown-member': {
+    message: '이 양식에 없던 인력(memberId)입니다 — 다른 과제의 행은 올릴 수 없습니다',
+    blocking: true,
+  },
+  'unknown-detail': {
+    message: '이 연차의 산출근거가 아닌 detailId입니다 — 다른 과제·연차의 행은 올릴 수 없습니다',
+    blocking: true,
+  },
+  'category-moved': {
+    message: '기존 집행 행을 다른 비목으로 옮길 수 없습니다 — 비목을 바꾸려면 그 행을 지우고 새 행으로 적으세요',
+    blocking: true,
+  },
+  'duplicate-execution': {
+    message: '같은 집행을 가리키는 행이 여럿입니다 — 복사한 행은 빈 줄에 다시 적으세요',
+    blocking: true,
+  },
+};
+
+/** 파싱에 들어가기 전에 파일째로 거부하는 이유 (IN-2·IN-9) */
 export interface InputFormRejection {
-  kind: 'no-meta' | 'project-mismatch' | 'version-mismatch' | 'missing-sheet';
+  kind: 'no-meta' | 'project-mismatch' | 'version-mismatch' | 'mode-mismatch' | 'missing-sheet';
   message: string;
 }

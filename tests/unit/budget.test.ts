@@ -43,6 +43,13 @@ function item(spec: {
     amount,
     description: '집행',
     note: '',
+    subcategoryCode: null,
+    spec: '',
+    unitPrice: null,
+    factors: null,
+    axis: null,
+    memberId: null,
+    detailId: null,
   }));
   return {
     id: `${yearId}-${spec.category}`,

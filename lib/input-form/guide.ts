@@ -4,9 +4,10 @@
 // 파일 안에서 말해 주는 것이 전부다. 문장은 §6.16·§7.9.7 규칙을 사용자 말로 풀어 쓴 것이므로
 // 규칙이 바뀌면 여기도 함께 바꾼다. 서식(글꼴·채움·너비)은 어댑터가 `kind: 'guide'`를 보고 F-8로 입힌다.
 //
-// '읽지 않는 열'은 좌표 맵에서 **생성**한다 — 하드코딩하면 Phase 20이 열을 더할 때 안내가 거짓이 된다(IN-1).
+// '읽지 않는 열'은 mode별 좌표 맵에서 **생성**한다 — 하드코딩하면 열이 늘거나 수행 모드에서 읽기 여부가
+// 바뀔 때(IN-9: 금액은 읽고 조정액은 읽지 않는다) 안내가 거짓이 된다(IN-1).
 
-import { INPUT_FORM_SHEETS } from './layout';
+import { sheetsFor } from './layout';
 import type { InputFormSheetDef } from './layout';
 import type { FormCell, FormSheet, InputFormData, InputFormMode } from './types';
 
@@ -28,14 +29,11 @@ function joinLabels(columns: readonly InputFormSheetDef['columns'][number][]): s
   return columns.map((c) => c.label).join(' · ');
 }
 
-/**
- * 보이는데 읽지 않는 열(부록 F-3 키 열)을 시트별로 나열한다. 숨김 키 열은 따로 한 줄.
- * Phase 20이 layout에 mode 분기(IN-9)를 넣으면 이 함수도 mode에 맞는 맵을 받아야 한다.
- */
-export function unreadColumnsText(): string {
+/** 보이는데 읽지 않는 열(부록 F-3 키 열)을 시트별로 나열한다. 숨김 키 열은 따로 한 줄 */
+export function unreadColumnsText(mode: InputFormMode = 'plan'): string {
   const lines: string[] = [];
   const hiddenLabels: string[] = [];
-  for (const def of Object.values(INPUT_FORM_SHEETS)) {
+  for (const def of Object.values(sheetsFor(mode))) {
     if (def.hidden) continue;
     const unread = def.columns.filter((c) => !c.hidden && !c.read);
     if (unread.length > 0) lines.push(`「${def.name}」 ${joinLabels(unread)}`);
@@ -58,17 +56,25 @@ function purposeText(data: InputFormData, mode: InputFormMode): string {
 }
 
 function methodText(mode: InputFormMode): string {
-  const lines = [
+  if (mode === 'execution') {
+    // 수행 모드는 조정액·산식 금액을 읽지 않고(IN-9) 금액을 직접 적는다(IN-11) — 제안 문장을 그대로 쓰면 거짓이 된다
+    return [
+      '「인건비」 시트: 인력마다 집행일·세목·참여율(%)·참여개월·현금/현물·금액을 적습니다. 참여율은 0~100, 참여개월은 0~12입니다.',
+      '한 사람의 집행이 여러 건이면 그 사람의 행을 복사해 한 줄 더 적습니다.',
+      '「사업비」 시트: 세목마다 미리 깔린 빈 줄에 집행일·품명·규격·단가·인자1~3·현금/현물·금액·비고를 적습니다. 줄이 모자라면 같은 세목 안에서 행을 복사해 넣습니다.',
+      "세목을 정하지 않은 집행은 비목마다 있는 '세목 미지정' 줄에 적습니다. 인력을 정하지 않은 인건비 집행도 그 비목의 '세목 미지정' 줄에 있습니다.",
+      '금액은 원 단위 정수입니다. 금액을 비우고 단가·인자를 적으면 금액 = 단가 × 인자(비어 있으면 1)로 채웁니다. 조정액·산식 금액 칸은 수행 양식에서 쓰지 않습니다.',
+      '집행일은 반드시 적습니다(yyyy-mm-dd). 집행일이 없는 행은 반영되지 않습니다.',
+      '아무것도 적지 않은 빈 줄은 무시됩니다.',
+    ].join('\n');
+  }
+  return [
     '「인건비」 시트: 인력마다 세목·참여율(%)·참여개월·현금/현물·조정액을 적습니다. 참여율은 0~100, 참여개월은 0~12입니다(연차 개월을 넘으면 경고).',
     '한 사람이 두 구간으로 참여하면 그 사람의 행을 복사해 한 줄 더 적습니다.',
     '「사업비」 시트: 세목마다 미리 깔린 빈 줄에 품명·규격·단가·인자1~3·조정액·현금/현물·비고를 적습니다. 줄이 모자라면 같은 세목 안에서 행을 복사해 넣습니다.',
     '단가·조정액은 원 단위 정수, 인자는 소수도 됩니다. 금액 = 단가 × 인자(비어 있으면 1) + 조정액입니다.',
     '아무것도 적지 않은 빈 줄은 무시됩니다.',
-  ];
-  if (mode === 'execution') {
-    lines.push('집행일은 반드시 적습니다(yyyy-mm-dd). 집행일이 없는 행은 반영되지 않습니다.');
-  }
-  return lines.join('\n');
+  ].join('\n');
 }
 
 function principleText(mode: InputFormMode): string {
@@ -86,7 +92,11 @@ function principleText(mode: InputFormMode): string {
       '반영 전 미리보기에서 추가·변경·삭제 건수와 연차별 집행률 전후를 확인합니다. 반영 전 상태는 스냅샷으로 남아 되돌릴 수 있습니다.'
     );
   }
-  lines.push('경고(연차 개월 초과·규칙 위반 등)는 반영을 막지 않습니다 — 내용을 확인하고 진행하세요.');
+  lines.push(
+    mode === 'plan'
+      ? '경고(연차 개월 초과·규칙 위반 등)는 반영을 막지 않습니다 — 내용을 확인하고 진행하세요.'
+      : '경고(금액과 단가 × 인자 불일치·연차 기간 밖 집행일 등)는 반영을 막지 않습니다 — 내용을 확인하고 진행하세요.'
+  );
   return lines.join('\n');
 }
 
@@ -119,7 +129,7 @@ export function buildGuideSheet(data: InputFormData, todayISO: string, mode: Inp
     '작성 방법': methodText(mode),
     원칙: principleText(mode),
     주의: cautionText(mode),
-    '읽지 않는 열': unreadColumnsText(),
+    '읽지 않는 열': unreadColumnsText(mode),
   };
   const rows: FormCell[][] = [
     [{ value: `${data.project.name} — ${INPUT_FORM_TITLE}` }],
