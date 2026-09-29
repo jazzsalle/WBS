@@ -7,7 +7,7 @@
 //   (a) 수정 커밋 → `budget_details` 금액이 PL-1 재계산값 · 비목 행 수 · `budget_items` 축별 합계(PL-10) ·
 //       `import_snapshots`에 `details` 키(D-17)와 `source.fileHash`
 //   (b) 다시 내려받으면 적은 값이 채워져 있다 (§11 행 왕복)
-//   (c) fileHash 불일치 · 다른 과제의 양식 · formVersion 불일치 → 거부 (IN-2·IN-6)
+//   (c) fileHash 불일치 · 다른 과제의 양식 · formVersion 불일치 · 옛 수행 양식(`_meta` mode 행) → 거부 (IN-2·IN-6)
 //   (d) 경고(연차 개월 초과)만 있는 파일은 반영된다 (PL-15·RL-1)
 //   (e) 미리보기 뒤 다른 경로로 들어온 행은 지우지 않고 `skippedLocked`로 드러낸다 (D-15a)
 //   (f) blocking(참여율 범위 밖)이면 거부하고 DB가 한 행도 변하지 않는다
@@ -189,6 +189,27 @@ function budgetEmptyRowOf(ws: XLSX.WorkSheet, key: string): number {
 function metaRowOf(ws: XLSX.WorkSheet, key: string): number {
   return findRow(ws, META_DEF, (r) => cellValue(ws, META_DEF, 'key', r) === key, `_meta '${key}'`);
 }
+
+/**
+ * Phase 20의 옛 수행 양식 모양 — 제안 양식 `_meta` 끝에 `mode` 행을 덧붙인다. 값은 실제 옛 파일을
+ * 재현하려는 것이다(Phase 23 S-11 예외 ③). 키는 리터럴로 쓴다 — 거부는 행 존재로 판정하고(S-3), 제안 양식
+ * 좌표에는 더 이상 mode 키가 필요 없다.
+ */
+function withLegacyModeRow(buffer: Buffer): Buffer {
+  return rewritten(buffer, (wb) => {
+    const ws = sheetOf(wb, META_DEF.name);
+    const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1:A1');
+    const r0 = range.e.r + 1;
+    setText(ws, META_DEF, 'key', r0, 'mode');
+    setText(ws, META_DEF, 'value', r0, 'execution');
+    range.e.r = r0;
+    ws['!ref'] = XLSX.utils.encode_range(range);
+  });
+}
+
+/** §6.16 폐기 표기(S-3)의 문구 그대로 */
+const LEGACY_FORM_MESSAGE =
+  '수행 양식(집행 내역) 파일입니다 — 집행 관리 기능이 삭제되어 올릴 수 없습니다. 제안 모드에서 [입력 양식 내려받기]로 받은 양식을 쓰세요.';
 
 function setNumber(ws: XLSX.WorkSheet, def: typeof PERSONNEL_DEF, role: string, r0: number, value: number): void {
   ws[addr(def, role, r0)] = { t: 'n', v: value };
@@ -557,7 +578,7 @@ describe('(a) 내려받기 → 미리보기 → 참여율 28→40 반영 (IN-5·
 
 // ═══ (c) 거부 3종 ══════════════════════════════════════════════════════════════
 
-describe('(c) 거부 — fileHash 불일치 · 다른 과제의 양식 · formVersion 불일치 (IN-2·IN-6)', () => {
+describe('(c) 거부 — fileHash 불일치 · 다른 과제의 양식 · formVersion 불일치 · 옛 수행 양식 (IN-2·IN-6)', () => {
   let base: DownloadedForm;
   let before: DetailRow[];
   let snapshotsBefore: number;
@@ -604,6 +625,20 @@ describe('(c) 거부 — fileHash 불일치 · 다른 과제의 양식 · formVe
     const commit = expectFailure(await commitInputForm(projectId, formOf(stale, base.fileName), 'f'.repeat(64), []));
     expect(commit.error).toContain('다시 내려받으세요');
     await expectDbUntouched();
+  });
+
+  // 제안 양식으로 오인해 반영하면 사용자가 모르는 데이터 변경이 된다(절대 규칙 5, §6.16 폐기 표기)
+  it('`_meta`에 mode 행이 있는 옛 수행 양식은 미리보기·반영 모두 거부하고 DB가 변하지 않는다', async () => {
+    const legacy = withLegacyModeRow(base.buffer);
+    const preview = expectFailure(await previewInputForm(projectId, formOf(legacy, base.fileName)));
+    expect(preview.code).toBe('RULE');
+    const commit = expectFailure(
+      await commitInputForm(projectId, formOf(legacy, base.fileName), 'f'.repeat(64), ['personnel'])
+    );
+    expect(commit.code).toBe('RULE');
+    await expectDbUntouched();
+    expect(preview.error).toBe(LEGACY_FORM_MESSAGE);
+    expect(commit.error).toBe(LEGACY_FORM_MESSAGE);
   });
 });
 

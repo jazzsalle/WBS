@@ -9,7 +9,6 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import type {
-  BudgetItem,
   Deliverable,
   Milestone,
   Project,
@@ -21,7 +20,6 @@ import type {
   Year,
 } from '@/types';
 import {
-  budgetItemRowSchema,
   milestoneRowSchema,
   riskRowSchema,
   stageRowSchema,
@@ -34,7 +32,6 @@ import * as todosRepo from './todos';
 import { TASK_SELECT, parseTaskRow } from './tasks';
 import { DELIVERABLE_SELECT, toDeliverable } from './deliverables';
 import { TECH_TARGET_SELECT, toTechTarget } from './tech-targets';
-import { ITEM_SELECT as BUDGET_ITEM_SELECT, attachExecutions } from './budget-items';
 import {
   AuthError,
   ConflictError,
@@ -114,7 +111,6 @@ export interface DashboardSource {
   tasks: Task[];
   milestones: Milestone[];
   risks: Risk[];
-  budgetItems: BudgetItem[];
   deliverables: Deliverable[];
   techTargets: TechTarget[];
   todos: Todo[];
@@ -131,26 +127,18 @@ export async function fetchDashboardSource(client: SupabaseClient): Promise<Dash
   // lib/dashboard.ts도 같은 판정을 다시 하므로 조회 최적화일 뿐 규칙의 근거지가 아니다.
   const projectIds = projects.filter((p) => !p.archived).map((p) => p.id);
 
-  const [stageRows, yearRows, taskRows, milestoneRows, riskRows, budgetRows, deliverableRows, techTargetRows, todos] =
+  const [stageRows, yearRows, taskRows, milestoneRows, riskRows, deliverableRows, techTargetRows, todos] =
     await Promise.all([
       listByProjects(client, 'stages', '*', projectIds),
       listByProjects(client, 'years', '*', projectIds),
       listByProjects(client, 'tasks', TASK_SELECT, projectIds),
       listByProjects(client, 'milestones', '*', projectIds),
       listByProjects(client, 'risks', '*', projectIds),
-      listByProjects(client, 'budget_items', BUDGET_ITEM_SELECT, projectIds),
       listByProjects(client, 'deliverables', DELIVERABLE_SELECT, projectIds),
       listByProjects(client, 'tech_targets', TECH_TARGET_SELECT, projectIds),
       // To-Do는 과제에 매이지 않는다 (§5.15) — 전역으로 읽는다
       todosRepo.listTodos(client),
     ]);
-
-  // 집행 내역은 임베드로 붙이지 않는다 — 임베드 자식은 max-rows에 걸려도 에러 없이 잘린다
-  // (budget-items.ts ITEM_SELECT 주석). 부모를 다 읽은 뒤 자식만 따로 페이징해 붙인다.
-  const budgetItems = await attachExecutions(
-    client,
-    parseRows('budget_items', z.array(budgetItemRowSchema), budgetRows)
-  );
 
   return {
     projects,
@@ -161,7 +149,6 @@ export async function fetchDashboardSource(client: SupabaseClient): Promise<Dash
       parseRows('milestones', z.array(milestoneRowSchema), milestoneRows)
     ),
     risks: dbToAppArray<Risk>(parseRows('risks', z.array(riskRowSchema), riskRows)),
-    budgetItems,
     deliverables: deliverableRows.map(toDeliverable),
     techTargets: techTargetRows.map(toTechTarget),
     todos,

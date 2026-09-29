@@ -780,14 +780,9 @@ describe('작성안내 시트 (F-8)', () => {
     expect(guide.rows).toHaveLength(8);
   });
 
-  it('(iv) 주의: plan은 "금액 열은 읽지 않는다", execution은 "금액 열을 읽는다"', () => {
+  it('(iv) 주의: "금액 열은 읽지 않는다"', () => {
     expect(bodyOf(guide, '주의')).toContain('금액 열은 읽지 않는다');
     expect(bodyOf(guide, '주의')).not.toContain('금액 열을 읽는다');
-
-    const execution = buildInputForm({ ...DATA, executions: [] }, TODAY, 'execution').sheets[0]!;
-    expect(execution.rows[1]![0]!.value).toBe('생성 2026-09-25 · 1차년도 · 수행');
-    expect(bodyOf(execution, '주의')).toContain('금액 열을 읽는다');
-    expect(bodyOf(execution, '주의')).not.toContain('금액 열은 읽지 않는다');
   });
 
   it('원칙: 인력은 양식에 있던 인력만, 경고는 막지 않음, 비목 단위 교체(plan)', () => {
@@ -795,8 +790,6 @@ describe('작성안내 시트 (F-8)', () => {
     expect(principle).toContain('이름으로 찾지 않습니다');
     expect(principle).toContain('막지 않습니다');
     expect(principle).toContain('비목 단위');
-    const execution = buildInputForm({ ...DATA, executions: [] }, TODAY, 'execution').sheets[0]!;
-    expect(bodyOf(execution, '원칙')).toContain('[삭제 포함]');
   });
 
   it('읽지 않는 열: 좌표 맵의 !hidden && !read 열 라벨을 시트별로 생성한다', () => {
@@ -851,14 +844,13 @@ describe('경계', () => {
 // ─── Phase 20: mode 분기 뒤에도 제안 양식은 그대로 (제안 모드 불변 제약) ─────
 
 describe('Phase 20 — 제안 모드 불변', () => {
-  it("unreadColumnsText('plan')은 Phase 19 문자열과 같다(mode 생략도 같다)", () => {
+  it('unreadColumnsText()는 Phase 19 문자열과 같다', () => {
     const phase19 = [
       '「인건비」 성명 · 직위 · 조직원 · 급여 기준 · 연봉 · 월급 · 산식 금액 · 금액',
       '「사업비」 비목 · 세목 · 금액',
       '위 열은 연한 베이지 바탕이며 값을 고쳐도 반영되지 않습니다(앱의 값이 원본입니다).',
       '숨김 열(memberId · detailId · subcategory)은 행을 앱의 데이터와 잇는 키입니다 — 지우거나 옮기지 마세요.',
     ].join('\n');
-    expect(unreadColumnsText('plan')).toBe(phase19);
     expect(unreadColumnsText()).toBe(phase19);
   });
 
@@ -870,6 +862,6 @@ describe('Phase 20 — 제안 모드 불변', () => {
     }
     expect(metaSheet.validations).toBeUndefined();
     expect(metaSheet.rows.some((r) => r[0]?.value === 'mode')).toBe(false);
-    expect(parseMeta(toRawSheet(metaSheet))!.mode).toBeUndefined();
+    expect(parseMeta(toRawSheet(metaSheet))!.hasModeRow).toBeUndefined();
   });
 });

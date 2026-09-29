@@ -22,16 +22,8 @@ const XLSX_STYLE = path.join(ROOT, 'lib/xlsx-style.ts');
 /** exceljs를 import해도 되는 파일 — 정확히 이 둘이고 둘 다 server-only다(IN-8, 부록 F) */
 const EXCELJS_ALLOWED = ['lib/input-form-adapter.ts', 'lib/xlsx-style.ts'] as const;
 
-/**
- * 금액 산식을 부를 수 있는 파일. 제안 모드는 미리보기만 부른다(IN-7 — 금액은 엑셀 수식).
- * 수행 모드는 금액 열을 읽고, 비었을 때만 PL-1로 채운다(IN-11) — 사업비는 파서, 인건비는
- * 연봉이 필요해 미리보기가 채운다. 어느 쪽도 산식을 다시 쓰지 않고 computeDetailAmount를 부른다
- */
-const AMOUNT_CALLER_ALLOWED: readonly string[] = [
-  'lib/input-form/preview.ts',
-  'lib/input-form/parse-execution.ts',
-  'lib/input-form/execution-preview.ts',
-];
+/** 금액 산식을 부를 수 있는 파일. 미리보기만 부른다(IN-7 — 금액은 엑셀 수식) */
+const AMOUNT_CALLER_ALLOWED: readonly string[] = ['lib/input-form/preview.ts'];
 
 /** 'use client' 파일이 있을 수 있는 곳. node_modules·빌드 산출물은 스캔하지 않는다 */
 const CLIENT_SCAN_DIRS = ['app', 'components', 'lib', 'actions', 'types'];

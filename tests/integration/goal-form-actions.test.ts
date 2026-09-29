@@ -1149,7 +1149,7 @@ describe('(j) 거부 — fileHash 불일치 · 입력 양식 파일 (IN-6·GF-2)
   });
 
   it('입력 양식(buildInputForm 산출물)을 올리면 not-goal-form 문구로 거부한다', async () => {
-    const input = unwrap(await buildInputForm(projectId, year1Id, 'plan'));
+    const input = unwrap(await buildInputForm(projectId, year1Id));
     const buffer = Buffer.from(input.contentBase64, 'base64');
     const failure = expectFailure(await previewGoalForm(projectId, formOf(buffer, input.fileName)));
     expect(failure.code).toBe('RULE');

@@ -1,18 +1,20 @@
 // 백업 왕복 통합 테스트 — §8.7 K-1·K-5·K-7·K-8
 //
 // ⚠️ 파괴적 테스트다. `npm test`에 포함되지 않고 `npm run test:destructive`로만 돌린다.
-//    K-7 복원이 대상 29종 테이블의 전 행을 지우고 백업 시점 행으로 되돌리기 때문에,
+//    K-7 복원이 대상 26종 테이블(백업 28종 중 app_users·app_settings 제외)의 전 행을 지우고 백업 시점 행으로 되돌리기 때문에,
 //    실데이터가 있는 dev DB에서 돌리면 export 이후 다른 PC에서 추가된 변경분이 사라진다.
 //    시작 전 assertNoForeignData가 테스트 소유가 아닌 데이터를 발견하면 실행을 거부한다.
 //
-// 서버 액션(actions/backup.ts)은 쿠키 세션(requireApprovedUser) 위에 있어 vitest에서
-// 직접 호출할 수 없다. 왕복·K-5·K-8 검증은 리포지토리 레벨(lib/db/backup, 실제 세션
-// 클라이언트 주입 = RLS·RPC 경로 실검증)로 수행하고, 액션이 쓰는 순수 부분
-// (parseBackupFile의 Zod 거부)을 별도로 커버한다.
+// 왕복·K-5·K-8 검증은 리포지토리 레벨(lib/db/backup, 실제 세션 클라이언트 주입 = RLS·RPC
+// 경로 실검증)로 수행하고, 액션이 쓰는 순수 부분(parseBackupFile의 Zod 거부)을 별도로 커버한다.
+// 옛 v4 파일 거부(§8.8, Phase 23 S-12)만은 액션(actions/backup.ts importAll)을 부른다 —
+// 사용자가 보는 버전 불일치 메시지를 내는 곳이 액션의 K-5 비교이기 때문이다.
+// 쿠키 세션은 next/headers를 모킹해 실제 세션 토큰을 넣는다(통합 테스트의 액션 호출 방식과 같다).
 //
 // 왕복 자체가 dev DB 원복 장치다: 원본 export → 변형 → 원본 restore → DB가 원본과 일치.
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Sql } from 'postgres';
 import {
   SEED,
@@ -32,6 +34,18 @@ import * as tasks from '@/lib/db/tasks';
 import { RuleViolationError, ValidationError } from '@/lib/db/errors';
 import type { BackupFile } from '@/types';
 
+// Phase 23에서 삭제된 집행 테이블 — v5 파일에 없어야 하고, 옛 v4 파일 재현에는 있어야 한다(S-11 예외 ②)
+const DROPPED_TABLE = 'budget_executions';
+
+const session = vi.hoisted(() => ({ accessToken: '' }));
+
+vi.mock('next/headers', () => ({
+  cookies: async () => ({ get: () => ({ value: session.accessToken }) }),
+}));
+vi.mock('next/cache', () => ({ revalidatePath: () => undefined }));
+
+const { importAll } = await import('@/actions/backup');
+
 // 실데이터 감지 가드는 어떤 준비 작업보다 먼저 돈다. beforeAll이 아니라 모듈 최상위인 이유:
 // 여기서 멈추면 afterAll도 등록되지 않아 "정리하다 난 2차 에러"가 진짜 원인을 가리지 않는다.
 const sql: Sql = connectDirectDb();
@@ -45,6 +59,70 @@ const tempProjectIds: string[] = []; // afterAll 안전망 — 복원 실패로 
 // 리포지토리가 아니라 직결 SQL로 넣는 이유: 이 파일은 백업 경로만 검증하고,
 // budget_details 리포지토리·서버 액션(PL-10 재계산)은 별도 테스트가 다룬다.
 const SEED_DETAIL_ID = 'aaaa0000-0000-4000-8000-0000000000d1';
+
+// v5 왕복(Phase 23)이 행 수만이 아니라 대표 행으로도 확인할 테이블들. 시드에는 없으므로 만든다 —
+// 빈 테이블의 왕복은 "[] = []"로 통과해 목록 누락을 드러내지 못한다.
+// staff는 과제 하위가 아니라 removeSeed의 cascade로 지워지지 않는다 — afterAll이 따로 지운다.
+const FIXTURE = {
+  ruleId: 'aaaa0000-0000-4000-8000-0000000000b1',
+  staffId: 'aaaa0000-0000-4000-8000-0000000000b2',
+  salaryId: 'aaaa0000-0000-4000-8000-0000000000b3',
+  deliverableId: 'aaaa0000-0000-4000-8000-0000000000b4',
+  achievementId: 'aaaa0000-0000-4000-8000-0000000000b5',
+  techTargetId: 'aaaa0000-0000-4000-8000-0000000000b6',
+  recordId: 'aaaa0000-0000-4000-8000-0000000000b7',
+} as const;
+const STAFF_EMAIL = `wbs-backup-${Date.now()}-${randomUUID().slice(0, 8)}@unes.co.kr`;
+
+// 테이블 → 대표 행 id. 왕복 뒤 이 행들이 원본과 같아야 한다
+const REPRESENTATIVE_ROWS: Record<string, string> = {
+  budget_details: SEED_DETAIL_ID,
+  budget_rules: FIXTURE.ruleId,
+  staff: FIXTURE.staffId,
+  staff_salaries: FIXTURE.salaryId,
+  deliverables: FIXTURE.deliverableId,
+  deliverable_achievements: FIXTURE.achievementId,
+  tech_targets: FIXTURE.techTargetId,
+  tech_target_records: FIXTURE.recordId,
+};
+
+async function insertFixtures(u: TestUser): Promise<void> {
+  await sql`
+    insert into public.budget_rules
+      (id, project_id, code, enabled, value, base, severity, source, created_by, updated_by)
+    values
+      (${FIXTURE.ruleId}::uuid, ${SEED.projectId}::uuid, 'indirect_max', true, 17.5,
+       'direct_cash_excl_intl', 'error', '왕복 테스트 출처', ${u.id}::uuid, ${u.id}::uuid)`;
+  await sql`
+    insert into public.staff (id, name, email, position, created_by, updated_by)
+    values (${FIXTURE.staffId}::uuid, '백업 테스트 조직원', ${STAFF_EMAIL}, '선임',
+            ${u.id}::uuid, ${u.id}::uuid)`;
+  await sql`
+    insert into public.staff_salaries
+      (id, staff_id, effective_from, basis, amount, includes_retirement, includes_insurance)
+    values (${FIXTURE.salaryId}::uuid, ${FIXTURE.staffId}::uuid, '2026-01-01', 'annual',
+            48000000, true, false)`;
+  await sql`
+    insert into public.deliverables
+      (id, project_id, type, name, target_total, created_by, updated_by)
+    values (${FIXTURE.deliverableId}::uuid, ${SEED.projectId}::uuid, 'sw_registration',
+            '왕복 테스트 지표', 3, ${u.id}::uuid, ${u.id}::uuid)`;
+  await sql`
+    insert into public.deliverable_achievements
+      (id, deliverable_id, title, date, year_id, created_by, updated_by)
+    values (${FIXTURE.achievementId}::uuid, ${FIXTURE.deliverableId}::uuid, '왕복 테스트 실적',
+            '2026-06-01', ${SEED.year1Id}::uuid, ${u.id}::uuid, ${u.id}::uuid)`;
+  await sql`
+    insert into public.tech_targets
+      (id, project_id, name, target_value, created_by, updated_by)
+    values (${FIXTURE.techTargetId}::uuid, ${SEED.projectId}::uuid, '왕복 테스트 기술목표', 90,
+            ${u.id}::uuid, ${u.id}::uuid)`;
+  await sql`
+    insert into public.tech_target_records
+      (id, tech_target_id, value, date, year_id, created_by, updated_by)
+    values (${FIXTURE.recordId}::uuid, ${FIXTURE.techTargetId}::uuid, 87.5, '2026-06-15',
+            ${SEED.year1Id}::uuid, ${u.id}::uuid, ${u.id}::uuid)`;
+}
 
 function exportedBy(u: TestUser): BackupFile['exportedBy'] {
   return { id: u.id, email: u.email };
@@ -76,29 +154,37 @@ beforeAll(async () => {
        ${sql.json([{ label: '회', value: 4, isPercent: false }])}::jsonb,
        -500, 1199500, '왕복 테스트용', 0,
        ${user.id}::uuid, ${user.id}::uuid)`;
+
+  await insertFixtures(user);
+  session.accessToken = user.accessToken;
 });
 
 afterAll(async () => {
   for (const id of tempProjectIds) {
     await sql`delete from public.projects where id = ${id}::uuid`;
   }
+  await sql`delete from public.staff where id = ${FIXTURE.staffId}::uuid`; // 이력은 cascade (ST-2)
   await removeSeed(sql);
   await destroyTestUser(sql, user);
   await sql.end();
 });
 
 describe('K-1: exportAll — BackupFile 인터페이스 정확 일치', () => {
-  it('최상위 키 4개, tables는 29종 전부, JSON 직렬화 왕복 후에도 parseBackupFile을 통과한다', async () => {
+  it('최상위 키 4개, tables는 28종 전부, JSON 직렬화 왕복 후에도 parseBackupFile을 통과한다', async () => {
     const file = await backup.exportAll(user.client, exportedBy(user));
 
     expect(Object.keys(file).sort()).toEqual(
       ['exportedAt', 'exportedBy', 'schemaVersion', 'tables'].sort()
     );
-    expect(typeof file.schemaVersion).toBe('number');
+    // §8.8 Phase 23: 집행 테이블이 빠져 파일 형식이 바뀌었으므로 5다
+    expect(file.schemaVersion).toBe(5);
+    expect(file.tables).not.toHaveProperty(DROPPED_TABLE);
+    expect(backup.BACKUP_TABLES).not.toContain(DROPPED_TABLE);
+    expect(backup.RESTORE_TABLES).toHaveLength(26);
     expect(Number.isNaN(Date.parse(file.exportedAt))).toBe(false);
     expect(file.exportedBy).toEqual({ id: user.id, email: user.email });
     expect(Object.keys(file.tables).sort()).toEqual([...backup.BACKUP_TABLES].sort());
-    expect(backup.BACKUP_TABLES).toHaveLength(29);
+    expect(backup.BACKUP_TABLES).toHaveLength(28);
 
     // 행은 DB snake_case 원본 그대로 (매퍼 미경유) — 시드 과제 행으로 확인
     const seedProject = file.tables['projects']!.find(
@@ -114,9 +200,16 @@ describe('K-1: exportAll — BackupFile 인터페이스 정확 일치', () => {
   });
 });
 
-describe('K-7: 복원 왕복 — 전체 대체', () => {
+describe('K-7: v5 복원 왕복 — 전체 대체', () => {
   it('export → 수정·삭제·추가 → restore → 재export가 원본과 테이블별로 일치한다', async () => {
     const original = await backup.exportAll(user.client, exportedBy(user));
+    expect(original.schemaVersion).toBe(5);
+    // 대표 행이 원본에 실제로 실려 있어야 아래 비교가 의미를 가진다 (빈 테이블끼리의 일치 방지)
+    for (const [table, id] of Object.entries(REPRESENTATIVE_ROWS)) {
+      const ids = original.tables[table]!.map((r) => (r as { id: string }).id);
+      expect(ids, table).toContain(id);
+    }
+    expect(original.tables['budget_items']!.length).toBeGreaterThan(0);
 
     // 수정: 시드 과제 이름 변경 (version·updated_by도 함께 변한다)
     await projects.updateProject(user.client, SEED.projectId, {
@@ -127,6 +220,15 @@ describe('K-7: 복원 왕복 — 전체 대체', () => {
     await tasks.deleteTask(user.client, SEED.taskIds.literature);
     // 삭제: 산출근거 1행 제거 (§5.17) — 복원이 되살리지 못하면 백업에서 근거만 사라진다
     await sql`delete from public.budget_details where id = ${SEED_DETAIL_ID}::uuid`;
+    // 삭제: 규칙·목표 4종·조직원(이력 cascade) — 복원이 되살리지 못하면 그 테이블이 목록에서 빠진 것이다
+    await sql`delete from public.budget_rules where id = ${FIXTURE.ruleId}::uuid`;
+    await sql`delete from public.deliverables where id = ${FIXTURE.deliverableId}::uuid`;
+    await sql`delete from public.tech_targets where id = ${FIXTURE.techTargetId}::uuid`;
+    await sql`delete from public.staff where id = ${FIXTURE.staffId}::uuid`;
+    // 수정: 계획액 한 셀 — budget_items도 원본 값으로 돌아와야 한다
+    await sql`
+      update public.budget_items set planned_amount = planned_amount + 1234567
+       where year_id = ${SEED.year1Id}::uuid and category = 'material'`;
     // 추가: 새 과제 + 단계 + 연차 (연차 생성이 budget_items 12종까지 만든다)
     const temp = await projects.createProject(user.client, {
       name: '왕복 테스트 임시 과제',
@@ -148,6 +250,12 @@ describe('K-7: 복원 왕복 — 전체 대체', () => {
     for (const table of backup.BACKUP_TABLES) {
       // id·audit(created_by/updated_by/version/타임스탬프)까지 원본 보존이므로 행 전체 비교
       expect(after.tables[table], table).toEqual(original.tables[table]);
+    }
+    // 루프가 BACKUP_TABLES 기준이라, 목록에서 빠진 테이블은 비교되지 않고 조용히 통과한다 —
+    // 대표 행이 DB에 되살아났는지 직결 SQL로 따로 본다
+    for (const [table, id] of Object.entries(REPRESENTATIVE_ROWS)) {
+      const rows = await sql`select 1 from ${sql('public.' + table)} where id = ${id}::uuid`;
+      expect(rows, table).toHaveLength(1);
     }
 
     // 산출근거는 위 루프에도 포함되지만, 목록 누락이 곧 무음 데이터 손실이므로 명시 검증한다
@@ -228,72 +336,35 @@ describe('K-5: schemaVersion 불일치·형식 위반 파일의 복원 거부', 
   });
 });
 
-// §5.12 Phase 20 내역 7컬럼 — 백업이 새 컬럼을 실어 나르고, 7컬럼이 없는 옛(Phase 20 이전)
-// 백업도 not null 위반 없이 복원돼야 한다(§8.8, S-12). restore_backup이 spec만 ''로 채운다.
-describe('§8.8 S-12: budget_executions 내역 7컬럼 백업·옛 형식 복원', () => {
-  const EXEC_ID = 'aaaa0000-0000-4000-8000-0000000000e1';
-  const MEMBER_ID = 'aaaa0000-0000-4000-8000-0000000000f1';
-  const NEW_COLS = [
-    'subcategory_code', 'spec', 'unit_price', 'factors', 'axis', 'member_id', 'detail_id',
-  ] as const;
-
-  beforeAll(async () => {
-    await sql`
-      insert into public.members (id, project_id, name, role, created_by, updated_by)
-      values (${MEMBER_ID}::uuid, ${SEED.projectId}::uuid, '백업 테스트 인력', 'researcher',
-              ${user.id}::uuid, ${user.id}::uuid)`;
-    const item = (await sql`
-      select id from public.budget_items
-       where year_id = ${SEED.year1Id}::uuid and category = 'activity'`)[0];
-    // 7컬럼 전부 값을 채운다 — null이면 "컬럼이 실렸는가"와 "값이 보존됐는가"를 가를 수 없다
-    await sql`
-      insert into public.budget_executions
-        (id, budget_item_id, date, amount, description, note,
-         subcategory_code, spec, unit_price, factors, axis, member_id, detail_id,
-         created_by, updated_by)
-      values
-        (${EXEC_ID}::uuid, ${item!.id}::uuid, '2026-05-10', 1200000, '착수 회의비', '',
-         'activity_meeting', '20인 × 4회', 300000,
-         ${sql.json([{ label: '회', value: 4, isPercent: false }])}::jsonb,
-         'cash', ${MEMBER_ID}::uuid, ${SEED_DETAIL_ID}::uuid,
-         ${user.id}::uuid, ${user.id}::uuid)`;
-  });
-
-  it('내보내기 JSON의 budget_executions 행에 7컬럼이 값 그대로 있다', async () => {
-    const file = jsonRoundtrip(await backup.exportAll(user.client, exportedBy(user)));
-    const row = file.tables['budget_executions']!.find(
-      (r) => (r as { id: string }).id === EXEC_ID
-    ) as Record<string, unknown>;
-    expect(row).toBeDefined();
-    for (const col of NEW_COLS) expect(row, col).toHaveProperty(col);
-    expect(row).toMatchObject({
-      subcategory_code: 'activity_meeting',
-      spec: '20인 × 4회',
-      axis: 'cash',
-      member_id: MEMBER_ID,
-      detail_id: SEED_DETAIL_ID,
-      factors: [{ label: '회', value: 4, isPercent: false }],
-    });
-    expect(Number(row['unit_price'])).toBe(300000);
-  });
-
-  it('7컬럼을 뺀 옛 형식 행으로 복원하면 spec은 \'\', 나머지 6컬럼은 null이 된다', async () => {
+// §8.8 Phase 23: 집행 테이블이 빠져 schema_version이 5로 올랐다. 옛 v4 백업(집행 테이블 키 포함)은
+// 액션의 K-5 버전 비교가 버전 불일치 메시지로 거부해야 한다 — "테이블 데이터가 없습니다" 같은 엉뚱한
+// 메시지나, 집행 행을 조용히 버리고 나머지만 복원하는 것이면 실패다(S-12: 복원 RPC에 새 가드를 두지 않는다).
+describe('§8.8 Phase 23: 옛 v4 백업 거부', () => {
+  it('schemaVersion 4 + 집행 테이블 키가 든 파일은 importAll이 버전 불일치로 거부하고 데이터는 그대로다', async () => {
     const current = jsonRoundtrip(await backup.exportAll(user.client, exportedBy(user)));
-    const legacy = jsonRoundtrip(current);
-    legacy.tables['budget_executions'] = current.tables['budget_executions']!.map((r) => {
-      const row = { ...(r as Record<string, unknown>) };
-      for (const col of NEW_COLS) delete row[col];
-      return row;
-    });
-
-    try {
-      await backup.restoreBackup(user.client, legacy);
-
-      const restored = (await sql`
-        select subcategory_code, spec, unit_price, factors, axis, member_id, detail_id,
-               amount::text as amount, description
-          from public.budget_executions where id = ${EXEC_ID}::uuid`)[0];
-      expect(restored).toEqual({
+    const legacy = jsonRoundtrip(current) as BackupFile;
+    legacy.schemaVersion = 4;
+    // v4 파일은 app_settings 행의 schema_version도 4였다
+    legacy.tables['app_settings'] = current.tables['app_settings']!.map((r) => ({
+      ...(r as Record<string, unknown>),
+      schema_version: 4,
+    }));
+    const item = current.tables['budget_items']!.find(
+      (r) => (r as { year_id: string }).year_id === SEED.year1Id
+    ) as { id: string };
+    legacy.tables[DROPPED_TABLE] = [
+      {
+        id: 'aaaa0000-0000-4000-8000-0000000000e1',
+        created_at: '2026-05-10T00:00:00+00:00',
+        updated_at: '2026-05-10T00:00:00+00:00',
+        version: 1,
+        created_by: user.id,
+        updated_by: user.id,
+        budget_item_id: item.id,
+        date: '2026-05-10',
+        amount: 1200000,
+        description: '옛 집행',
+        note: '',
         subcategory_code: null,
         spec: '',
         unit_price: null,
@@ -301,17 +372,48 @@ describe('§8.8 S-12: budget_executions 내역 7컬럼 백업·옛 형식 복원
         axis: null,
         member_id: null,
         detail_id: null,
-        amount: '1200000',
-        description: '착수 회의비',
-      });
-    } finally {
-      // 다음 테스트·원복이 새 컬럼 값을 기대하므로 현재 형식으로 되돌린다
-      await backup.restoreBackup(user.client, current);
-    }
+      },
+    ];
+    // 거부가 복원 전에 일어났는지 보려고 DB를 파일과 다르게 만들어 둔다 — 복원됐다면 이름이 되돌아간다
+    await projects.updateProject(user.client, SEED.projectId, {
+      name: 'v4 거부 확인용 이름',
+      updatedBy: user.id,
+    });
+    const before = await backup.exportAll(user.client, exportedBy(user));
 
-    const back = (await sql`
-      select spec, member_id from public.budget_executions where id = ${EXEC_ID}::uuid`)[0];
-    expect(back).toEqual({ spec: '20인 × 4회', member_id: MEMBER_ID });
+    const result = await importAll(legacy);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe('RULE');
+    expect(result.error).toBe(
+      '백업 파일의 스키마 버전(4)이 현재 스키마 버전(5)과 달라 복원할 수 없습니다.'
+    );
+    expect(result.error).not.toMatch(/데이터가 없습니다/);
+
+    const after = await backup.exportAll(user.client, exportedBy(user));
+    for (const table of backup.BACKUP_TABLES) {
+      expect(after.tables[table], table).toEqual(before.tables[table]);
+    }
+    const name = await sql`select name from public.projects where id = ${SEED.projectId}::uuid`;
+    expect(name[0]!.name).toBe('v4 거부 확인용 이름');
+
+    // 다음 테스트를 위해 원래 상태로 되돌린다
+    await backup.restoreBackup(user.client, current);
+  });
+
+  it('같은 파일을 RPC에 직접 넘겨도 K-5 게이트가 버전 불일치로 거부한다 (최종 방어선)', async () => {
+    const current = jsonRoundtrip(await backup.exportAll(user.client, exportedBy(user)));
+    const legacy = jsonRoundtrip(current);
+    legacy.schemaVersion = 4;
+    legacy.tables[DROPPED_TABLE] = [];
+
+    await expect(backup.restoreBackup(user.client, legacy)).rejects.toThrow(
+      /스키마 버전\(4\)이 현재 스키마 버전\(5\)과 다릅니다/
+    );
+    const left = await sql`
+      select count(*)::int as n from public.projects where id = ${SEED.projectId}::uuid`;
+    expect(left[0]!.n).toBe(1);
   });
 });
 
@@ -441,7 +543,7 @@ describe('parseBackupFile — importAll 액션의 구조 검증 (Zod)', () => {
     ).toThrow(ValidationError);
   });
 
-  it('tables 값이 배열이 아니거나 29종 중 하나라도 빠지면 ValidationError', async () => {
+  it('tables 값이 배열이 아니거나 28종 중 하나라도 빠지면 ValidationError', async () => {
     const current = await backup.exportAll(user.client, exportedBy(user));
 
     const notArray = jsonRoundtrip(current) as unknown as {

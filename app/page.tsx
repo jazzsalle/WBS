@@ -1,6 +1,6 @@
 // 대시보드 (SOT §7.2, §7.1)
 // 전 과제 요약 화면이다. 데이터는 서버에서 getDashboardData() 한 번으로 받고 하위 컴포넌트는
-// 표시만 한다 — 진척률·달성률·집행률·우선순위·마감 판정을 화면에서 다시 계산하지 않는다 (O-4).
+// 표시만 한다 — 진척률·달성률·우선순위·마감 판정을 화면에서 다시 계산하지 않는다 (O-4).
 // 아카이브 과제는 서버가 모든 집계에서 뺀 상태로 내려준다 (§7.2 마지막 줄).
 // 승인된 사용자만 미들웨어를 통과해 여기 도달한다. 최초 1회 온보딩 모달(§14.4 ③④)을
 // 여기서 띄운다 — /login·/pending에는 떠서는 안 되므로 layout이 아닌 홈에 마운트한다.
@@ -109,10 +109,7 @@ export default async function DashboardPage() {
           </div>
 
           <div className="mt-8">
-            <ProjectSummaryCards
-              cards={res.data.projectCards}
-              currencyUnit={res.data.settings.currencyUnit}
-            />
+            <ProjectSummaryCards cards={res.data.projectCards} />
           </div>
 
           <div className="mt-8 grid gap-4 lg:grid-cols-2">

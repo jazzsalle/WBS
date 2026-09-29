@@ -5,7 +5,7 @@
 // 반환은 ActionResult<T> — 예외를 그대로 던지지 않는다. supabase 직접 호출 금지,
 // 반드시 lib/db/ 리포지토리를 거친다 (§8.6).
 //
-// 조회 모델 타입은 여기 둔다 (actions/budget.ts의 BudgetMatrixData와 같은 방식) —
+// 조회 모델 타입은 여기 둔다 (actions/budget-plan.ts의 BudgetPlanData와 같은 방식) —
 // types/index.ts는 SOT §5의 도메인 모델 전용이다.
 
 import { revalidatePath } from 'next/cache';

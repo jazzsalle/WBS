@@ -28,7 +28,7 @@ import type { GoalFormMeta } from '@/lib/goal-form/types';
 import { buildInputForm } from '@/lib/input-form';
 import { writeInputFormWorkbook } from '@/lib/input-form-adapter';
 import { readUploadedWorkbook } from '@/lib/import-adapter';
-import { excelSerialToISO } from '@/lib/input-form/parse-execution';
+import { excelSerialToISO } from '@/lib/input-form/sheet-date';
 import type { RawSheet } from '@/lib/import/types';
 import type { Deliverable, DeliverableAchievement, TechTarget, TechTargetRecord } from '@/types';
 
@@ -252,8 +252,7 @@ beforeAll(async () => {
         members: [],
         details: [],
       },
-      '2026-09-29',
-      'plan'
+      '2026-09-29'
     )
   );
 });

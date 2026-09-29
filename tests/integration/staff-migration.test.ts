@@ -7,7 +7,7 @@
 //  (c) check 제약 — amount ≥ 0, basis enum. DB가 최후 방어선으로 동작한다 (Zod는 액션이 따로 검증).
 //  (d) ST-2 — 조직원 삭제 시 이력 cascade, members.staff_id set null, 연봉·스냅샷은 남는다.
 //  (e) apply_salary_change — p_snapshot 없이 부르면 기존 동작(스냅샷 불변), 있으면 같은 UPDATE에서 세팅.
-//  (f) schema_version = 4, RLS 활성·정책, Realtime publication 미포함, members 4컬럼.
+//  (f) schema_version ≥ 4, RLS 활성·정책, Realtime publication 미포함, members 4컬럼.
 //
 // 직결 SQL(postgres role)만 쓴다 — 검증 대상이 스키마·RPC 계약 자체이고 리포지토리(T4)는 아직 없다.
 // 자기가 만든 조직원·과제만 지운다 — 파괴적 테스트가 아니다.
@@ -70,11 +70,12 @@ afterAll(async () => {
 
 // ─── (f) 스키마 상태 ─────────────────────────────────────────
 
-describe('(f) 스키마 상태 — schema_version 4, RLS, publication, members 4컬럼', () => {
-  it('app_settings.schema_version = 4', async () => {
-    const rows = await sql<{ v: string }[]>`select schema_version::text as v from public.app_settings`;
+describe('(f) 스키마 상태 — schema_version ≥ 4, RLS, publication, members 4컬럼', () => {
+  // 관심은 Phase 16 마이그레이션이 적용됐는가다 — 뒤 Phase(23 = 5)가 버전을 더 올려도 깨지지 않게 하한만 본다
+  it('app_settings.schema_version >= 4', async () => {
+    const rows = await sql<{ v: number }[]>`select schema_version::int as v from public.app_settings`;
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.v).toBe('4');
+    expect(rows[0]!.v).toBeGreaterThanOrEqual(4);
   });
 
   it.each(['staff', 'staff_salaries'])('%s에 RLS가 켜져 있고 승인 사용자 정책이 있다 (RLS-1)', async (table) => {

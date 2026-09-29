@@ -58,68 +58,6 @@ export interface ImportRestoreResult {
   detailsDeleted?: number;           // 복원 전에 지운 현재 산출근거 행 수 (I-17의 명시적 예외)
   detailsRestored?: number;          // 되살린 스냅샷 산출근거 행 수
   cells?: number;                    // 산출근거를 다시 계산한 (연차, 비목) 셀 수
-  // ─ IN-14: `executions` 키가 있는 수행 양식 스냅샷에서만 채워진다 ─
-  executionsDeleted?: number;        // ① 반영이 추가했던 집행을 지운 수
-  executionsReverted?: number;       // ② 반영 전 값으로 되돌린 집행 수
-  executionsRestored?: number;       // ③ id를 보존해 되살린 삭제 집행 수
-}
-
-// ─── §6.16 IN-10 수행 양식 반영 (Phase 20) ───────────────────
-
-/**
- * 집행 한 행의 필드. **RPC 페이로드 그대로**라 budget_executions의 DB 표기(snake_case)다.
- * `amount`는 서버 액션이 IN-11로 확정한 원 단위 정수이고 RPC는 그대로 저장한다.
- * `factors` 내부 키(isPercent)는 jsonb라 camelCase 그대로 들어간다(N-3).
- */
-export interface ExecutionFormFields {
-  date: string;                      // 'YYYY-MM-DD'
-  amount: number;                    // 원 단위 정수, 0 이상 (§5.12)
-  description: string;
-  note: string;
-  subcategory_code: string | null;   // `세목 미지정` 슬롯은 null (IN-4)
-  spec: string;
-  unit_price: number | null;
-  factors: DetailFactor[] | null;
-  axis: DetailAxis | null;
-  member_id: string | null;          // 과제 경계 검증 대상 (IN-13)
-  detail_id: string | null;          // 그 과제·연차의 산출근거여야 한다 (IN-13)
-}
-
-// 새 집행. 어느 비목 행에 붙일지는 RPC가 (p_year_id, category)로 찾는다
-export interface ExecutionFormAddRow extends ExecutionFormFields {
-  category: BudgetCategory;
-}
-
-// 기존 집행 변경. 비목은 바꿀 수 없다(IN-10 category-moved). category를 실으면 RPC도 그 행의
-// 원래 비목과 대조해 거부한다 — 파서·미리보기가 놓쳐도 DB에서 한 번 더 막힌다
-export interface ExecutionFormUpdateRow extends ExecutionFormFields {
-  id: string;
-  category?: BudgetCategory;
-}
-
-// IN-10: 충돌 판정 기준 version은 **내려받은 시점**의 값(_meta execution:<id>)이다.
-// 변경·삭제 대상 id 전부를 키로 담는다 — 반영 시점 DB에서 다시 읽지 않는다
-export type ExecutionFormExpected = Record<string, number>;
-
-// 스냅샷 메타. 수행 양식은 프로파일을 쓰지 않는다 — profileId는 래퍼가 null로 채운다
-export interface ExecutionFormSource {
-  fileName: string;
-  sheetName: string;
-  fileHash: string;
-}
-
-export interface ExecutionFormConflict {
-  id: string;
-  reason: 'changed' | 'deleted';     // 내려받은 뒤 바뀜 / 이미 삭제됨. 화면이 "다시 내려받아 고치라"고 안내한다
-}
-
-export interface ExecutionFormCommitResult {
-  snapshotId: string;
-  added: number;
-  updated: number;
-  deleted: number;
-  // version이 달라 건너뛴 변경·삭제. 오류가 아니라 정상 결과의 일부다(전체 롤백 아님, IN-10)
-  conflicts: ExecutionFormConflict[];
 }
 
 // ─── §6.17 GF-5·GF-11 목표 양식 반영 (Phase 21) ──────────────
@@ -380,20 +318,7 @@ const restoreResultSchema = z.object({
   detailsDeleted: z.number().optional(),
   detailsRestored: z.number().optional(),
   cells: z.number().optional(),
-  // IN-14: 수행 스냅샷 복원만 싣는다
-  executionsDeleted: z.number().optional(),
-  executionsReverted: z.number().optional(),
-  executionsRestored: z.number().optional(),
 });
-// IN-10. conflicts를 선택으로 두면 마이그레이션이 덜 적용된 DB에서 충돌이 0건으로 보인다
-const executionFormCommitResultSchema = z.object({
-  snapshotId: z.uuid(),
-  added: z.number(),
-  updated: z.number(),
-  deleted: z.number(),
-  conflicts: z.array(z.object({ id: z.uuid(), reason: z.enum(['changed', 'deleted']) })),
-});
-
 const goalFormKindCountsSchema = z.object({
   added: z.number(),
   updated: z.number(),
@@ -415,13 +340,13 @@ const goalFormCommitResultSchema = z.object({
   ),
 });
 
-// commit_execution_form의 raise 해석 (lib/db/budget-details.ts와 같은 규약):
-//   · /찾을 수 없습니다|not found/i → NotFoundError (연차·비목 행이 사라진 경우)
-//   · 그 외 P0001                  → RuleViolationError (과제 경계·IN-13·금액 음수 등)
+// commit_goal_form의 raise 해석 (lib/db/budget-details.ts와 같은 규약):
+//   · /찾을 수 없습니다|not found/i → NotFoundError (과제가 사라진 경우)
+//   · 그 외 P0001                  → RuleViolationError (과제 경계·연차·기관 위반 등)
 // 기존 throwRpcError는 바꾸지 않는다 — commit_import·복원의 예외 종류가 달라지면 안 된다
 const NOT_FOUND_MESSAGE_PATTERN = /찾을 수 없습니다|not found/i;
 
-function throwExecutionFormRpcError(error: PostgrestError): never {
+function throwFormRpcError(error: PostgrestError): never {
   if (error.code === 'P0001' && NOT_FOUND_MESSAGE_PATTERN.test(error.message)) {
     throw new NotFoundError(error.message);
   }
@@ -514,49 +439,12 @@ export async function commitDetailImport(
 }
 
 /**
- * §6.16 IN-10 수행 양식 반영. 추가·변경·삭제와 스냅샷(`kind: 'execution_form'`, IN-14)이
- * **한 트랜잭션**이다. version이 `expected`와 다른 변경·삭제는 그 행만 건너뛰고
- * `conflicts`로 돌아온다(예외가 아니다). 과제 경계·IN-13 위반은 전체 롤백이다.
- *
- * `deleteIds`는 사용자가 `[삭제 포함]`을 켰을 때만 채운다 — 판정은 서버 액션의 몫이다.
- */
-export async function commitExecutionForm(
-  client: SupabaseClient,
-  projectId: string,
-  yearId: string,
-  adds: ExecutionFormAddRow[],
-  updates: ExecutionFormUpdateRow[],
-  deleteIds: string[],
-  expected: ExecutionFormExpected,
-  source: ExecutionFormSource
-): Promise<ExecutionFormCommitResult> {
-  const { data, error } = await client.rpc('commit_execution_form', {
-    p_project_id: projectId,
-    p_year_id: yearId,
-    p_adds: adds,
-    p_updates: updates,
-    p_delete_ids: deleteIds,
-    p_expected: expected,
-    // 스냅샷 source 스키마는 profileId를 필수(nullable)로 요구한다. RPC가 p_source를 그대로
-    // 적어도 목록 검증이 깨지지 않도록 여기서 명시한다
-    p_source: { ...source, profileId: null },
-  });
-  if (error) throwExecutionFormRpcError(error);
-  const result = executionFormCommitResultSchema.safeParse(data);
-  if (!result.success) {
-    console.error('[db] commit_execution_form 반환값이 기대 형식과 다릅니다:', data);
-    throw new ValidationError('저장소 응답이 기대 스키마와 다릅니다. 앱과 DB 버전을 확인하세요.');
-  }
-  return result.data;
-}
-
-/**
  * §6.17 GF-5 목표 양식 반영. 네 종류의 삭제(자식 → 부모)·변경(부모 → 자식)·추가(부모 → 자식)와
  * 스냅샷(`kind: 'goal_form'`, GF-11)이 **한 트랜잭션**이다. version이 `expected`와 다른
  * 변경·삭제는 그 행만 건너뛰고 `conflicts`로 돌아온다(예외가 아니다). 과제 경계·연차·기관·
  * 인력 변경·parent-moved 위반은 전체 롤백이다.
  *
- * 예외는 commit_execution_form과 같은 규약이다 — 과제 없음만 NotFoundError, 나머지 RULE.
+ * 예외는 과제 없음만 NotFoundError, 나머지 RULE이다(throwFormRpcError).
  */
 export async function commitGoalForm(
   client: SupabaseClient,
@@ -574,7 +462,7 @@ export async function commitGoalForm(
     p_expected: expected,
     p_source: source,
   });
-  if (error) throwExecutionFormRpcError(error);
+  if (error) throwFormRpcError(error);
   const result = goalFormCommitResultSchema.safeParse(data);
   if (!result.success) {
     console.error('[db] commit_goal_form 반환값이 기대 형식과 다릅니다:', data);
@@ -586,9 +474,7 @@ export async function commitGoalForm(
 // §7.14: 스냅샷 시점의 계획액으로 되돌린다. 역시 단일 트랜잭션 + 과제 경계 검증.
 // D-17a: 스냅샷에 `details` 키가 있으면 산출근거 행까지 되돌린다 — 그 셀의 현재 행을
 // 지우고 스냅샷 행을 되살린다(I-17 "복원이 행을 삭제하지 않는다"의 명시적 예외).
-// `budget_items` 행 자체는 여전히 지우지 않아 집행 내역이 보존된다.
-// IN-14: `executions` 키가 있으면 수행 양식 반영을 완전히 되돌린다. 그 뒤 대상 행이 다시
-// 바뀌었으면 RPC가 복원 전체를 거부한다(P0001 → RuleViolationError).
+// `budget_items` 행 자체는 여전히 지우지 않는다.
 // GF-11(S-3): `goals` 키가 있는 목표 양식 스냅샷은 RPC가 복원을 거부한다(RuleViolationError).
 export async function restoreImportSnapshot(
   client: SupabaseClient,

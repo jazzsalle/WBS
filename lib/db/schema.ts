@@ -263,7 +263,7 @@ export const memberRowSchema = z.object({
   salary_applied_from: isoDate.nullable(),
 });
 
-// ─── §5.12 budget_items / budget_executions ──────────────────
+// ─── §5.12 budget_items ──────────────────────────────────────
 
 export const budgetCategorySchema = z.enum([
   'personnel', 'student_personnel', 'facility_equipment', 'material',
@@ -284,7 +284,6 @@ export const budgetItemRowSchema = z.object({
 
 // ─── §5.17 budget_details (산출근거) ─────────────────────────
 // budget_items에는 detail_count 컬럼이 없다 — 조회 시 세어 싣는 파생 값이다 (§5.12 주석).
-// 축·인자 스키마를 먼저 둔다 — 집행 내역(Phase 20)도 같은 형을 쓴다.
 
 export const detailAxisSchema = z.enum(['cash', 'in_kind']);
 export const detailFormulaSchema = z.enum(['personnel', 'quantity']);
@@ -295,23 +294,6 @@ export const detailFactorSchema = z.object({
   label: z.string(),
   value: z.number(),
   isPercent: z.boolean(),
-});
-
-export const budgetExecutionRowSchema = z.object({
-  ...baseRow,
-  budget_item_id: z.uuid(),
-  date: isoDate,
-  amount: z.number(),
-  description: z.string(),
-  note: z.string(),
-  // Phase 20 내역 필드 (§5.12, IN-9). spec만 not null default '' 이고 나머지는 nullable
-  subcategory_code: z.string().nullable(),
-  spec: z.string(),
-  unit_price: z.number().nullable(),
-  factors: z.array(detailFactorSchema).nullable(),
-  axis: detailAxisSchema.nullable(), // 산출근거와 달리 집행은 축 없음을 허용한다
-  member_id: z.uuid().nullable(),
-  detail_id: z.uuid().nullable(),
 });
 
 export const budgetDetailRowSchema = z.object({
@@ -464,10 +446,9 @@ export const appSettingsRowSchema = z.object({
 
 // ─── §5.12.1 import_profiles ─────────────────────────────────
 
-// §5.12.1 — 'budget_detail'은 산출근거 시트 임포트(§6.11), 'execution_form'·'goal_form'은
-// 스냅샷 종류로만 쓴다(Phase 20·21). DB check 제약과 값이 같아야 한다
-// (supabase/migrations/20260928000000_execution_form.sql)
-export const importKindSchema = z.enum(['budget_plan', 'budget_detail', 'execution_form', 'goal_form']);
+// §5.12.1 — 'budget_detail'은 산출근거 시트 임포트(§6.11), 'goal_form'은 스냅샷 종류로만 쓴다(Phase 21).
+// DB check 제약(import_profiles.kind)과 값이 같아야 한다 (Phase 23 마이그레이션에서 교체)
+export const importKindSchema = z.enum(['budget_plan', 'budget_detail', 'goal_form']);
 
 export const importProfileRowSchema = z.object({
   ...baseRow,
@@ -504,25 +485,9 @@ export const importSnapshotItemSchema = z.object({
   existed: z.boolean(),
 });
 
-// IN-14 — before는 DB 행 원본(snake_case)이다. 행을 식별하는 키만 검증하고 나머지 컬럼은
-// 그대로 둔다: 복원은 RPC가 DB에서 하고 앱은 건수만 읽는다. 전 컬럼을 요구하면 이후 Phase가
-// budget_executions에 컬럼을 하나 더할 때 옛 수행 스냅샷 때문에 그 과제의 스냅샷 목록이 통째로 깨진다
-export const importSnapshotExecutionsSchema = z.object({
-  added: z.array(z.uuid()),
-  before: z.array(
-    z.looseObject({
-      id: z.uuid(),
-      budget_item_id: z.uuid(),
-      version: z.number(),
-    })
-  ),
-  // 양식이 지운 id. 없으면 복원이 "양식이 지운 행"과 "양식이 바꾼 뒤 남이 지운 행"을 구별 못 한다
-  deleted: z.array(z.uuid()).optional(),
-});
-
 // GF-11 — before에는 네 테이블과 연계 행(achievement_members·작업 연계)이 섞인다. 행 형태는
 // 검증하지 않는다: Phase 21은 복원을 거부하고 앱은 건수만 읽으며, 형태를 요구하면 이후 컬럼
-// 추가로 옛 스냅샷 하나가 그 과제의 스냅샷 목록 전체를 깨뜨린다(IN-14와 같은 이유)
+// 추가로 옛 스냅샷 하나가 그 과제의 스냅샷 목록 전체를 깨뜨린다
 // commit_goal_form이 쓰는 형태 — 키는 테이블 이름. added·deleted는 4종 테이블,
 // before는 거기에 연계 행(achievement_members·task_deliverables·task_tech_targets)이 더해진다.
 // 테이블 목록을 고정하지 않는 이유: 행 원본만 담는 기록이라 키가 늘어도 목록 화면이 깨지면 안 된다
@@ -536,10 +501,10 @@ export const importSnapshotPayloadSchema = z.object({
   schemaVersion: z.number(),
   projectId: z.uuid(),
   capturedAt: isoTimestamp,
-  // D-17: 산출근거 스냅샷(commit_detail_import)은 'budget_detail', 수행 양식(commit_execution_form,
-  // IN-10)은 'execution_form', 목표 양식(commit_goal_form, GF-11)은 'goal_form'. Zod가 모르는 키를 지우므로 여기 적지 않으면 설정 화면이 스냅샷
+  // D-17: 산출근거 스냅샷(commit_detail_import)은 'budget_detail', 목표 양식(commit_goal_form, GF-11)은
+  // 'goal_form'. Zod가 모르는 키를 지우므로 여기 적지 않으면 설정 화면이 스냅샷
   // 종류를 영영 알 수 없다 (총괄표 스냅샷은 undefined). 값을 빠뜨리면 그 과제의 목록 전체가 깨진다
-  kind: z.enum(['budget_detail', 'execution_form', 'goal_form']).optional(),
+  kind: z.enum(['budget_detail', 'goal_form']).optional(),
   source: z.object({
     fileName: z.string(),
     sheetName: z.string(),
@@ -547,7 +512,6 @@ export const importSnapshotPayloadSchema = z.object({
     fileHash: z.string(),
   }),
   items: z.array(importSnapshotItemSchema),
-  executions: importSnapshotExecutionsSchema.optional(), // IN-14: 수행 스냅샷에만 있다
   goals: importSnapshotGoalsSchema.optional(), // GF-11: 목표 양식 스냅샷에만 있다
 });
 
@@ -610,7 +574,6 @@ export type TechTargetRecordRow = z.infer<typeof techTargetRecordRowSchema>;
 export type OrganizationRow = z.infer<typeof organizationRowSchema>;
 export type MemberRow = z.infer<typeof memberRowSchema>;
 export type BudgetItemRow = z.infer<typeof budgetItemRowSchema>;
-export type BudgetExecutionRow = z.infer<typeof budgetExecutionRowSchema>;
 export type BudgetDetailRow = z.infer<typeof budgetDetailRowSchema>;
 export type BudgetRuleRow = z.infer<typeof budgetRuleRowSchema>;
 export type StaffRow = z.infer<typeof staffRowSchema>;

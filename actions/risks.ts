@@ -39,7 +39,7 @@ import {
 
 // ─── 조회 모델 (§9 getRiskMatrix, §7.11) ──────────────────────────────────────
 // 타입을 types/index.ts가 아니라 여기에 두는 이유: 화면 전용 조회 모델이라 DB 엔티티가
-// 아니다. actions/budget.ts의 BudgetMatrixData가 같은 선례다.
+// 아니다. actions/budget-plan.ts의 BudgetPlanData가 같은 선례다.
 
 /** 목록 한 줄. 점수·등급·주의 판정은 전부 lib/risk.ts가 끝낸 값이다 (§6.5) */
 export interface RiskView {

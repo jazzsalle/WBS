@@ -230,26 +230,56 @@ describe('경계 (IN-8)', () => {
   });
 });
 
-// ─── Phase 20 추가: mode 분기 (IN-9) ─────────────────────────
-// 수행 모드의 상세 검증은 input-form-execution-layout.test.ts. 여기는 제안 경로가 그대로인지만 본다.
+// ─── Phase 23: 옛 수행 양식 거부 (IN-2, v4.9) ───────────────
+// 제안 양식에는 mode 행이 없다. 행이 있으면 값과 무관하게 옛 수행 양식으로 보고 거부한다.
+// fixture의 mode 값은 실제 옛 파일의 값 그대로다(S-11 예외 ③).
 
-describe('mode 분기 후에도 제안 경로 불변 (IN-2·IN-9)', () => {
-  it('INPUT_FORM_SHEETS는 sheetsFor(plan)과 같은 값이다', async () => {
-    const { sheetsFor } = await import('@/lib/input-form');
-    expect(JSON.stringify(INPUT_FORM_SHEETS)).toBe(JSON.stringify(sheetsFor('plan')));
-  });
+const LEGACY_MESSAGE =
+  '수행 양식(집행 내역) 파일입니다 — 집행 관리 기능이 삭제되어 올릴 수 없습니다. 제안 모드에서 [입력 양식 내려받기]로 받은 양식을 쓰세요.';
 
-  it('제안 메타에는 mode 행이 없고, 왕복 결과에도 mode 키가 없다', () => {
+describe('옛 수행 양식 거부 (IN-2)', () => {
+  // Phase 20 수행 양식이 _meta에 실제로 쓰던 값 — 옛 파일 모양 재현(Phase 23 S-11 예외 ③)
+  const LEGACY_MODE = 'execution';
+  const expected = { projectId: 'proj-1', formVersion: INPUT_FORM_VERSION };
+  const withModeRow = (value: string) => {
+    const rows = [...buildMetaRows(META), [{ value: 'mode' }, { value }]];
+    return parseMeta(toRawSheet('_meta', rows));
+  };
+
+  it('제안 메타에는 mode 행이 없고, 왕복 결과에도 hasModeRow 키가 없다', () => {
     const rows = buildMetaRows(META);
     const keyCol = columnOf('meta', 'key');
     expect(rows.some((r) => r[keyCol]?.value === 'mode')).toBe(false);
     expect(parseMeta(toRawSheet('_meta', rows))).toStrictEqual(META);
   });
 
-  it("checkMeta: mode를 생략하면 'plan'으로 본다", () => {
-    const expected = { projectId: 'proj-1', formVersion: INPUT_FORM_VERSION };
-    expect(checkMeta(META, expected)).toBeNull();
-    expect(checkMeta(META, { ...expected, mode: 'plan' })).toBeNull();
-    expect(checkMeta(META, { ...expected, mode: 'execution' })?.kind).toBe('mode-mismatch');
+  it('mode 행이 있으면 parseMeta가 hasModeRow를 남긴다', () => {
+    expect(withModeRow(LEGACY_MODE)).toStrictEqual({ ...META, hasModeRow: true });
+  });
+
+  it.each([LEGACY_MODE, 'plan', '', 'unknown'])("mode 값 '%s' — 값과 무관하게 거부, SOT 문구 그대로", (value) => {
+    const r = checkMeta(withModeRow(value), expected);
+    expect(r?.kind).toBe('legacy-mode-row');
+    expect(r?.message).toBe(LEGACY_MESSAGE);
+  });
+
+  it('옛 수행 양식의 집행·산출근거 목록 행은 그 자체로 거부 사유가 아니다 — mode 행이 판정한다', () => {
+    const rows = [
+      ...buildMetaRows(META),
+      [{ value: 'mode' }, { value: LEGACY_MODE }],
+      [{ value: `${LEGACY_MODE}:e-1` }, { value: 3 }],
+      [{ value: 'detail:d-1' }, { value: 'd-1' }],
+    ];
+    const r = checkMeta(parseMeta(toRawSheet('_meta', rows)), expected);
+    expect(r?.kind).toBe('legacy-mode-row');
+  });
+
+  it('검사 순서는 과제 → 버전 → mode 행', () => {
+    const legacy = withModeRow(LEGACY_MODE)!;
+    expect(checkMeta({ ...legacy, projectId: 'proj-other' }, expected)?.kind).toBe('project-mismatch');
+    expect(checkMeta({ ...legacy, formVersion: INPUT_FORM_VERSION + 1 }, expected)?.kind).toBe(
+      'version-mismatch'
+    );
+    expect(checkMeta(legacy, expected)?.kind).toBe('legacy-mode-row');
   });
 });

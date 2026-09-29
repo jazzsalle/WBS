@@ -11,12 +11,8 @@
 //
 // 사업비 시트의 소계·총액 행(§7.9.7)도 수식뿐이다. 숨김 키 열과 사용자 열을 전부 비워 두므로 파서는
 // IN-4의 빈 행 규칙으로 건너뛴다 — 이 행들을 읽게 만드는 변경은 파서와 함께 해야 한다.
-//
-// **수행 모드(IN-9~IN-12)는 다르다.** 행은 산출근거가 아니라 집행(`BudgetExecution`)이고, 금액 열은 입력값이라
-// 수식이 아니라 **값**이다(IN-11). 반영이 id 기반이라(IN-10) 양식에 실리지 않은 집행은 "양식에서 사라진 id" =
-// 삭제 후보가 된다 — 그래서 그 연차의 집행을 **정확히 한 행씩** 싣고, 못 실으면 던진다(IN-4).
 
-import { PARTICIPATION_FACTOR_LABEL, personnelParticipation } from '@/lib/budget-plan';
+import { personnelParticipation } from '@/lib/budget-plan';
 import {
   BUDGET_CATEGORY_LABELS,
   BUDGET_CATEGORY_ORDER,
@@ -36,7 +32,6 @@ import {
   columnAddress,
   columnOf,
   hiddenColumnIndexes,
-  sheetsFor,
 } from './layout';
 import type { InputFormColumnDef, InputFormSheetDef } from './layout';
 import { buildMetaRows } from './meta';
@@ -48,9 +43,6 @@ import type {
   FormRowRole,
   FormSheet,
   InputFormData,
-  InputFormExecution,
-  InputFormMeta,
-  InputFormMode,
   InputFormWorkbook,
 } from './types';
 
@@ -64,28 +56,10 @@ export const DEFAULT_PERSONNEL_SUBCATEGORY = 'personnel_internal';
 export const SUBTOTAL_SUFFIX = ' 소계';
 export const TOTAL_LABEL = '총액';
 
-/**
- * S-6 `세목 미지정` 슬롯(수행 모드, IN-4). 복합 키는 `비목:` — 세목 부분이 빈 문자열이고 파서는
- * `subcategoryCode = null`로 읽는다. 세목 없는 집행(그 비목에 `default`가 없을 때)과 인력 없는 인건비 집행이 여기 실린다.
- */
-export const UNASSIGNED_SUBCATEGORY_CODE = '';
-export const UNASSIGNED_SUBCATEGORY_LABEL = '세목 미지정';
-/** IN-12: 인건비 집행의 개월은 이 라벨의 인자다(§5.17과 같은 규약). 참여율은 `PARTICIPATION_FACTOR_LABEL` */
-export const MONTHS_FACTOR_LABEL = '참여기간(월)';
-
 const PERSONNEL_CATEGORIES: ReadonlySet<BudgetCategory> = new Set(['personnel', 'student_personnel']);
 const PERSONNEL_CATEGORY_LIST: readonly BudgetCategory[] = BUDGET_CATEGORY_ORDER.filter((c) =>
   PERSONNEL_CATEGORIES.has(c)
 );
-
-/**
- * 세목 없는 인건비 집행을 인건비 시트에 보일 때의 세목(IN-12 "없으면 기본 라벨"). 비목마다 따로 둔다 —
- * 학생인건비 집행에 `내부인건비`를 보이면 다시 올릴 때 비목이 바뀌어 `category-moved`가 된다(IN-10).
- */
-const DEFAULT_SUBCATEGORY_BY_PERSONNEL_CATEGORY: Readonly<Partial<Record<BudgetCategory, string>>> = {
-  personnel: DEFAULT_PERSONNEL_SUBCATEGORY,
-  student_personnel: SUBCATEGORY_PRESETS.student_personnel[0]?.code,
-};
 
 // ─── 드롭다운 목록 (부록 F-9 — 인라인 목록, `_lists` 시트 없음) ─────
 
@@ -124,8 +98,6 @@ const COLUMN_WIDTHS: Readonly<Record<string, number>> = {
   factor2: 12,
   factor3: 12,
   axis: 10,
-  // F-7에 날짜 열 값이 없다 — 숫자 열 대표값(12~14) 중 yyyy-mm-dd가 들어가는 12
-  executionDate: 12,
 };
 /** 숨김 열은 너비가 보이지 않는다 — 표를 보지 않고 이 값이다 */
 const HIDDEN_COLUMN_WIDTH = 10;
@@ -228,13 +200,7 @@ function budgetValidations(def: InputFormSheetDef): FormColumnValidation[] {
   return [{ column: columnOf(def, 'axis'), values: [...AXIS_OPTIONS] }];
 }
 
-/** 집행은 정렬 순서 필드가 없다 — 날짜, 같으면 id로 늘 같은 순서를 만든다(같은 입력 → 같은 양식) */
-function byExecutionOrder(a: InputFormExecution, b: InputFormExecution): number {
-  if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-}
-
-/** 인력 셀(숨김 memberId + 표시 전용 열). 두 모드가 같다 */
+/** 인력 셀(숨김 memberId + 표시 전용 열) */
 function setMemberCells(
   set: (role: string, cell: FormCell) => void,
   member: InputFormData['members'][number]
@@ -318,80 +284,6 @@ function buildPersonnelSheet(data: InputFormData): { sheet: FormSheet; memberIds
   };
 }
 
-/** IN-12: 참여율·개월은 라벨로 찾는다. 없으면 빈 칸 — 제안 모드처럼 100%·12개월로 채우면 없던 값이 생긴다 */
-function factorByLabel(factors: InputFormExecution['factors'], label: string): number | null {
-  const factor = (factors ?? []).find((f) => f.label === label);
-  return factor ? factor.value : null;
-}
-
-function executionPersonnelLabel(execution: InputFormExecution): string {
-  const code = execution.subcategoryCode ?? DEFAULT_SUBCATEGORY_BY_PERSONNEL_CATEGORY[execution.category];
-  if (code === undefined) {
-    throw new Error(`집행 ${execution.id}의 비목(${execution.category})은 인건비 시트에 실을 수 없다`);
-  }
-  return subcategoryLabel(execution.category, code);
-}
-
-/**
- * 수행 모드 인건비 시트(IN-12): 행 = 인력 × 그 인력의 인건비·학생인건비 집행. 없으면 빈 1행.
- * 금액은 입력값(IN-11)이라 수식이 없고, 조정액·산식 금액은 비운다(IN-9).
- */
-function buildExecutionPersonnelSheet(
-  data: InputFormData,
-  executions: readonly InputFormExecution[]
-): { sheet: FormSheet; memberIds: string[]; executionIds: string[] } {
-  const def = sheetsFor('execution').personnel;
-  const { rows, roles } = headerRows(def);
-  const members = [...data.members].sort(byOrder);
-  const memberIdSet = new Set(members.map((m) => m.id));
-  const executionIds: string[] = [];
-
-  // 인력 목록 밖 memberId의 인건비 집행은 실을 행이 없다 — 삭제 후보로 새지 않게 던진다(IN-4)
-  const orphan = executions.find(
-    (e) => PERSONNEL_CATEGORIES.has(e.category) && e.memberId !== null && !memberIdSet.has(e.memberId)
-  );
-  if (orphan) {
-    throw new Error(`인건비 집행 ${orphan.id}의 인력(${orphan.memberId})이 인력 목록에 없다`);
-  }
-
-  for (const member of members) {
-    const own = executions
-      .filter((e) => PERSONNEL_CATEGORIES.has(e.category) && e.memberId === member.id)
-      .sort(byExecutionOrder);
-    const slots: (InputFormExecution | null)[] = own.length > 0 ? own : [null];
-
-    for (const execution of slots) {
-      const { cells, set } = makeRow(def);
-      setMemberCells(set, member);
-      set('detailId', { value: execution ? execution.detailId : null });
-      set('executionId', { value: execution ? execution.id : null });
-      set('executionDate', { value: execution ? execution.date : null });
-      set('subcategory', {
-        value: execution
-          ? executionPersonnelLabel(execution)
-          : subcategoryLabel('personnel', DEFAULT_PERSONNEL_SUBCATEGORY),
-      });
-      set('participation', {
-        value: execution ? factorByLabel(execution.factors, PARTICIPATION_FACTOR_LABEL) : null,
-      });
-      set('months', { value: execution ? factorByLabel(execution.factors, MONTHS_FACTOR_LABEL) : null });
-      set('axis', { value: execution?.axis ? DETAIL_AXIS_LABELS[execution.axis] : null });
-      set('amount', { value: execution ? execution.amount : null });
-      set('note', { value: execution ? execution.note : '' });
-
-      if (execution) executionIds.push(execution.id);
-      rows.push(cells);
-      roles.push('data');
-    }
-  }
-
-  return {
-    sheet: dataSheet(def, rows, roles, personnelValidations(def)),
-    memberIds: members.map((m) => m.id),
-    executionIds,
-  };
-}
-
 // ─── 사업비 시트 (IN-4) ──────────────────────────────────────
 
 interface BudgetSlot {
@@ -426,55 +318,11 @@ function budgetSubcategorySlots(details: readonly BudgetDetail[]): BudgetSlot[] 
   return slots;
 }
 
-/**
- * 수행 모드 슬롯(IN-4·S-6): 제안 모드 슬롯 + 비목마다 끝에 `세목 미지정`. 인건비·학생인건비 비목은
- * 세목 슬롯 없이 `세목 미지정`만 둔다 — 인력 있는 인건비 집행은 인건비 시트에 실리기 때문이다(IN-12).
- */
-function executionSubcategorySlots(executions: readonly InputFormExecution[]): BudgetSlot[] {
-  const slots: BudgetSlot[] = [];
-  for (const category of BUDGET_CATEGORY_ORDER) {
-    if (!PERSONNEL_CATEGORIES.has(category)) {
-      const presetCodes = new Set<string>();
-      for (const def of SUBCATEGORY_PRESETS[category]) {
-        presetCodes.add(def.code);
-        slots.push(makeSlot(category, def.code, def.label));
-      }
-      const extras = new Set<string>();
-      for (const e of executions) {
-        if (e.category === category && e.subcategoryCode !== null && !presetCodes.has(e.subcategoryCode)) {
-          extras.add(e.subcategoryCode);
-        }
-      }
-      for (const code of [...extras].sort()) slots.push(makeSlot(category, code, code));
-    }
-    slots.push(makeSlot(category, UNASSIGNED_SUBCATEGORY_CODE, UNASSIGNED_SUBCATEGORY_LABEL));
-  }
-  return slots;
-}
-
-/**
- * 사업비 시트에 실릴 집행의 슬롯 키(IN-4·IN-12). 인건비 시트에 실릴 집행(인력 있는 인건비)은 부르지 않는다.
- * - 인력 없는 인건비·학생인건비 → `세목 미지정`(세목이 있어도 — 사업비 시트에 인건비 세목 슬롯이 없다)
- * - 세목 없음 → 그 비목에 `default` 세목이 있으면 `default`, 없으면 `세목 미지정`
- */
-function executionSlotKey(execution: InputFormExecution): string {
-  const { category, subcategoryCode } = execution;
-  if (PERSONNEL_CATEGORIES.has(category)) return subcategoryKeyOf(category, UNASSIGNED_SUBCATEGORY_CODE);
-  if (subcategoryCode !== null) return subcategoryKeyOf(category, subcategoryCode);
-  const hasDefault = SUBCATEGORY_PRESETS[category].some((d) => d.code === 'default');
-  return subcategoryKeyOf(category, hasDefault ? 'default' : UNASSIGNED_SUBCATEGORY_CODE);
-}
-
-/** 인건비 시트에 실리는 집행인가(IN-12) */
-function isPersonnelSheetExecution(execution: InputFormExecution): boolean {
-  return PERSONNEL_CATEGORIES.has(execution.category) && execution.memberId !== null;
-}
-
 type SetCell = (role: string, cell: FormCell) => void;
 
 /**
- * 사업비 시트 골격 — 두 모드 공통: 슬롯마다 기존 행 + 빈 줄 3개 + 세목 소계, 비목 소계, 총액(§7.9.7).
- * 행 내용만 모드별 `fillRow`가 채운다. 슬롯 키·비목·세목 라벨 칸은 여기서 쓴다.
+ * 사업비 시트 골격: 슬롯마다 기존 행 + 빈 줄 3개 + 세목 소계, 비목 소계, 총액(§7.9.7).
+ * 행 내용만 `fillRow`가 채운다. 슬롯 키·비목·세목 라벨 칸은 여기서 쓴다.
  */
 function buildBudgetSheetWith<T>(
   def: InputFormSheetDef,
@@ -599,176 +447,44 @@ function buildBudgetSheet(data: InputFormData): { sheet: FormSheet; subcategoryC
   return { sheet, subcategoryCodes };
 }
 
-/**
- * 수행 모드 사업비 시트(IN-4·IN-9·IN-11). 금액은 집행액 **값**이고 조정액은 비운다(IN-9).
- * 인자가 3개를 넘는 집행은 넷째부터 칸이 없다 — 조용히 잘라 다시 올리면 인자가 사라지므로 던진다.
- */
-function buildExecutionBudgetSheet(executions: readonly InputFormExecution[]): {
-  sheet: FormSheet;
-  subcategoryCodes: string[];
-  executionIds: string[];
-} {
-  const def = sheetsFor('execution').budget;
-  const bySlot = new Map<string, InputFormExecution[]>();
-  for (const e of executions) {
-    if ((e.factors?.length ?? 0) > FACTOR_ROLES.length) {
-      throw new Error(`집행 ${e.id}의 인자가 ${e.factors?.length}개다 — 양식은 ${FACTOR_ROLES.length}개까지 싣는다`);
-    }
-    const key = executionSlotKey(e);
-    const list = bySlot.get(key);
-    if (list) list.push(e);
-    else bySlot.set(key, [e]);
-  }
-
-  const { sheet, subcategoryCodes, placed } = buildBudgetSheetWith<InputFormExecution>(
-    def,
-    executionSubcategorySlots(executions),
-    (slot) => [...(bySlot.get(slot.key) ?? [])].sort(byExecutionOrder),
-    (set, execution) => {
-      set('detailId', { value: execution ? execution.detailId : null });
-      set('executionId', { value: execution ? execution.id : null });
-      set('executionDate', { value: execution ? execution.date : null });
-      set('name', { value: execution ? execution.description : null });
-      set('spec', { value: execution ? execution.spec : null });
-      set('unitPrice', { value: execution ? execution.unitPrice : null });
-      setFactorCells(set, execution ? execution.factors : null);
-      set('axis', { value: execution?.axis ? DETAIL_AXIS_LABELS[execution.axis] : null });
-      set('amount', { value: execution ? execution.amount : null });
-      set('note', { value: execution ? execution.note : null });
-    }
-  );
-  return { sheet, subcategoryCodes, executionIds: placed.map((e) => e.id) };
-}
-
 // ─── 워크북 ─────────────────────────────────────────────────
 
-/**
- * X-12와 같은 파일명 규칙(금지 문자 치환·날짜 형식 검사)을 재사용하고 접두만 붙인다.
- * 수행 양식은 `입력양식_수행_`이다 — 두 양식이 한 폴더에 쌓여도 파일명만 보고 어느 모드에서 올릴지 알 수 있어야 한다
- * (올린 파일의 mode가 화면과 다르면 거부된다, IN-9). 제안 양식은 Phase 19와 같은 이름이다.
- */
+/** X-12와 같은 파일명 규칙(금지 문자 치환·날짜 형식 검사)을 재사용하고 접두만 붙인다 */
 export function inputFormFileName(
   project: InputFormData['project'],
   year: InputFormData['year'],
-  todayISO: string,
-  mode: InputFormMode = 'plan'
-): string {
-  const prefix = mode === 'execution' ? '입력양식_수행_' : '입력양식_';
-  return `${prefix}${exportFileName(project, year, todayISO)}`;
-}
-
-/**
- * IN-4: 그 연차의 집행이 두 시트에 **정확히 한 번씩** 실렸는가. 빠진 집행은 다시 올릴 때 삭제 후보가 되고,
- * 두 번 실린 집행은 한 id에 변경이 둘이 된다 — 어느 쪽도 양식을 내보내면 안 된다.
- */
-function assertEveryExecutionPlaced(
-  executions: readonly InputFormExecution[],
-  placedIds: readonly string[]
-): void {
-  const counts = new Map<string, number>();
-  for (const id of placedIds) counts.set(id, (counts.get(id) ?? 0) + 1);
-  const missing = executions.filter((e) => !counts.has(e.id)).map((e) => e.id);
-  const duplicated = [...counts].filter(([, n]) => n > 1).map(([id]) => id);
-  if (missing.length > 0 || duplicated.length > 0 || placedIds.length !== executions.length) {
-    throw new Error(
-      `수행 양식에 집행을 정확히 한 번씩 싣지 못했다 — 빠짐 [${missing.join(', ')}] · 중복 [${duplicated.join(', ')}]`
-    );
-  }
-}
-
-/** 수행 모드 인건비·사업비 시트와 `_meta` 수행 필드(IN-2: mode·execution:<id>=version·detail:<id>) */
-function buildExecutionSheets(
-  data: InputFormData,
   todayISO: string
-): {
-  personnel: FormSheet;
-  budget: FormSheet;
-  meta: InputFormMeta;
-} {
-  // 빈 배열로 메우지 않는다 — 집행을 빠뜨린 호출이 "집행 0건 양식"으로 조용히 나가면
-  // 사용자가 그 양식을 올릴 때 _meta에 없는 집행이 삭제 후보가 된다(절대 규칙 5)
-  const executions = data.executions;
-  if (executions === undefined) {
-    throw new Error('수행 양식에는 그 연차의 집행 목록(executions)이 필요하다 — 없으면 빈 배열을 명시해 넘긴다');
-  }
-  const detailIdSet = new Set(data.details.map((d) => d.id));
-  // 양식에 실린 detailId가 _meta 목록 밖이면 손대지 않은 행이 다시 올릴 때 오류 행이 된다(IN-13)
-  const strayDetail = executions.find((e) => e.detailId !== null && !detailIdSet.has(e.detailId));
-  if (strayDetail) {
-    throw new Error(`집행 ${strayDetail.id}의 산출근거(${strayDetail.detailId})가 이 연차의 산출근거 목록에 없다`);
-  }
-
-  const personnel = buildExecutionPersonnelSheet(data, executions);
-  const budget = buildExecutionBudgetSheet(executions.filter((e) => !isPersonnelSheetExecution(e)));
-  const placedIds = [...personnel.executionIds, ...budget.executionIds];
-  assertEveryExecutionPlaced(executions, placedIds);
-
-  const versionById = new Map(executions.map((e) => [e.id, e.version]));
-  const executionVersions: Record<string, number> = {};
-  for (const id of placedIds) executionVersions[id] = versionById.get(id) as number;
-
-  return {
-    personnel: personnel.sheet,
-    budget: budget.sheet,
-    meta: {
-      formVersion: INPUT_FORM_VERSION,
-      projectId: data.project.id,
-      yearId: data.year.id,
-      generatedAt: todayISO,
-      subcategoryCodes: budget.subcategoryCodes,
-      memberIds: personnel.memberIds,
-      mode: 'execution',
-      executions: executionVersions,
-      detailIds: data.details.map((d) => d.id),
-    },
-  };
+): string {
+  return `입력양식_${exportFileName(project, year, todayISO)}`;
 }
 
 /**
- * 양식 한 장. 시트 순서 `[작성안내, 인건비, 사업비, _meta]`(F-8 — 안내가 첫 시트). 두 모드가 같은 시트 목록이다(F-9).
+ * 양식 한 장. 시트 순서 `[작성안내, 인건비, 사업비, _meta]`(F-8 — 안내가 첫 시트).
  * `todayISO`는 `_meta.generatedAt`·파일명·안내 부제에 쓴다 — 시각을 여기서 읽지 않아야
- * 같은 입력이면 같은 출력이다(테스트 가능). `mode = 'execution'`이면 행이 `data.executions`다(IN-9~IN-12).
+ * 같은 입력이면 같은 출력이다(테스트 가능).
  */
-export function buildInputForm(
-  data: InputFormData,
-  todayISO: string,
-  mode: InputFormMode = 'plan'
-): InputFormWorkbook {
-  const guide = buildGuideSheet(data, todayISO, mode);
-  const metaDef = sheetsFor(mode).meta;
-
-  let personnelSheet: FormSheet;
-  let budgetSheet: FormSheet;
-  let metaValue: InputFormMeta;
-  if (mode === 'execution') {
-    const built = buildExecutionSheets(data, todayISO);
-    personnelSheet = built.personnel;
-    budgetSheet = built.budget;
-    metaValue = built.meta;
-  } else {
-    const personnel = buildPersonnelSheet(data);
-    const budget = buildBudgetSheet(data);
-    personnelSheet = personnel.sheet;
-    budgetSheet = budget.sheet;
-    metaValue = {
-      formVersion: INPUT_FORM_VERSION,
-      projectId: data.project.id,
-      yearId: data.year.id,
-      generatedAt: todayISO,
-      subcategoryCodes: budget.subcategoryCodes,
-      memberIds: personnel.memberIds,
-    };
-  }
+export function buildInputForm(data: InputFormData, todayISO: string): InputFormWorkbook {
+  const guide = buildGuideSheet(data, todayISO);
+  const metaDef = INPUT_FORM_SHEETS.meta;
+  const personnel = buildPersonnelSheet(data);
+  const budget = buildBudgetSheet(data);
 
   const meta: FormSheet = {
     name: metaDef.name,
     hidden: metaDef.hidden,
-    rows: buildMetaRows(metaValue),
+    rows: buildMetaRows({
+      formVersion: INPUT_FORM_VERSION,
+      projectId: data.project.id,
+      yearId: data.year.id,
+      generatedAt: todayISO,
+      subcategoryCodes: budget.subcategoryCodes,
+      memberIds: personnel.memberIds,
+    }),
     hiddenColumns: hiddenColumnIndexes(metaDef),
   };
 
   return {
-    sheets: [guide, personnelSheet, budgetSheet, meta],
-    fileName: inputFormFileName(data.project, data.year, todayISO, mode),
+    sheets: [guide, personnel.sheet, budget.sheet, meta],
+    fileName: inputFormFileName(data.project, data.year, todayISO),
   };
 }

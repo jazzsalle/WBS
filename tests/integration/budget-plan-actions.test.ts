@@ -782,8 +782,8 @@ describe('getBudgetPlanData (§7.9 제안 모드)', () => {
     }
   });
 
-  // C5: 제안 모드 화면은 이 한 벌만 보고 표·잠금·B-3 배지를 그린다. 수행 조회(getBudgetMatrix)의
-  // 결과를 빌려 쓰면 두 조회 사이의 저장이 한 표를 두 시점으로 갈라놓는다 (트랜잭션이 아니다)
+  // C5: 제안 모드 화면은 이 한 벌만 보고 표·잠금·B-3 배지를 그린다. 다른 조회의 결과를
+  // 빌려 쓰면 두 조회 사이의 저장이 한 표를 두 시점으로 갈라놓는다 (트랜잭션이 아니다)
   it('표·잠금·B-3 판정에 필요한 것을 같은 스냅샷에 함께 싣는다', async () => {
     const data = unwrap(await plan.getBudgetPlanData(projectId));
     const columnIds = new Set(data.matrix.columns.map((c) => c.yearId));
@@ -802,7 +802,7 @@ describe('getBudgetPlanData (§7.9 제안 모드)', () => {
       });
     }
 
-    // B-3: 열의 mismatch를 yearId로 색인만 바꾼 값이다 (getBudgetMatrix와 같은 모양)
+    // B-3: 열의 mismatch를 yearId로 색인만 바꾼 값이다
     expect(Object.keys(data.yearBudgetChecks).sort()).toEqual(
       data.matrix.columns.map((c) => c.yearId).sort()
     );

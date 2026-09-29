@@ -1,6 +1,8 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
+2026-09-29 회사 PC (**Phase 23 완료** — 집행 관리 삭제. evaluator PASS, 테스트 3,180건 + 파괴적 11건, `schema_version` 5 적용(DB 공유 — 집 PC는 `git pull`만). 다음 `/phase-run 24`)
+
 2026-09-29 밤 집 PC (**SOT v4.9 — 수행 모드 = 협약 예산 설계 확정**, 코드 변경 없음. 다음 회사 PC에서 `/phase-run 23`)
 
 2026-09-29 집 PC (**Phase 22 완료** — hwpx 계획서 가져오기. evaluator PASS 16/16, 테스트 3,416건 + 파괴적 11건, 마이그레이션 없음. **Phase 19~22 전부 끝** — 다음은 수동 검증 일괄)
@@ -18,6 +20,8 @@
 2026-09-25 (**Phase 18 완료** — 다크 모드. 사용자 추가 지시 5건(성능·입력 양식·조직원·인건비·다크) 전부 끝. evaluator PASS)
 
 ## Current goal
+**Phase 24 — 협약 예산 버전 + 비목별 보기 (SOT v4.9).** Phase 23(집행 관리 삭제) 끝. 남은 순서: 24 협약 예산 버전 + 비목별 보기 → 25 붙임4형·조정회의형·참여인원 보기 + 과제 유형 → 26 규칙 공통 적용 + 증빙 체크리스트. 수동 검증 일괄은 26 뒤.
+
 **Phase 23~26 — 수행 모드를 "협약 예산"으로 재정의 (2026-09-29 사용자 지시, SOT v4.9).** 설계 근거: `docs/plans/v4.9-agreement-budget-brief.md`(결정 D-1~D-16). 순서: 23 집행 관리 삭제 → 24 협약 예산 버전 + 비목별 보기 → 25 붙임4형·조정회의형·참여인원 보기 + 과제 유형 → 26 규칙 공통 적용 + 증빙 체크리스트. 수동 검증 일괄은 26 뒤로 미룬다.
 
 **Phase 0~22 개발 범위 종료 (2026-09-29).** 다음은 ① **수동 검증 일괄**(아래 "수동 검증 > 대기" + Phase 19~22 항목 — 특히 실측 hwpx를 앱에서 올려 기술목표 28·성과목표 11(+제외 3)·평가방법 28 확인, 브라우저 추출 시간, 목표 화면 [더보기]) ② 후속 정리(Next steps) ③ §13 후보 중 사용자가 고르는 것.
@@ -40,6 +44,11 @@
 > ⚠️ **회사 PC는 `git pull` 후 반드시 `db push`를 해야 앱에 진입할 수 있다.** Phase 9에서 `schema_version`이 1 → 2로 올라가 §8.8 게이트가 걸린다. 의도된 안전장치다. (Phase 12는 스키마 변경이 없다.)
 
 ## Done this session
+- **Phase 23 완료 (2026-09-29 회사 PC, evaluator PASS, 테스트 125파일 3,180건 + 파괴적 11건, `tsc`·`build` 통과)** — 집행 관리 삭제 (SOT v4.9, D-1). 계획: `docs/plans/phase-23-plan.md`(T0 결정 S-1~S-12, T9 검증 결과·grep 예외 매핑)
+  - 마이그레이션 `20260930000000_drop_budget_executions.sql` — `budget_executions`·`commit_execution_form` drop(cascade 없음), `restore_import_snapshot`·`restore_backup`에서 집행 분기만 제거(나머지 글자 불변 — diff 확인), `execution_form` 스냅샷 삭제·`import_profiles.kind` check 3값, `schema_version` **5** + `EXPECTED_SCHEMA_VERSION = 5`. 적용 전 집행·스냅샷·프로파일 0건 확인(아래 In progress 기록). 백업 28종/복원 26종, v5 왕복·옛 v4 백업 거부(버전 불일치 메시지) 파괴적 테스트
+  - 사용자 결정(2026-09-29, 권고안 승인): S-2 수행 스냅샷 삭제 · S-3 옛 수행 양식 파일은 `_meta`에 mode 행이 있으면 거부("수행 양식(집행 내역) 파일입니다 — …") · S-6 기본 모드 **제안**, [수행]은 Phase 24 전까지 안내 문구만(툴바는 제안 전용) · S-8 산출근거 없는 셀의 현금/현물 분리 입력 삭제(산출근거 축·총괄표 임포트로만) · S-10 부록 D.3 문구 · S-11 grep 예외 목록
+  - 코드 제거: 집행 타입·Zod·저장소(`attachExecutions` → `attachDetailCounts`, PL-9 detailCount 보존)·액션(`actions/budget.ts`는 `updateBudgetPlan`만, `getBudgetMatrix` 삭제)·화면(`BudgetDetailPanel`·`ExecutionDetailRow`·`ExecutionFormUpload`)·수행 양식(`lib/input-form` mode 분기, `parse-execution`·`execution-preview` 삭제 — 제안 양식 바이트 불변)·`lib/budget.ts` 집행률(B-3·매트릭스는 유지)·대시보드 과제 카드 예산 줄·설정 스냅샷 패널 수행 양식·도움말. 날짜 헬퍼는 `lib/input-form/sheet-date.ts`로 이관(목표 양식 공용)
+  - 관찰(미수정): ① `commit_goal_form` 함수 **주석** 2줄이 `commit_execution_form` 이름을 언급(호출·테이블 참조 아님) ② 파괴적 테스트 가드가 `staff`·`staff_salaries` 실데이터를 보지 않는다(주석만 정정)
 - **SOT v4.9 설계 (2026-09-29 밤, 코드 변경 없음)** — 사용자 지시: 연구비 "수행" 모드 개편(조정회의·붙임4 양식 자동 계산, 전담기관 간사 지침 반영, 집행 관리 불필요 — 과제관리팀은 리스크 관리, 협약변경 이력, 엑셀·복사, 규칙 준수). 샘플 두 양식 구조 실측(조정회의: 인건비 A·연구수당 B·간접비 C·합계 D·총액 E·직접비 F와 D/E·B/A·A/F / 붙임4: 8-1 지원·부담계획 — 과제유형 × 기업유형 비율 판정, 8-2 사용계획 — 세목 × 현금/현물 × 연차, E1·E2·연구수당·간접비 비율, 검토사항). 결정 D-1~D-16 → `docs/plans/v4.9-agreement-budget-brief.md`. SOT: v4.9 변경 요약, 집행 관련 절 **폐기 표기**(지우지 않음 — §5.12 BudgetExecution·§6.4 B-1·B-2·§6.16 IN-9~14·§7.9 수행 v1·부록 B.4 등, B-3·B-4·제안 양식 IN-1~8은 유지), 신설 §5.21~§5.24 Agreement*·§6.19 AG-*·§7.9.8·§6.14.8 RL-20~23 예약·§8.7 K-9·§8.8 schema 5(Phase 23)·6 예정(Phase 24), §11 Phase 23~26, §13 22번 해소 예정. evaluation_criteria.md "## Phase 23". CLAUDE.md Phase 표 23~26·순수 함수 표 `lib/agreement/`
 - **Phase 22 완료 (2026-09-29, evaluator PASS 16/16)** — hwpx 계획서 가져오기 (SOT v4.8 §6.18 HX-1~HX-8, 부록 C.3.1~C.3.7, §7.7). 계획: `docs/plans/phase-22-plan.md`(끝의 사용자 결정 U-1~U-12가 우선)
   - **실측**(samples hwpx 108MB, 메인 세션 python + T0): 표 276개, 목표 표는 종류별 1개로 **쪽 나뉨 없음**(SOT의 "기술목표 2개·평가방법 3개" 문구가 틀려 정정), 기술목표 28·성과목표 14·평가방법 28, 헤더 2/2/1, 수식 9개·각주·중첩 표 50개(목표 표 안엔 0). 격자 24KB
@@ -322,7 +331,9 @@
   - 알려진 톤 반전(읽힘엔 문제 없음): 노트 코드 블록(다크에서 밝은 바탕), 마일스톤 오늘 선(흰 선)
 
 ## In progress
-없음. SOT v4.9 설계만 확정(코드 무변경) — 다음 `/phase-run 23`.
+없음. Phase 23 완료 — 다음 `/phase-run 24`.
+
+- **Phase 23 T1 — 집행 실데이터 0건 확인 후 적용 (2026-09-29)**: `20260930000000_drop_budget_executions.sql` 적용 직전 dev DB 조회(`.env.test.local` 직결) — `budget_executions` **0건**, `import_snapshots` `kind='execution_form'` **0건**, `import_profiles` `kind='execution_form'` **0건**, `schema_version` 4. `db push --db-url` 적용 → `schema_version` 5
 
 (기록) **Phase 20 수행 양식 — 회사 PC 시점 상태, 이후 집 PC에서 완료** (계획: `docs/plans/phase-20-plan.md`, T0~T15)
 - 끝난 태스크: T0(SOT 보강) · T1(마이그레이션 SQL) · T2(타입·Zod·리포지토리) · T3(좌표 맵 mode 분기·_meta) · T4(생성기·작성안내·드롭다운) · T5(수행 파서) · T6(수행 미리보기·페이로드) · T7(어댑터 날짜 셀·인라인 드롭다운) · T8(왕복 테스트 + 결함 2건) · T9(서버 액션) · T10(집행 CRUD 새 필드) · T11a(집행 패널 "내역" 줄) · T11b(연구비 화면 수행 툴바·업로드 모달) · T12(설정 스냅샷 패널)
@@ -333,6 +344,10 @@
 - 명세 밖 추가: `actions/budget.ts` `getExecutionDetailOptions(projectId)`(패널 인력·산출근거 선택지, 읽기 전용) · `tests/unit/input-form-boundary.test.ts` 산식 호출 허용 목록에 `parse-execution.ts`·`execution-preview.ts` 추가(IN-11 금액 보완 — 산식 재사용이지 재구현 아님)
 
 ## Next steps
+> **다음 작업 (2026-09-29 회사 PC에서 정리)**: ① 집 PC는 `git pull`만(DB 공유 — `20260930000000`까지 적용됨, `npm install` 변경 없음) ② **`/phase-run 24`**(협약 예산 버전 + 비목별 보기). 합격 기준 `evaluation_criteria.md` "## Phase 24"가 있는지 먼저 확인 — 없으면 SOT v4.9 §5.21~§5.24·§7.9.8로 작성부터. Phase 24 T0에서 협약 예산 조회(옛 `getBudgetMatrix` 자리)와 `lib/agreement/` 이름을 정한다. 도메인 결정은 초안 + 열린 질문으로 ③ 연구비 화면 수행 모드 안내(S-6)는 Phase 24에서 실제 화면으로 교체
+
+> (처리됨, 2026-09-29 회사 PC) Phase 23 집행 관리 삭제.
+
 > ⚠️ **회사 PC 인계 (2026-09-29 밤 집 PC에서 정리) — 다음 작업**:
 > ① `git pull` → `npm install`(**`fflate`·`fast-xml-parser` 추가됨** — Phase 22)
 > ② DB는 공유라 `db push` 불필요(Phase 21 `20260929000000`까지 적용됨, Phase 22는 마이그레이션 없음). 예제 과제 "과제 A"가 dev DB에 있다(`npm test`가 지우면 `supabase/seed.sql` 재적용)

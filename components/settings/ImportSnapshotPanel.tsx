@@ -1,11 +1,10 @@
 'use client';
 
 // 설정 > 백업·복원 > 임포트 스냅샷 (SOT §7.14, §6.8.5 I-17, §6.11.5 D-17·D-17a·D-17b)
-// 임포트 반영이 남긴 "반영 직전 상태"를 과제별로 보여주고 되돌린다. 두 종류가 한 목록에 섞인다:
+// 임포트 반영이 남긴 "반영 직전 상태"를 과제별로 보여주고 되돌린다. 세 종류가 한 목록에 섞인다:
 //   ① 총괄표(commitImport) — 계획액만 담는다
 //   ② 산출근거(commitDetailImport) — 계획액 + 삭제되는 budget_details 행 (D-17)
-//   ③ 수행 양식(commitExecutionForm) — 집행 행의 추가 id·변경 전 원본·삭제 id (IN-14). items는 빈 배열
-//   ④ 목표 양식(commitGoalForm) — 목표 행의 추가 id·변경 전 원본·삭제 id (GF-11). 복원은 거부된다
+//   ③ 목표 양식(commitGoalForm) — 목표 행의 추가 id·변경 전 원본·삭제 id (GF-11). 복원은 거부된다
 //      계획서(hwpx) 가져오기도 같은 RPC·같은 모양을 남긴다 — source.sheetName으로만 구별한다 (S-31)
 // 계획액을 통째로 되돌리는 조작이라 전체 복원(K-4)과 같은 무게의 2단계 확인을 거친다.
 // 데이터 접근은 actions/import 경유만 한다 — supabase를 직접 호출하지 않는다 (절대 규칙 3).
@@ -58,11 +57,6 @@ function isDetailSnapshot(snapshot: ImportSnapshot): boolean {
   return snapshot.snapshot.kind === 'budget_detail';
 }
 
-/** IN-14: 수행 양식 반영이 남긴 스냅샷인가. 계획액이 아니라 집행 행을 되돌린다 */
-function isExecutionSnapshot(snapshot: ImportSnapshot): boolean {
-  return snapshot.snapshot.kind === 'execution_form';
-}
-
 /** GF-11: 목표 양식 반영이 남긴 스냅샷인가. Phase 21은 복원을 거부한다(RPC raise + 버튼 비활성) */
 function isGoalSnapshot(snapshot: ImportSnapshot): boolean {
   return snapshot.snapshot.kind === 'goal_form';
@@ -84,36 +78,7 @@ function restoreBlockedMessage(snapshot: ImportSnapshot): string {
 function kindLabel(snapshot: ImportSnapshot): string {
   if (isPlanDocumentSnapshot(snapshot)) return PLAN_DOCUMENT_SHEET_NAME;
   if (isGoalSnapshot(snapshot)) return '목표 양식';
-  if (isExecutionSnapshot(snapshot)) return '수행 양식';
   return isDetailSnapshot(snapshot) ? '산출근거' : '예산계획';
-}
-
-interface ExecutionCounts {
-  added: number;
-  changed: number;
-  deleted: number;
-}
-
-/**
- * IN-14: before는 변경·삭제 전 원본을 함께 담는다 — deleted에 든 id를 빼야 "변경" 건수다.
- * 수행 스냅샷인데 executions가 없으면 스냅샷이 손상된 것이다. 0건으로 보이면 되돌릴 게 없다고
- * 오해하므로 null로 돌려 화면이 그 사실을 드러내게 한다 (절대 규칙 5).
- */
-function executionCounts(snapshot: ImportSnapshot): ExecutionCounts | null {
-  const executions = snapshot.snapshot.executions;
-  if (!executions) return null;
-  const deletedIds = new Set(executions.deleted ?? []);
-  return {
-    added: executions.added.length,
-    changed: executions.before.filter((row) => !deletedIds.has(row.id)).length,
-    deleted: deletedIds.size,
-  };
-}
-
-function executionSummary(snapshot: ImportSnapshot): string {
-  const counts = executionCounts(snapshot);
-  if (counts === null) return '집행 변경 기록이 스냅샷에 없습니다 — 스냅샷이 손상되었을 수 있습니다';
-  return `집행 추가 ${counts.added}건 · 변경 ${counts.changed}건 · 삭제 ${counts.deleted}건`;
 }
 
 /** 시트 이름 ↔ 스냅샷 키(테이블 이름). 순서는 양식 시트 순서(GF-1) */
@@ -127,8 +92,11 @@ const GOAL_TABLES = [
 /** 세지는 않지만 commit_goal_form이 before에 항상 넣는 연계 행 키 — 없으면 원본이 빠진 것이다 */
 const GOAL_LINK_TABLES = ['achievement_members', 'task_deliverables', 'task_tech_targets'] as const;
 
-interface GoalSheetCounts extends ExecutionCounts {
+interface GoalSheetCounts {
   label: string;
+  added: number;
+  changed: number;
+  deleted: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -140,7 +108,8 @@ function isIdArray(value: unknown): value is string[] {
 }
 
 /**
- * GF-11: 시트별 추가·변경·삭제 건수. 변경 = before에 있는데 deleted에 없는 id(IN-14와 같은 셈).
+ * GF-11: 시트별 추가·변경·삭제 건수. before는 변경·삭제 전 원본을 함께 담으므로
+ * 변경 = before에 있는데 deleted에 없는 id다.
  * jsonb는 매퍼가 검증하지 않으므로 여기서 형태를 확인한다 — 깨졌으면 null을 돌려 손상으로
  * 드러낸다. 0건으로 보이면 "아무것도 안 바뀐 반영"으로 오해한다 (절대 규칙 5).
  */
@@ -248,17 +217,9 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
         return;
       }
       // 총괄표 스냅샷의 안내는 종전 그대로다 — 산출근거 스냅샷일 때만 문장이 늘어난다 (D-17a)
-      const messages: string[] = [];
-      if (isExecutionSnapshot(target)) {
-        // IN-14: 수행 스냅샷은 계획액을 건드리지 않는다 — "0건의 계획액" 문장은 오해만 부른다
-        messages.push(
-          `${target.snapshot.source.fileName} 반영을 되돌렸습니다 — 추가된 집행 ${res.data.executionsDeleted ?? 0}건 삭제, 변경된 집행 ${res.data.executionsReverted ?? 0}건 원래 값으로, 삭제된 집행 ${res.data.executionsRestored ?? 0}건 되살림.`
-        );
-      } else {
-        messages.push(
-          `${res.data.restored}건의 계획액을 ${target.snapshot.source.fileName} 반영 직전 상태로 되돌렸습니다.`
-        );
-      }
+      const messages: string[] = [
+        `${res.data.restored}건의 계획액을 ${target.snapshot.source.fileName} 반영 직전 상태로 되돌렸습니다.`,
+      ];
       if (res.data.detailsRestored !== undefined) {
         messages.push(
           `산출근거는 현재 ${res.data.detailsDeleted ?? 0}행을 지우고 ${res.data.detailsRestored}행을 되살렸습니다.`
@@ -284,9 +245,8 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
       <h2 className="text-lg font-bold">임포트 스냅샷</h2>
       <p className="mt-1 text-sm text-grey-500">
         엑셀 반영 직전의 상태입니다. 잘못 반영했을 때 여기서 되돌립니다. 예산계획 반영(§6.8)은
-        계획액을, 산출근거 반영(§6.11)은 계획액과 <strong>삭제된 산출근거 행</strong>까지, 수행
-        양식 반영(§6.16)은 <strong>추가·변경·삭제된 집행 내역</strong>을 담습니다. 목표 양식
-        반영(§6.17)은 기록으로만 남고 되돌릴 수 없습니다.
+        계획액을, 산출근거 반영(§6.11)은 계획액과 <strong>삭제된 산출근거 행</strong>까지
+        담습니다. 목표 양식 반영(§6.17)은 기록으로만 남고 되돌릴 수 없습니다.
       </p>
 
       {/* I-17의 사실을 그대로 적는다 — 안 적으면 사용자가 "복원의 복원"을 기대한다 */}
@@ -302,19 +262,13 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
         </li>
         <li>
           <strong>되돌리기는 비목 행을 삭제하지 않습니다.</strong> 임포트 시점에 없던 행은 계획액 0,
-          현금·현물 미입력 상태로 되돌릴 뿐입니다. 행을 지우면 임포트 <strong>이후</strong>에 그
-          비목에 등록한 집행 내역이 함께 사라집니다.
+          현금·현물 미입력 상태로 되돌릴 뿐입니다.
         </li>
         <li>
           <strong>산출근거 스냅샷은 산출근거 행을 되돌립니다</strong> (D-17a) — 그 (연차, 비목)의
           현재 산출근거를 지우고 스냅샷의 행을 되살립니다. 다만{' '}
           <strong>임포트가 만든 인력은 명부에 남습니다</strong> (D-17b). 필요 없으면 인력 화면에서
           지우세요.
-        </li>
-        <li>
-          <strong>수행 양식 스냅샷은 반영 전체를 되돌립니다</strong> (IN-14) — 반영으로 추가된 집행은
-          삭제되고, 바뀐 집행은 원래 값으로, 삭제된 집행은 되살아납니다. 반영 뒤 그 집행을 다시
-          고쳤거나 지웠다면 되돌리기 전체가 거부됩니다.
         </li>
         <li>
           <strong>목표 양식 스냅샷은 되돌릴 수 없습니다</strong> (GF-11) — 반영 기록용입니다. 성과목표·
@@ -381,7 +335,7 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                     <span className="break-all text-sm font-semibold text-grey-800">
                       {snapshot.snapshot.source.fileName}
                     </span>
-                    {/* 세 종류가 한 목록에 섞이고 복원 범위가 다르다 (D-17a, IN-14) */}
+                    {/* 여러 종류가 한 목록에 섞이고 복원 범위가 다르다 (D-17a, GF-11) */}
                     <Badge tone="neutral">{kindLabel(snapshot)}</Badge>
                     {index === 0 && <Badge tone="blue">최근 반영</Badge>}
                   </div>
@@ -403,12 +357,6 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                         {restoreBlockedMessage(snapshot)} (GF-11)
                       </p>
                     </>
-                  ) : isExecutionSnapshot(snapshot) ? (
-                    <p
-                      className={`mt-1 text-xs ${executionCounts(snapshot) === null ? 'text-red-600' : 'text-grey-500'}`}
-                    >
-                      {executionSummary(snapshot)}
-                    </p>
                   ) : (
                     <p className="mt-1 text-xs text-grey-500">
                       연차 {yearCount(snapshot)}개 · 비목 {snapshot.snapshot.items.length}칸 · 되돌리면
@@ -474,47 +422,19 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                 <dt className="w-24 shrink-0 text-grey-500">반영 시각</dt>
                 <dd>{new Date(target.snapshot.capturedAt).toLocaleString('ko-KR')}</dd>
               </div>
-              {isExecutionSnapshot(target) ? (
-                <div className="flex gap-2">
-                  <dt className="w-24 shrink-0 text-grey-500">되돌릴 범위</dt>
-                  <dd>{executionSummary(target)}</dd>
-                </div>
-              ) : (
-                <>
-                  <div className="flex gap-2">
-                    <dt className="w-24 shrink-0 text-grey-500">되돌릴 범위</dt>
-                    <dd>
-                      연차 {yearCount(target)}개 · 비목 {target.snapshot.items.length}칸
-                    </dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="w-24 shrink-0 text-grey-500">계획액 합계</dt>
-                    <dd>{formatAmount(restoredTotal(target), '원')}</dd>
-                  </div>
-                </>
-              )}
+              <div className="flex gap-2">
+                <dt className="w-24 shrink-0 text-grey-500">되돌릴 범위</dt>
+                <dd>
+                  연차 {yearCount(target)}개 · 비목 {target.snapshot.items.length}칸
+                </dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="w-24 shrink-0 text-grey-500">계획액 합계</dt>
+                <dd>{formatAmount(restoredTotal(target), '원')}</dd>
+              </div>
             </dl>
 
-            {step === 1 && isExecutionSnapshot(target) ? (
-              // IN-14: 총괄표 안내("집행 내역은 지워지지 않습니다")가 여기선 정반대라 문장을 통째로 바꾼다
-              <div className="mt-4 space-y-2 text-sm text-grey-600">
-                <p>
-                  이 반영 전체가 되돌아갑니다 —{' '}
-                  <strong className="text-red-600">
-                    이 반영으로 추가된 집행은 삭제되고, 바뀐 집행은 반영 전 값으로 돌아가며, 삭제된
-                    집행은 되살아납니다.
-                  </strong>
-                </p>
-                <p>
-                  반영 뒤 그 집행을 다시 고쳤거나 지웠다면 일부만 되돌리지 않고{' '}
-                  <strong>전체를 거부</strong>합니다 (IN-14). 계획액은 바뀌지 않습니다.
-                </p>
-                <p>
-                  되돌리기는 <strong>새 스냅샷을 만들지 않으므로 이 조작을 다시 되돌릴 수
-                  없습니다</strong> (I-17).
-                </p>
-              </div>
-            ) : step === 1 ? (
+            {step === 1 ? (
               <div className="mt-4 space-y-2 text-sm text-grey-600">
                 <p>
                   이 반영으로 바뀐 <strong className="text-red-600">계획액이 반영 직전 값으로
@@ -522,7 +442,7 @@ export default function ImportSnapshotPanel({ projects }: ImportSnapshotPanelPro
                 </p>
                 <p>
                   되돌리기는 <strong>새 스냅샷을 만들지 않으므로 이 조작을 다시 되돌릴 수
-                  없습니다</strong> (I-17). 집행 내역과 행 자체는 지워지지 않습니다.
+                  없습니다</strong> (I-17). 비목 행 자체는 지워지지 않습니다.
                 </p>
                 {/* 산출근거 스냅샷만 행을 지운다 — 총괄표 스냅샷의 안내는 종전 그대로다 (D-17a) */}
                 {isDetailSnapshot(target) && (

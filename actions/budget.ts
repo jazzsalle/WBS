@@ -1,133 +1,34 @@
 'use server';
 
-// Budget 서버 액션 + 연구비 매트릭스 조회
-// (SOT §9 Budget·조회 목록, SA-1~SA-4, §5.12, §6.4, §8.4 O-1~O-3)
+// Budget 서버 액션 — 제안 모드 계획액 편집 (SOT §9 Budget, SA-1~SA-4, §5.12, §6.4 B-3·B-4, §8.4 O-1~O-3)
 // 반환은 ActionResult<T> — 예외를 그대로 던지지 않는다. supabase 직접 호출 금지,
 // 반드시 lib/db/ 리포지토리를 거친다 (§8.6).
 //
-// 집행액·집행률·잔액은 파생 값이라 저장하지 않는다 (O-4, B-4). 계산은 전부 lib/budget.ts가 하고
-// 여기서는 나눗셈·비율 공식을 다시 쓰지 않는다 — 규칙이 두 곳에 생기면 반드시 어긋난다.
+// 연구비 페이지 조회는 actions/budget-plan.ts의 getBudgetPlanData 한 벌이다 (Phase 23 S-5).
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { ActionResult, BudgetDetail, BudgetExecution, BudgetItem, Member, Settings, Year } from '@/types';
+import type { ActionResult, BudgetItem } from '@/types';
 import { requireApprovedUser } from '@/lib/auth/guard';
 import * as appUsers from '@/lib/db/app-users';
-import * as budgetDetailsRepo from '@/lib/db/budget-details';
 import * as budgetItemsRepo from '@/lib/db/budget-items';
-import * as membersRepo from '@/lib/db/members';
-import * as projectsRepo from '@/lib/db/projects';
-import * as settingsRepo from '@/lib/db/settings';
-import * as yearsRepo from '@/lib/db/years';
 import {
-  NotFoundError,
   RuleViolationError,
   StaleDataError,
   ValidationError,
   toActionFailure,
 } from '@/lib/db/errors';
-import { budgetCategorySchema, detailAxisSchema } from '@/lib/db/schema';
-import { SUBCATEGORY_PRESETS } from '@/lib/constants';
-import { buildBudgetMatrix, type BudgetMatrix, type YearBudgetMismatch } from '@/lib/budget';
-import { todayISO } from '@/lib/dates';
-
-// ─── 조회 모델 (§9 getBudgetMatrix, §7.9) ─────────────────────────────────────
-
-// 매트릭스는 행 = 비목 12종, 열 = 연차다 (§7.9). 셀·합계·경고는 전부 계산 값이라 DB에 없다.
-// 표시 단위 환산은 화면(lib/currency.ts)의 몫이므로 금액은 원 단위 정수 그대로 내린다 (B-4).
-export interface BudgetMatrixData {
-  projectId: string;
-  /** 인쇄 머리말(§12 P-R3)에 쓴다 — 종이만 보고 어느 과제인지 알 수 있어야 한다 */
-  projectName: string;
-  /** 인쇄 출력일(§12 P-R3). 서버가 Asia/Seoul 달력으로 만든다 (§6.5) */
-  todayISO: string;
-  years: Year[];
-  matrix: BudgetMatrix;
-  /**
-   * 매트릭스를 만든 **바로 그** 원본 행. 집계에는 없지만 화면이 필요로 하는 네 가지가 여기 있다:
-   * budget_items.id(집행 CRUD의 부모 키), version(O-1 낙관적 잠금), cashAmount/inKindAmount의
-   * null 여부(총액 인라인 편집 허용 판정, S-4), executions 목록(§7.9 집행 내역 패널).
-   *
-   * 화면이 이 배열을 따로 읽지 않는 이유는 왕복 절약이 아니라 **시점의 일치**다. 두 번 읽으면
-   * 그 사이의 저장이 매트릭스와 원본 행을 서로 다른 스냅샷으로 갈라놓고, 화면은 옛 version으로
-   * 잠금을 걸거나(O-1) 집계와 다른 집행 목록을 보여준다.
-   *
-   * §12: executions가 딸려 오므로 데이터가 커진다. 절단 방어는 리포지토리에 남아 있다 —
-   * listBudgetItemsByProject는 집행을 임베드하지 않고 페이징으로 따로 읽는다
-   * (PostgREST는 임베드 자식이 max-rows에 걸려도 에러 없이 잘라낸다, lib/db/budget-items.ts).
-   */
-  items: BudgetItem[];
-  /** B-3: 키는 yearId. year.budget이 null이면 비교 대상이 없어 null (배지를 띄우지 않는다) */
-  yearBudgetChecks: Record<string, YearBudgetMismatch | null>;
-  currencyUnit: Settings['currencyUnit'];
-}
+import { budgetCategorySchema } from '@/lib/db/schema';
 
 // ─── 입력 검증 ────────────────────────────────────────────────────────────────
 
 const uuidSchema = z.uuid();
 
-// §5.12 집행일은 'YYYY-MM-DD' 필수다 — 날짜 없는 집행은 연차·기간 귀속을 판정할 수 없다
-const isoDateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "날짜는 'YYYY-MM-DD' 형식이어야 합니다.");
-
-// §5.12 + B-4: 금액은 원 단위 정수다. 음수를 막는 근거는 §5.12 주석 —
-// "실무에서 집행액을 음수로 잡는 경우가 없다(사용자 확인). 환불·감액은 별도 행이 아니라
-// 원래 집행 행을 수정한다." 계획액(현금/현물 포함)도 같은 규칙을 따른다.
+// §5.12 + B-4: 금액은 원 단위 정수다. 계획액(현금/현물 포함)은 0 이상만 받는다.
 const amountSchema = z
   .int('금액은 원 단위 정수로 입력하세요.')
   .min(0, '금액은 0 이상이어야 합니다.');
-
-// 적요는 목록에서 한 줄로 식별하는 라벨이라 제목과 같은 상한을 쓴다 (milestones.ts 관례)
-const descriptionSchema = z.string().trim().max(200, '적요는 200자 이내여야 합니다.');
-const noteSchema = z.string().max(10_000);
-
-// §5.12 Phase 20 내역 필드 — 산출근거(§5.17)와 같은 형이라 actions/budget-plan.ts와 같은 제약을 둔다.
-// 'use server' 파일은 async 함수만 내보낼 수 있어 스키마를 공유하지 못하고 여기서 다시 선언한다.
-const unitPriceSchema = z
-  .int('단가는 원 단위 정수로 입력하세요.')
-  .min(0, '단가는 0 이상이어야 합니다.');
-
-// PL-3과 같다: 인자 값은 소수를 허용하고(참여율 10.0) 음수는 막는다
-const factorSchema = z.object({
-  label: z.string().trim().max(20, '인자 라벨은 20자 이내여야 합니다.'),
-  value: z
-    .number()
-    .finite('인자 값이 올바르지 않습니다.')
-    .min(0, '인자 값은 0 이상이어야 합니다.'),
-  isPercent: z.boolean(),
-});
-
-const factorsSchema = z.array(factorSchema).max(3, '인자는 3개까지 넣을 수 있습니다.');
-
-const executionFieldsSchema = z.object({
-  date: isoDateSchema,
-  amount: amountSchema,
-  description: descriptionSchema,
-  note: noteSchema,
-  // 전부 null 허용 — 손으로 넣는 집행은 내역 없이도 성립한다(§5.12 "전부 선택")
-  subcategoryCode: z.string().nullable(),
-  spec: noteSchema,
-  unitPrice: unitPriceSchema.nullable(),
-  factors: factorsSchema.nullable(),
-  axis: detailAxisSchema.nullable(), // 집행은 축 없음을 허용한다(§5.12, 산출근거와 다르다)
-  memberId: z.uuid('인력 ID 형식이 올바르지 않습니다.').nullable(),
-  detailId: z.uuid('산출근거 ID 형식이 올바르지 않습니다.').nullable(),
-});
-
-type ExecutionRefs = Partial<
-  Pick<z.infer<typeof executionFieldsSchema>, 'subcategoryCode' | 'memberId' | 'detailId'>
->;
-
-// date는 DB에 기본값이 없고(not null), amount 없는 집행은 집행액 합계(§6.4)에 아무 의미가 없다 —
-// 둘은 생성 시 반드시 받는다. 적요·비고는 생략 가능하다 (N-11 미입력 = 빈 문자열).
-const executionCreateSchema = executionFieldsSchema.partial().extend({
-  date: executionFieldsSchema.shape.date,
-  amount: executionFieldsSchema.shape.amount,
-});
-
-const executionPatchSchema = executionFieldsSchema.partial();
 
 function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, fallback: string): T {
   const parsed = schema.safeParse(value);
@@ -152,52 +53,6 @@ function assertPlanSplit(
   }
 }
 
-/**
- * §5.12 참조 필드 검증. FK는 "존재하는 행"만 보장하고 과제·연차 경계는 막지 못한다
- * (IN-13 — N-13·PL-D2와 같은 경계). 비워 두는(null·생략) 값은 검사하지 않는다.
- *
- * - subcategoryCode: 부록 A.5에서 그 비목의 세목이어야 한다(PL-D4와 같은 이유 — 자유 문자열이면
- *   세목이 오타로 갈라진다). 입력값 형식 문제라 VALIDATION이다.
- * - memberId: 그 과제의 인력이어야 한다 → 위반 RULE.
- * - detailId: 그 과제 **같은 연차**의 산출근거여야 한다 → 위반 RULE. 비목은 묻지 않는다(§5.12에 없다).
- */
-async function assertExecutionRefs(
-  client: SupabaseClient,
-  item: BudgetItem,
-  refs: ExecutionRefs
-): Promise<void> {
-  const { subcategoryCode, memberId, detailId } = refs;
-
-  if (typeof subcategoryCode === 'string') {
-    if (!SUBCATEGORY_PRESETS[item.category].some((def) => def.code === subcategoryCode)) {
-      throw new ValidationError('이 비목에 없는 세목입니다.');
-    }
-  }
-
-  if (typeof memberId === 'string') {
-    const members = await membersRepo.listMembers(client, item.projectId);
-    if (!members.some((m) => m.id === memberId)) {
-      throw new RuleViolationError('이 과제에 속하지 않은 인력은 집행에 지정할 수 없습니다.');
-    }
-  }
-
-  if (typeof detailId === 'string') {
-    let detail;
-    try {
-      detail = await budgetDetailsRepo.getDetailById(client, detailId);
-    } catch (e) {
-      // 없는 id도 경계 밖이다 — 그대로 두면 FK 위반이 SA-4의 뭉뚱그린 실패로 바뀌어 사유가 사라진다
-      if (e instanceof NotFoundError) {
-        throw new RuleViolationError('이 과제·연차의 산출근거가 아닙니다.');
-      }
-      throw e;
-    }
-    if (detail.projectId !== item.projectId || detail.yearId !== item.yearId) {
-      throw new RuleViolationError('이 과제·연차의 산출근거가 아닙니다.');
-    }
-  }
-}
-
 // O-3: 낙관적 잠금 실패는 "누가 먼저 고쳤는지"까지 알려야 사용자가 판단할 수 있다.
 // 이름 조회 실패도 삼키지 않고 로그를 남긴 뒤 이름 없는 기본 메시지로 폴백한다.
 async function toFailure(e: unknown, client?: SupabaseClient): Promise<ActionResult<never>> {
@@ -217,8 +72,8 @@ async function toFailure(e: unknown, client?: SupabaseClient): Promise<ActionRes
   return toActionFailure(e);
 }
 
-// 집행률은 대시보드 과제 카드(§7.2)와 과제 개요(§7.3)에도 나온다 —
-// 연구비 화면만 다시 그리면 부족하다
+// 대시보드(§7.2)·과제 개요(§7.3)도 같은 과제의 연구비 행을 읽을 수 있다 —
+// 경로 단위 캐시라 연구비 화면만 다시 그리면 옛 값이 남는다
 function revalidateBudget(projectId: string): void {
   revalidatePath('/');
   revalidatePath(`/projects/${projectId}`);
@@ -275,181 +130,5 @@ export async function updateBudgetPlan(
     return { ok: true, data: updated };
   } catch (e) {
     return toFailure(e, client);
-  }
-}
-
-// ─── 집행 내역 (§5.12 budget_executions, §9 add/update/deleteExecution) ───────
-
-export async function addExecution(
-  budgetItemId: string,
-  input: unknown
-): Promise<ActionResult<BudgetExecution>> {
-  try {
-    const bid = parseOrThrow(uuidSchema, budgetItemId, '비목 ID 형식이 올바르지 않습니다.');
-    const fields = parseOrThrow(executionCreateSchema, input, '집행 정보가 올바르지 않습니다.');
-    const { user, client } = await requireApprovedUser();
-
-    // 화면 갱신 대상 과제를 알아야 하고, 없는 비목은 삽입보다 먼저 NotFound로 걸러진다
-    const item = await budgetItemsRepo.getBudgetItemById(client, bid);
-    await assertExecutionRefs(client, item, fields);
-
-    // 내역 필드는 넘어온 것만 싣는다 — 생략하면 리포지토리가 키를 빼서 DB 기본값이 들어간다
-    const created = await budgetItemsRepo.addExecution(
-      client,
-      bid,
-      {
-        date: fields.date,
-        amount: fields.amount,
-        description: fields.description ?? '',
-        note: fields.note ?? '',
-        subcategoryCode: fields.subcategoryCode,
-        spec: fields.spec,
-        unitPrice: fields.unitPrice,
-        factors: fields.factors,
-        axis: fields.axis,
-        memberId: fields.memberId,
-        detailId: fields.detailId,
-        createdBy: user.id,
-        updatedBy: user.id,
-      }
-    );
-
-    revalidateBudget(item.projectId);
-    return { ok: true, data: created };
-  } catch (e) {
-    return toFailure(e);
-  }
-}
-
-// O-1: 집행 편집 폼은 일자·금액·적요를 한 번에 바꾸므로 expectedVersion을 받아 잠금을 건다 (§5.12).
-// 감액·환불도 별도 행이 아니라 이 수정으로 처리하므로 동시 편집이 실제로 발생한다.
-export async function updateExecution(
-  budgetItemId: string,
-  executionId: string,
-  patch: unknown,
-  expectedVersion?: number
-): Promise<ActionResult<BudgetExecution>> {
-  let client: SupabaseClient | undefined;
-  try {
-    const bid = parseOrThrow(uuidSchema, budgetItemId, '비목 ID 형식이 올바르지 않습니다.');
-    const eid = parseOrThrow(uuidSchema, executionId, '집행 ID 형식이 올바르지 않습니다.');
-    const parsed = parseOrThrow(executionPatchSchema, patch, '집행 정보가 올바르지 않습니다.');
-    const ctx = await requireApprovedUser();
-    client = ctx.client;
-
-    const item = await budgetItemsRepo.getBudgetItemById(client, bid);
-    await assertExecutionRefs(client, item, parsed);
-
-    // 다른 비목의 집행을 가리키면 리포지토리가 0행 갱신 → NotFound로 구분해 던진다
-    const updated = await budgetItemsRepo.updateExecution(
-      client,
-      bid,
-      eid,
-      { ...parsed, updatedBy: ctx.user.id },
-      expectedVersion
-    );
-
-    revalidateBudget(item.projectId);
-    return { ok: true, data: updated };
-  } catch (e) {
-    return toFailure(e, client);
-  }
-}
-
-export async function deleteExecution(
-  budgetItemId: string,
-  executionId: string
-): Promise<ActionResult<null>> {
-  try {
-    const bid = parseOrThrow(uuidSchema, budgetItemId, '비목 ID 형식이 올바르지 않습니다.');
-    const eid = parseOrThrow(uuidSchema, executionId, '집행 ID 형식이 올바르지 않습니다.');
-    const { client } = await requireApprovedUser();
-
-    // 삭제 후에는 projectId를 알 수 없으므로 먼저 읽는다 (없으면 NotFoundError)
-    const item = await budgetItemsRepo.getBudgetItemById(client, bid);
-    await budgetItemsRepo.removeExecution(client, bid, eid);
-
-    revalidateBudget(item.projectId);
-    return { ok: true, data: null };
-  } catch (e) {
-    return toFailure(e);
-  }
-}
-
-// ─── 조회 (§9 조회 목록 — 서버 컴포넌트에서 직접 호출) ────────────────────────
-
-export async function getBudgetMatrix(projectId: string): Promise<ActionResult<BudgetMatrixData>> {
-  try {
-    const pid = parseOrThrow(uuidSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
-    const { client } = await requireApprovedUser();
-
-    // 하나라도 실패하면 실패를 그대로 올린다 — 빈 배열 폴백은 데이터 손상을 감춘다 (절대 규칙 5).
-    // 특히 비목 조회가 부분 실패한 채 매트릭스를 그리면 집행률이 조용히 낮게 나온다.
-    const [project, years, items, settings] = await Promise.all([
-      // 인쇄 머리말용 과제명 (§12 P-R3). 조회 실패는 그대로 올린다 — 화면은 어차피 실패다
-      projectsRepo.getProjectById(client, pid),
-      yearsRepo.listYears(client, pid),
-      budgetItemsRepo.listBudgetItemsByProject(client, pid),
-      settingsRepo.getSettings(client),
-    ]);
-
-    // 집계·B-3 판정은 전부 lib/budget.ts가 한다 (§6.4). 여기서 비율을 다시 계산하지 않는다
-    const matrix = buildBudgetMatrix(years, items);
-
-    // 열 순서(order asc)는 buildBudgetMatrix가 고정한다 — 화면이 두 배열을 각자 정렬하지 않도록
-    // years도 같은 순서로 내린다
-    const yearById = new Map(years.map((year) => [year.id, year]));
-    const orderedYears = matrix.columns
-      .map((column) => yearById.get(column.yearId))
-      .filter((year): year is Year => year !== undefined);
-
-    const yearBudgetChecks: Record<string, YearBudgetMismatch | null> = {};
-    for (const column of matrix.columns) {
-      yearBudgetChecks[column.yearId] = column.mismatch;
-    }
-
-    return {
-      ok: true,
-      data: {
-        projectId: pid,
-        projectName: project.name,
-        todayISO: todayISO(new Date()), // §6.5 기준일 — Asia/Seoul 달력
-        years: orderedYears,
-        matrix,
-        items, // 위 buildBudgetMatrix에 넘긴 것과 같은 배열 — 집계와 원본이 같은 시점을 본다
-        yearBudgetChecks,
-        currencyUnit: settings.currencyUnit,
-      },
-    };
-  } catch (e) {
-    return toFailure(e);
-  }
-}
-
-/** 집행 내역 패널의 "내역" 줄 선택지 (§7.9.7 수행 모드 마지막 문장, §5.11·§5.17) */
-export interface ExecutionDetailOptions {
-  members: Member[];
-  /** 과제 전체. 같은 연차만 고르게 하는 것은 패널의 몫이다(IN-13) */
-  details: BudgetDetail[];
-}
-
-/**
- * 수행 모드 집행 패널의 인력·산출근거 선택지. getBudgetMatrix에 싣지 않는 이유는 선택지일 뿐
- * 집계와 같은 시점일 필요가 없어서다 — 매트릭스 조회의 계약(집계와 원본이 같은 시점)을 넓히지 않는다.
- * 선택지에 없는 id도 패널이 "목록에 없음"으로 드러내므로 시점 차이가 값을 바꾸지 않는다.
- */
-export async function getExecutionDetailOptions(
-  projectId: string
-): Promise<ActionResult<ExecutionDetailOptions>> {
-  try {
-    const pid = parseOrThrow(uuidSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
-    const { client } = await requireApprovedUser();
-    const [members, details] = await Promise.all([
-      membersRepo.listMembers(client, pid),
-      budgetDetailsRepo.listByProject(client, pid),
-    ]);
-    return { ok: true, data: { members, details } };
-  } catch (e) {
-    return toFailure(e);
   }
 }

@@ -40,7 +40,6 @@ export async function getDashboardData(): Promise<ActionResult<DashboardData>> {
         tasks: source.tasks,
         milestones: source.milestones,
         risks: source.risks,
-        budgetItems: source.budgetItems,
         deliverables: source.deliverables,
         techTargets: source.techTargets,
         todos: source.todos,

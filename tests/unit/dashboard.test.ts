@@ -1,4 +1,4 @@
-// 대시보드 집계 테스트 (SOT §7.2, §6.1, §6.2, §6.3, §6.4 B-1, §6.5, §6.9 PR-5·PR-9)
+// 대시보드 집계 테스트 (SOT §7.2, §6.1, §6.2, §6.3, §6.5, §6.9 PR-5·PR-9)
 // 픽스처는 과제 3개다 — 그중 하나(p3)는 archived=true이며 어떤 집계에도 나타나면 안 된다.
 // 기대값은 lib/{progress,goals,priority,risk,dates}.ts의 규칙으로 손계산해 고정한다.
 
@@ -9,12 +9,9 @@ import {
   type DashboardInput,
   type DashboardSettings,
 } from '@/lib/dashboard';
-// §6.4 집행률의 원본은 lib/budget.ts다 (대시보드는 호출만 한다)
-import { computeExecutionRate } from '@/lib/budget';
 import { computeDeliverableTotal, computeTechTargetTotal } from '@/lib/goals';
 import { addDays } from '@/lib/dates';
 import type {
-  BudgetItem,
   Deliverable,
   DeliverableAchievement,
   Milestone,
@@ -204,41 +201,6 @@ function risk(spec: {
     dueDate: spec.dueDate ?? null,
     status: spec.status,
     order: 0,
-  };
-}
-
-function budgetItem(spec: {
-  id: string;
-  projectId: string;
-  yearId: string;
-  planned: number;
-  executions?: readonly number[];
-}): BudgetItem {
-  return {
-    ...base(spec.id),
-    projectId: spec.projectId,
-    yearId: spec.yearId,
-    category: 'personnel',
-    plannedAmount: spec.planned,
-    cashAmount: null,
-    inKindAmount: null,
-    executions: (spec.executions ?? []).map((amount, i) => ({
-      id: `${spec.id}-e${i}`,
-      version: 1,
-      date: d(-10),
-      amount,
-      description: '',
-      note: '',
-      subcategoryCode: null,
-      spec: '',
-      unitPrice: null,
-      factors: null,
-      axis: null,
-      memberId: null,
-      detailId: null,
-    })),
-    note: '',
-    detailCount: 0,
   };
 }
 
@@ -439,14 +401,6 @@ const risks: Risk[] = [
   risk({ id: 'r-p3', projectId: 'p3', probability: 5, impact: 5, status: 'identified' }),
 ];
 
-const budgetItems: BudgetItem[] = [
-  budgetItem({ id: 'b1', projectId: 'p1', yearId: 'y1', planned: 10_000_000, executions: [2_000_000, 500_000] }),
-  budgetItem({ id: 'b2', projectId: 'p1', yearId: 'y1', planned: 0 }),
-  // B-1: 계획 0 + 집행 있음 → 집행률 N/A + "예산 외 집행" 경고
-  budgetItem({ id: 'b3', projectId: 'p2', yearId: 'y2', planned: 0, executions: [1_000_000] }),
-  budgetItem({ id: 'b4', projectId: 'p3', yearId: 'y3', planned: 999_999 }),
-];
-
 const deliverables: Deliverable[] = [
   deliverable({ id: 'd1', projectId: 'p1', targetTotal: 4, achieved: 3 }), // 75%
   deliverable({ id: 'd2', projectId: 'p2', targetTotal: 0 }), // D-1 → N/A
@@ -490,7 +444,6 @@ const input: DashboardInput = {
   tasks,
   milestones,
   risks,
-  budgetItems,
   deliverables,
   techTargets,
   todos,
@@ -600,18 +553,6 @@ describe('과제 요약 카드 (§7.2 2)', () => {
     expect(p2.techTargetRate).toBeNull();
   });
 
-  it('예산 집행률 — B-1: 계획 0이면 N/A, 집행이 있으면 예산 외 집행 경고', () => {
-    expect(p1.budget.planned).toBe(10_000_000);
-    expect(p1.budget.executed).toBe(2_500_000);
-    expect(p1.budget.rate).toBe(25);
-    expect(p1.budget.offBudgetExecution).toBe(false);
-
-    expect(p2.budget.planned).toBe(0);
-    expect(p2.budget.executed).toBe(1_000_000);
-    expect(p2.budget.rate).toBeNull();
-    expect(p2.budget.offBudgetExecution).toBe(true);
-  });
-
   it('다음 마일스톤 D-day는 오늘 이후 최근접 미완료 건이다', () => {
     // m-past(지난 것)·m-done(완료)은 후보가 아니다
     expect(p1.nextMilestone?.id).toBe('m-a');
@@ -697,16 +638,6 @@ describe('오늘의 To-Do (§7.2 6)', () => {
   it('과제 연결이 있으면 과제명을 싣는다', () => {
     expect(data.todayTodos.find((t) => t.id === 'todo-a')!.projectName).toBe('과제 A');
     expect(data.todayTodos.find((t) => t.id === 'todo-b')!.projectName).toBeNull();
-  });
-});
-
-describe('computeExecutionRate (§6.4 B-1)', () => {
-  it('계획액 0이면 null, 아니면 백분율', () => {
-    expect(computeExecutionRate(0, 0)).toBeNull();
-    expect(computeExecutionRate(0, 100)).toBeNull();
-    expect(computeExecutionRate(1000, 250)).toBe(25);
-    // B-2: 100% 초과도 그대로 돌려준다 (경고는 표시 단계의 몫)
-    expect(computeExecutionRate(1000, 1200)).toBe(120);
   });
 });
 

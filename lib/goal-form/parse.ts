@@ -18,7 +18,7 @@
 import { DELIVERABLE_TYPE_DEFAULT_UNITS } from '@/lib/constants';
 import { cellAt, cellText } from '@/lib/import/grid';
 import type { RawCell, RawSheet } from '@/lib/import/types';
-import { readExecutionDate } from '@/lib/input-form/parse-execution';
+import { readSheetDate } from '@/lib/input-form/sheet-date';
 import type { DeliverableType, Direction, MeasureMethod } from '@/types';
 import {
   GOAL_TOTAL_MARKER,
@@ -319,7 +319,7 @@ function readCount(rr: RowReader, acc: NoteAcc, column: number, label: string, u
 }
 
 function readDate(rr: RowReader, column: number, label: string): string | null {
-  const read = readExecutionDate(cellAt(rr.cells, rr.r, column));
+  const read = readSheetDate(cellAt(rr.cells, rr.r, column));
   if (read.kind === 'empty') {
     rr.issues.push(goalFormIssue('no-date', label));
     return null;

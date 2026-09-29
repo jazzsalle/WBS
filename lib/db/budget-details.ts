@@ -26,7 +26,7 @@ import {
 const TABLE = 'budget_details';
 
 // PostgREST 응답 상한(Supabase 기본 max-rows 1000)을 넘기려면 range로 이어 읽어야 한다.
-// Phase 5에서 임베드 자식이 1000행에서 에러 없이 잘려 집행률이 조용히 틀린 전례가 있다
+// Phase 5에서 임베드 자식이 1000행에서 에러 없이 잘려 합계가 조용히 틀린 전례가 있다
 // (budget-items.ts ITEM_SELECT 주석). 산출근거는 한 셀에 수십 행이 흔하므로
 // 과제 전체 조회는 그 위험에 그대로 해당한다 — 전부 페이징해 읽는다.
 const PAGE_SIZE = 1000;
@@ -96,7 +96,7 @@ type PagedResult = PromiseLike<{ data: unknown[] | null; error: PostgrestError |
 
 // "빈 페이지가 나올 때까지" 이어 읽고, 다음 오프셋은 요청 폭이 아니라 실제로 받은 행 수만큼
 // 전진시킨다 — 서버 max-rows가 PAGE_SIZE보다 작아도 구멍이 생기지 않는다
-// (lib/db/dashboard.ts의 fetchAllRows·budget-items.ts의 fetchExecutionsByItemIds와 같은 전략).
+// (lib/db/dashboard.ts의 fetchAllRows와 같은 전략).
 async function fetchAllRows(build: (from: number, to: number) => PagedResult): Promise<unknown[]> {
   const rows: unknown[] = [];
   for (let from = 0; ; ) {

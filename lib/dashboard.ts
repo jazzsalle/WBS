@@ -2,7 +2,7 @@
 // 부수효과 없는 순수 함수다. 파생 값은 저장하지 않고 읽을 때 계산한다.
 //
 // 계산식을 여기서 다시 쓰지 않는다 — 진척률 §6.1은 lib/progress.ts, 달성률 §6.2·§6.3은
-// lib/goals.ts, 집행률 §6.4는 lib/budget.ts, 마감·임박 판정 §6.5는 lib/dates.ts,
+// lib/goals.ts, 마감·임박 판정 §6.5는 lib/dates.ts,
 // 리스크 등급 §6.5는 lib/risk.ts, 우선순위 §6.9는 lib/priority.ts,
 // 트리 구성 §6.6은 lib/tree.ts, To-Do 필터·정렬 §7.13은 lib/todos.ts가 원본이다.
 // 단위 테스트: tests/unit/dashboard.test.ts
@@ -10,13 +10,11 @@
 import { buildTaskTree } from './tree';
 import { computeProjectProgress, computeStageProgress, computeYearProgress } from './progress';
 import { computeDeliverableTotal, computeTechTargetTotal } from './goals';
-import { computeProjectSummary } from './budget';
 import { computePriorityScore, computeUrgency, priorityGrade, type PriorityGrade } from './priority';
 import { daysBetween, formatDday, isOverdueTask, isUpcomingMilestone } from './dates';
 import { needsAttention, riskScore, riskSeverity } from './risk';
 import { filterTodos, sortTodos } from './todos';
 import type {
-  BudgetItem,
   Deliverable,
   Milestone,
   MilestoneType,
@@ -58,7 +56,6 @@ export interface DashboardInput {
   tasks: readonly Task[];
   milestones: readonly Milestone[];
   risks: readonly Risk[];
-  budgetItems: readonly BudgetItem[];
   deliverables: readonly Deliverable[];
   techTargets: readonly TechTarget[];
   todos: readonly Todo[];
@@ -97,15 +94,6 @@ export interface MilestoneRef {
   daysLeft: number;
 }
 
-export interface ProjectBudgetSummary {
-  planned: number;
-  executed: number;
-  /** B-1: planned 합계가 0이면 null(N/A) */
-  rate: number | null;
-  /** B-1: 계획 0인데 집행이 있는 "예산 외 집행" 경고 */
-  offBudgetExecution: boolean;
-}
-
 export interface ProjectSummaryCard {
   projectId: string;
   name: string;
@@ -121,7 +109,6 @@ export interface ProjectSummaryCard {
   deliverableRate: number | null;
   /** §6.3 가중 달성률. 가중치 합이 0이면 null */
   techTargetRate: number | null;
-  budget: ProjectBudgetSummary;
   /** date ≥ today이고 status ∉ {done, cancelled}인 것 중 최근접 */
   nextMilestone: MilestoneRef | null;
 }
@@ -287,7 +274,6 @@ export function computeDashboard(input: DashboardInput): DashboardData {
   const yearsByProject = groupBy(input.years, (y) => y.projectId);
   const tasksByYear = groupBy(input.tasks, (t) => t.yearId);
   const milestonesByProject = groupBy(input.milestones, (m) => m.projectId);
-  const budgetItemsByProject = groupBy(input.budgetItems, (b) => b.projectId);
   const deliverablesByProject = groupBy(input.deliverables, (d) => d.projectId);
   const techTargetsByProject = groupBy(input.techTargets, (t) => t.projectId);
 
@@ -310,9 +296,6 @@ export function computeDashboard(input: DashboardInput): DashboardData {
     const deliverableRate = computeDeliverableTotal(deliverablesByProject.get(project.id) ?? []).rate;
     const techTargetRate = computeTechTargetTotal(techTargetsByProject.get(project.id) ?? []).weightedRate;
 
-    // §6.4는 lib/budget.ts가 원본이다. 금액은 원 단위 정수 그대로 — 환산은 표시 단계에서만 (B-4)
-    const budgetSummary = computeProjectSummary(budgetItemsByProject.get(project.id) ?? []);
-
     const nextMilestone =
       (milestonesByProject.get(project.id) ?? [])
         .filter((m) => isUpcomingMilestone(m, today, NO_WINDOW_LIMIT))
@@ -331,12 +314,6 @@ export function computeDashboard(input: DashboardInput): DashboardData {
       progress,
       deliverableRate,
       techTargetRate,
-      budget: {
-        planned: budgetSummary.planned,
-        executed: budgetSummary.executed,
-        rate: budgetSummary.rate,
-        offBudgetExecution: budgetSummary.offBudget,
-      },
       nextMilestone: nextMilestone === null ? null : toMilestoneRef(nextMilestone, today),
     };
   });

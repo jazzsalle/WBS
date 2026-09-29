@@ -37,7 +37,8 @@ export const MAX_TASK_DEPTH = 10;
 // 구 백업(v1)은 budget_details 키가 없어 복원할 수 없고, K-5가 그 사실을 정확히 알린다
 // 3 = Phase 13(budget_rules 신설 + projects 한도 컬럼 2종 삭제, §5.18 RL-D7) — 같은 이유
 // 4 = Phase 16(staff·staff_salaries 신설 + members 컬럼 4종, §5.19·§5.20) — 같은 이유
-export const EXPECTED_SCHEMA_VERSION = 4;
+// 5 = Phase 23(집행 테이블 삭제 — 백업 대상에서 빠진다, §8.8) — 같은 이유
+export const EXPECTED_SCHEMA_VERSION = 5;
 
 // ─── 부록 A.1 비목 라벨 ──────────────────────────────────────
 

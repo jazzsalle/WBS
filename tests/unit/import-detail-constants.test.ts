@@ -194,16 +194,17 @@ describe('실측 세목 헤더 변형 해석', () => {
 });
 
 describe('ImportKind (§5.12.1)', () => {
-  // Phase 20·21: 'execution_form'·'goal_form'은 스냅샷 종류로만 쓴다 (§5.12.1)
-  it('네 값이 Zod를 통과한다', () => {
-    const kinds: ImportKind[] = ['budget_plan', 'budget_detail', 'execution_form', 'goal_form'];
+  // Phase 21: 'goal_form'은 스냅샷 종류로만 쓴다. Phase 23(S-1)에서 수행 양식 종류가 빠져
+  // 세 값만 남는다 — options 전체를 대조해 옛 값이 되살아나면 여기서 깨진다
+  it('세 값이 Zod를 통과하고 그 밖의 값은 없다', () => {
+    const kinds: ImportKind[] = ['budget_plan', 'budget_detail', 'goal_form'];
     for (const kind of kinds) {
       expect(importKindSchema.parse(kind)).toBe(kind);
     }
-    expect(importKindSchema.options).toEqual(['budget_plan', 'budget_detail', 'execution_form', 'goal_form']);
+    expect(importKindSchema.options).toEqual(['budget_plan', 'budget_detail', 'goal_form']);
   });
 
   it('정의되지 않은 값은 거부한다', () => {
-    expect(importKindSchema.safeParse('execution').success).toBe(false);
+    expect(importKindSchema.safeParse('unknown_kind').success).toBe(false);
   });
 });

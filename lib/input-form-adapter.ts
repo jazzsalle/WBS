@@ -233,7 +233,7 @@ function writeSheet(wb: ExcelJS.Workbook, sheet: FormSheet, sheetNames: Readonly
   let columnCount = 0;
   sheet.rows.forEach((row, r) => {
     columnCount = Math.max(columnCount, row.length);
-    // 날짜 변환은 데이터 행만 — 헤더(`집행일`)·소계 행의 라벨은 날짜가 아니다
+    // 날짜 변환은 데이터 행만 — 헤더(`달성일`·`측정일`)·소계 행의 라벨은 날짜가 아니다
     const isDataRow = sheet.kind !== 'guide' && rowRoleOf(sheet, r, headerRow) === 'data';
     row.forEach((cell, c) => {
       const target = ws.getCell(r + 1, c + 1);

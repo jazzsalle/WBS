@@ -757,7 +757,7 @@ describe('GF-9 필수값', () => {
 
 // ─── 날짜 ────────────────────────────────────────────────────
 
-describe('날짜 (readExecutionDate 재사용)', () => {
+describe('날짜 (readSheetDate 재사용)', () => {
   it('직렬값·yyyy-mm-dd 문자열 → ISO, 그 밖은 invalid-date', () => {
     const rows = parseOk(
       book({

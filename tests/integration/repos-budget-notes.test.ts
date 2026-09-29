@@ -1,4 +1,4 @@
-// 나머지 리포지토리 통합 테스트 — budget-items(+executions) / risks / notes /
+// 나머지 리포지토리 통합 테스트 — budget-items / risks / notes /
 // todos / import-profiles / app-users / settings (SOT §5.12~5.16, §14.2, N-10)
 // app_settings의 두 거부 케이스(⑤)는 반드시 PostgREST(authenticated) 경로로 확인한다 —
 // postgres 직결은 RLS·보호 트리거를 우회하므로 검증이 되지 않는다.
@@ -68,8 +68,8 @@ afterAll(async () => {
   await sql.end();
 });
 
-describe('budget-items + executions (§5.12, 원 단위 정수)', () => {
-  it('계획액(현금/현물) 갱신 → 집행 CRUD → 임베드 조회', async () => {
+describe('budget-items (§5.12, 원 단위 정수)', () => {
+  it('계획액(현금/현물) 갱신 → 재조회', async () => {
     const updated = await budgetItems.updateBudgetPlan(user.client, yearId, 'personnel', {
       plannedAmount: 70_000_000,
       cashAmount: 50_000_000,
@@ -80,29 +80,20 @@ describe('budget-items + executions (§5.12, 원 단위 정수)', () => {
     expect(updated.cashAmount).toBe(50_000_000);
     expect(updated.inKindAmount).toBe(20_000_000);
 
-    const execution = await budgetItems.addExecution(user.client, updated.id, {
-      date: '2026-03-15',
-      amount: 3_500_000,
-      description: '3월 인건비',
-      note: '',
-      createdBy: user.id,
-      updatedBy: user.id,
-    });
-    expect(execution.amount).toBe(3_500_000);
+    expect(updated.detailCount).toBe(0);
 
     const item = await budgetItems.getBudgetItemById(user.client, updated.id);
-    expect(item.executions).toHaveLength(1);
-    expect(item.executions[0]!.description).toBe('3월 인건비');
-
-    const patched = await budgetItems.updateExecution(user.client, updated.id, execution.id, {
-      amount: 3_600_000,
-      updatedBy: user.id,
-    });
-    expect(patched.amount).toBe(3_600_000);
-
-    await budgetItems.removeExecution(user.client, updated.id, execution.id);
-    const after = await budgetItems.getBudgetItemById(user.client, updated.id);
-    expect(after.executions).toEqual([]);
+    expect(item.plannedAmount).toBe(70_000_000);
+    expect(item.detailCount).toBe(0);
+    // Phase 23: 집행 관리 폐기(D-1) — BudgetItem은 계획액과 detailCount만 싣는다.
+    // 키 전체를 대조해 집행 배열 같은 자식이 다시 붙으면 여기서 깨진다
+    expect(Object.keys(item).sort()).toEqual(
+      [
+        'id', 'version', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy',
+        'projectId', 'yearId', 'category', 'plannedAmount', 'cashAmount', 'inKindAmount',
+        'note', 'detailCount',
+      ].sort()
+    );
   });
 });
 

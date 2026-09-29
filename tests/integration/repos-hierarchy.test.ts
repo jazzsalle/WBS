@@ -178,7 +178,7 @@ describe('stages / years / tasks CRUD 왕복 (임시 과제 위에서)', () => {
     const items = await budgetItems.listBudgetItemsByYear(user.client, year1.id);
     expect(items.map((i) => i.category).sort()).toEqual([...ALL_BUDGET_CATEGORIES].sort());
     expect(items.every((i) => i.plannedAmount === 0)).toBe(true);
-    expect(items.every((i) => i.executions.length === 0)).toBe(true);
+    expect(items.every((i) => i.detailCount === 0)).toBe(true);
 
     // 재호출(연차 추가)도 충돌 없이 12종을 만든다 — insert의 on conflict do nothing 경로
     const year2 = await years.createYear(user.client, { stageId, name: '2차년도' });

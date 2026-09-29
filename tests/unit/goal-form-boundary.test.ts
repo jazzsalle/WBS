@@ -97,7 +97,7 @@ function valueImports(source: string): string[] {
 
 /**
  * RPC 페이로드 계약 타입은 리포지토리(lib/db/import-snapshots)가 원본이다 — 미리보기가 그 모양을 만들어야 하므로
- * 타입만은 가져온다. 입력 양식(execution-preview.ts)과 같은 선례이고, 값 import는 여전히 금지다
+ * 타입만은 가져온다. 입력 양식 미리보기와 같은 선례이고, 값 import는 여전히 금지다
  */
 const TYPE_ONLY_ALLOWED = new Set(['lib/db/import-snapshots']);
 

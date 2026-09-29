@@ -1,14 +1,12 @@
 // 대시보드 과제 요약 카드 (SOT §7.2 2)
 // 카드 클릭 → /projects/[id]. 표시 전용 서버 컴포넌트다.
-// 진척률·달성률·집행률은 getDashboardData가 계산해 내려준 값을 그대로 쓴다 —
+// 진척률·달성률은 getDashboardData가 계산해 내려준 값을 그대로 쓴다 —
 // 여기서 다시 나누지 않는다 (O-4, P-8).
 // 아카이브 과제는 서버가 이미 뺀 목록이 온다 (§7.2 마지막 줄) — 화면이 되살리지 않는다.
 
 import Link from 'next/link';
 import type { ProjectSummaryCard } from '@/actions/dashboard';
-import type { Settings } from '@/types';
 import { PROJECT_STATUS_LABELS } from '@/lib/constants';
-import { formatAmount } from '@/lib/currency';
 import { formatRate } from '@/lib/goals';
 import Badge from '@/components/ui/Badge';
 import ProgressBar from '@/components/ui/ProgressBar';
@@ -22,53 +20,11 @@ function RateRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function BudgetLine({
-  budget,
-  currencyUnit,
-}: {
-  budget: ProjectSummaryCard['budget'];
-  currencyUnit: Settings['currencyUnit'];
-}) {
-  if (budget.offBudgetExecution) {
-    // B-1: 계획 0인데 집행이 있는 상태. 'N/A'로 뭉개면 잘못 쓴 돈이 화면에서 사라진다
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="red" title="계획액이 0인데 집행액이 있습니다 (§6.4 B-1)">
-          예산 외 집행
-        </Badge>
-        <span className="text-xs tabular-nums text-red-700">
-          {formatAmount(budget.executed, currencyUnit)} 집행
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-      <span
-        // B-2: 100% 초과는 빨강 경고. 판정 기준은 서버가 준 rate 하나뿐이다
-        className={`text-sm font-semibold tabular-nums ${
-          budget.rate !== null && budget.rate > 100 ? 'text-red-600' : 'text-grey-900'
-        }`}
-      >
-        {formatRate(budget.rate)}
-      </span>
-      <span className="text-[11px] tabular-nums text-grey-500">
-        {formatAmount(budget.executed, currencyUnit)} / {formatAmount(budget.planned, currencyUnit)}
-      </span>
-      {budget.rate === null && (
-        <span className="text-[11px] text-grey-400">편성된 예산이 없습니다</span>
-      )}
-    </div>
-  );
-}
-
 export interface ProjectSummaryCardsProps {
   cards: ProjectSummaryCard[];
-  currencyUnit: Settings['currencyUnit'];
 }
 
-export default function ProjectSummaryCards({ cards, currencyUnit }: ProjectSummaryCardsProps) {
+export default function ProjectSummaryCards({ cards }: ProjectSummaryCardsProps) {
   return (
     <section aria-labelledby="dashboard-projects-title">
       <div className="flex items-center justify-between gap-3">
@@ -130,15 +86,9 @@ export default function ProjectSummaryCards({ cards, currencyUnit }: ProjectSumm
                   </span>
                 </div>
 
-                <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <dl className="mt-4 grid grid-cols-2 gap-3">
                   <RateRow label="성과목표 달성률" value={formatRate(card.deliverableRate)} />
                   <RateRow label="기술목표 달성률" value={formatRate(card.techTargetRate)} />
-                  <div>
-                    <dt className="text-[11px] text-grey-500">예산 집행률</dt>
-                    <dd className="mt-0.5">
-                      <BudgetLine budget={card.budget} currencyUnit={currencyUnit} />
-                    </dd>
-                  </div>
                 </dl>
 
                 <div className="mt-4 border-t border-grey-100 pt-3 text-xs">

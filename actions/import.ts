@@ -138,7 +138,7 @@ type ParsedDraft = z.infer<typeof importDraftSchema>;
 
 // ─── 공통 헬퍼 ────────────────────────────────────────────────────────────────
 
-// 임포트는 예산 매트릭스·과제 개요·대시보드 집행률을 전부 바꾼다. 스냅샷은 설정 화면에 뜬다
+// 임포트는 예산 매트릭스·과제 개요·대시보드를 전부 바꾼다. 스냅샷은 설정 화면에 뜬다
 function revalidateImport(projectId: string): void {
   revalidatePath('/');
   revalidatePath(`/projects/${projectId}`);
@@ -602,7 +602,7 @@ export async function listImportSnapshots(
  * 스냅샷 시점의 계획액으로 되돌린다 (I-17·I-18 단일 RPC 트랜잭션).
  *
  * I-17: 복원은 **새 스냅샷을 만들지 않고**(복원분이 20개 창을 밀어내면 되돌릴 임포트 이력이
- * 사라진다) **행을 삭제하지도 않는다**(임포트 이후 그 비목에 붙은 집행 내역이 cascade로 사라진다).
+ * 사라진다) **행을 삭제하지도 않는다**(계획액 값만 되돌린다 — 행의 존재는 임포트가 정한 것이 아니다).
  *
  * RPC는 snapshotId와 건수만 돌려주므로 revalidate 대상 과제를 알 수 없다 — 먼저 읽는다
  * (없으면 NotFoundError. deleteImportProfile과 같은 패턴).

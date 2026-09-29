@@ -43,6 +43,7 @@
 - **Phase 25 — 붙임4형·조정회의형·참여인원 보기 + 붙임4 가져오기 + 과제 유형**: 순수 함수 계산(§6.19), 보기 3종 편집·내보내기·복사, 붙임4 8-2 우리 회사 블록 파서, 과제 개요에 과제 유형 입력(§5.3). §13 22번 해소.
 - **Phase 26 — 규칙 검증(제안·수행 공통) + 편성 항목·증빙**: 현재 버전에 같은 규칙 적용(§6.14 RL-1), 새 규칙(RL-20~RL-22)을 두 모드에, 세목 총액 보존(RL-23, 수행 전용), 증빙 체크리스트 화면.
 - 요약에 없는 세부(코드값·컬럼 타입·유일 제약·계산식의 경계 등)는 **각 Phase T0에서 정한다** — 본문에 "Phase N T0에서 확정"으로 표기했다.
+- **Phase 23 결정 (T0, 2026-09-29, `docs/plans/phase-23-plan.md` S-1~S-12)**: ImportKind `'execution_form'` 타입·check에서 제거 + 기존 수행 양식 스냅샷 삭제(§5.12.1), 옛 수행 양식 파일은 `_meta` `mode` 행으로 거부(§6.16), `lib/budget.ts` 유지·집행 함수만 삭제(§6.10.4·§14), `getBudgetMatrix` 삭제(§10), Phase 24 전 기본 모드 `제안`·수행 모드는 안내만(§7.9), 셀 상세 현금/현물 분리 입력 삭제(§7.9), 스냅샷 목록의 "수행 양식" 제거(§7.14), 입력 양식 액션 `mode` 인자 제거(§9), 부록 D.3 장비·SW 문구 정정.
 
 ### v4.7 → v4.8 변경 요약 — Phase 19~22 엑셀 양식 서식 · 수행 양식 · 목표 양식 · hwpx 계획서 가져오기 (사용자 지시 2026-09-27)
 
@@ -895,9 +896,12 @@ interface BudgetItem extends BaseEntity {
 // 스냅샷 종류는 `import_snapshots`의 컬럼이 아니라 jsonb `snapshot.kind`에 적는다(그런 컬럼이 없다). DB check 제약은
 // `import_profiles.kind`에만 있고, 이 타입과 맞추려고 네 값 전부를 허용한다(Phase 20 마이그레이션에서 교체)
 type ImportKind = 'budget_plan' | 'budget_detail' | 'execution_form' | 'goal_form';
-// ── 'execution_form'은 폐기 (v4.9, Phase 23) — 수행 양식(IN-9~IN-14)이 사라진다(D-1). 타입과 `import_profiles.kind`
-//    check에서 뺄지, 이미 쌓인 kind='execution_form' 스냅샷(jsonb)을 지울지·목록에서 어떻게 보일지는 Phase 23 T0에서 정한다
-//    (dev DB에 실데이터 없음 — 2026-09-29 확인). restore_import_snapshot의 executions 분기는 삭제한다(§9) ──
+// ── 'execution_form'은 폐기 (v4.9, Phase 23) — 수행 양식(IN-9~IN-14)이 사라진다(D-1). Phase 23에서 TS 타입·
+//    importKindSchema·스냅샷 kind enum·`import_profiles.kind` check에서 모두 뺀다 → ('budget_plan','budget_detail','goal_form').
+//    이 kind의 프로파일은 만든 적이 없으므로(위 주석) check 교체 전 0건을 확인하고, 있으면 마이그레이션이 raise한다.
+//    이미 쌓인 kind='execution_form' 스냅샷은 같은 마이그레이션에서 삭제한다 — 복원 경로(IN-14)가 사라지므로 남기면
+//    목록 파싱이 깨지거나 되돌릴 수 없는 행만 남는다(적용 전 건수 기록, dev DB 실데이터 없음 — 2026-09-29 확인).
+//    restore_import_snapshot의 executions 분기는 삭제한다(§9) ──
 
 interface ImportProfile extends BaseEntity {
   name: string;                   // 예: '산자부 사업비 총괄표'
@@ -1713,7 +1717,7 @@ evaluateBudgetRules(yearTotals, indirectBase) → PL-11~PL-13 (E1 · 비율 · �
 
 `yearTotals`는 비목별 금액에 더해 **`personnelSupportTotal`**(그 연차 `personnel_support` 세목의 현금+현물 소계)을 함께 싣는다. PL-11이 E1에서 그것만 빼야 하는데 비목 단위 합계만으로는 뺄 수 없기 때문이다. 간접비 기준액(PL-13)은 이 값을 빼지 **않는다**.
 
-`lib/budget.ts`(§6.4 집행률)와 **합치지 않는다** — 방향이 반대인 두 규칙이 한 파일에 있으면 기준액 정의가 섞인다. **v4.9**: `lib/budget.ts`의 집행률 부분은 Phase 23에서 삭제된다(§6.4). 남는 B-3(연차 예산 불일치)·매트릭스 헬퍼를 이 파일에 둘지 옮길지는 Phase 23 T0에서 정한다.
+`lib/budget.ts`(§6.4 집행률)와 **합치지 않는다** — 방향이 반대인 두 규칙이 한 파일에 있으면 기준액 정의가 섞인다. **v4.9**: `lib/budget.ts`의 집행률 부분은 Phase 23에서 삭제된다(§6.4). **`lib/budget.ts`는 파일을 유지한다**(Phase 23 계획 S-4) — 집행 함수(`sumExecutions`·`computeExecutionRate`·`isOffBudgetExecution`·`isOverExecuted`·`compute*Summary`·`BudgetExecutionInput`)만 지우고 B-3(`checkYearBudgetMismatch`)·매트릭스 헬퍼(`buildBudgetMatrix`와 그 타입)는 남긴다. `BudgetSummary`는 `{ planned, cash, inKind }`로 줄어든다. 이 파일로 옮기지 않는 이유는 위와 같다 — 산출근거 집계와 계획액 매트릭스는 기준이 다르다.
 
 ---
 
@@ -2056,7 +2060,7 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 
 ### 6.16 사업비 입력 양식 (Phase 17 · Phase 19~20 확장)
 
-> **수행 양식(IN-9~IN-14, Phase 20)은 폐기 (v4.9, Phase 23)** — 집행 관리는 RCMS·경영관리팀·정산 시스템 몫이다(D-1). 해당 행과 IN-2·IN-4 안의 수행 모드 문장은 **이력으로만 남긴다**. **제안 양식(IN-1~IN-8)은 그대로 유지**한다 — `_meta`에 `mode` 행이 없으면 제안 양식으로 본다는 IN-2 규칙과 제안 양식 바이트 불변(Phase 19)도 유지. `mode` 인자·`execution` 분기를 코드에서 걷어낸 뒤 옛 수행 양식 파일(`_meta.mode = execution`)을 올렸을 때의 거부 문구는 Phase 23 T0에서 정한다. 수행 모드의 엑셀은 협약 예산 보기별 내려받기·복사(§7.9.8)가 대신한다.
+> **수행 양식(IN-9~IN-14, Phase 20)은 폐기 (v4.9, Phase 23)** — 집행 관리는 RCMS·경영관리팀·정산 시스템 몫이다(D-1). 해당 행과 IN-2·IN-4 안의 수행 모드 문장은 **이력으로만 남긴다**. **제안 양식(IN-1~IN-8)은 그대로 유지**한다 — `_meta`에 `mode` 행이 없으면 제안 양식으로 본다는 IN-2 규칙과 제안 양식 바이트 불변(Phase 19)도 유지. `mode` 인자·`execution` 분기를 코드에서 걷어낸 뒤에도 옛 수행 양식 파일은 **명시적으로 거부**한다 — `_meta`에 `mode` 행이 있으면 **값과 무관하게** 거부한다(제안 양식에는 `mode` 행이 없으므로 `'execution'` 리터럴을 코드에 남길 필요가 없다). 검사 순서는 IN-2대로 과제 → 버전 → `mode` 행. 문구: "수행 양식(집행 내역) 파일입니다 — 집행 관리 기능이 삭제되어 올릴 수 없습니다. 제안 모드에서 [입력 양식 내려받기]로 받은 양식을 쓰세요." 제안 양식으로 오인해 반영하면 사용자가 모르는 데이터 변경이 된다(절대 규칙 5). `INPUT_FORM_VERSION`은 올리지 않는다 — 제안 양식 바이트가 그대로다. 수행 모드의 엑셀은 협약 예산 보기별 내려받기·복사(§7.9.8)가 대신한다.
 
 | # | 규칙 |
 |---|---|
@@ -2290,9 +2294,9 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 
 ### 7.9 연구비 (`/projects/[id]/budget`)
 
-**모드 토글 `[제안 | 수행]`** (Phase 9). 같은 매트릭스를 두 관점으로 본다. 기본은 `수행`.
+**모드 토글 `[제안 | 수행]`** (Phase 9). 같은 매트릭스를 두 관점으로 본다. 기본은 `제안`(v4.9 Phase 23 — Phase 23 전에는 `수행`이었다. 집행이 사라진 뒤 수행 모드에는 Phase 24 전까지 볼 숫자가 없다).
 
-> **v4.9 — 수행 모드 = 협약 예산.** 아래 표의 **"수행 모드 (v1 동작)" 열, 셀의 집행·집행률 표시, 집행 내역 패널은 폐기 (v4.9, Phase 23)** — 집행 관리는 RCMS·경영관리팀·정산 시스템 몫이다(D-1). 이력으로만 남긴다. 수행 모드는 Phase 24부터 **협약 예산 버전**(§5.21)을 여러 보기로 본다(§7.9.8) — 제안 모드와 **같은 숫자가 아니다**(D-3·D-6: 첫 버전만 제안에서 보내고 이후 독립). 그래서 아래 "왜 탭을 늘리지 않는가"의 전제(두 모드가 같은 계획액)는 v4.9에서 더는 성립하지 않는다 — 토글은 유지한다. Phase 23 완료 ~ Phase 24 착수 사이 수행 모드 화면의 모양(빈 안내 등)과 기본 모드는 Phase 23 T0에서 정한다. 제안 모드 열은 그대로다.
+> **v4.9 — 수행 모드 = 협약 예산.** 아래 표의 **"수행 모드 (v1 동작)" 열, 셀의 집행·집행률 표시, 집행 내역 패널은 폐기 (v4.9, Phase 23)** — 집행 관리는 RCMS·경영관리팀·정산 시스템 몫이다(D-1). 이력으로만 남긴다. 수행 모드는 Phase 24부터 **협약 예산 버전**(§5.21)을 여러 보기로 본다(§7.9.8) — 제안 모드와 **같은 숫자가 아니다**(D-3·D-6: 첫 버전만 제안에서 보내고 이후 독립). 그래서 아래 "왜 탭을 늘리지 않는가"의 전제(두 모드가 같은 계획액)는 v4.9에서 더는 성립하지 않는다 — 토글은 유지한다. **Phase 23 완료 ~ Phase 24 착수 사이**: 기본 모드는 `제안`, 토글은 유지한다. `[수행]`을 고르면 매트릭스·숫자 없이 안내만 보인다 — "수행 모드(협약 예산 버전·보기)는 준비 중입니다. 집행 관리는 v4.9에서 삭제되었습니다 — 집행은 RCMS·경영관리팀·정산 시스템에서 관리합니다." 빈 매트릭스에 0을 보이면 데이터가 없는 것인지 금액이 0인지 구별할 수 없다(절대 규칙 5). 툴바 버튼([엑셀 가져오기]·[입력 양식 내려받기]·[입력 양식 올리기])은 제안 모드 전용이다. 화면 로컬 모드 값의 이름은 `'plan' | 'agreement'`(수행 = 협약 예산). 제안 모드 열은 그대로다.
 
 > **왜 탭을 늘리지 않는가**: 제안과 수행은 **같은 숫자**(연차 × 비목의 계획액)를 다룬다. 화면을 나누면 같은 값이 두 곳에 나타나 어느 쪽이 최신인지 사용자가 판단해야 하고, 비목 12행 × 연차 열이라는 표 구조도 그대로 중복된다. 모드는 **셀을 클릭했을 때 무엇이 열리는가**만 바꾼다.
 
@@ -2304,7 +2308,7 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 | 하단 요약 | 연차별 합계·집행률·잔액 | 연차별 합계·현금/현물 비중·**지침 검증 배지** |
 
 - **매트릭스 테이블**: 행 = 12개 비목, 열 = 연차 + 합계. 두 모드가 공유한다
-- 예산액은 셀에서 직접 인라인 편집. 셀 상세에서 현금/현물 분리 입력 (`cashAmount`/`inKindAmount`, 합계가 `plannedAmount`). **단 잠긴 셀은 제외**(PL-9)
+- 예산액(제안 모드 총액, `updateBudgetPlan`)은 셀에서 직접 인라인 편집. **단 잠긴 셀은 제외**(PL-9). ~~셀 상세에서 현금/현물 분리 입력~~ — **v4.9 Phase 23에서 삭제**: 그 입력칸은 집행 내역 패널(`BudgetDetailPanel`) 안에 있었고 패널과 함께 사라진다. 현금/현물 분리값(`cashAmount`/`inKindAmount`, 합계가 `plannedAmount`)은 **산출근거 축(§5.17) 또는 총괄표 임포트(§6.8)로만** 정한다 — 이 Phase는 지우기만 하므로 제안 모드에 새 편집 UI를 만들지 않는다
 - 표시 단위는 `settings.currencyUnit` 적용 (기본 천원)
 - ~~집행률 100% 초과 셀은 빨강, 예산 외 집행은 경고 아이콘~~ — **폐기 (v4.9, Phase 23)**
 - 툴바에 **[엑셀 가져오기]** 버튼 → §7.9.1 마법사 (예산계획 전용). 잠긴 셀은 S-14로 반영에서 빠진다
@@ -2545,7 +2549,7 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 
 - **팀 설정**: `Settings`(§5.16) 필드 편집 폼 — 마감 임박 기준일, 마일스톤 알림 기준일, 주 시작 요일, 간트 기본 스케일, 표시 통화 단위, 진척률 가중 기준. 저장 시 `updateSettings`.
 - **사용자 관리**: `app_users` 목록 (이름, 이메일, 상태, 마지막 접속). 승인 대기자(`active=false`)는 상단에 뱃지와 [승인] 버튼(§14.2 A-3). 활성 사용자는 [비활성화] 가능(본인 제외). 내 프로필(표시 이름, Member 연결)도 여기서 편집.
-- **백업·복원**: [지금 내보내기](K-1), 마지막 백업 시각·자동 백업 상태(K-2), 백업 폴더 변경(Tauri 환경만), [복원] — 파일 선택 + 2단계 확인(K-4). 임포트 스냅샷(I-17) 목록·복원도 이 섹션에 둔다. 목표 양식 스냅샷(`kind: 'goal_form'`)은 목록에 "목표 양식"으로, hwpx 반영 스냅샷(`sheetName: '계획서(hwpx)'`)은 **"계획서(hwpx)"**로 따로 보이되 둘 다 복원 버튼은 비활성이다(GF-11, HX-8, U-11). **수행 양식 스냅샷(`kind: 'execution_form'`)의 "수행 양식" 표시·복원은 폐기 (v4.9, Phase 23)** — IN-14와 함께 사라진다(D-1). 이미 쌓인 스냅샷의 처리는 §5.12.1 주석대로 Phase 23 T0에서 정한다.
+- **백업·복원**: [지금 내보내기](K-1), 마지막 백업 시각·자동 백업 상태(K-2), 백업 폴더 변경(Tauri 환경만), [복원] — 파일 선택 + 2단계 확인(K-4). 임포트 스냅샷(I-17) 목록·복원도 이 섹션에 둔다. 목표 양식 스냅샷(`kind: 'goal_form'`)은 목록에 "목표 양식"으로, hwpx 반영 스냅샷(`sheetName: '계획서(hwpx)'`)은 **"계획서(hwpx)"**로 따로 보이되 둘 다 복원 버튼은 비활성이다(GF-11, HX-8, U-11). **수행 양식 스냅샷(`kind: 'execution_form'`)의 "수행 양식" 표시·복원은 폐기 (v4.9, Phase 23)** — IN-14와 함께 사라진다(D-1). 이미 쌓인 `kind: 'execution_form'` 스냅샷은 Phase 23 마이그레이션이 삭제하므로(§5.12.1 주석) 목록에 나타나지 않고, `ImportSnapshotPanel`에서 "수행 양식" 표시·복원 분기를 걷어낸다.
 - **사내 명부 연동** (Phase 12, §6.13): HR API 키 입력 — `password` 타입, 저장 후에는 **끝 4자리만** 보이고 값은 다시 읽지 않는다. `[연결 확인]`(HR을 한 번 호출해 성공/실패와 인원 수를 보여 준다) · `[키 삭제]`. **키는 OS 키체인에 저장하며 앱 DB·백업 파일에 들어가지 않는다**(HR-11·HR-12 — 그래서 §8.7 백업으로 옮겨지지 않고 PC마다 등록해야 한다. 그 사실을 화면에 적는다). Tauri가 아니면 "이 창에서만 유지됩니다"로 밝힌다.
   - 키 발급 방법을 한 줄로 안내한다: `hr.unes.kr 로그인 → 🔑 API 키 → 용도 입력 → 이메일 인증`. **키는 발급 화면에서 한 번만 보인다**(HR 문서)
 - **따라하기** (Phase 14, §7.17 TU-1): 현재 상태(버튼 표시 중 / 숨김) + `[따라하기 다시 열기]`(`dismissed=false`) + 기록된 예제 과제 링크. 상태는 `LocalConfig`(PC별)
@@ -2565,7 +2569,7 @@ RULE_SPECS: Record<RuleCode, { kind, needsValue, valueUnit, scope, label }>  // 
 
 | # | 규칙 |
 |---|---|
-| HP-1 | **본문은 `content/help/<slug>.md`** 파일이다(저장소에 커밋). slug = 화면 키 15개(`dashboard`·`projects`·`project`·`wbs`·`gantt`·`board`·`goals`·`milestones`·`budget`·`budget-rules`·`team`·`risks`·`notes`·`todos`·`settings`) + `calculations`(진척률·달성률·집행률·산출근거·규칙 판정의 계산 방식) + `faq`(자주 묻는 것 — 백업·충돌·오프라인·키체인). 서버 컴포넌트가 `fs`로 읽는다. `next.config.ts` `outputFileTracingIncludes`에 `./content/**`를 넣는다 — 템플릿(X-1)과 같은 이유로, 빠지면 standalone 산출물에서 도움말이 통째로 사라진다. |
+| HP-1 | **본문은 `content/help/<slug>.md`** 파일이다(저장소에 커밋). slug = 화면 키 15개(`dashboard`·`projects`·`project`·`wbs`·`gantt`·`board`·`goals`·`milestones`·`budget`·`budget-rules`·`team`·`risks`·`notes`·`todos`·`settings`) + `calculations`(진척률·달성률·연차 예산 불일치·산출근거·규칙 판정의 계산 방식) + `faq`(자주 묻는 것 — 백업·충돌·오프라인·키체인). 서버 컴포넌트가 `fs`로 읽는다. `next.config.ts` `outputFileTracingIncludes`에 `./content/**`를 넣는다 — 템플릿(X-1)과 같은 이유로, 빠지면 standalone 산출물에서 도움말이 통째로 사라진다. |
 | HP-2 | **렌더 경로는 노트와 같다** — `lib/notes.ts` `parseMarkdown` → `MarkdownViewer`(React 엘리먼트). `dangerouslySetInnerHTML`·외부 마크다운 라이브러리를 쓰지 않는다. 우리가 쓴 문서라도 경로를 둘로 만들지 않는다 — 노트 파서의 부분집합만 쓰고, 파서가 모르는 문법은 **원문 그대로 보이므로** 도움말 파일은 그 부분집합(제목 `#`~`###`, 목록, 굵게, 인라인 코드, 링크, 인용, 표는 파서가 지원할 때만)으로만 쓴다. |
 | HP-3 | **SOT가 옳다.** 도움말의 설명·수치가 SOT §6·§7·부록과 다르면 도움말이 틀린 것이다. 수치(연구수당 20%, 간접비 10% 등)는 출처(부록 D의 고시·조문)를 함께 적는다. 도움말을 고칠 때 SOT를 먼저 본다. |
 | HP-4 | **화면마다 `?`** — 대시보드·과제 목록·과제 헤더(탭별로 slug가 바뀐다: `/projects/[id]/wbs` → `wbs`)·To-Do·설정 헤더에 `HelpLink`(`?` 아이콘 + "도움말" 툴팁) → `/help#<slug>`. 도움말 페이지는 좌측 목차 + 우측 본문, 해시로 절 이동·강조. `print:hidden`. |
@@ -2882,7 +2886,7 @@ applyStaffSalary(memberId, asOfDate, expectedVersion?)   // annualSalary + 기�
 
 **Budget Input Form** (Phase 17 — §7.9.7, §6.16)
 
-> **수행 모드 부분 폐기 (v4.9, Phase 23)**: `commitExecutionForm`과 `buildInputForm`·`previewInputForm`의 `mode` 인자·`'execution'` 분기를 삭제한다(D-1). 제안 양식 경로(`buildInputForm`·`previewInputForm`·`commitInputForm`)는 유지한다 — 시그니처에서 `mode`를 뺄지는 Phase 23 T0에서 정한다.
+> **수행 모드 부분 폐기 (v4.9, Phase 23)**: `commitExecutionForm`과 `buildInputForm`·`previewInputForm`의 `mode` 인자·`'execution'` 분기를 삭제한다(D-1). 제안 양식 경로(`buildInputForm`·`previewInputForm`·`commitInputForm`)는 유지하고 **시그니처에서 `mode`를 뺀다** — `buildInputForm(projectId, yearId)`, `previewInputForm(projectId, formData)`. 값이 하나뿐인 인자는 호출부에 거짓 선택지를 남긴다. `InputFormMode`·`sheetsFor(mode)`·`MODE_MISMATCH_MESSAGES`·`InputFormPreviewResultOf`도 함께 삭제한다. 옛 수행 양식 파일의 거부는 IN-2 `_meta` 검사가 맡는다(§6.16 폐기 표기).
 
 ```
 buildInputForm(projectId, yearId, mode)            // xlsx 생성(서버, exceljs 어댑터, 부록 F). _meta에 mode. mode: 'plan' | 'execution' (IN-9)
@@ -3100,7 +3104,7 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 | `getMilestonesData(projectId)` | `milestones.ts` | 마일스톤·과제 개요 |
 | `getTeam(projectId)` | `team.ts` | WBS·칸반·과제 개요. 기관·인력 목록만 |
 | `getTeamScreenData(projectId)` | `team.ts` | 인력·기관. `getTeam` + 인력별 배정 작업(§7.10 사이드 패널) |
-| `getBudgetMatrix(projectId)` | `budget.ts` | 연구비(수행 모드) — **v4.9**: 집행 합계·집행률을 싣지 않게 되고, 수행 모드가 협약 예산으로 바뀐다. 이 조회의 존폐·이름은 Phase 23 T0에서 정한다 |
+| ~~`getBudgetMatrix(projectId)`~~ | ~~`budget.ts`~~ | **삭제 (v4.9, Phase 23)** — `BudgetMatrixData`·`getExecutionDetailOptions`/`ExecutionDetailOptions`와 함께. 집행 합계를 싣는 것이 존재 이유였고, 연구비 페이지는 `getBudgetPlanData`만 쓴다. 수행 모드(협약 예산)의 조회는 Phase 24 T0에서 정한다 |
 | `getBudgetPlanData(projectId)` | `budget-plan.ts` | 연구비(제안 모드) — 위 **Budget Plan 조회** 참조 |
 | `getBudgetDetails(yearId, category)` | `budget-plan.ts` | 연구비 산출근거 패널. **셀을 열 때 클라이언트 컴포넌트가 호출한다** |
 | `getRiskMatrix(projectId)` | `risks.ts` | 리스크·과제 개요 |
@@ -3226,7 +3230,7 @@ runHealthPing()                      // §14.6 F-2 자동 일시정지 방지
 │   ├── tree.ts                         buildTree, flatten, 순환검사, WBS코드
 │   ├── progress.ts                     §6.1 4단계 롤업
 │   ├── goals.ts                        §6.2 §6.3 달성률 계산
-│   ├── budget.ts                       §6.4 B-3·B-4 (집행률 부분은 v4.9 Phase 23에서 삭제 — 파일 존폐는 Phase 23 T0)
+│   ├── budget.ts                       §6.4 B-3·B-4, 계획액 매트릭스 헬퍼 (집행률 부분은 v4.9 Phase 23에서 삭제, 파일은 유지 — §6.10.4)
 │   ├── budget-plan.ts                  §6.10 산출근거 금액·집계·지침 검증 (PL-1~PL-14)
 │   ├── rules.ts                        §6.14 연구비 사용 규칙 판정 (RL-1~RL-19, v4.9 RL-20~RL-23). 제안·수행 공통 판정기 하나. 집계는 budget-plan.ts에서 받는다
 │   ├── agreement/                      【v4.9 제안 이름 — Phase 24 T0에서 확정】 §6.19 협약 예산 보기 계산·버전 간 증감·세목 총액 보존·붙임4 파싱(격자 → 금액 줄). 순수 함수, xlsx 무의존, 단위 테스트 필수
@@ -4353,7 +4357,7 @@ export const SUBCATEGORY_ALIASES: Record<BudgetCategory, Record<string, string>>
 - SW 현물 ≤ 구입가 20%, 구입 5년 이내 (제68조②③) — SW별 구입가 없음
 - 연구실운영비: 소모성 비용 계상 금지, 사무용 기기·SW는 활용·관리계획 첨부 시만 (제68조④) — 품목 없음
 - 능률성과급 ≤ 과제 간접비 10% (제69조③) — `indirect_hr` 안에 성과급 구분 없음
-- 장비·SW 구입은 종료일 2개월 전까지 (제23조⑥·제25조⑨) — 집행일 비교는 수행 모드 (v4.9: 앱이 집행을 관리하지 않는다 — D-1. 문구 정정은 Phase 23)
+- 장비·SW 구입은 종료일 2개월 전까지 (제23조⑥·제25조⑨) — 구입일 데이터 없음(앱은 집행을 관리하지 않는다, D-1)
 - 원래계획 대비 변경 시 사전승인: 총액·연도별 정부/기관부담·간접비 증액·연구수당 증액·위탁 20% 증액·3천만 원 장비 변경 (제73조①) — 원래계획 스냅샷 없음
 - 연구혁신비 ≤ (재료비+활동비) 10%·연차 평균 5천만 원 (제25조의2) — 세목 없음, §13 21번
 - 보안수당 ≤ 개인 인건비 3% (제26조의2) — 세목 없음, §13 21번
