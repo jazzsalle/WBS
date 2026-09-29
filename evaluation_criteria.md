@@ -402,6 +402,8 @@ evaluator는 이 체크리스트로 PASS/FAIL을 판정한다. 모든 항목은 
 
 ## Phase 20 — 수행 양식 (SOT v4.8 §5.12, §6.16 IN-9~IN-14, §7.9.7 수행 모드, §9 Budget Input Form, §13 12-a)
 
+> **v4.9 폐기** — 수행 양식은 Phase 23에서 삭제된다(SOT D-1). 이 체크리스트는 Phase 20 합격 기록으로만 남긴다 — 이후 Phase의 채점에 쓰지 않는다.
+
 > 수행 양식은 제안 양식과 **같은 시트·열 + `집행일`**이다(IN-9). 대상은 산출근거가 아니라 `BudgetExecution`이고 반영은 **id 기반**(IN-10). 금액 열을 **읽는다**(IN-11). 미리보기와 반영이 다른 파싱 경로면 FAIL(IN-6·IN-13).
 
 **스키마·RPC**
@@ -471,3 +473,36 @@ evaluator는 이 체크리스트로 PASS/FAIL을 판정한다. 모든 항목은 
 - [ ] 긴 텍스트 표시(§7.7, U-12): 탭 2 행 확장 텍스트(평가방법 상세·평가환경·표준·인증기준·기준설정 근거·비고)와 탭 1 평가방법(증빙) 열이 **한 줄 + `…` + [더보기]**. 마우스 오버 시 전체 오버레이, [더보기] 클릭 시 아래로 펼침·다시 누르면 접기. 공용 컴포넌트 하나, `dangerouslySetInnerHTML` 0, 다크 모드 토큰, **인쇄 레이아웃은 전부 펼친 상태**
 - [ ] 통합 테스트(DB): 실측(또는 픽스처) 격자로 preview → commit → 기술목표에 measureDescription·evaluationEnvironment 채워지고 **basisRationale·standardBasis·worldBest·baselineDomestic은 기존 값 그대로**, 기존 동명 기술목표는 같은 id update, 실적·측정 무변경, 해시 불일치 거부, 미리보기 뒤 DB 변경은 덮어씀(충돌로 건너뛰지 않음), 스냅샷 kind `goal_form`·`sheetName` '계획서(hwpx)'
 - [ ] `npm test`·`tsc`·`build` 통과. §13 13 해소 표기 확인. 절대 규칙 3·5, 민감 파일(`samples/`) 커밋 0
+
+## Phase 23 — 집행 관리 삭제 (SOT v4.9 §5.12·§5.12.1, §6.4, §6.16 IN-9~IN-14, §7.2·§7.3·§7.9·§7.9.7·§7.14, §8.7 K-9, §8.8, §9, 부록 B.4)
+
+> 집행 관리는 RCMS·경영관리팀·정산 시스템 몫이다(D-1). 이 Phase는 **지우기만** 한다 — 협약 예산(Phase 24~26)의 테이블·화면을 미리 만들면 FAIL. **제안 모드 데이터(`budget_items`·`budget_details`)와 제안 양식은 한 글자도 바뀌지 않아야 한다**(D-3). 계획액 규칙 B-3·B-4는 유지(§6.4). Phase 23 T0에서 정하기로 한 항목(ImportKind `'execution_form'`·기존 수행 양식 스냅샷 처리, 옛 수행 양식 파일 거부 문구, `lib/budget.ts` 존폐, `getBudgetMatrix` 존폐, Phase 24 전 수행 모드 화면과 기본 모드, 입력 양식 액션의 `mode` 인자)은 **계획서(`docs/plans/phase-23-plan.md`)에 결정으로 적혀 있고 구현이 그대로여야** 한다.
+
+**마이그레이션·DB**
+- [ ] 마이그레이션 1개: `drop table budget_executions`(인덱스·정책·Realtime publication 항목이 함께 사라짐), `drop function commit_execution_form`, `restore_import_snapshot` 재정의 — `executions` 분기만 제거하고 `items`·`details`(D-17a) 경로와 `goals` 키 거부(GF-11)는 **한 글자도 불변**, `restore_backup` 재정의 — `budget_executions` 처리(Phase 20의 `spec` 기본값·`detail_id` 처리)만 빼고 Phase 21의 `deliverables`·`tech_targets` 기본값 채움은 그대로. `app_settings.schema_version` **5**(§8.8)와 `lib/constants.ts` `EXPECTED_SCHEMA_VERSION = 5`가 **같은 커밋**. `npx supabase db push` 성공
+- [ ] 마이그레이션 머리말에 **RLS 영향 없음 근거**: 새 테이블 없음, 삭제 테이블의 정책은 테이블과 함께 사라짐, 다른 테이블 정책은 `budget_executions`를 참조하지 않음. `import_profiles.kind` check·기존 `kind='execution_form'` 스냅샷 처리가 T0 결정과 일치
+- [ ] DB에 `budget_executions`를 참조하는 함수·뷰·트리거·정책 0건(`pg_proc.prosrc`·`pg_views`·`pg_policies` 조회 — 통합 테스트 또는 검증 스크립트로 근거 제시). `delete_project`·`delete_year` 등 연쇄 삭제 RPC가 그대로 동작
+- [ ] dev DB에 집행 실데이터가 없음을 적용 전에 확인한 기록(SOT §8.8 — 2026-09-29 확인)이 계획서 또는 PROGRESS.md에 있다
+
+**백업·복원 (§8.7 K-5·K-9, §8.8)**
+- [ ] `BACKUP_TABLES`에서 `budget_executions` 제거. 내보내기 JSON에 `budget_executions` 키 없음, `schemaVersion: 5`
+- [ ] **v5 왕복 테스트**: 내보내기 → 전체 복원 → 전 테이블 행 수·대표 행 동일(`budget_items`·`budget_details`·`budget_rules`·목표 4종·`staff` 포함)
+- [ ] **옛 v4 백업 거부 테스트**: `schemaVersion: 4` 파일(`budget_executions` 키 포함)을 복원하면 K-5 버전 게이트가 **버전 불일치 메시지**로 거부하고 데이터 불변 — "테이블 데이터가 없습니다" 같은 엉뚱한 메시지나 집행 행을 조용히 버리는 복원이면 FAIL
+- [ ] 파괴적 테스트(`tests/destructive/` — `guard.ts` 대상 테이블 목록·`backup-roundtrip.test.ts`)가 새 테이블 목록으로 갱신되고 통과
+
+**코드 제거**
+- [ ] 타입·Zod·매퍼: `BudgetExecution`·`BudgetItem.executions`·집행 Zod 스키마·매퍼 변환 제거. `BudgetItem`의 계획액 필드·`detailCount`는 그대로
+- [ ] 리포지토리·액션: 집행 CRUD(`addExecution`·`updateExecution`·`deleteExecution`)와 `lib/db/`의 집행 조회·페이징 제거. `updateBudgetPlan`은 그대로
+- [ ] 화면: 집행 패널(`ExecutionPanel`·`ExecutionDetailRow` 등), 매트릭스 셀의 집행·집행률 표시, 수행 모드 하단 집행률·잔액 요약 제거. Phase 24 전 수행 모드 화면·기본 모드는 T0 결정대로(빈 화면에 조용히 0이 보이면 FAIL — 절대 규칙 5)
+- [ ] 수행 양식: `lib/input-form/`의 execution mode(`parse-execution.ts`·`execution-preview.ts`·layout `mode` 분기·`_meta` `mode`/`execution:`/`detail:` 생성), `lib/input-form-adapter.ts`의 수행 부분, `actions/input-form.ts` `commitExecutionForm`, `ExecutionFormUpload`, §7.9.7 수행 모드 툴바 제거. 옛 수행 양식 파일(`_meta.mode = execution`)을 제안 모드에 올리면 **명시적으로 거부**(T0 문구) — 제안 양식으로 오인해 반영되면 FAIL
+- [ ] 집행률: `lib/budget.ts`의 집행률·예산 외 집행·초과 판정(B-1·B-2) 제거, B-3(연차 예산 불일치) 판정과 그 테스트는 유지. 대시보드(`lib/dashboard.ts`·`lib/db/dashboard.ts`·`ProjectSummaryCards`·`app/page.tsx`)·과제 개요·과제 카드의 집행률·집행액 제거. 대시보드 지표 카드 5개(§7.2)는 불변
+- [ ] 설정 화면(`ImportSnapshotPanel`)의 "수행 양식" 스냅샷 표시·복원 경로가 T0 결정대로 정리(§7.14)
+- [ ] 도움말·안내 문구: `content/help/`(`budget`·`calculations`·`dashboard` 등)의 집행·집행률 설명 제거·정정, `lib/rules-presets.ts` 부록 D.3 "집행일 비교는 수행 모드" 문구가 SOT 부록 D.3 정정과 일치. 튜토리얼 단계가 집행 기능을 가리키지 않음
+- [ ] 관련 테스트 제거·갱신: `input-form-execution-*`·`execution-form-actions`·`budget-executions-paging` 등 집행 전용 테스트 삭제, 집행을 섞어 쓰던 테스트(`budget.test.ts`·`dashboard.test.ts`·`mapper.test.ts`·`repos-*`·`budget-actions`·`input-form-*`·`goal-form-*` 경계 테스트 등)는 집행 부분만 걷어내고 나머지 단언 유지 — 테스트를 통째로 지워 커버리지를 잃으면 FAIL
+- [ ] **남은 참조 grep 0**: `app/`·`components/`·`actions/`·`lib/`·`types/`·`content/`·`tests/`와 새 마이그레이션에서 `execution`(대소문자 무시)·`집행률`·`BudgetExecution`·`budget_executions` 0건. 예외는 ① 이전 Phase의 기존 마이그레이션 파일(이력) ② `docs/`(SOT 폐기 표기·계획서) ③ T0 계획서가 명시해 남긴 위치(예: ImportKind 타입을 남기기로 정한 경우)뿐이며, 예외 목록을 보고서에 적는다
+
+**회귀 없음**
+- [ ] 제안 모드: 매트릭스·잠금(PL-9)·산출근거 패널·규칙 검증 패널·[연구비 규칙]·[인건비] 탭·[급여 반영]·총괄표/산출근거 임포트·제출 서식 내보내기 테스트 전부 그대로 통과. 부록 B.7·B.8·B.9 수치 불변
+- [ ] 입력 양식(제안): 내려받은 양식 **바이트 불변**(Phase 19 layout·build·style 테스트 그대로), 왕복·`commitInputForm`·스냅샷 복원(D-17a) 통과
+- [ ] 목표·목표 양식(§6.17)·hwpx(§6.18)·WBS·간트·칸반·마일스톤·리스크·노트·To-Do·조직원·참여율 테스트 전부 통과. `restore_import_snapshot`의 `items`·`details` 복원과 `goals` 거부가 통합 테스트로 불변
+- [ ] `npm test`·`npx tsc --noEmit`·`npm run build` 통과. 절대 규칙 3(UI·액션이 supabase 직접 호출 없음)·5(빈 배열 폴백 없음). 협약 예산(§5.21~§5.24) 테이블·코드가 이 Phase에 들어오지 않음
