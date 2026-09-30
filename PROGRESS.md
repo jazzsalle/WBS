@@ -1,6 +1,8 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
+2026-09-30 (**Phase 24 착수 전 — 합격 기준 초안·계획 초안까지**. 코드 변경 없음. 다음 세션: Q1~Q5 답 받기 → T0)
+
 2026-09-29 회사 PC (**Phase 23 완료** — 집행 관리 삭제. evaluator PASS, 테스트 3,180건 + 파괴적 11건, `schema_version` 5 적용(DB 공유 — 집 PC는 `git pull`만). 다음 `/phase-run 24`)
 
 2026-09-29 밤 집 PC (**SOT v4.9 — 수행 모드 = 협약 예산 설계 확정**, 코드 변경 없음. 다음 회사 PC에서 `/phase-run 23`)
@@ -344,6 +346,14 @@
 - 명세 밖 추가: `actions/budget.ts` `getExecutionDetailOptions(projectId)`(패널 인력·산출근거 선택지, 읽기 전용) · `tests/unit/input-form-boundary.test.ts` 산식 호출 허용 목록에 `parse-execution.ts`·`execution-preview.ts` 추가(IN-11 금액 보완 — 산식 재사용이지 재구현 아님)
 
 ## Next steps
+> **다음 작업 (2026-09-30 정리) — Phase 24 이어서**:
+> ① `evaluation_criteria.md` "## Phase 24" 초안(체크박스 41개)이 커밋돼 있다 — T0에서 사용자 결정대로 갱신한다
+> ② 계획 초안 `docs/plans/phase-24-plan-draft.md`(planner 산출물: S-1~S-22 권고안, S-20 픽스처, 태스크 T0~T12·파일 소유권). **다시 planner를 돌리지 말고 이걸로 이어서**
+> ③ 사용자 확정 결정 U-1~U-6(초안 파일 상단): RL-23을 Phase 24로 당김 · IRIS 승인일·공문 번호 필드 삭제 · 확정 0개면 작성 중 표시 · 확정 취소는 마지막 버전만 · 최종협약본 삭제 시 남은 최근 final, 없으면 기준 없음 · 미구현 탭 숨김
+> ④ **먼저 사용자에게 Q1~Q5 답 받기**(초안 파일 "사용자 확인 대기" — 기준 버전 폴백, 미분리 셀 보내기, U-2 해석(IRIS 신청일 유지·kind 편집), 버전 있을 때 보내기, CLAUDE.md `lib/agreement/` 행 수정 승인) + 연차·인력 삭제 차단 고지
+> ⑤ 그다음 T0(generator: SOT·기준 선반영 + `phase-24-plan.md` 확정, 초안 삭제) → 웨이브 {T1,T2,T3} → {T4,T5,T6,T8} → {T7a,T7b} → {T9a,T9b} → {T10,T11} → T12 → evaluator
+> ⑥ Phase 24는 `schema_version` 6 — v5 백업 복원 불가(사용자 고지함). push 후 앱에서 새 백업 권장
+
 > **다음 작업 (2026-09-29 회사 PC에서 정리)**: ① 집 PC는 `git pull`만(DB 공유 — `20260930000000`까지 적용됨, `npm install` 변경 없음) ② **`/phase-run 24`**(협약 예산 버전 + 비목별 보기). 합격 기준 `evaluation_criteria.md` "## Phase 24"가 있는지 먼저 확인 — 없으면 SOT v4.9 §5.21~§5.24·§7.9.8로 작성부터. Phase 24 T0에서 협약 예산 조회(옛 `getBudgetMatrix` 자리)와 `lib/agreement/` 이름을 정한다. 도메인 결정은 초안 + 열린 질문으로 ③ 연구비 화면 수행 모드 안내(S-6)는 Phase 24에서 실제 화면으로 교체
 
 > (처리됨, 2026-09-29 회사 PC) Phase 23 집행 관리 삭제.
