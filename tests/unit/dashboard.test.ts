@@ -111,6 +111,7 @@ function year(spec: {
     endDate: null,
     budget: spec.budget ?? null,
     status: spec.status ?? 'planned',
+    govSupportCash: null,
   };
 }
 

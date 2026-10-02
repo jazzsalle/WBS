@@ -1,6 +1,8 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
+2026-10-03 (**Phase 25 완료** — 붙임4형·조정회의형·참여인원 보기 + 붙임4 가져오기 + 연차별 정부지원 현금. evaluator 재채점 PASS(1차 FAIL 1건 수정), 테스트 3,852건 + 파괴적 15건, `schema_version` 7 적용(DB 공유 — 다른 PC는 `git pull`만). 다음 `/phase-run 26`)
+
 2026-10-03 (**Phase 24 완료** — 협약 예산 버전 + 비목별 보기. evaluator 재채점 PASS(1차 FAIL 3건 수정), 테스트 3,442건 + 파괴적 13건, `schema_version` 6 적용(DB 공유 — 다른 PC는 `git pull`만). 다음 `/phase-run 25`)
 
 2026-09-30 (**Phase 24 착수 전 — 합격 기준 초안·계획 초안까지**. 코드 변경 없음. 다음 세션: Q1~Q5 답 받기 → T0)
@@ -24,6 +26,8 @@
 2026-09-25 (**Phase 18 완료** — 다크 모드. 사용자 추가 지시 5건(성능·입력 양식·조직원·인건비·다크) 전부 끝. evaluator PASS)
 
 ## Current goal
+**Phase 26 — 규칙 검증 공통 + 증빙 (SOT v4.9).** Phase 25 끝. 26 범위: 제안 모드 규칙을 수행 현재 버전에도, 새 규칙 RL-21·RL-22(비율 한도는 과제별 수동 입력 — 과제 유형 자동 없음, RL-20 폐기), 연구실 안전관리비 세목 추가 여부, 편성 항목 증빙 체크리스트. Phase 26 합격 기준은 아직 없다 — 먼저 작성. 수동 검증 일괄은 26 뒤.
+
 **Phase 25 — 붙임4형·조정회의형·참여인원 보기 + 과제 유형 (SOT v4.9).** Phase 24 끝. 남은 순서: 25 → 26 규칙 공통 적용(RL-20~22) + 증빙 체크리스트. 수동 검증 일괄은 26 뒤. Phase 25 합격 기준(`evaluation_criteria.md`)은 아직 없다 — 먼저 작성.
 
 **Phase 24 — 협약 예산 버전 + 비목별 보기 (SOT v4.9).** Phase 23(집행 관리 삭제) 끝. 남은 순서: 24 협약 예산 버전 + 비목별 보기 → 25 붙임4형·조정회의형·참여인원 보기 + 과제 유형 → 26 규칙 공통 적용 + 증빙 체크리스트. 수동 검증 일괄은 26 뒤.
@@ -50,6 +54,16 @@
 > ⚠️ **회사 PC는 `git pull` 후 반드시 `db push`를 해야 앱에 진입할 수 있다.** Phase 9에서 `schema_version`이 1 → 2로 올라가 §8.8 게이트가 걸린다. 의도된 안전장치다. (Phase 12는 스키마 변경이 없다.)
 
 ## Done this session
+- **Phase 25 완료 (2026-10-03, evaluator 재채점 PASS, 테스트 148파일 3,852건 + 파괴적 15건, `tsc`·`build` 통과)** — 계획·결정: `docs/plans/phase-25-plan.md`(핵심 원칙, G-1~G-11·U-1~U-4, S-1~S-24, 실측 구조, 픽스처, 끝에 T19 검증 결과·수동 확인 URL 표)
+  - **핵심 원칙(사용자, 2026-10-03)**: 양식은 원 소스(제안·협약 버전)에서 자동으로 채우고 동기화한다. 양식 전용 수동 입력 칸 금지 — 필요한 값은 소스에 추가. 메모리 `forms-auto-filled-from-single-source`
+  - **과제 유형 폐기**(사용자 — "케이스가 각자 다르니 정출금 비율은 수동 입력"). 비율 한도 = 기존 `budget_rules` RL-8/RL-9 행. SOT·CLAUDE.md Phase 표·brief 정리, RL-20 번호 비움
+  - 마이그레이션 `20261003000000_agreement_forms.sql`: `years.gov_support_cash`, 새 테이블 `agreement_gov_support`(+RLS·가드), `create_agreement_version`(`p_gov_cash`)·`clone`·`delete_year`·`restore_backup` 재정의, `schema_version` **7**(v6 백업 거부 — 사용자 "실데이터 없으니 무관")
+  - `lib/agreement/` 7모듈 추가(form-rows·rates·attachment4-view·adjustment-view·form-edit·participants·attachment4-parse) + from-plan 확장. 부록 C.4 신설(붙임4 행 대응 — 연구활동비에 연구과제추진비 포함, 양식에 없는 비목 행, 세목 미지정 인건비→A·학생→D일반, 통합관리비 무시, 연구실 안전관리비 "—")
+  - 8-2 간접비 비율 = 양식 시트 분모(RL-3와 별개), 8-1 = 연차별 정부지원/기관부담(파생), 조정회의형 = 변경전 제안·변경후 협약 나란히(읽기 전용)
+  - 액션: `setAgreementFormCellAmount`·`setAgreementGovCash`·참여인원 3종·붙임4 미리보기/반영(블록 선택·8-1 행 선택, 회사명 개념 없음)·내보내기 3종·`updateYear` govSupportCash. 화면: 탭 5개, [붙임4 가져오기] 2곳, 제안 매트릭스 아래 정부지원 현금 행. 도움말 새 slug `agreement`
+  - 업로드: `next.config.ts` bodySizeLimit 11mb(기존 10MB 약속과 정합), 암호 파일 전용 문구(기존 임포트도 적용)
+  - 1차 FAIL 1건(수정됨): 금액 0인 블록 가져오기로 0원 버전 생성 → `no_amounts` blocking + 반영 방어선
+  - 관찰: 실측 붙임4 8-2에는 단위 표기가 없어 8-1의 "천원"을 씀(경고), 인건비 소계 칸은 실측상 늘 0이라 대조 생략 / `budget/page.tsx`가 govBudget을 리포지토리로 따로 읽음(`BudgetPlanData`로 옮길 여지)
 - **Phase 24 완료 (2026-10-03, evaluator 재채점 PASS, 테스트 134파일 3,442건 + 파괴적 13건, `tsc`·`build` 통과)** — 협약 예산 버전 + 비목별 보기. 계획·결정: `docs/plans/phase-24-plan.md`(U-1~U-6, Q1~Q5, S-1~S-22, S-20 픽스처, 끝에 T12 검증 결과·수동 확인 URL 표)
   - 마이그레이션 `20261001000000_agreement_budget.sql`: `agreement_versions`·`agreement_lines`·`agreement_participants`·`agreement_items` + RLS, 작성 중 1개 부분 유일 인덱스, 확정 잠금 가드 트리거 2종, RPC 3종(security invoker), `delete_year`·`delete_member` 차단(H-5a·H-9b), `delete_project` 버전 선삭제, `restore_backup` 4종 추가, publication 2종, `schema_version` **6**(v5 백업 복원 불가)
   - `lib/agreement/` 8모듈(versions·category-view·cell-edit·from-plan·diff·preservation(RL-23)·changes-table·table), `lib/db/agreements.ts`, `actions/agreement.ts`(12종 — `previewAgreementBaseline` 포함)·`actions/agreement-export.ts`, 화면 `components/budget/agreement/`(버전 바·대화·비목별·변경 이력·엑셀/복사·보내기 대화), 인력 삭제 화면 H-9b 표시, 도움말 "수행 모드 — 협약 예산" 절 + 절 앵커(`HelpLink anchor`, HP-4)
@@ -357,6 +371,10 @@
 - 명세 밖 추가: `actions/budget.ts` `getExecutionDetailOptions(projectId)`(패널 인력·산출근거 선택지, 읽기 전용) · `tests/unit/input-form-boundary.test.ts` 산식 호출 허용 목록에 `parse-execution.ts`·`execution-preview.ts` 추가(IN-11 금액 보완 — 산식 재사용이지 재구현 아님)
 
 ## Next steps
+> **다음 작업 (2026-10-03 정리)**: ① 다른 PC는 `git pull`만(DB 공유 — `20261003000000`까지 적용, 새 패키지 없음) ② **Phase 26 합격 기준 작성** → `/phase-run 26`. 과제 유형 자동 비율은 폐기됐으니 SOT Phase 26 범위를 먼저 다시 읽을 것 ③ Phase 24·25 수동 확인(인쇄·다크·가져오기 대화·samples 실제 붙임4 파일·HelpLink 앵커)은 `docs/plans/phase-25-plan.md` 끝 URL 표 — 수동 검증 일괄에 합류 ④ 업데이트 후 앱에서 새 백업(v7)
+
+> (처리됨, 2026-10-03) Phase 25.
+
 > **다음 작업 (2026-10-03 정리)**: ① 다른 PC는 `git pull`만(DB 공유 — `20261001000000`까지 적용, 새 패키지 없음) ② **Phase 25 합격 기준 작성** → `/phase-run 25`(붙임4형·조정회의형·참여인원 보기 + 과제 유형 + 붙임4 우리 회사 블록 가져오기). 도메인 결정은 초안 + 열린 질문으로 ③ Phase 24 수동 확인(Tauri [복사]→엑셀 붙여넣기·다크·인쇄·비활성 툴팁)은 `docs/plans/phase-24-plan.md` 끝 URL 표로 — 수동 검증 일괄(26 뒤)에 합류 ④ 업데이트 후 앱에서 새 백업(v6)
 
 > (처리됨, 2026-10-03) Phase 24 협약 예산 버전 + 비목별 보기.

@@ -1,13 +1,13 @@
 // 백업 왕복 통합 테스트 — §8.7 K-1·K-5·K-7·K-8
 //
 // ⚠️ 파괴적 테스트다. `npm test`에 포함되지 않고 `npm run test:destructive`로만 돌린다.
-//    K-7 복원이 대상 30종 테이블(백업 32종 중 app_users·app_settings 제외)의 전 행을 지우고 백업 시점 행으로 되돌리기 때문에,
+//    K-7 복원이 대상 31종 테이블(백업 33종 중 app_users·app_settings 제외)의 전 행을 지우고 백업 시점 행으로 되돌리기 때문에,
 //    실데이터가 있는 dev DB에서 돌리면 export 이후 다른 PC에서 추가된 변경분이 사라진다.
 //    시작 전 assertNoForeignData가 테스트 소유가 아닌 데이터를 발견하면 실행을 거부한다.
 //
 // 왕복·K-5·K-8 검증은 리포지토리 레벨(lib/db/backup, 실제 세션 클라이언트 주입 = RLS·RPC
 // 경로 실검증)로 수행하고, 액션이 쓰는 순수 부분(parseBackupFile의 Zod 거부)을 별도로 커버한다.
-// 옛 v4·v5 파일 거부(§8.8, Phase 23 S-12·Phase 24 K-9)만은 액션(actions/backup.ts importAll)을 부른다 —
+// 옛 v4·v5·v6 파일 거부(§8.8, Phase 23 S-12·Phase 24·25 K-9)만은 액션(actions/backup.ts importAll)을 부른다 —
 // 사용자가 보는 버전 불일치 메시지를 내는 곳이 액션의 K-5 비교이기 때문이다.
 // 쿠키 세션은 next/headers를 모킹해 실제 세션 토큰을 넣는다(통합 테스트의 액션 호출 방식과 같다).
 //
@@ -60,10 +60,12 @@ const tempProjectIds: string[] = []; // afterAll 안전망 — 복원 실패로 
 // budget_details 리포지토리·서버 액션(PL-10 재계산)은 별도 테스트가 다룬다.
 const SEED_DETAIL_ID = 'aaaa0000-0000-4000-8000-0000000000d1';
 
-// v6 왕복이 행 수만이 아니라 대표 행으로도 확인할 테이블들. 시드에는 없으므로 만든다 —
+// v7 왕복이 행 수만이 아니라 대표 행으로도 확인할 테이블들. 시드에는 없으므로 만든다 —
 // 빈 테이블의 왕복은 "[] = []"로 통과해 목록 누락을 드러내지 못한다.
 // staff는 과제 하위가 아니라 removeSeed의 cascade로 지워지지 않는다 — afterAll이 따로 지운다.
 // 협약 예산(§5.21~§5.24)은 확정 1·작성 중 1 — 확정 버전 아래 줄이 복원 중 가드에 막히지 않는지 본다(K-9).
+// 정부지원 현금(§5.25, Phase 25)도 확정 버전 아래 1행 — 같은 가드를 복원 중에 끄는지 본다.
+// 제안 연차의 gov_support_cash(§5.5)는 1차년도 값·2차년도 null — 값과 미입력(null)이 둘 다 돌아오는지 본다.
 const FIXTURE = {
   ruleId: 'aaaa0000-0000-4000-8000-0000000000b1',
   staffId: 'aaaa0000-0000-4000-8000-0000000000b2',
@@ -80,8 +82,15 @@ const FIXTURE = {
   participantId: 'aaaa0000-0000-4000-8000-0000000000c6',
   unassignedParticipantId: 'aaaa0000-0000-4000-8000-0000000000c7',
   itemId: 'aaaa0000-0000-4000-8000-0000000000c8',
+  govSupportId: 'aaaa0000-0000-4000-8000-0000000000c9',
 } as const;
-const AGREEMENT_CHILD_TABLES = ['agreement_lines', 'agreement_participants', 'agreement_items'] as const;
+const GOV_SUPPORT_CASH_Y1 = 35000000;
+const AGREEMENT_CHILD_TABLES = [
+  'agreement_lines',
+  'agreement_participants',
+  'agreement_items',
+  'agreement_gov_support',
+] as const;
 const AGREEMENT_TABLES = ['agreement_versions', ...AGREEMENT_CHILD_TABLES] as const;
 const EVIDENCE = [
   { label: '견적서', obtained: true, memo: '2개 업체' },
@@ -103,6 +112,7 @@ const REPRESENTATIVE_ROWS: Record<string, string> = {
   agreement_lines: FIXTURE.confirmedLineId,
   agreement_participants: FIXTURE.unassignedParticipantId,
   agreement_items: FIXTURE.itemId,
+  agreement_gov_support: FIXTURE.govSupportId,
 };
 
 async function insertFixtures(u: TestUser): Promise<void> {
@@ -174,6 +184,13 @@ async function insertFixtures(u: TestUser): Promise<void> {
             'equipment', '분석 장비', 33000000, 1, ${sql.json(EVIDENCE)}::jsonb,
             ${u.id}::uuid, ${u.id}::uuid)`;
   await sql`
+    insert into public.agreement_gov_support
+      (id, version_id, year_id, gov_cash, created_by, updated_by)
+    values (${FIXTURE.govSupportId}::uuid, ${FIXTURE.confirmedVersionId}::uuid, ${SEED.year1Id}::uuid,
+            ${GOV_SUPPORT_CASH_Y1}, ${u.id}::uuid, ${u.id}::uuid)`;
+  await sql`
+    update public.years set gov_support_cash = ${GOV_SUPPORT_CASH_Y1} where id = ${SEED.year1Id}::uuid`;
+  await sql`
     update public.agreement_versions set status = 'confirmed', confirmed_at = '2026-03-02T09:00:00+09:00'
      where id = ${FIXTURE.confirmedVersionId}::uuid`;
   await sql`
@@ -239,24 +256,24 @@ afterAll(async () => {
 });
 
 describe('K-1: exportAll — BackupFile 인터페이스 정확 일치', () => {
-  it('최상위 키 4개, tables는 32종 전부, JSON 직렬화 왕복 후에도 parseBackupFile을 통과한다', async () => {
+  it('최상위 키 4개, tables는 33종 전부, JSON 직렬화 왕복 후에도 parseBackupFile을 통과한다', async () => {
     const file = await backup.exportAll(user.client, exportedBy(user));
 
     expect(Object.keys(file).sort()).toEqual(
       ['exportedAt', 'exportedBy', 'schemaVersion', 'tables'].sort()
     );
-    // §8.8 Phase 24: 협약 예산 4종이 더해져 파일 형식이 바뀌었으므로 6이다
-    expect(file.schemaVersion).toBe(6);
+    // §8.8 Phase 25: 정부지원 현금 테이블이 더해져 파일 형식이 바뀌었으므로 7이다
+    expect(file.schemaVersion).toBe(7);
     expect(file.tables).not.toHaveProperty(DROPPED_TABLE);
     expect(backup.BACKUP_TABLES).not.toContain(DROPPED_TABLE);
-    expect(backup.RESTORE_TABLES).toHaveLength(30);
-    // K-9: budget_rules 바로 뒤에 FK 정순(버전 → 하위 3종)
+    expect(backup.RESTORE_TABLES).toHaveLength(31);
+    // K-9: budget_rules 바로 뒤에 FK 정순(버전 → 하위 3종 → 정부지원 현금은 agreement_items 뒤)
     const at = backup.RESTORE_TABLES.indexOf('budget_rules');
-    expect(backup.RESTORE_TABLES.slice(at + 1, at + 5)).toEqual([...AGREEMENT_TABLES]);
+    expect(backup.RESTORE_TABLES.slice(at + 1, at + 6)).toEqual([...AGREEMENT_TABLES]);
     expect(Number.isNaN(Date.parse(file.exportedAt))).toBe(false);
     expect(file.exportedBy).toEqual({ id: user.id, email: user.email });
     expect(Object.keys(file.tables).sort()).toEqual([...backup.BACKUP_TABLES].sort());
-    expect(backup.BACKUP_TABLES).toHaveLength(32);
+    expect(backup.BACKUP_TABLES).toHaveLength(33);
 
     // 행은 DB snake_case 원본 그대로 (매퍼 미경유) — 시드 과제 행으로 확인
     const seedProject = file.tables['projects']!.find(
@@ -266,16 +283,21 @@ describe('K-1: exportAll — BackupFile 인터페이스 정확 일치', () => {
     expect(seedProject).toHaveProperty('contract_start_date');
     expect(seedProject).toHaveProperty('sort_order');
     expect(seedProject).not.toHaveProperty('contractStartDate');
+    // years의 새 컬럼(§5.5)도 원본 컬럼명으로 실린다 — 값과 미입력(null) 둘 다
+    const yearRow = (id: string) =>
+      file.tables['years']!.find((r) => (r as { id: string }).id === id) as Record<string, unknown>;
+    expect(Number(yearRow(SEED.year1Id)['gov_support_cash'])).toBe(GOV_SUPPORT_CASH_Y1);
+    expect(yearRow(SEED.year2Id)).toHaveProperty('gov_support_cash', null);
 
     // 파일 저장·재로드(JSON 왕복) 후에도 형식 검증을 통과하고 내용이 보존된다
     expect(backup.parseBackupFile(jsonRoundtrip(file))).toEqual(jsonRoundtrip(file));
   });
 });
 
-describe('K-7: v6 복원 왕복 — 전체 대체', () => {
+describe('K-7: v7 복원 왕복 — 전체 대체', () => {
   it('export → 수정·삭제·추가 → restore → 재export가 원본과 테이블별로 일치한다', async () => {
     const original = await backup.exportAll(user.client, exportedBy(user));
-    expect(original.schemaVersion).toBe(6);
+    expect(original.schemaVersion).toBe(7);
     // 대표 행이 원본에 실제로 실려 있어야 아래 비교가 의미를 가진다 (빈 테이블끼리의 일치 방지)
     for (const [table, id] of Object.entries(REPRESENTATIVE_ROWS)) {
       const ids = original.tables[table]!.map((r) => (r as { id: string }).id);
@@ -297,9 +319,12 @@ describe('K-7: v6 복원 왕복 — 전체 대체', () => {
     await sql`delete from public.deliverables where id = ${FIXTURE.deliverableId}::uuid`;
     await sql`delete from public.tech_targets where id = ${FIXTURE.techTargetId}::uuid`;
     await sql`delete from public.staff where id = ${FIXTURE.staffId}::uuid`;
-    // 삭제: 확정 버전(하위 3종 cascade — AV-4) / 수정: 작성 중 버전의 줄 금액
+    // 삭제: 확정 버전(하위 4종 cascade — AV-4) / 수정: 작성 중 버전의 줄 금액
+    // 수정: 제안 연차 정부지원 현금 — 1차년도 값 변경, 2차년도 null → 값
     await sql`delete from public.agreement_versions where id = ${FIXTURE.confirmedVersionId}::uuid`;
     await sql`update public.agreement_lines set amount = 999 where id = ${FIXTURE.draftLineId}::uuid`;
+    await sql`update public.years set gov_support_cash = 1 where id = ${SEED.year1Id}::uuid`;
+    await sql`update public.years set gov_support_cash = 2 where id = ${SEED.year2Id}::uuid`;
     // 수정: 계획액 한 셀 — budget_items도 원본 값으로 돌아와야 한다
     await sql`
       update public.budget_items set planned_amount = planned_amount + 1234567
@@ -387,6 +412,21 @@ describe('K-7: v6 복원 왕복 — 전체 대체', () => {
       select id, amount::text as amount, evidence from public.agreement_items
        where version_id = ${FIXTURE.confirmedVersionId}::uuid`;
     expect(items).toEqual([{ id: FIXTURE.itemId, amount: '33000000', evidence: EVIDENCE }]);
+    // 정부지원 현금(§5.25) — 확정 버전 아래 행이 가드에 막히지 않고 돌아왔다
+    const govSupport = await sql<{ id: string; year_id: string; gov_cash: string }[]>`
+      select id, year_id, gov_cash::text as gov_cash from public.agreement_gov_support
+       where version_id in ${sql([FIXTURE.confirmedVersionId, FIXTURE.draftVersionId])}`;
+    expect(govSupport).toEqual([
+      { id: FIXTURE.govSupportId, year_id: SEED.year1Id, gov_cash: String(GOV_SUPPORT_CASH_Y1) },
+    ]);
+    // 제안 연차 정부지원 현금(§5.5) — 값과 미입력(null) 둘 다 원본으로
+    const yearCash = await sql<{ id: string; cash: string | null }[]>`
+      select id, gov_support_cash::text as cash from public.years
+       where id in ${sql([SEED.year1Id, SEED.year2Id])} order by sort_order`;
+    expect(yearCash).toEqual([
+      { id: SEED.year1Id, cash: String(GOV_SUPPORT_CASH_Y1) },
+      { id: SEED.year2Id, cash: null },
+    ]);
 
     // 복원이 끝나면 가드는 다시 켜져 있다 — 확정 버전 아래 쓰기가 다시 거부된다
     const guards = await sql<{ rel: string; enabled: string }[]>`
@@ -400,6 +440,11 @@ describe('K-7: v6 복원 왕복 — 전체 대체', () => {
       .update({ amount: 1 })
       .eq('id', FIXTURE.confirmedLineId);
     expect(locked.error?.message).toMatch(/확정된 협약 예산 버전의 내용은 고칠 수 없습니다/);
+    const lockedGov = await user.client
+      .from('agreement_gov_support')
+      .update({ gov_cash: 1 })
+      .eq('id', FIXTURE.govSupportId);
+    expect(lockedGov.error?.message).toMatch(/확정된 협약 예산 버전의 내용은 고칠 수 없습니다/);
   });
 });
 
@@ -459,7 +504,8 @@ describe('K-5: schemaVersion 불일치·형식 위반 파일의 복원 거부', 
 // 엉뚱한 메시지나, 모르는 행을 조용히 버리고 나머지만 복원하는 것이면 실패다.
 //  · v4(Phase 23 이전): 집행 테이블 키가 있고 협약 예산 4종 키가 없다
 //  · v5(Phase 24 이전): 협약 예산 4종 키가 없다 — 키 누락 검사보다 버전 판정이 먼저 보여야 한다(K-9)
-function legacyFile(current: BackupFile, version: 4 | 5, userId: string): BackupFile {
+//  · v6(Phase 25 이전): 정부지원 현금 키가 없고 years 행에 gov_support_cash가 없다
+function legacyFile(current: BackupFile, version: 4 | 5 | 6, userId: string): BackupFile {
   const legacy = jsonRoundtrip(current);
   legacy.schemaVersion = version;
   // 옛 파일은 app_settings 행의 schema_version도 그 버전이었다
@@ -467,7 +513,14 @@ function legacyFile(current: BackupFile, version: 4 | 5, userId: string): Backup
     ...(r as Record<string, unknown>),
     schema_version: version,
   }));
-  for (const t of AGREEMENT_TABLES) delete legacy.tables[t];
+  delete legacy.tables['agreement_gov_support'];
+  legacy.tables['years'] = current.tables['years']!.map((r) => {
+    const { gov_support_cash: _cash, ...row } = r as Record<string, unknown>;
+    return row;
+  });
+  if (version <= 5) {
+    for (const t of AGREEMENT_TABLES) delete legacy.tables[t];
+  }
   if (version === 4) {
     const item = current.tables['budget_items']!.find(
       (r) => (r as { year_id: string }).year_id === SEED.year1Id
@@ -498,12 +551,12 @@ function legacyFile(current: BackupFile, version: 4 | 5, userId: string): Backup
   return legacy;
 }
 
-describe('§8.8: 옛 v4·v5 백업 거부', () => {
-  it.each([4, 5] as const)(
+describe('§8.8: 옛 v4·v5·v6 백업 거부', () => {
+  it.each([4, 5, 6] as const)(
     'schemaVersion %i 파일은 importAll이 버전 불일치로 거부하고 데이터는 그대로다',
     async (version) => {
       const current = jsonRoundtrip(await backup.exportAll(user.client, exportedBy(user)));
-      expect(current.schemaVersion).toBe(6);
+      expect(current.schemaVersion).toBe(7);
       const legacy = legacyFile(current, version, user.id);
       // 거부가 복원 전에 일어났는지 보려고 DB를 파일과 다르게 만들어 둔다 — 복원됐다면 이름이 되돌아간다
       await projects.updateProject(user.client, SEED.projectId, {
@@ -518,7 +571,7 @@ describe('§8.8: 옛 v4·v5 백업 거부', () => {
       if (result.ok) return;
       expect(result.code).toBe('RULE');
       expect(result.error).toBe(
-        `백업 파일의 스키마 버전(${version})이 현재 스키마 버전(6)과 달라 복원할 수 없습니다.`
+        `백업 파일의 스키마 버전(${version})이 현재 스키마 버전(7)과 달라 복원할 수 없습니다.`
       );
       expect(result.error).not.toMatch(/데이터가 없습니다/);
 
@@ -530,25 +583,28 @@ describe('§8.8: 옛 v4·v5 백업 거부', () => {
       expect(name[0]!.name).toBe(`v${version} 거부 확인용 이름`);
       // 협약 예산 행도 그대로다 — 키가 없는 파일이 "전 행 삭제 + 0건 삽입"이 되지 않았다
       expect(after.tables['agreement_versions']).toHaveLength(2);
+      expect(after.tables['agreement_gov_support']).toHaveLength(1);
 
       // 다음 테스트를 위해 원래 상태로 되돌린다
       await backup.restoreBackup(user.client, current);
     }
   );
 
-  it.each([4, 5] as const)(
+  it.each([4, 5, 6] as const)(
     'schemaVersion %i 파일을 RPC에 직접 넘겨도 K-5 게이트가 버전 불일치로 거부한다 (최종 방어선)',
     async (version) => {
       const current = jsonRoundtrip(await backup.exportAll(user.client, exportedBy(user)));
       const legacy = legacyFile(current, version, user.id);
 
       await expect(backup.restoreBackup(user.client, legacy)).rejects.toThrow(
-        `백업 파일의 스키마 버전(${version})이 현재 스키마 버전(6)과 다릅니다`
+        `백업 파일의 스키마 버전(${version})이 현재 스키마 버전(7)과 다릅니다`
       );
-      const left = await sql<{ projects: number; versions: number }[]>`
+      const left = await sql<{ projects: number; versions: number; gov: number; cash: string | null }[]>`
         select (select count(*) from public.projects where id = ${SEED.projectId}::uuid)::int as projects,
-               (select count(*) from public.agreement_versions where project_id = ${SEED.projectId}::uuid)::int as versions`;
-      expect(left[0]).toEqual({ projects: 1, versions: 2 });
+               (select count(*) from public.agreement_versions where project_id = ${SEED.projectId}::uuid)::int as versions,
+               (select count(*) from public.agreement_gov_support where id = ${FIXTURE.govSupportId}::uuid)::int as gov,
+               (select gov_support_cash::text from public.years where id = ${SEED.year1Id}::uuid) as cash`;
+      expect(left[0]).toEqual({ projects: 1, versions: 2, gov: 1, cash: String(GOV_SUPPORT_CASH_Y1) });
     }
   );
 });
@@ -679,7 +735,7 @@ describe('parseBackupFile — importAll 액션의 구조 검증 (Zod)', () => {
     ).toThrow(ValidationError);
   });
 
-  it('tables 값이 배열이 아니거나 32종 중 하나라도 빠지면 ValidationError', async () => {
+  it('tables 값이 배열이 아니거나 33종 중 하나라도 빠지면 ValidationError', async () => {
     const current = await backup.exportAll(user.client, exportedBy(user));
 
     const notArray = jsonRoundtrip(current) as unknown as {

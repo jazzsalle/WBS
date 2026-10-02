@@ -88,6 +88,9 @@ export interface Year extends BaseEntity {
   endDate: string | null;
   budget: number | null;      // 연차 연구개발비 (진척률 가중치로도 사용)
   status: YearStatus;
+  // 제안 모드 연차 정부지원 현금(원 단위 정수, 0 이상). null = 미입력 — 0(정부지원 0원)과 다르다.
+  // 기관부담 현금 = 그 연차 현금 합 − 이 값(파생, 저장하지 않는다)
+  govSupportCash: number | null;
 }
 
 // ─── §5.6 Task (WBS 노드) ────────────────────────────────────
@@ -1047,6 +1050,68 @@ export interface AgreementItem extends BaseEntity {
   quantity: number | null;
   evidence: AgreementEvidenceCheck[];      // jsonb 배열(N-3) — 내부 키는 매퍼가 바꾸지 않는다
 }
+
+// ─── §5.25 AgreementGovSupport (연차별 정부지원 현금, Phase 25) ─
+// 금액 줄은 현금/현물 축뿐이라 현금 중 정부지원·기관부담을 가르지 못한다 — 그래서 별도 행.
+// 행 없음 = 미입력. 버전·연차당 0~1행(unique)
+
+export interface AgreementGovSupport extends BaseEntity {
+  versionId: string;
+  yearId: string;                          // 연차 삭제를 막는다(H-5a)
+  govCash: number;                         // 원 단위 정수, 0 이상
+}
+
+// ─── §6.19 AG-5 참여인원 금액 구분 (Phase 25) ──────────────────
+// 저장하지 않는다 — 금액과 연봉 스냅샷 × 참여율 × 개월(PL-1)을 읽을 때 비교해 판정한다
+
+export type ParticipantAmountKind = 'auto' | 'manual' | 'salary_unknown';
+
+// ─── 부록 C.4 붙임4 양식 행 (Phase 25) ─────────────────────────
+// data = 금액 줄에서 오는 행(가져오기 대상) · aggregate = 집계(가져오기는 대조만) ·
+// ratio = 비율(가져오기는 인식만) · memo = 소스 없는 내역 행(값 ≠ 0이면 경고) · ignored = 인식만 하는 행
+
+export type Attachment4RowKind = 'data' | 'aggregate' | 'ratio' | 'memo' | 'ignored';
+
+// 8-2 기관 블록 행 id. 순서는 ATTACHMENT4_FORM_ROWS(부록 C.4.1)가 정한다
+export type Attachment4RowId =
+  | 'personnel_internal'        // A
+  | 'personnel_external'        // B
+  | 'personnel_support'         // C
+  | 'personnel_subtotal'        // 인건비 소계 A+B+C
+  | 'student_general'           // D 일반
+  | 'student_managed'           // D 통합관리
+  | 'total_personnel'           // 양식 E1 (총 인건비)
+  | 'modified_personnel'        // 양식 E2 (수정인건비)
+  | 'facility_equipment'        // F
+  | 'facility_integrated_mgmt'  // (통합관리비(현금)) — ignored
+  | 'material'                  // G
+  | 'activity'                  // H
+  | 'allowance'                 // I
+  | 'allowance_ratio'           // I/E2
+  | 'outside'                   // 양식에 없는 비목
+  | 'direct_subtotal'           // K
+  | 'indirect'                  // L
+  | 'lab_safety'                // (연구실 안전관리비) — memo
+  | 'indirect_ratio'            // 간접비 비율(양식 분모)
+  | 'total'                     // M
+  | 'personnel_ratio';          // E1/M
+
+// 8-1 지원·부담계획 열 id (부록 C.4.2)
+export type Attachment81ColumnId =
+  | 'org'
+  | 'company_type'
+  | 'gov_cash'          // A
+  | 'own_cash'          // B
+  | 'own_in_kind'       // C
+  | 'own_subtotal'      // D
+  | 'other_cash'        // E
+  | 'other_in_kind'     // F
+  | 'other_subtotal'    // G
+  | 'total_cash'        // A+B+E
+  | 'total_in_kind'     // C+F
+  | 'total'             // H
+  | 'gov_share_review'  // 정부출연금비율
+  | 'own_cash_review';  // 민간현금비율
 
 // ─── §14.2 AppUser ───────────────────────────────────────────
 

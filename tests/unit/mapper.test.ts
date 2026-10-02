@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import { dbToApp, appToDb, dbToAppArray } from '@/lib/db/mapper';
 import {
+  agreementGovSupportRowSchema,
   agreementItemRowSchema,
   agreementLineRowSchema,
   agreementParticipantRowSchema,
@@ -11,8 +12,10 @@ import {
   importKindSchema,
   importSnapshotRowSchema,
   techTargetRowSchema,
+  yearRowSchema,
 } from '@/lib/db/schema';
 import type {
+  AgreementGovSupport,
   AgreementItem,
   AgreementLine,
   AgreementParticipant,
@@ -20,6 +23,7 @@ import type {
   Deliverable,
   ImportSnapshot,
   TechTarget,
+  Year,
 } from '@/types';
 
 describe('mapper: snake_case ↔ camelCase 기본 변환', () => {
@@ -662,5 +666,98 @@ describe('mapper·schema: 협약 예산 4종 (§5.21~§5.24 Phase 24)', () => {
     const i = agreementItemRow();
     delete i.evidence;
     expect(agreementItemRowSchema.safeParse(i).success).toBe(false);
+  });
+});
+
+// ─── §5.5 years.gov_support_cash · §5.25 agreement_gov_support (Phase 25) ─
+
+const UUID_AGS = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+
+function yearRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...agreementBase(UUID_YEAR),
+    project_id: UUID_PROJECT,
+    stage_id: UUID_PROJECT,
+    sort_order: 0,
+    name: '1차년도',
+    goal: '',
+    start_date: '2026-01-01',
+    end_date: '2026-12-31',
+    budget: 52_500_000,
+    status: 'active',
+    gov_support_cash: 35_000_000,
+    ...overrides,
+  };
+}
+
+function govSupportRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...agreementBase(UUID_AGS),
+    version_id: UUID_AV,
+    year_id: UUID_YEAR,
+    gov_cash: 35_000_000,
+    ...overrides,
+  };
+}
+
+describe('mapper·schema: 연차별 정부지원 현금 (§5.5·§5.25 Phase 25)', () => {
+  it('years.gov_support_cash ↔ Year.govSupportCash 왕복', () => {
+    const row = yearRow();
+    const app = dbToApp<Year>(yearRowSchema.parse(row));
+    expect(app.govSupportCash).toBe(35_000_000);
+    expect(app).not.toHaveProperty('gov_support_cash');
+    expect(appToDb(dbToApp(row))).toEqual(row);
+    expect(appToDb({ govSupportCash: 0 })).toEqual({ gov_support_cash: 0 });
+  });
+
+  it('years.gov_support_cash null(미입력)은 null로 남는다 — 0과 다르다', () => {
+    const row = yearRow({ gov_support_cash: null });
+    const app = dbToApp<Year>(yearRowSchema.parse(row));
+    expect(app.govSupportCash).toBeNull();
+    expect(appToDb(dbToApp(row))).toEqual(row);
+    expect(dbToApp<Year>(yearRowSchema.parse(yearRow({ gov_support_cash: 0 }))).govSupportCash).toBe(0);
+  });
+
+  it('years.gov_support_cash가 정수가 아니거나 음수거나 빠지면 거부한다', () => {
+    expect(yearRowSchema.safeParse(yearRow({ gov_support_cash: 1.5 })).success).toBe(false);
+    expect(yearRowSchema.safeParse(yearRow({ gov_support_cash: -1 })).success).toBe(false);
+    expect(yearRowSchema.safeParse(yearRow({ gov_support_cash: '35000000' })).success).toBe(false);
+    const missing = yearRow();
+    delete missing.gov_support_cash;
+    expect(yearRowSchema.safeParse(missing).success).toBe(false);
+  });
+
+  it('agreement_gov_support: gov_cash ↔ govCash, 공통 컬럼까지 전체 비교', () => {
+    const app = dbToApp<AgreementGovSupport>(agreementGovSupportRowSchema.parse(govSupportRow()));
+    const expected: AgreementGovSupport = {
+      id: UUID_AGS,
+      version: 3,
+      createdAt: '2026-10-01T00:00:00+00:00',
+      updatedAt: '2026-10-01T00:00:00+00:00',
+      createdBy: null,
+      updatedBy: null,
+      versionId: UUID_AV,
+      yearId: UUID_YEAR,
+      govCash: 35_000_000,
+    };
+    expect(app).toEqual(expected);
+    expect(appToDb(dbToApp(govSupportRow()))).toEqual(govSupportRow());
+  });
+
+  it('agreement_gov_support: 0은 입력값으로 통과한다', () => {
+    const row = govSupportRow({ gov_cash: 0 });
+    expect(agreementGovSupportRowSchema.safeParse(row).success).toBe(true);
+    expect(dbToApp<AgreementGovSupport>(row).govCash).toBe(0);
+  });
+
+  it('agreement_gov_support: 음수·소수·null·문자·컬럼 누락은 거부한다', () => {
+    expect(agreementGovSupportRowSchema.safeParse(govSupportRow({ gov_cash: -1 })).success).toBe(false);
+    expect(agreementGovSupportRowSchema.safeParse(govSupportRow({ gov_cash: 0.5 })).success).toBe(false);
+    expect(agreementGovSupportRowSchema.safeParse(govSupportRow({ gov_cash: null })).success).toBe(false);
+    expect(agreementGovSupportRowSchema.safeParse(govSupportRow({ gov_cash: '1' })).success).toBe(false);
+    expect(agreementGovSupportRowSchema.safeParse(govSupportRow({ year_id: 'y1' })).success).toBe(false);
+    const missing = govSupportRow();
+    delete missing.version_id;
+    expect(agreementGovSupportRowSchema.safeParse(missing).success).toBe(false);
   });
 });

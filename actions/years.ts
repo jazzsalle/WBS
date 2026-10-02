@@ -35,7 +35,17 @@ const yearFieldsSchema = z.object({
 });
 
 const yearCreateSchema = yearFieldsSchema.partial();
-const yearPatchSchema = yearFieldsSchema.partial();
+
+// §5.5 govSupportCash (Phase 25): 제안 연차의 정부지원 현금. null = 미입력 — 0원과 다르다.
+// "≤ 그 연차 현금 합"은 저장을 막지 않고 읽을 때 경고한다(S-4) — 여기서는 모양만 본다
+const govSupportCashSchema = z
+  .number()
+  .int('정부지원 현금은 원 단위 정수로 입력하세요.')
+  .min(0, '정부지원 현금은 0원 이상이어야 합니다.')
+  .nullable();
+
+// 생성 경로에는 넣지 않는다 — create_year RPC가 받지 않고, 새 연차는 미입력(null)으로 시작한다
+const yearPatchSchema = yearFieldsSchema.extend({ govSupportCash: govSupportCashSchema }).partial();
 
 function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, fallback: string): T {
   const parsed = schema.safeParse(value);
@@ -70,6 +80,12 @@ function revalidateProject(projectId: string): void {
   revalidatePath(`/projects/${projectId}/wbs`);
 }
 
+// 연차 이름·예산·정부지원 현금(§5.5)은 연구비 화면(§7.9)이 그린다 — 거기도 새로 그려야 저장이 보인다 (§9 updateYear)
+function revalidateProjectAndBudget(projectId: string): void {
+  revalidateProject(projectId);
+  revalidatePath(`/projects/${projectId}/budget`);
+}
+
 // §5.5: 해당 stage의 마지막 연차 뒤에 삽입하고 이후 전체를 +1 시프트 + 비목 12종 생성 — 전부 RPC 몫
 export async function createYear(stageId: string, input: unknown): Promise<ActionResult<Year>> {
   try {
@@ -102,7 +118,7 @@ export async function updateYear(
       { ...parsed, updatedBy: ctx.user.id },
       expectedVersion
     );
-    revalidateProject(updated.projectId);
+    revalidateProjectAndBudget(updated.projectId);
     return { ok: true, data: updated };
   } catch (e) {
     return toFailure(e, client);

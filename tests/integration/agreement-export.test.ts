@@ -563,7 +563,7 @@ describe('과제 경계·입력 검증', () => {
     expect(expectFailure(await buildAgreementWorkbook(f.projectId, { view: 'category', versionId: 'x' })).code).toBe(
       'VALIDATION'
     );
-    const unknownView = { view: 'participants', versionId: versionA } as unknown as { view: 'category'; versionId: string };
+    const unknownView = { view: 'unknown', versionId: versionA } as unknown as { view: 'category'; versionId: string };
     expect(expectFailure(await buildAgreementWorkbook(f.projectId, unknownView)).code).toBe('VALIDATION');
     const missingTo = { view: 'changes', fromVersionId: versionA } as unknown as {
       view: 'changes';

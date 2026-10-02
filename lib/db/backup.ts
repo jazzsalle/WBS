@@ -22,7 +22,7 @@ function raiseDbError(error: PostgrestError): never {
   throw new Error(error.message);
 }
 
-// K-7 정순(FK 의존 순서) 복원 대상 30종 — restore_backup RPC의 c_tables와 반드시 일치해야 한다.
+// K-7 정순(FK 의존 순서) 복원 대상 31종 — restore_backup RPC의 c_tables와 반드시 일치해야 한다.
 // 여기가 어긋나면 내보낸 파일이 복원 시 "테이블 데이터 없음"으로 거부된다.
 // staff·staff_salaries(§5.19·§5.20)는 맨 앞이다 — members.staff_id가 staff를 참조하므로
 // 정순 INSERT에서 members보다 먼저 있어야 한다. staff는 다른 테이블을 참조하지 않는다 (ST-2).
@@ -31,12 +31,14 @@ function raiseDbError(error: PostgrestError): never {
 // budget_rules(§5.18)는 projects만 참조하므로 budget_details 바로 뒤에 둔다 (RL-D7).
 // 협약 예산 4종(§5.21~§5.24, K-9)은 budget_rules 뒤 — 하위 3종이 years·members를 no action FK로
 // 참조하므로(H-5a·H-9b) 정순 INSERT는 그 뒤, 역순 DELETE는 그보다 먼저여야 한다.
+// agreement_gov_support(§5.25, Phase 25)는 같은 이유로 agreement_items 뒤 — 부모 버전·years보다 뒤다.
 export const RESTORE_TABLES = [
   'staff', 'staff_salaries',
   'projects', 'organizations', 'members', 'stages', 'years', 'tasks', 'milestones',
   'deliverables', 'deliverable_achievements', 'tech_targets', 'tech_target_records',
   'budget_items', 'budget_details', 'budget_rules',
   'agreement_versions', 'agreement_lines', 'agreement_participants', 'agreement_items',
+  'agreement_gov_support',
   'risks', 'notes', 'todos',
   'import_profiles', 'import_snapshots',
   'task_members', 'task_deliverables', 'task_tech_targets',
@@ -67,7 +69,7 @@ async function dumpTable(client: SupabaseClient, table: string): Promise<unknown
   return rows;
 }
 
-// K-1: 전 테이블(32종) JSON 덤프. schemaVersion은 함께 덤프한 app_settings 행에서 얻는다 —
+// K-1: 전 테이블(33종) JSON 덤프. schemaVersion은 함께 덤프한 app_settings 행에서 얻는다 —
 // BackupFile 헤더와 tables.app_settings가 서로 다른 시점을 가리키지 않게 하기 위해서다.
 export async function exportAll(
   client: SupabaseClient,
@@ -97,7 +99,7 @@ export async function exportAll(
 
 // K-5 "내보내기 JSON 형식을 지킨다" — 복원 전 구조 검증.
 // 대상 테이블 키가 하나라도 빠지면 "삭제만 되고 삽입은 0건"인 무음 데이터 파괴가 되므로
-// RPC와 별개로 여기서도 32종 전부를 요구한다.
+// RPC와 별개로 여기서도 33종 전부를 요구한다.
 const backupFileSchema = z.object({
   schemaVersion: z.number().int(),
   exportedAt: z.string(),
@@ -112,7 +114,7 @@ export function parseBackupFile(json: unknown): BackupFile {
   }
   const missing = BACKUP_TABLES.filter((t) => !(t in parsed.data.tables));
   if (missing.length > 0) {
-    // §8.8·K-9: 테이블이 추가된 뒤의 옛 백업(v5 = 협약 예산 4종 이전)은 키가 빠지는 것이 정상이다.
+    // §8.8·K-9: 테이블이 추가된 뒤의 옛 백업(v5 = 협약 예산 4종 이전, v6 = 정부지원 현금 이전)은 키가 빠지는 것이 정상이다.
     // 진짜 원인은 버전이므로 "테이블 데이터가 없습니다"가 아니라 버전 불일치로 알린다.
     // 앱은 DB 버전 = EXPECTED_SCHEMA_VERSION일 때만 진입하므로(§8.8) 이 상수가 곧 현재 버전이다
     if (parsed.data.schemaVersion !== EXPECTED_SCHEMA_VERSION) {

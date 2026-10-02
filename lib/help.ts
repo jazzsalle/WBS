@@ -10,6 +10,7 @@ import type { MdInline } from './notes';
 import { TUTORIAL_STEP_IDS } from './local-config';
 
 // ─── slug 목록 (HP-1) — 순서 = §7.1 화면 순 + 계산 방식 + 자주 묻는 것 ──────────
+// agreement는 연구비 화면 안의 보기라 경로가 없지만 화면 묶음에서 budget 바로 뒤에 둔다(HP-1)
 
 export const HELP_SLUGS = [
   'dashboard',
@@ -21,6 +22,7 @@ export const HELP_SLUGS = [
   'goals',
   'milestones',
   'budget',
+  'agreement',
   'budget-rules',
   'team',
   'risks',
@@ -33,7 +35,7 @@ export const HELP_SLUGS = [
 
 export type HelpSlug = (typeof HELP_SLUGS)[number];
 
-/** 화면 키 15개 — `## 할 수 있는 것`·`## 자주 하는 실수`가 필수인 편(HP-6) */
+/** 화면 키 16개(agreement 포함) — `## 할 수 있는 것`·`## 자주 하는 실수`가 필수인 편(HP-6) */
 export const HELP_SCREEN_SLUGS: readonly HelpSlug[] = HELP_SLUGS.filter(
   (slug) => slug !== 'calculations' && slug !== 'faq'
 );
@@ -53,6 +55,7 @@ export const HELP_TITLES: Record<HelpSlug, string> = {
   goals: '목표 관리',
   milestones: '마일스톤',
   budget: '연구비',
+  agreement: '협약 예산 양식', // content/help/agreement.md 1행과 같게
   'budget-rules': '연구비 규칙', // content/help/budget-rules.md 1행과 같게
   team: '인력·기관',
   risks: '리스크 관리대장',
@@ -83,7 +86,8 @@ export const HELP_RELATED: Partial<Record<HelpSlug, HelpSlug[]>> = {
   wbs: ['calculations'],
   goals: ['calculations'],
   milestones: ['calculations'],
-  budget: ['budget-rules', 'calculations'],
+  budget: ['agreement', 'budget-rules', 'calculations'],
+  agreement: ['budget', 'budget-rules', 'calculations'],
   'budget-rules': ['budget', 'calculations'],
   team: ['budget'],
   settings: ['faq'],

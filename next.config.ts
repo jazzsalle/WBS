@@ -23,6 +23,14 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/**": ["./templates/**", "./content/**"],
   },
+  experimental: {
+    serverActions: {
+      // 업로드 상한은 파일 10MB(MAX_UPLOAD_BYTES, SOT §6.8 I-15·§5.21 AV-7)다. 기본 1MB로 두면
+      // 그보다 작은 파일도 어댑터에 닿기 전에 잘려, 사용자가 상한 안내 대신 알 수 없는 실패를 본다.
+      // multipart 경계·다른 필드 몫으로 1MB 여유를 둔다
+      bodySizeLimit: "11mb",
+    },
+  },
 };
 
 export default nextConfig;

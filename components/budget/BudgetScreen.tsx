@@ -45,6 +45,8 @@ import InputFormUpload from './input-form/InputFormUpload';
 import PersonnelTab from './personnel/PersonnelTab';
 import AgreementScreen from './agreement/AgreementScreen';
 import SendBaselineDialog from './agreement/SendBaselineDialog';
+import Attachment4ImportDialog from './agreement/Attachment4ImportDialog';
+import YearGovSupportRow, { buildGovSupportColumns } from './YearGovSupportRow';
 import { draftExistsReason } from './agreement/VersionBar';
 
 /** §7.9 모드 토글. 화면 로컬 상태이며 URL·DB에 저장하지 않는다. 수행 = 협약 예산(v4.9)이라 값 이름이 'agreement'다 */
@@ -61,7 +63,7 @@ const PLAN_VIEWS: readonly { value: PlanView; label: string; hint: string }[] = 
 // §7.9 표의 순서대로 `[제안 | 수행]`. 기본 선택은 `제안`이다
 const MODES: readonly { value: BudgetMode; label: string; hint: string }[] = [
   { value: 'plan', label: '제안', hint: '셀에 예산 / 현금 / 현물을 보여주고, 클릭하면 산출근거 패널이 열립니다 (§7.9.2)' },
-  { value: 'agreement', label: '수행', hint: '협약 예산 버전을 비목별·변경 이력으로 봅니다 (§7.9.8)' },
+  { value: 'agreement', label: '수행', hint: '협약 예산 버전을 비목별·붙임4형·조정회의형·참여인원·변경 이력으로 봅니다 (§7.9.8)' },
 ];
 
 // 원본 행(version(O-1)·현금/현물 null 여부·PL-9 detailCount)은 props로 따로 받지 않는다.
@@ -82,6 +84,13 @@ export interface BudgetScreenProps {
   agreement: AgreementData | null;
   /** 협약 조회 실패 문구. 수행 모드에만 배너로 보인다 (절대 규칙 5) */
   agreementError: string | null;
+  /**
+   * 협약 정보 Project.govBudget — 제안 모드 정부지원 현금 행의 "연차 합 ≠ govBudget" 정보 문구에만 쓴다(§7.9).
+   * plan에 없는 과제 필드라 page가 따로 읽는다. 판정이 아닌 정보 문구라 별도 조회여도 C5 위반이 아니다
+   */
+  govBudget: number | null;
+  /** govBudget 조회 실패 문구. 있으면 비교하지 못했다는 사실을 행 위에 알린다 (절대 규칙 5) */
+  govBudgetError: string | null;
 }
 
 export default function BudgetScreen({
@@ -90,6 +99,8 @@ export default function BudgetScreen({
   plan,
   agreement,
   agreementError,
+  govBudget,
+  govBudgetError,
 }: BudgetScreenProps) {
   const router = useRouter();
   // §7.9: 화면 로컬 상태. 기본은 `제안`이고 새로고침하면 되돌아온다
@@ -110,6 +121,8 @@ export default function BudgetScreen({
   const [rulesOpen, setRulesOpen] = useState(false);
   // §7.9 [협약 기준선으로 보내기] 확인 대화 (제안 모드 전용, AV-6)
   const [sendBaselineOpen, setSendBaselineOpen] = useState(false);
+  // §7.9 [붙임4 가져오기] 대화 (제안 모드 툴바, AV-7). 비활성 조건은 [협약 기준선으로 보내기]와 같다
+  const [attachment4ImportOpen, setAttachment4ImportOpen] = useState(false);
   const sendBlockedReason: string | null =
     agreement !== null && agreement.draftVersionId !== null
       ? draftExistsReason(
@@ -230,6 +243,7 @@ export default function BudgetScreen({
                     setHighlightYearId(null);
                     setRulesOpen(false);
                     setSendBaselineOpen(false);
+                    setAttachment4ImportOpen(false);
                     setPlanView('matrix');
                     setFailure(null);
                   }}
@@ -288,7 +302,7 @@ export default function BudgetScreen({
         </div>
         {/* §7.9: 툴바 버튼은 전부 **제안 모드 전용**이다 — [산출근거 가져오기](§7.9.3)·[연구비 규칙](§7.9.5)·
             [제출 서식 내보내기](§7.9.4)·[입력 양식 내려받기·올리기](§7.9.7)·[협약 기준선으로 보내기](AV-6)·
-            [엑셀 가져오기](§7.9.1).
+            [붙임4 가져오기](AV-7 — 수행 모드 버전 0개 안내에도 있다)·[엑셀 가져오기](§7.9.1).
             `mode` 하나가 노출을 정하므로 조건이 갈릴 수 없다 */}
         {mode === 'plan' && (
           <div className="flex flex-wrap items-center gap-2">
@@ -355,6 +369,22 @@ export default function BudgetScreen({
             </Button>
             <Button
               size="sm"
+              variant="secondary"
+              // 보내기와 같은 이유로 막는다: 협약 조회가 실패하면 작성 중 버전 유무를 모르고, 있으면 서버가 RULE로 거부한다(AV-2).
+              // 대화도 반영 전에 다시 검사한다
+              disabled={busy || agreement === null || sendBlockedReason !== null}
+              title={
+                agreement === null
+                  ? '협약 예산 데이터를 읽지 못해 가져올 수 없습니다 — [수행] 모드의 오류를 확인하세요'
+                  : (sendBlockedReason ??
+                    '제출용 붙임4 엑셀(8-1·8-2)에서 우리 기관 블록을 골라 작성 중 협약 예산 버전으로 만듭니다 (§5.21 AV-7)')
+              }
+              onClick={() => setAttachment4ImportOpen(true)}
+            >
+              붙임4 가져오기
+            </Button>
+            <Button
+              size="sm"
               variant="primary"
               disabled={busy}
               title="예산계획 엑셀을 5단계 마법사로 가져옵니다 (§7.9.1)"
@@ -395,7 +425,7 @@ export default function BudgetScreen({
 
       {mode === 'agreement' ? (
         // §7.9.8 협약 예산 화면. 버전이 없을 때의 안내(0 매트릭스 금지)·조회 실패 배너는 AgreementScreen이 맡는다
-        <AgreementScreen data={agreement} error={agreementError} />
+        <AgreementScreen data={agreement} error={agreementError} onImported={setImportResult} />
       ) : (
         <>
           {/* 매트릭스에 실리지 못한 예산이 있으면 조용히 넘기지 않는다 (절대 규칙 5) */}
@@ -442,6 +472,24 @@ export default function BudgetScreen({
                 busy={busy}
                 onSelect={selectCell}
                 onInlineSave={handleInlineSave}
+              />
+
+              {/* §7.9 매트릭스 아래 "정부지원 현금"(입력)·"기관부담 현금"(파생) 행 (Phase 25). 열·현금 합은 표를 그린
+                  plan 스냅샷에서 만든다(C5). years는 구독하지 않으므로(§8.5) 저장 뒤 refresh로 다시 그린다 */}
+              {govBudgetError !== null && (
+                <p className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800 print:hidden">
+                  협약 정보(정부지원연구개발비)를 읽지 못해 연차 정부지원 현금 합과 비교하지 않았습니다 — {govBudgetError}
+                </p>
+              )}
+              <YearGovSupportRow
+                columns={buildGovSupportColumns(plan.years, plan.yearAxisSplits)}
+                govBudget={govBudget}
+                currencyUnit={plan.currencyUnit}
+                disabled={busy}
+                onSaved={() => {
+                  setFailure(null);
+                  router.refresh();
+                }}
               />
 
               {/* 하단 요약 (§7.9): 연차별 합계 · 현금/현물 비중 · 지침 검증 값. 매트릭스 바로
@@ -574,6 +622,18 @@ export default function BudgetScreen({
           }}
         />
       )}
+
+      {/* §7.9 [붙임4 가져오기]. router.refresh()는 대화가 한다. 결과는 대화가 닫혀도 남도록 토스트로 옮긴다 */}
+      <Attachment4ImportDialog
+        projectId={plan.projectId}
+        currencyUnit={plan.currencyUnit}
+        open={mode === 'plan' && attachment4ImportOpen && agreement !== null}
+        onClose={() => setAttachment4ImportOpen(false)}
+        onDone={(message) => {
+          setAttachment4ImportOpen(false);
+          setImportResult(message);
+        }}
+      />
 
       {/* §7.9.5 규칙 편집 모달. 항상 마운트하고 open으로 여닫는다 — 열릴 때 plan.rules를 받아들이고, 저장·적용·
           삭제 뒤 onChanged → router.refresh()로 검증 패널과 이 모달의 행이 같은 조회를 보게 한다 */}

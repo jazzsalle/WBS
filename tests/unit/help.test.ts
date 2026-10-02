@@ -19,17 +19,17 @@ import {
 } from '@/lib/help';
 
 describe('HELP_SLUGS (HP-1)', () => {
-  it('화면 15 + calculations + faq = 17편, §7.1 화면 순', () => {
+  it('화면 16(agreement는 budget 바로 뒤, Phase 25) + calculations + faq = 18편, §7.1 화면 순', () => {
     expect(HELP_SLUGS).toEqual([
       'dashboard', 'projects', 'project', 'wbs', 'gantt', 'board', 'goals', 'milestones',
-      'budget', 'budget-rules', 'team', 'risks', 'notes', 'todos', 'settings',
+      'budget', 'agreement', 'budget-rules', 'team', 'risks', 'notes', 'todos', 'settings',
       'calculations', 'faq',
     ]);
-    expect(HELP_SCREEN_SLUGS).toHaveLength(15);
-    expect(new Set(HELP_SLUGS).size).toBe(17);
+    expect(HELP_SCREEN_SLUGS).toHaveLength(16);
+    expect(new Set(HELP_SLUGS).size).toBe(18);
   });
 
-  it('목차 그룹은 17편을 빠짐없이 한 번씩 담는다', () => {
+  it('목차 그룹은 18편을 빠짐없이 한 번씩 담는다', () => {
     const inToc = HELP_TOC_GROUPS.flatMap((g) => g.slugs);
     expect([...inToc].sort()).toEqual([...HELP_SLUGS].sort());
     expect(HELP_TOC_GROUPS.map((g) => g.label)).toEqual(['화면', '계산 방식', '자주 묻는 것']);
@@ -49,6 +49,9 @@ describe('HELP_SLUGS (HP-1)', () => {
       expect(HELP_RELATED[slug]).toContain('calculations');
     }
     expect(HELP_RELATED.budget).toContain('budget-rules');
+    // 협약 예산 양식 ↔ 연구비 (S-21)
+    expect(HELP_RELATED.budget).toContain('agreement');
+    expect(HELP_RELATED.agreement).toContain('budget');
     expect(HELP_RELATED['budget-rules']).toContain('budget');
     expect(HELP_RELATED.team).toContain('budget');
     expect(HELP_RELATED.settings).toContain('faq');
@@ -91,6 +94,7 @@ describe('helpSlugForPath (HP-4 탭별 slug)', () => {
     '/unknown',
     `/projects/${id}/unknown`,
     `/projects/${id}/budget-rules`, // 경로가 없는 slug — 연구비 탭 안의 패널이다
+    `/projects/${id}/agreement`, // 경로가 없는 slug — 연구비 수행 모드 안의 보기다
     `/projects/${id}/faq`, // slug이긴 하지만 과제 탭이 아니다
     `/projects/${id}/wbs/extra`,
     '/todos/1',

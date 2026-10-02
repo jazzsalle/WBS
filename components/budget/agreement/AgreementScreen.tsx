@@ -1,12 +1,14 @@
 'use client';
 
-// 연구비 수행 모드 — 협약 예산 화면 셸 (SOT §7.9.8, §5.21 AV-1~AV-8, §12 P-R1·P-R3·P-R4, 계획서 S-17, U-3·U-6)
+// 연구비 수행 모드 — 협약 예산 화면 셸 (SOT §7.9.8, §5.21 AV-1~AV-8, §12 P-R1·P-R3·P-R4, 계획서 S-17, U-3·U-6,
+// Phase 25 S-17)
 // 데이터는 서버(getAgreementData)가 한 벌로 내려준다. 이 컴포넌트가 소유하는 것: 보고 있는 버전, 보기 탭,
 // 쓰기 성공 뒤 router.refresh() 한 번. 현재·기준 버전·합계는 서버가 계산한 파생 값을 그대로 쓴다(AG-1).
 //
 // - 조회 실패면 오류 배너만 — 빈 화면이나 0으로 눙치지 않는다(절대 규칙 5)
-// - 버전이 없으면 숫자 없이 안내 + [빈 버전]만(0 매트릭스 금지)
-// - 탭은 [비목별]·[변경 이력] 둘뿐이다(U-6 — 아직 없는 보기는 자리표시 탭도 두지 않는다)
+// - 버전이 없으면 숫자 없이 안내 + [빈 버전]·[붙임4 가져오기]만(0 매트릭스 금지)
+// - 탭은 [비목별]·[붙임4형]·[조정회의형]·[참여인원]·[변경 이력] 다섯이다. 편성 항목·증빙은 Phase 26까지
+//   자리표시 탭도 두지 않는다(U-6)
 // - 인쇄는 보고 있는 보기 하나, 가로. 머리말에 버전 이름·상태를 더한다(§7.9.8 인쇄)
 
 import { useMemo, useState } from 'react';
@@ -17,31 +19,43 @@ import Button from '@/components/ui/Button';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import HelpLink from '@/components/help/HelpLink';
 import PrintHeader from '@/components/print/PrintHeader';
+import AdjustmentView from './AdjustmentView';
+import Attachment4ImportDialog from './Attachment4ImportDialog';
+import Attachment4View from './Attachment4View';
 import CategoryView from './CategoryView';
 import ChangesView from './ChangesView';
+import ParticipantsView from './ParticipantsView';
 import NewVersionDialog from './NewVersionDialog';
 import VersionBar, { versionTitle } from './VersionBar';
 
-type AgreementTab = 'category' | 'changes';
+type AgreementTab = 'category' | 'attachment4' | 'adjustment' | 'participants' | 'changes';
 
-// §7.9.8 Phase 24의 보기 탭. 붙임4형·조정회의형·참여인원·편성 항목은 해당 Phase에서 여기에 더한다(U-6)
+// §7.9.8 Phase 25의 보기 탭(AG-1 순서). 편성 항목·증빙은 Phase 26에서 [참여인원]과 [변경 이력] 사이에 더한다(U-6)
 const TABS: readonly { value: AgreementTab; label: string; hint: string }[] = [
   { value: 'category', label: '비목별', hint: '연차 × 비목 × 현금/현물 매트릭스 (AG-2)' },
+  { value: 'attachment4', label: '붙임4형', hint: '8-1 지원·부담계획 + 8-2 사용계획 (AG-3)' },
+  { value: 'adjustment', label: '조정회의형', hint: '변경전(제안) · 변경후(이 버전) 두 표, 읽기 전용 (AG-4)' },
+  { value: 'participants', label: '참여인원', hint: '참여인원 목록 · 연차 소계 · 금액 줄 대조 (AG-5)' },
   { value: 'changes', label: '변경 이력', hint: '두 버전 사이 금액 줄·참여인원 증감과 세목 총액 보존 (AG-7)' },
 ];
 
 // SOT §7.9.8 문구 그대로
 const NO_VERSION_NOTICE =
-  '협약 예산 버전이 없습니다 — 제안 모드에서 [협약 기준선으로 보내기]로 만들거나 [빈 버전]으로 시작하세요';
+  '협약 예산 버전이 없습니다 — 제안 모드에서 [협약 기준선으로 보내기]로 만들거나, [붙임4 가져오기]로 가져오거나, [빈 버전]으로 시작하세요';
 
 export interface AgreementScreenProps {
   /** getAgreementData 결과. 실패면 null이고 error에 문구가 온다 */
   data: AgreementData | null;
   /** 조회 실패 문구(VALIDATION 손상 안내 포함). 있으면 배너만 보인다 */
   error: string | null;
+  /**
+   * [붙임4 가져오기] 결과 문장. 부모(BudgetScreen)의 결과 토스트에 남긴다 — 반영 뒤 이 자리가 안내에서
+   * 보기로 바뀌어도 무엇이 만들어졌는지 남아야 한다(제안 툴바의 같은 버튼과 같은 자리)
+   */
+  onImported: (message: string) => void;
 }
 
-export default function AgreementScreen({ data, error }: AgreementScreenProps) {
+export default function AgreementScreen({ data, error, onImported }: AgreementScreenProps) {
   if (error !== null || data === null) {
     return (
       <ErrorBanner
@@ -51,15 +65,22 @@ export default function AgreementScreen({ data, error }: AgreementScreenProps) {
       />
     );
   }
-  return <AgreementScreenBody data={data} />;
+  return <AgreementScreenBody data={data} onImported={onImported} />;
 }
 
-function AgreementScreenBody({ data }: { data: AgreementData }) {
+function AgreementScreenBody({
+  data,
+  onImported,
+}: {
+  data: AgreementData;
+  onImported: (message: string) => void;
+}) {
   const router = useRouter();
   // null = 기본(현재 버전, AV-3). 사용자가 고른 버전 id를 들고 있다 — 화면 로컬 상태, URL·DB에 남기지 않는다
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<AgreementTab>('category');
   const [emptyDialogOpen, setEmptyDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const { versions } = data;
 
@@ -89,9 +110,17 @@ function AgreementScreenBody({ data }: { data: AgreementData }) {
         </div>
         <div className="rounded-xl border border-dashed border-grey-300 bg-surface p-8 text-center">
           <p className="text-sm text-grey-700">{NO_VERSION_NOTICE}</p>
-          <div className="mt-4 flex justify-center print:hidden">
+          <div className="mt-4 flex justify-center gap-2 print:hidden">
             <Button variant="primary" onClick={() => setEmptyDialogOpen(true)}>
               빈 버전
+            </Button>
+            {/* 버전이 0개라 작성 중 버전도 없다 — 비활성 조건이 없다. 대화도 반영 전에 다시 검사한다(AV-2) */}
+            <Button
+              variant="secondary"
+              title="제출용 붙임4 엑셀(8-1·8-2)에서 우리 기관 블록을 골라 작성 중 버전으로 만듭니다 (AV-7)"
+              onClick={() => setImportOpen(true)}
+            >
+              붙임4 가져오기
             </Button>
           </div>
         </div>
@@ -109,6 +138,17 @@ function AgreementScreenBody({ data }: { data: AgreementData }) {
             }}
           />
         )}
+        <Attachment4ImportDialog
+          projectId={data.projectId}
+          currencyUnit={data.currencyUnit}
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          onDone={(message) => {
+            // router.refresh()는 대화가 한다 — 새로 받은 데이터에서 그 버전이 현재 버전(AV-3)으로 보인다
+            setImportOpen(false);
+            onImported(message);
+          }}
+        />
       </div>
     );
   }
@@ -116,6 +156,8 @@ function AgreementScreenBody({ data }: { data: AgreementData }) {
   const v = selected.version;
   const statusLabel = AGREEMENT_VERSION_STATUS_LABELS[v.status];
   const tabLabel = TABS.find((t) => t.value === tab)?.label ?? '';
+  // AV-2: 확정 버전은 읽기 전용. 액션도 RULE로 막는다 — 화면은 편집 칸을 열지 않을 뿐이다
+  const editable = v.status === 'draft';
 
   return (
     <div className="space-y-4">
@@ -189,16 +231,38 @@ function AgreementScreenBody({ data }: { data: AgreementData }) {
         orientation="landscape"
       />
 
+      {/* 버전을 바꾸면 편집 중이던 칸·대화 상태를 넘겨 들고 가지 않는다 — 보기마다 key={v.id} */}
       {tab === 'category' ? (
         <CategoryView
-          // 버전을 바꾸면 편집 중이던 셀 상태를 넘겨 들고 가지 않는다
           key={v.id}
           projectId={data.projectId}
           view={selected}
           years={data.years}
           currencyUnit={data.currencyUnit}
-          // AV-2: 확정 버전은 읽기 전용. 액션도 RULE로 막는다 — 화면은 편집 칸을 열지 않을 뿐이다
-          editable={v.status === 'draft'}
+          editable={editable}
+          onChanged={refresh}
+        />
+      ) : tab === 'attachment4' ? (
+        <Attachment4View
+          key={v.id}
+          projectId={data.projectId}
+          view={selected}
+          currencyUnit={data.currencyUnit}
+          editable={editable}
+          onChanged={refresh}
+        />
+      ) : tab === 'adjustment' ? (
+        // AG-4 읽기 전용 — editable을 받지 않는다
+        <AdjustmentView key={v.id} projectId={data.projectId} view={selected} currencyUnit={data.currencyUnit} />
+      ) : tab === 'participants' ? (
+        <ParticipantsView
+          key={v.id}
+          projectId={data.projectId}
+          view={selected}
+          members={data.members}
+          years={data.years}
+          currencyUnit={data.currencyUnit}
+          editable={editable}
           onChanged={refresh}
         />
       ) : (

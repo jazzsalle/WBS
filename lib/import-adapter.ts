@@ -157,15 +157,31 @@ export function readWorkbook(data: Uint8Array): RawSheet[] {
   } catch (e) {
     // 원인은 로그로 남기고 사용자에게는 내부 정보 없는 문장을 준다 (SA-4, 절대 규칙 5)
     console.error('[import-adapter] 워크북 파싱 실패:', e);
-    throw new ValidationError(
-      '엑셀 파일을 읽을 수 없습니다. 파일이 손상되었거나 지원하지 않는 형식입니다.'
-    );
+    // 암호 파일을 "손상"으로 안내하면 사용자는 멀쩡한 파일을 다시 받으러 간다 — 원인을 구분해 준다 (S-16)
+    if (isPasswordProtectedError(e)) throw new ValidationError(ENCRYPTED_WORKBOOK_MESSAGE);
+    throw new ValidationError(UNREADABLE_WORKBOOK_MESSAGE);
   }
 
   return workbook.SheetNames.map((name) => {
     const sheet = workbook.Sheets[name];
     return sheet ? worksheetToRawSheet(name, sheet) : { name, cells: [], merges: [] };
   });
+}
+
+export const UNREADABLE_WORKBOOK_MESSAGE =
+  '엑셀 파일을 읽을 수 없습니다. 파일이 손상되었거나 지원하지 않는 형식입니다.';
+
+export const ENCRYPTED_WORKBOOK_MESSAGE =
+  '암호가 걸린 엑셀 파일은 읽을 수 없습니다. 엑셀에서 암호를 해제해 다시 저장한 뒤 올려주세요.';
+
+/**
+ * SheetJS는 암호 파일을 전용 예외 타입 없이 Error 문구로만 알린다 — xls(FilePass)는
+ * "File is password-protected", xlsx(ECMA-376 암호 컨테이너)는 경로에 따라 "password" 또는
+ * "Encrypt..." 문구다. 문구 판정밖에 길이 없어 두 단어를 모두 본다.
+ */
+function isPasswordProtectedError(e: unknown): boolean {
+  const message = e instanceof Error ? e.message : typeof e === 'string' ? e : '';
+  return /password|encrypt/i.test(message);
 }
 
 // ─── 업로드 처리 (I-14, I-15) ─────────────────────────────────────────────────
@@ -178,13 +194,52 @@ export interface UploadedWorkbook {
   sheets: RawSheet[];
 }
 
-function hasAcceptedExtension(fileName: string): boolean {
+function hasExtension(fileName: string, extensions: readonly string[]): boolean {
   const lower = fileName.toLowerCase();
-  return ACCEPTED_EXTENSIONS.some((ext) => lower.endsWith(ext));
+  return extensions.some((ext) => lower.endsWith(ext));
 }
 
 /** FormData 필드명. 마법사 UI와 액션이 공유하는 규약이다 */
 export const UPLOAD_FIELD = 'file';
+
+const OVERSIZE_MESSAGE = `파일이 ${MAX_UPLOAD_BYTES / 1024 / 1024}MB 상한을 넘습니다. 필요한 시트만 남겨서 다시 올려주세요.`;
+
+export const EMPTY_FILE_MESSAGE = '빈 파일입니다. 내용이 있는 엑셀 파일을 올려주세요.';
+
+/**
+ * FormData에서 파일 바이트를 꺼내며 확장자·크기·빈 파일을 거부한다 (I-15, 조용한 절단 금지).
+ * 버퍼는 호출자 안에서 끝난다 — 디스크에 쓰지 않는다 (I-14).
+ */
+async function readUploadBytes(
+  formData: FormData,
+  field: string,
+  extensions: readonly string[]
+): Promise<{ fileName: string; bytes: Uint8Array }> {
+  const entry = formData.get(field);
+  if (entry === null || typeof entry === 'string') {
+    throw new ValidationError('업로드된 파일이 없습니다.');
+  }
+
+  const blob = entry as Blob & { name?: string };
+  const fileName = (blob.name ?? '').trim() || 'upload.xlsx';
+  if (!hasExtension(fileName, extensions)) {
+    throw new ValidationError(
+      `지원하지 않는 파일 형식입니다. ${extensions.join(', ')} 파일만 올릴 수 있습니다.`
+    );
+  }
+  if (blob.size > MAX_UPLOAD_BYTES) throw new ValidationError(OVERSIZE_MESSAGE);
+
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  // Blob.size를 그대로 믿지 않는다 — 실제로 읽은 바이트로 한 번 더 본다
+  if (bytes.byteLength > MAX_UPLOAD_BYTES) throw new ValidationError(OVERSIZE_MESSAGE);
+  if (bytes.byteLength === 0) throw new ValidationError(EMPTY_FILE_MESSAGE);
+
+  return { fileName, bytes };
+}
+
+function sha256Hex(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
 
 /**
  * §9: 파일은 FormData로 전달된다. 읽고 나면 버퍼는 여기서 끝이다 — 디스크에 저장하지 않는다 (I-14).
@@ -194,36 +249,44 @@ export async function readUploadedWorkbook(
   formData: FormData,
   field: string = UPLOAD_FIELD
 ): Promise<UploadedWorkbook> {
-  const entry = formData.get(field);
-  if (entry === null || typeof entry === 'string') {
-    throw new ValidationError('업로드된 파일이 없습니다.');
-  }
-
-  const blob = entry as Blob & { name?: string };
-  const fileName = (blob.name ?? '').trim() || 'upload.xlsx';
-  if (!hasAcceptedExtension(fileName)) {
-    throw new ValidationError(
-      `지원하지 않는 파일 형식입니다. ${ACCEPTED_EXTENSIONS.join(', ')} 파일만 올릴 수 있습니다.`
-    );
-  }
-  if (blob.size > MAX_UPLOAD_BYTES) {
-    throw new ValidationError(
-      `파일이 ${MAX_UPLOAD_BYTES / 1024 / 1024}MB 상한을 넘습니다. 필요한 시트만 남겨서 다시 올려주세요.`
-    );
-  }
-
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  // Blob.size를 그대로 믿지 않는다 — 실제로 읽은 바이트로 한 번 더 본다
-  if (bytes.byteLength > MAX_UPLOAD_BYTES) {
-    throw new ValidationError(
-      `파일이 ${MAX_UPLOAD_BYTES / 1024 / 1024}MB 상한을 넘습니다. 필요한 시트만 남겨서 다시 올려주세요.`
-    );
-  }
-  if (bytes.byteLength === 0) throw new ValidationError('빈 파일입니다.');
-
-  const fileHash = createHash('sha256').update(bytes).digest('hex');
+  const { fileName, bytes } = await readUploadBytes(formData, field, ACCEPTED_EXTENSIONS);
+  const fileHash = sha256Hex(bytes);
   const sheets = readWorkbook(bytes);
+  return { fileName, fileSize: bytes.byteLength, fileHash, sheets };
+}
 
+// ─── 붙임4 업로드 (§5.21 AV-7, Phase 25 S-15·S-16) ───────────────────────────
+
+/** AV-7: 붙임4는 엑셀 원본만 받는다 — CSV로는 8-1·8-2 두 표와 병합 구조가 살아 오지 않는다 */
+export const ATTACHMENT4_EXTENSIONS = ['.xlsx', '.xlsm', '.xls'] as const;
+
+// .xlsx/.xlsm은 ZIP이고, 암호를 건 것은 CFB 컨테이너(EncryptedPackage)다. 둘 다 아니면
+// SheetJS가 바이트를 CSV/텍스트로 "성공적으로" 읽어 1열짜리 시트를 돌려준다 — 깨진 파일이
+// 손상 안내 대신 "8-2 시트가 없습니다"로 엉뚱하게 보이지 않게 여기서 먼저 거른다.
+// .xls는 HTML·XML로 저장된 변종이 흔해 서명으로 거르지 않고 SheetJS 판정에 맡긴다.
+const ZIP_SIGNATURE = [0x50, 0x4b, 0x03, 0x04] as const;
+const CFB_SIGNATURE = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1] as const;
+
+function startsWith(bytes: Uint8Array, signature: readonly number[]): boolean {
+  return signature.every((b, i) => bytes[i] === b);
+}
+
+/**
+ * AV-7 ⑤: 붙임4 파일을 RawSheet로 읽는다. 미리보기와 반영이 같은 경로를 타고, `fileHash`로
+ * 같은 파일인지 대조한다. 파서(`lib/agreement/attachment4-parse.ts`)는 `sheets`만 받는다.
+ */
+export async function readAttachment4Upload(
+  formData: FormData,
+  field: string = UPLOAD_FIELD
+): Promise<UploadedWorkbook> {
+  const { fileName, bytes } = await readUploadBytes(formData, field, ATTACHMENT4_EXTENSIONS);
+  const lower = fileName.toLowerCase();
+  const isOoxml = lower.endsWith('.xlsx') || lower.endsWith('.xlsm');
+  if (isOoxml && !startsWith(bytes, ZIP_SIGNATURE) && !startsWith(bytes, CFB_SIGNATURE)) {
+    throw new ValidationError(UNREADABLE_WORKBOOK_MESSAGE);
+  }
+  const fileHash = sha256Hex(bytes);
+  const sheets = readWorkbook(bytes);
   return { fileName, fileSize: bytes.byteLength, fileHash, sheets };
 }
 

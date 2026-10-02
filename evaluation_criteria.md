@@ -576,3 +576,85 @@ evaluator는 이 체크리스트로 PASS/FAIL을 판정한다. 모든 항목은 
 - [ ] 연차·단계·인력 삭제: 협약 버전이 없는 과제에서 기존 `delete_year`·`delete_stage`·`delete_member`·H-9a 테스트가 그대로 통과
 - [ ] 목표·목표 양식·hwpx·WBS·간트·칸반·마일스톤·리스크·노트·To-Do·조직원·참여율·백업 테스트 전부 통과
 - [ ] `npm test`(실행 후 `seed.sql` 복원)·`npm run test:destructive`·`npx tsc --noEmit`·`npm run build`(dev 서버가 꺼진 것 확인 후) 통과. 절대 규칙 1(service_role 없음)·3(UI·액션이 supabase 직접 호출 없음 — Realtime 읽기 구독만 예외)·5(빈 배열 폴백 없음). `samples/` 커밋 0
+
+## Phase 25 — 붙임4형·조정회의형·참여인원 보기 + 붙임4 가져오기 + 연차별 정부지원 현금 (SOT v4.9 §5.5, §5.21 AV-1·AV-2·AV-6·AV-7, §5.23, §5.25, §6.6 H-5a, §6.19 AG-1·AG-3~AG-5·AG-8·AG-9, §7.9, §7.9.8, §7.16, §8.5, §8.7 K-9, §8.8, §9 Agreement Budget, §10, §11 25, 부록 A.4·C.4)
+
+> Phase 24가 만든 협약 예산 버전(§5.21~§5.24)에 **보기 3종**(붙임4형 AG-3 · 조정회의형 AG-4 · 참여인원 AG-5)과 **붙임4 가져오기**(AV-7), **연차별 정부지원 현금**(제안 `years.gov_support_cash` §5.5 · 협약 새 테이블 `agreement_gov_support` §5.25)을 더한다. 원칙은 **소스 일원화**다(사용자 2026-10-03) — 양식 보기는 전부 원 소스(제안 `budget_items`·`budget_details`·`years`, 협약 금액 줄·참여인원·정부지원 현금)에서 파생하고, 양식 전용 저장 칸이 없으며, 보기에서 고친 값은 소스를 고친다(AG-1). 붙임4 기호는 우리 기호와 다르다(양식 `E1` = 총 인건비, `E2` = 수정인건비 = 우리 PL-11의 `E1`). 산식은 PL-11·PL-1을 **`lib/budget-plan.ts`에서 받아 쓰고 다시 구현하지 않는다** — 단 간접비 비율은 **양식 식 그대로의 "양식 분모"**이고 RL-3 `modifiedDirectCost`가 아니다(AG-3).
+>
+> **과제 유형은 하지 않는다**(D-9·RL-20 폐기, 사용자 2026-10-03): `projects.project_type` 컬럼·`ProjectType` 타입·과제 개요의 과제 유형 칸·기업 유형 칸이 **있으면 FAIL**. 정부출연금·민간현금 비율 한도는 과제별 RL-8 `gov_share_max`·RL-9 `own_cash_min` 행의 값이다.
+>
+> **Phase 26 범위를 미리 만들면 FAIL**: 수행 모드 현재 버전에 `evaluateRules`를 적용하는 규칙 검증 패널(§6.14 RL-1·§6.14.8), RL-21·RL-22의 판정식·새 `RuleCode`·`budget_rules` 행·프리셋, 연구실 안전관리비 세목 신설(부록 A.5), 8-2 비율(연구수당·간접비·인건비)의 **판정**(Phase 25는 표시만), RL-23의 규칙 행화, 편성 항목·증빙 보기·탭·편집 액션·증빙 기본 항목 목록(§5.24·AG-6), RL-17 "부가세 포함" 입력 안내 정정. **Phase 24 기능은 회귀 없이 그대로여야 한다**(아래 "회귀 없음").
+>
+> **결정은 계획서 `docs/plans/phase-25-plan.md` S-1~S-24대로다** — T0에서 SOT 본문에 반영됐다(`grep -n "Phase 25 T0" docs/SOT.md` 0건, `grep -n "우리 회사 이름" docs/SOT.md` 0건, `ProjectType`·`projectType`·과제 유형은 폐기 표기 문맥에만). 구현이 계획서와 SOT 사이에서 갈리면 SOT가 옳다.
+>
+> 숫자 기대값: 부록 B에 붙임4형·조정회의형·참여인원 예시가 **없다** → 계획서의 **합성 픽스처**(Phase 24 S-20 버전 A 확장)가 기준이다. 붙임4 파서는 `samples/`의 실측 파일 구조를 본떠 **익명화한 픽스처**(`tests/fixtures/attachment4/` — 금액·성명·기관명이 실데이터가 아님을 확인한 것만)로 시험한다. 숫자가 안 맞으면 구현이 틀린 것이다.
+
+**마이그레이션·DB (§5.5, §5.25, §6.6 H-5a, §8.5, §8.7 K-9, §8.8, §9, §14.3)**
+- [ ] 마이그레이션 **1개** `supabase/migrations/20261003000000_agreement_forms.sql`. `years.gov_support_cash bigint null` + check(null 또는 `>= 0`). **`projects.project_type`·기업 유형 컬럼은 없다**(있으면 FAIL)
+- [ ] 새 테이블 `agreement_gov_support`: `version_id` FK `agreement_versions` **on delete cascade** · `year_id` FK `years` **no action** · `gov_cash bigint not null check (gov_cash >= 0)` · N-4 공통 컬럼(`id`·`created_at`·`updated_at`·`version`·`created_by`·`updated_by`) + `set_updated_meta` · **`unique(version_id, year_id)`** · `year_id` 인덱스
+- [ ] **같은 마이그레이션에** RLS 활성 + `"approved users full access"` `for all to authenticated using (is_approved()) with check (is_approved())`(절대 규칙 2·RLS-1). 미승인 사용자는 읽기·쓰기 0행(통합 테스트). 머리말에 RLS 근거와 "`years` 새 컬럼은 기존 `years` 정책이 덮는다"
+- [ ] **확정 잠금 DB 강제**: 새 테이블에 `agreement_child_guard` BEFORE INSERT/UPDATE 트리거(**함수 본문 불변** — 재사용). 확정 버전 아래 insert·update 거부, `version_id` 변경 거부, 다른 과제 연차 거부, 음수 거부(check) — 통합 테스트로 각각 확인. 같은 버전·연차 두 번째 행은 23505
+- [ ] `delete_year` 재정의: 정부지원 현금 행**만** 그 연차를 쓰는 버전이 있어도 H-5a로 거부(메시지 "협약 예산 버전 N개가 이 연차를 씁니다…"). `delete_stage`도 같다. `delete_project`는 재정의하지 않고도 통과(버전 cascade). 협약 버전이 없는 과제의 기존 연차·단계 삭제 테스트 그대로 통과
+- [ ] RPC: `create_agreement_version(p_project_id, p_kind, p_name, p_lines, p_participants, p_gov_cash jsonb default '{}')` — `p_gov_cash` = `{연차 id: 원}` → 새 테이블 행. 객체가 아니거나 값이 0 이상 정수가 아니면 사람이 읽는 메시지로 거부. **옛 5인자 시그니처가 `pg_proc`에 남아 있지 않다**(오버로드 0). `clone_agreement_version`이 정부지원 현금 행을 새 id로 복사하고 원본 불변. 새·재정의 함수 전부 `security invoker`(`pg_proc.prosecdef` 0건)(restore_backup은 기존 K-7 설계상 security definer — 제외)
+- [ ] `app_settings.schema_version = 7`, `EXPECTED_SCHEMA_VERSION = 7` — **같은 커밋**(§8.8 — 테이블 추가). `npx supabase db push` 성공
+- [ ] 백업(§8.7 K-9): `agreement_gov_support`가 `BACKUP_TABLES`·`RESTORE_TABLES`·`restore_backup` `c_tables`에 **`agreement_items` 뒤**로 들어가고(`c_tables` = `RESTORE_TABLES` 순서까지 — 기존 테스트), 삽입 동안 그 가드도 disable → enable. `restore_backup`의 이전 정의 대비 diff가 이 둘뿐(계획서 결과 절). 파괴적 테스트: **v7 왕복**(확정 버전 아래 정부지원 현금 행·`years.gov_support_cash` 값이 그대로 돌아옴) + **v6 백업 파일은 K-5로 거부** + v5 이하 거부 유지
+- [ ] Realtime(§8.5): **publication 추가 없음**. 연구비 화면 구독은 `budget_items`·`budget_details`·`agreement_versions`·`agreement_lines` 4테이블 그대로(`agreement_participants`·`agreement_gov_support`·`years`를 구독하면 FAIL — 화면당 4 상한)
+- [ ] 붙임4 가져오기는 새 RPC 없이 `create_agreement_version`(`p_participants: []`, `p_gov_cash`)으로 한 트랜잭션. 작성 중 버전이 있으면 `RULE`(AV-2 — 부분 유일 인덱스가 최후 방어선)
+
+**순수 함수 `lib/agreement/` — 단위 테스트 필수 (§6.19 AG-3~AG-5·AG-9, §11 필수 1)**
+- [ ] 새 모듈(계획서 S-1: `form-rows`·`rates`·`attachment4-view`·`adjustment-view`·`form-edit`·`participants`·`attachment4-parse`, `from-plan` 확장)이 `lib/agreement/`에 있고 부수효과 없음. `xlsx`·`exceljs`·`@supabase`·`lib/db`·`actions`·어댑터 import **0건** — 기존 `agreement-boundary` 정적 검사가 새 파일까지 덮는다. 합계·비율·판정을 저장하지 않는다(AG-1)
+- [ ] **산식 재구현 금지**: 양식 `E2` = `modifiedPersonnel`(PL-11), 참여인원 계산값 = `computeDetailAmount`(PL-1·PL-2·PL-4)를 `lib/budget-plan.ts`에서 받아 쓴다. 같은 식을 새로 쓴 코드가 있으면 FAIL. `lib/budget-plan.ts`·`lib/rules.ts` diff 0(부록 B.7~B.9 그대로)
+- [ ] **양식 분모**(AG-3): 간접비 비율 = L ÷ (A현금 + B현금 + C + D일반 + D통합관리 + F현금 + G현금 + H현금 + I) — **양식 시트 식 그대로**이고 RL-3 `modifiedDirectCost`(`base`)가 아니다. 테스트 ① "양식 분모 ≠ RL-3"(Y1 `student_general` 현물 1,000,000 → 분모 41,000,000, 6.0976% — 6.25%면 FAIL, 이때 `modifiedDirectCost` 40,000,000) ② 교차 — C·D·I 현물 0·양식에 없는 비목 0·H에 `promotion`이면 `modifiedDirectCost(DEFAULT_INDIRECT_BASE)`와 같음(promotion 픽스처 40,400,000 → 6.6832%)
+- [ ] **붙임4형 8-2**(AG-3·부록 C.4): 행 순서·행 대응이 C.4와 같고 픽스처 값(Y1·Y2·합계의 E1·E2·I/E2·K·L·분모·간접비 비율·M·E1/M)과 일치. **기호 혼동 테스트**(Y1 `personnel_support` 현금 4,000,000): E1 44,000,000 ≠ E2 40,000,000, I/E2 7.5%(6.8182%면 FAIL). **H = `activity` + `promotion`**(U-1). 열 = 연차 + 단계 소계(단계 2개 이상) + 합계, 줄 없는 칸 "—"
+- [ ] **양식에 없는 비목**(U-2): consignment·international·burden·other 합이 0이 아니면 "양식에 없는 비목" 행 + K·M에 포함(픽스처 Y1 consignment 1,000,000 → K 51,000,000·M 53,500,000) + 검토사항 경고. 0이면 행이 없다. 12비목이 전부 C.4 data 행 또는 이 행 중 **한 곳에만** 들어간다(테스트)
+- [ ] **내역 행**(U-3): "(간접비 중 연구실 안전관리비)" 행은 전 칸 **"—"**(0이 아님 — 소스 없음). **"(연구시설·장비비 중 통합관리비(현금))" 행은 보기·엑셀·TSV에 없다**(있으면 FAIL)
+- [ ] **붙임4형 8-1**(AG-3): 연차별 행 + 합계 행. A = 그 연차 정부지원 현금(§5.25), B = 그 연차 현금 합 − A, C = 현물 합, D = B+C, H = 현금+현물, A/H, B/D — 픽스처(Y1 66.6667%·42.8571%, Y2 66.4137%·43.5028%, 합계 66.5399%·43.1818%)와 일치, 국제공동 0이면 합계 = `evaluateRules` 비율(교차). **미입력(행 없음)**이면 그 연차 A·B·두 비율 "—" + 사유, 합계 행도 "—". **A = 0(입력)**은 "—"가 아니라 계산된다. A > 현금 합이면 "—" + 경고. 기업유형 "중소기업" 고정 표시, 그 외 기관 지원금 0
+- [ ] **8-1 판정**(G-1): RL-8 `gov_share_max`·RL-9 `own_cash_min` 행이 켜져 있고 값이 있을 때만 연차별·합계 판정(경계 `lib/rules.ts`와 같음 — 75/40 전부 통과, `own_cash_min` 43이면 Y1만 미달). 행이 없거나 꺼졌으면 **"판정하지 않음" + 사유**(통과·위반으로 둔갑하면 FAIL). 과제 유형별 값 표로 한도를 정하는 코드가 있으면 FAIL
+- [ ] **조정회의형**(AG-4): **변경전 = 제안 모드**(`buildBaselineFromPlan` 변환 → 같은 양식 행 집계), **변경후 = 보고 있는 협약 버전**. A = 양식 E2 · B = I · C = L · D = A+B+C · E = M · F = K, 비율 D/E · B/A · A/F, 머리 간접비 비율(양식 분모). 픽스처(변경전 Y1 86%·7.5%·80%·0%, Y2 "—" / 변경후 Y1 86.6667%·7.5%·80%·6.25%, Y2 90.5123%·7.1429%·84%·6.75%, 합계 88.5932%·7.3171%·82%·6.5%)와 일치. `personnel_support` > 0 케이스에서 A가 C를 빼고 계산된다. 제안 변환 실패(한쪽만 null 불일치)면 변경전에 **사유**(0으로 채우면 FAIL)
+- [ ] 비율은 **중간 반올림 없이** 계산하고 표시 단계에서만 자른다. 분모 0이면 "—"(0%·`NaN`·`Infinity` 아님 — 절대 규칙 5). 금액은 원 단위 정수 덧셈만(절대 규칙 4)
+- [ ] **참여인원 모델**(AG-5): 정렬(인력 순서, 미지정 뒤 → 연차 순서), 연차 소계·총계, 계산값 = `computeDetailAmount` — 부록 B.7(74,000,000·28%·9개월) → 15,540,000 "자동", 15,540,001이면 "수동". 구분은 **읽을 때 판정**: 연봉 null → "연봉 모름"(계산값 없음 — 0으로 계산하면 FAIL), (현금 = 계산값 & 현물 0) 또는 (현물 = 계산값 & 현금 0) → "자동", 그 밖 "수동". 인력 미지정 행 표시
+- [ ] **참여인원 ↔ 금액 줄 대조**(표시만): 연차·축별 Σ참여인원 − Σ(`personnel` + `student_personnel` 줄). 기본 픽스처 0, 미지정 Y2 현금 5,000,000 추가 시 Y2 현금 +5,000,000. 어느 쪽도 자동으로 고치지 않는다
+- [ ] **G-3 편집 해석**(`resolveParticipantEdit`): 6케이스(M1 Y1 참여율 60% → 36,000,000 / M1 Y2 개월 10 → 32,000,000 유지 / M2 Y1 25% → 현물 12,500,000 / 새 행 금액 없음 → 현금 6,000,000 / 금액 7,000,000 명시 → 수동 / 연봉 모름·금액 0 행에 연봉 40M → 6,000,000)
+- [ ] **8-2 칸 편집 해석**(`form-edit`, S-12): A·B 현금/현물 = (세목, 축) 줄 정확 update/insert/noop · C·D 일반·D 통합 = 입력 − 그 세목 현물을 현금 줄 목표로(음수 `RULE`) · F·G = `resolveCellEdit`(default 흡수) · I·L = 입력 − 그 비목 현물을 현금 셀 목표로 `resolveCellEdit` · H = 입력 − 그 연차·축 `promotion` 합을 `activity` 셀 목표로(음수 `RULE`). 집계·비율·내역·단계·합계 칸·양식 밖 행은 거부. 분기마다 테스트
+- [ ] **보내기 확장**(`from-plan`): `buildBaselineFromPlan`이 정부지원 현금을 돌려준다 — 제안 Y1 35,000,000·Y2 null → `{Y1: 35,000,000}`(null 연차 키 없음). Phase 24 `agreement-core` 테스트 무수정 통과
+- [ ] **붙임4 파서**(AV-7·부록 C.4): 입력은 셀 격자(`RawSheet[]` — SheetJS 객체가 아님), 출력은 금액 줄 + 연차별 정부지원 현금 + 정합 경고 + blocking. ① "총합 (전체)" 블록 제외 ② 기관 블록 1개면 그것, **여럿이면 `blockIndex` 없이는 `choose-block`**(B열 텍스트 목록) — 회사명·별칭으로 골라 주거나 추측하면 FAIL, 범위 밖 인덱스 blocking ③ 행 종류 data·aggregate(대조, 어긋나면 경고·차액)·ratio(인식만)·memo(연구실 안전관리비 — 값 ≠ 0이면 경고, 줄 0)·**ignored(통합관리비(현금) — 경고 0·줄 0)** ④ **모르는 라벨은 blocking** — 조용히 빠지거나 `default`로 흡수되어 금액이 사라지면 FAIL ⑤ 인건비 A~D는 세목 줄, 나머지는 `default` ⑥ 단위 없음 blocking, 음수·문자·비정수 blocking, 0·빈 칸은 줄 없음, 같은 키 합산 + 경고 ⑦ `N차년도` 열 수 ≠ 과제 연차 수면 경고 + 남는 열 합
+- [ ] **8-1 읽기·정합**: 기관마다 금액 행만 읽고 비율 행은 건너뛴다. 고른 8-2 블록의 B열 텍스트와 **같은 파일 안 텍스트가 같은** 행(NFC·공백 정규화)을 쓰고, 0개·2개 이상이면 `plan81Row` 선택 또는 "8-1 쓰지 않음"(정부지원 현금 없음 + 경고). **8-1 A → 버전 정부지원 현금.** 정합(연차별 8-2 현금 합 = A+B, 현물 = C, 합계 = H)이 어긋나거나 E·F ≠ 0이면 경고(위치·차액) — 반영은 막지 않는다
+- [ ] 파서 테스트 픽스처: 블록 1개 / 블록 2개 + blockIndex 없음 / 범위 밖 / 8-1 행 텍스트 불일치(행 선택) / "8-1 쓰지 않음" / 8-1 현금 −1,000천원 / 그 외 기관 지원금 ≠ 0 / 모르는 라벨 / 빈 칸·0·음수 / 연차 3열 대 2연차 / 단위 없음 / 집계 행 불일치 / 통합관리비 값 있음 / 연구실 안전관리비 값 ≠ 0. 기대: 줄 합계 105,200,000, 정부지원 현금 {Y1·Y2: 35,000,000}. 실측 구조 익명화 픽스처에서 반영 뒤 붙임4형 E1·E2·K·L·M·비율 = 파일 집계 셀
+
+**붙임4 가져오기 — 파일·경로·미리보기 (§5.21 AV-7, §6.8 I-13, §6.16 IN-8, §9)**
+- [ ] 받는 파일은 `.xlsx`·`.xlsm`·`.xls` — 읽기는 **SheetJS, `server-only` 어댑터에서만**(`lib/import-adapter.ts` `readAttachment4Upload`). `xlsx`를 import하는 파일 목록이 늘지 않고 클라이언트 번들(`.next/static`)에 SheetJS 문자열 0. hwpx 경로와 섞지 않는다
+- [ ] 파일 크기 10MB(`MAX_UPLOAD_BYTES`) + `next.config.ts` `experimental.serverActions.bodySizeLimit: '11mb'` + 업로드 전 클라이언트 검사. 초과·빈 파일·깨진 파일·암호 파일은 각각 사용자 문구
+- [ ] 파일은 `FormData`로, **미리보기와 반영은 같은 파싱 함수** + `fileHash` 대조 — 해시가 다르면 반영 `RULE`. 미리보기에서 보인 금액 줄·정부지원 현금과 반영 결과가 같다(통합 테스트)
+- [ ] 미리보기 표시: 고른 블록(B열 텍스트), 단위, 연차 × 비목 합계(현금/현물), 만들 줄 수, 연차별 정부지원 현금, 8-1 정합 결과, 경고·blocking 목록. blocking이 있으면 [반영] 비활성 + 이유
+- [ ] 반영 = **작성 중 버전 하나 생성**(G-4 — 보내기와 같은 규칙, 종류·이름 초깃값 `suggestNextVersionMeta`). 참여인원·편성 항목 0, 스냅샷 없음. 작성 중 버전이 있으면 `RULE`(버튼 비활성 + 이유, 우회 호출도 `RULE`). 버전이 있어도 작성 중이 없으면 허용
+- [ ] 오류는 전부 명시적(절대 규칙 5): 엑셀 아님·암호·깨진 파일·8-2를 못 찾음·블록 미선택·모르는 라벨·단위 없음 → 사용자 문구. 빈 버전이나 0 금액 버전이 조용히 만들어지면 FAIL. DB 내부 정보 노출 없음(SA-4)
+
+**리포지토리·액션 (§8.6, §9 Agreement Budget)**
+- [ ] Phase 25 액션(§9): `setAgreementFormCellAmount`·`setAgreementGovCash`(`actions/agreement.ts`), `addAgreementParticipant`·`updateAgreementParticipant`·`deleteAgreementParticipant`(`actions/agreement-participants.ts`), `previewAttachment4Import`·`commitAttachment4Import`(`actions/agreement-import.ts`), `buildAgreementWorkbook` view 3종 추가, `updateYear` patch `govSupportCash`. 전부 `ActionResult<T>`, Zod, SA-1, 성공 시 `revalidatePath`, 예외를 그대로 던지지 않음, supabase 직접 호출 0. 리포지토리는 `lib/db/agreements.ts`에서 Zod 응답 검증·매퍼 경유(`gov_cash` ↔ `govCash`, `gov_support_cash` ↔ `govSupportCash` 매퍼 테스트), 가드 트리거 → `RuleViolationError`, version 불일치 → `StaleDataError`
+- [ ] **정부지원 현금 편집**(`setAgreementGovCash(versionId, yearId, amount | null)`, O-2): 행 없음 + 값 → 삽입 · 행 + 값 → 갱신(0도 저장, 행 유지) · 행 + null → 삭제(미입력) · 없음 + null → 변화 없음. 경합(0행 갱신·삭제, unique 위반) → `STALE`. 확정 버전 → `RULE`(삭제 포함 — 트리거가 DELETE를 막지 않으므로 액션이 막는다). 다른 과제 연차 → `RULE`
+- [ ] **제안 연차 정부지원 현금**(`updateYear`): 0 이상 정수 또는 null만 받고(음수·소수 거부), 연구비 경로 revalidate. 제안 규칙 판정·입력 양식 출력 바이트 불변
+- [ ] **보내기**(AV-6 ④): 제안 정부지원 현금이 null 아닌 연차만 버전 행으로(픽스처 Y1만), 복제 = 같은 값 새 행, 빈 버전 = 0행 — 통합 테스트
+- [ ] **참여인원 편집**(AG-5): 추가·수정·삭제. 인력·연차는 **같은 과제에서만**(액션·트리거 둘 다 거부 — 통합 테스트). 참여율 0~100·개월 0~12·금액 0 이상 정수·역할 100자 이하. 추가 시 연봉 스냅샷·자동 계산, 수정은 G-3대로, 수정 O-1. 확정 버전 추가·수정·**삭제**는 `RULE`, 데이터 불변
+- [ ] **8-2 칸 편집**(`setAgreementFormCellAmount`): 작성 중 버전만, **같은 금액 줄**을 바꾸고 비목별 보기에 즉시 같은 값(통합 테스트, AG-1). 집계·비율·내역·단계·합계 칸·양식 밖 행은 `RULE`. O-2 + 경합 `STALE`. 조정회의형은 편집 액션이 없다
+
+**화면 (§7.9, §7.9.8, §12)**
+- [ ] 보기 탭: **`[비목별]`·`[붙임4형]`·`[조정회의형]`·`[참여인원]`·`[변경 이력]`**. `[편성 항목·증빙]` 탭은 여전히 숨김(자리표시·"준비 중" 탭이 있으면 FAIL)
+- [ ] **제안 모드 매트릭스 아래** "정부지원 현금"(연차별 입력, 비우면 미입력 "—")·"기관부담 현금"(현금 합 − 정부지원, 읽기 전용, 미입력이면 "—") 행. 정부지원 > 현금 합이면 그 연차 경고(저장은 됨), 연차 합 ≠ `govBudget`이면 정보 문구. 저장 실패·`STALE` 명시
+- [ ] 붙임4형 보기: 위 8-1(연차별 + 합계, 작성 중 버전에서 정부지원 현금 칸 편집, 판정 "통과/위반/판정하지 않음 + 사유") · 아래 8-2(데이터 칸만 편집, 라벨 **"양식 E1(총 인건비)"·"양식 E2(수정인건비)"** — PL-11 `E1`과 혼동되지 않게, 양식에 없는 비목 행, 연구실 안전관리비 "—", 통합관리비 행 없음, 검토사항). 확정 버전은 편집 칸 없음
+- [ ] 조정회의형 보기: **변경전(제안)·변경후(보고 있는 버전) 두 표 나란히**, 읽기 전용, 변경전 변환 실패는 사유, 현재 버전이 아니면 "현재 버전 아님" 표식. 비율 분모 0은 "—"
+- [ ] 참여인원 보기: 인력(미지정 "인력 미지정") × 연차 목록, 연봉 스냅샷·계산값·현금·현물·계, **자동/수동/연봉 모름 구별**, 연차 소계·총계, 금액 줄 대조 행. 작성 중 버전에서만 추가·수정(`ParticipantDialog`)·삭제(확인 대화). `RULE`·`STALE`은 배너 또는 ConflictDialog(O-3)
+- [ ] `[붙임4 가져오기]` **두 곳**: 제안 모드 툴바 [협약 기준선으로 보내기] 옆 + 수행 모드 버전 0개 안내의 [빈 버전] 옆. 작성 중 버전이 있으면 비활성 + 이유(`draftExistsReason`과 같은 문구). 버전 0개 안내 문구 = "협약 예산 버전이 없습니다 — 제안 모드에서 [협약 기준선으로 보내기]로 만들거나, [붙임4 가져오기]로 가져오거나, [빈 버전]으로 시작하세요". 대화 흐름: 업로드(크기 사전 검사) → 블록 선택(여럿일 때) → 8-1 행 선택/"8-1 쓰지 않음"(필요할 때) → 미리보기 → 반영 → 결과(만든 버전·줄 수 또는 실패 사유)
+- [ ] 각 새 보기 툴바 `[엑셀 내려받기]`·`[복사]`(AG-8): Phase 24 공통 부품(`lib/agreement/table.ts`·`TableActions`)을 **수정 없이 재사용**. 엑셀 쓰기는 기존 `lib/input-form-adapter.ts` — **exceljs import 파일 2개 유지**. 시트: 붙임4형 = 작성안내 + "8-1 지원·부담계획" + "8-2 사용계획", 조정회의형 = 한 시트(항목 · 변경전 연차… · 합계 · 변경후 연차… · 합계, `D`·합계 sum 칸), 참여인원 = 한 시트. **비율 칸은 text**(소수 둘째 자리 + `%`, 값 없음 "—"), `sum` 칸 수식 + 결과값, 원 단위, 파일명 라벨 `{버전 이름} 붙임4형` 등. 보기 3종 각각 **exceljs 재로드 값 = TSV** 테스트. [복사] 실패는 배너
+- [ ] 인쇄: 보고 있는 보기 하나, 가로, 머리말 과제명·버전 이름·상태·출력일, 버튼·탭 `print:hidden`. 다크 모드 토큰(하드코딩 색 0). `dangerouslySetInnerHTML` 0
+- [ ] 과제 개요(§7.3)는 바뀌지 않는다 — 과제 유형·기업 유형 칸 0
+
+**도움말 (§7.16)**
+- [ ] 새 slug **`agreement`**: `content/help/agreement.md`(HP-6 형식, 3,500자 이내) + `lib/help.ts` 등록(`HELP_RELATED` budget ↔ agreement). 내용: 8-2 양식 행(양식 `E1`/`E2`와 PL-11 차이)·**양식 분모**(RL-3과 다름)·8-1 연차별 정부지원 현금(미입력 "—", RL-8·RL-9 행으로 판정)·조정회의 **변경전(제안)/변경후(버전)**·참여인원 구분·대응표 요지(**통합관리비(현금) 제외·연구실 안전관리비 "—"**·양식에 없는 비목)·붙임4 가져오기(블록 선택·8-1 행·오류 의미). `content/help/budget.md`는 제안 연차 정부지원 현금 + agreement 연결 한 줄(3,500자 이내). **`calculations.md` 불변**. `HelpLink` 앵커가 실제 절과 일치(`help-content` 테스트). 과제 유형 설명이 있거나 Phase 26 기능(RL-21·RL-22·8-2 비율 판정·편성 항목·증빙·수행 모드 규칙 검증)을 이미 있는 것처럼 설명하면 FAIL
+
+**회귀 없음**
+- [ ] **Phase 24 기능 그대로**: 버전 생성(보내기·복제·빈 버전)·확정·확정 취소·메타·삭제·전체 삭제, 비목별 보기 셀 편집(`resolveCellEdit` 5분기), 변경 이력 증감·RL-23(S-20 수치 그대로), 기준·현재 버전, 연차·인력 삭제 차단(H-5a·H-9b) 테스트가 통과. Phase 24 테스트 파일 수정은 **schema_version 단언(6 → `≥ 6` 또는 7), 파괴적 백업 테스트(테이블 수·v7), `agreement-migration.test.ts` (h)의 가드 트리거 목록 단언을 Phase 24 3종으로 거르는 한 줄(새 테이블에도 같은 가드 — 메인 승인), `agreement-export.test.ts`의 "모르는 보기" 예시 리터럴 `'participants'` → `'unknown'`(Phase 25에서 유효한 보기가 됨 — 메인 승인)뿐**이고 계획서 소유권 표와 일치(그 밖 수정 FAIL). 비목별·변경 이력 엑셀 출력 불변
+- [ ] **바이트 불변**: 제안 입력 양식(Phase 19 layout·build·style)·목표 양식 출력. `TableActions.tsx`·`lib/agreement/table.ts`·`cell-edit.ts`·`lib/input-form*` diff 0
+- [ ] 제안 모드: 매트릭스·잠금(PL-9)·산출근거·규칙 검증 패널·[연구비 규칙]·[인건비] 탭·[급여 반영]·[협약 기준선으로 보내기]·총괄표/산출근거 임포트·제출 서식 내보내기 테스트 통과, 부록 B.7·B.8·B.9 수치 불변
+- [ ] **Phase 26 선행 0·과제 유형 0**(grep 근거를 보고서에): `project_type`·`ProjectType`·`projectType` 코드 0, `RuleCode`·`budget_rules` check·`lib/rules-presets.ts`에 RL-20~RL-22 없음, `lib/rules.ts`에 수행 모드 판정 없음, `AgreementItem` 편집 액션·보기 컴포넌트 없음, 편성 항목 탭 없음, 회사명 매칭 코드 0, 양식 전용 저장 칸(테이블·컬럼) 0
+- [ ] 목표·목표 양식·hwpx·WBS·간트·칸반·마일스톤·리스크·노트·To-Do·조직원·참여율·백업(v7 왕복·v6 거부) 테스트 전부 통과
+- [ ] `npm test`(실행 후 `seed.sql` 복원)·`npm run test:destructive`·`npx tsc --noEmit`·`npm run build`(dev 서버가 꺼진 것 확인 후) 통과. 절대 규칙 1(`service_role` 없음)·2(새 테이블 RLS)·3(UI·액션이 supabase 직접 호출 없음 — Realtime 읽기 구독만 예외)·4(금액 정수)·5(빈 배열 폴백·조용한 0 없음). `samples/` 커밋 0 — 익명화 픽스처만 `tests/fixtures/`

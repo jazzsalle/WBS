@@ -1,7 +1,8 @@
 'use server';
 
-// 협약 예산(수행 모드) 서버 액션 + 조회 (SOT §5.21~§5.24 AV-1~AV-8, §6.19 AG-1·AG-2·AG-7, §9 Agreement Budget
-// SA-1~SA-4, §8.4 O-1·O-2, 계획서 docs/plans/phase-24-plan.md S-2·S-4·S-5·S-6·S-10·S-12·S-15·S-16).
+// 협약 예산(수행 모드) 서버 액션 + 조회 (SOT §5.21~§5.25 AV-1~AV-8, §6.19 AG-1~AG-5·AG-7, §9 Agreement Budget
+// SA-1~SA-4, §8.4 O-1·O-2, 계획서 docs/plans/phase-24-plan.md S-2·S-4·S-5·S-6·S-10·S-12·S-15·S-16,
+// docs/plans/phase-25-plan.md S-4·S-6~S-8·S-12).
 // 반환은 ActionResult<T> — 예외를 그대로 던지지 않는다. supabase 직접 호출 금지, lib/db/ 리포지토리만 쓴다 (§8.6).
 //
 // 규칙 위반(작성 중 1개·확정 잠금·확정 취소 조건·과제 경계)은 **여기서 먼저** 사람이 읽을 문장으로 거부한다.
@@ -16,12 +17,15 @@ import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   ActionResult,
+  AgreementGovSupport,
   AgreementLine,
+  AgreementParticipant,
   AgreementVersion,
   BudgetCategory,
   DetailAxis,
   Member,
   Settings,
+  Stage,
   Year,
 } from '@/types';
 import { requireApprovedUser } from '@/lib/auth/guard';
@@ -29,9 +33,11 @@ import * as agreementsRepo from '@/lib/db/agreements';
 import * as appUsers from '@/lib/db/app-users';
 import * as budgetDetailsRepo from '@/lib/db/budget-details';
 import * as budgetItemsRepo from '@/lib/db/budget-items';
+import * as budgetRulesRepo from '@/lib/db/budget-rules';
 import * as membersRepo from '@/lib/db/members';
 import * as projectsRepo from '@/lib/db/projects';
 import * as settingsRepo from '@/lib/db/settings';
+import * as stagesRepo from '@/lib/db/stages';
 import * as yearsRepo from '@/lib/db/years';
 import {
   RepositoryError,
@@ -46,7 +52,8 @@ import {
   budgetCategorySchema,
   detailAxisSchema,
 } from '@/lib/db/schema';
-import { agreementSubcategoryLabel } from '@/lib/constants';
+import { ATTACHMENT4_FORM_ROWS, agreementSubcategoryLabel } from '@/lib/constants';
+import type { RuleInput } from '@/lib/rules';
 import { todayISO } from '@/lib/dates';
 import {
   baseVersionIds,
@@ -83,6 +90,22 @@ import {
   buildParticipantChangesTable,
   buildPreservationTable,
 } from '@/lib/agreement/changes-table';
+import {
+  attachment4Tables,
+  buildAttachment4View,
+  type Attachment4ViewModel,
+} from '@/lib/agreement/attachment4-view';
+import {
+  adjustmentTable,
+  buildAdjustmentView,
+  type AdjustmentViewModel,
+} from '@/lib/agreement/adjustment-view';
+import {
+  buildParticipantsView,
+  participantsTable,
+  type ParticipantsViewModel,
+} from '@/lib/agreement/participants';
+import { resolveFormCellEdit } from '@/lib/agreement/form-edit';
 import type { TableModel } from '@/lib/agreement/table';
 
 // ─── 조회 모델 (S-2, §10) ──────────────────────────────────────────────────────
@@ -101,7 +124,24 @@ export interface AgreementVersionView {
   /** AV-8 [확정 취소] 가능 여부 */
   canUnconfirm: boolean;
   lineCount: number;
+  /** AG-3 붙임4형(8-1·8-2) 모델과 그 표 모델(엑셀·[복사] 원본) */
+  attachment4: {
+    view: Attachment4ViewModel;
+    tables: { plan81: TableModel; plan82: TableModel };
+  };
+  /** AG-4 조정회의형 — 변경전 = 제안 모드 변환(모든 버전 공통), 변경후 = 이 버전 */
+  adjustment: { view: AdjustmentViewModel; table: TableModel };
+  /**
+   * AG-5 참여인원 보기 모델·표 모델과 원본 행. 원본 행은 수정(O-1 expectedVersion = 행의 `version`)·
+   * 편집 폼 초깃값용이다 — 보기 행에는 version이 없다
+   */
+  participants: { view: ParticipantsViewModel; table: TableModel; rows: AgreementParticipant[] };
+  /** §5.25 연차별 정부지원 현금 원본 행(연차 order 무관 — 리포지토리 정렬). 행 없음 = 미입력 */
+  govSupport: AgreementGovSupport[];
 }
+
+/** 참여인원 편집 폼이 고를 인력과 자동 계산(연봉 스냅샷)에 쓰는 값 */
+export type AgreementMemberOption = Pick<Member, 'id' | 'name' | 'order' | 'annualSalary'>;
 
 export interface AgreementData {
   projectId: string;
@@ -120,6 +160,12 @@ export interface AgreementData {
   nextVersionMeta: NextVersionMeta;
   /** 화면 표시 단위. 표 모델(TSV·엑셀)은 원 단위 그대로다(AG-8) */
   currencyUnit: Settings['currencyUnit'];
+  /** 단계 order 순 — 붙임4형 8-2 단계 소계 열(단계 2개 이상)의 원본 */
+  stages: Stage[];
+  /** 과제 인력 order 순 */
+  members: AgreementMemberOption[];
+  /** 과제 규칙 행(§6.14). 붙임4형 8-1이 RL-8 `gov_share_max`·RL-9 `own_cash_min`만 판정에 쓴다(G-1) */
+  rules: RuleInput[];
 }
 
 /** 생성 3경로 공통 결과 — 새 버전은 항상 작성 중이다(AV-1) */
@@ -129,6 +175,15 @@ export interface AgreementVersionCreated {
   lineCount: number;
   participantCount: number;
   itemCount: number;
+  /** 만든 정부지원 현금 행 수(§5.25) */
+  govSupportCount: number;
+}
+
+/** 보내기 미리보기의 연차별 정부지원 현금(AV-6 ④). null = 제안 연차 미입력 → 버전에 행을 만들지 않는다 */
+export interface AgreementBaselineGovCash {
+  yearId: string;
+  yearName: string;
+  amount: number | null;
 }
 
 /** 보내기 결과 — 미분리 셀(현금으로 보낸 계획액) 건수·합계를 결과에 명시한다(Q2) */
@@ -142,7 +197,7 @@ export interface AgreementBaselineCreated extends AgreementVersionCreated {
  * `hasVersions`면 "직전 버전을 복제하지 않고 제안 편성으로 새로 만듭니다"(Q4)를 함께 적는다.
  */
 export type AgreementBaselinePreview = { draftVersionName: string | null; hasVersions: boolean } & (
-  | { ok: true; summary: BaselineSummary }
+  | { ok: true; summary: BaselineSummary; govCash: AgreementBaselineGovCash[] }
   | { ok: false; issues: BaselineIssue[] }
 );
 
@@ -156,6 +211,18 @@ export interface AgreementCellEditResult {
   kind: 'update' | 'insert';
   line: AgreementLine;
 }
+
+/**
+ * 붙임4형 8-2 칸 편집 결과(AG-3). 'noop' = 고칠 줄이 이미 그 금액이라 쓰지 않았다 — 실패가 아니다
+ */
+export type AgreementFormCellEditResult =
+  | { kind: 'update' | 'insert'; line: AgreementLine }
+  | { kind: 'noop'; line: null };
+
+/** §5.25 정부지원 현금 편집 결과. 'delete' = 미입력으로 되돌림, 'noop' = 행 없음 + null(변화 없음) */
+export type AgreementGovCashEditResult =
+  | { kind: 'insert' | 'update'; row: AgreementGovSupport }
+  | { kind: 'delete' | 'noop'; row: null };
 
 export interface AgreementChangesData {
   projectId: string;
@@ -228,6 +295,20 @@ const lineSeedSchema = z
     }
   });
 
+// 행 id는 부록 C.4 목록 안에서만 받는다. 편집 가능 여부(데이터 행·축)는 resolveFormCellEdit가 RULE로 가른다
+const ATTACHMENT4_ROW_IDS = new Set<string>(ATTACHMENT4_FORM_ROWS.map((r) => r.id));
+const formCellEditSchema = z.object({
+  yearId: z.uuid('연차 ID 형식이 올바르지 않습니다.'),
+  rowId: z
+    .string()
+    .refine((id) => ATTACHMENT4_ROW_IDS.has(id), '붙임4 양식에 없는 행입니다.')
+    .transform((id) => id as (typeof ATTACHMENT4_FORM_ROWS)[number]['id']),
+  axis: detailAxisSchema.nullable(),
+  amount: wonAmountSchema,
+});
+
+const govCashMapSchema = z.record(z.uuid(), wonAmountSchema);
+
 function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, fallback: string): T {
   const parsed = schema.safeParse(value);
   if (!parsed.success) {
@@ -295,6 +376,20 @@ function assertExpectedVersion(version: AgreementVersion, expectedVersion: numbe
   if (version.version !== expectedVersion) throw new StaleDataError(version.updatedBy);
 }
 
+/** 하위 행을 버전별로 나눈다. 목록에 없는 버전을 가리키는 행은 일괄 조회가 어긋났다는 뜻이다 — 던진다 */
+function groupByVersion<T extends { versionId: string }>(
+  versions: readonly AgreementVersion[],
+  rows: readonly T[]
+): Map<string, T[]> {
+  const map = new Map<string, T[]>(versions.map((v) => [v.id, []]));
+  for (const row of rows) {
+    const bucket = map.get(row.versionId);
+    if (!bucket) throw new Error(`조회한 버전 목록에 없는 버전의 행이 있습니다 (${row.versionId}).`);
+    bucket.push(row);
+  }
+  return map;
+}
+
 function sortYears(years: readonly Year[]): Year[] {
   return [...years].sort((a, b) => a.order - b.order);
 }
@@ -306,7 +401,9 @@ function categoryTableTitle(version: AgreementVersion): string {
 // ─── 조회 ─────────────────────────────────────────────────────────────────────
 
 /**
- * 수행 모드 한 벌(S-2). 버전마다 비목별 매트릭스·표 모델·기준 버전·RL-23을 계산해 내린다.
+ * 수행 모드 한 벌(S-2). 버전마다 비목별 매트릭스·표 모델·기준 버전·RL-23과 Phase 25 보기 3종(붙임4형·조정회의형·
+ * 참여인원)을 계산해 내린다. 하위 행은 버전 id 묶음으로 한 번씩만 읽는다(버전 수만큼 왕복하지 않는다 — §12).
+ * 조정회의형 변경전은 제안 데이터를 보내기와 같은 변환(`buildBaselineFromPlan`)으로 한 번만 바꿔 모든 버전이 쓴다.
  * 하나라도 실패하면 실패를 그대로 올린다 — 버전·줄을 빈 배열로 눙치면 "버전 없음" 안내나 0 매트릭스가
  * 사실처럼 보인다(절대 규칙 5).
  */
@@ -315,26 +412,71 @@ export async function getAgreementData(projectId: string): Promise<ActionResult<
     const pid = parseOrThrow(uuidSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
     const { client } = await requireApprovedUser();
 
-    const [project, years, versions, settings] = await Promise.all([
+    const [project, years, stages, versions, settings, items, details, members, rules] = await Promise.all([
       projectsRepo.getProjectById(client, pid),
       yearsRepo.listYears(client, pid),
+      stagesRepo.listStages(client, pid),
       agreementsRepo.listVersionsByProject(client, pid),
       settingsRepo.getSettings(client),
+      budgetItemsRepo.listBudgetItemsByProject(client, pid),
+      budgetDetailsRepo.listByProject(client, pid),
+      membersRepo.listMembers(client, pid),
+      budgetRulesRepo.listByProject(client, pid),
     ]);
-    const lines = await agreementsRepo.listLinesByVersionIds(
-      client,
-      versions.map((v) => v.id)
-    );
+    const versionIds = versions.map((v) => v.id);
+    const [lines, participants, govSupport] = await Promise.all([
+      agreementsRepo.listLinesByVersionIds(client, versionIds),
+      agreementsRepo.listParticipantsByVersionIds(client, versionIds),
+      agreementsRepo.listGovSupportByVersionIds(client, versionIds),
+    ]);
 
     const data = computeOrCorrupt((): AgreementData => {
-      const linesByVersion = new Map<string, AgreementLine[]>(versions.map((v) => [v.id, []]));
-      for (const line of lines) linesByVersion.get(line.versionId)!.push(line);
+      const linesByVersion = groupByVersion(versions, lines);
+      const participantsByVersion = groupByVersion(versions, participants);
+      const govByVersion = groupByVersion(versions, govSupport);
       const bases = baseVersionIds(versions);
+      const current = currentVersionId(versions);
+      const sortedYears = sortYears(years);
+      const sortedStages = [...stages].sort((a, b) => a.order - b.order);
+      const sortedMembers = [...members].sort((a, b) => a.order - b.order);
+      const ruleInputs: RuleInput[] = rules.map((r) => ({
+        code: r.code,
+        enabled: r.enabled,
+        value: r.value,
+        base: r.base,
+        severity: r.severity,
+        source: r.source,
+      }));
+      // AG-4 변경전 — 버전과 무관하다. 변환 실패(issues)는 보기의 사유로 실린다(0으로 채우지 않는다)
+      const planBaseline = buildBaselineFromPlan({ items, details, members, years });
 
       const views = versions.map((version): AgreementVersionView => {
         const own = linesByVersion.get(version.id)!;
+        const ownParticipants = participantsByVersion.get(version.id)!;
+        const ownGov = govByVersion.get(version.id)!;
         const categoryView = buildCategoryView(own, years);
         const baseId = bases[version.id] ?? null;
+
+        const attachment4 = buildAttachment4View({
+          lines: own,
+          years,
+          stages,
+          govSupport: ownGov,
+          rules: ruleInputs,
+        });
+        const adjustment = buildAdjustmentView({
+          years,
+          before: planBaseline,
+          after: { versionId: version.id, versionName: version.name, lines: own },
+          currentVersionId: current,
+        });
+        const participantsView = buildParticipantsView({
+          participants: ownParticipants,
+          members,
+          years,
+          lines: own,
+        });
+
         return {
           version,
           categoryView,
@@ -346,6 +488,20 @@ export async function getAgreementData(projectId: string): Promise<ActionResult<
           ),
           canUnconfirm: canUnconfirm(versions, version.id),
           lineCount: own.length,
+          attachment4: {
+            view: attachment4,
+            tables: attachment4Tables(attachment4, {
+              plan81: `${version.name} — 붙임4 8-1 지원·부담계획`,
+              plan82: `${version.name} — 붙임4 8-2 사용계획`,
+            }),
+          },
+          adjustment: { view: adjustment, table: adjustmentTable(adjustment, `${version.name} — 조정회의`) },
+          participants: {
+            view: participantsView,
+            table: participantsTable(participantsView, `${version.name} — 참여인원`),
+            rows: ownParticipants,
+          },
+          govSupport: ownGov,
         };
       });
 
@@ -353,12 +509,15 @@ export async function getAgreementData(projectId: string): Promise<ActionResult<
         projectId: pid,
         projectName: project.name,
         todayISO: todayISO(new Date()), // §6.5 기준일 — Asia/Seoul 달력
-        years: sortYears(years),
+        years: sortedYears,
         versions: views,
-        currentVersionId: currentVersionId(versions),
+        currentVersionId: current,
         draftVersionId: draftVersionId(versions),
         nextVersionMeta: suggestNextVersionMeta(versions),
         currencyUnit: settings.currencyUnit,
+        stages: sortedStages,
+        members: sortedMembers.map((m) => ({ id: m.id, name: m.name, order: m.order, annualSalary: m.annualSalary })),
+        rules: ruleInputs,
       };
     });
 
@@ -447,7 +606,7 @@ export async function getAgreementChanges(
 async function loadBaseline(
   client: SupabaseClient,
   projectId: string
-): Promise<{ versions: AgreementVersion[]; baseline: BaselineFromPlanResult }> {
+): Promise<{ versions: AgreementVersion[]; years: Year[]; baseline: BaselineFromPlanResult }> {
   const [versions, years, items, details, members] = await Promise.all([
     agreementsRepo.listVersionsByProject(client, projectId),
     yearsRepo.listYears(client, projectId),
@@ -456,7 +615,7 @@ async function loadBaseline(
     membersRepo.listMembers(client, projectId),
   ]);
   const baseline = computeOrCorrupt(() => buildBaselineFromPlan({ items, details, members, years }));
-  return { versions, baseline };
+  return { versions, years, baseline };
 }
 
 /** 보내기 확인 대화의 미리보기 — 쓰기 없음. 거부 사유(issues)도 실패가 아니라 값으로 돌려준다 */
@@ -467,13 +626,22 @@ export async function previewAgreementBaseline(
     const pid = parseOrThrow(uuidSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
     const { client } = await requireApprovedUser();
 
-    const { versions, baseline } = await loadBaseline(client, pid);
+    const { versions, years, baseline } = await loadBaseline(client, pid);
     const meta = {
       draftVersionName: versions.find((v) => v.status === 'draft')?.name ?? null,
       hasVersions: versions.length > 0,
     };
     const data: AgreementBaselinePreview = baseline.ok
-      ? { ...meta, ok: true, summary: baseline.summary }
+      ? {
+          ...meta,
+          ok: true,
+          summary: baseline.summary,
+          govCash: sortYears(years).map((y) => ({
+            yearId: y.id,
+            yearName: y.name,
+            amount: baseline.govCash[y.id] ?? null,
+          })),
+        }
       : { ...meta, ok: false, issues: baseline.issues };
     return { ok: true, data };
   } catch (e) {
@@ -507,12 +675,14 @@ export async function createAgreementVersionFromPlan(
     }
     // §5.22 세목 검사는 액션 Zod가 유일한 관문이다 — 순수 함수 결과도 같은 문을 지난다
     const lines = parseOrThrow(z.array(lineSeedSchema), baseline.lines, '보낼 금액 줄이 올바르지 않습니다.');
+    const govCash = parseOrThrow(govCashMapSchema, baseline.govCash, '보낼 정부지원 현금이 올바르지 않습니다.');
 
     const created = await agreementsRepo.createVersion(client, pid, {
       kind,
       name,
       lines,
       participants: baseline.participants,
+      govCash,
     });
     revalidateAgreement(pid);
     return {
@@ -523,6 +693,7 @@ export async function createAgreementVersionFromPlan(
         lineCount: created.lines,
         participantCount: created.participants,
         itemCount: 0,
+        govSupportCount: created.govSupport,
         summary: baseline.summary,
       },
     };
@@ -552,6 +723,7 @@ export async function createEmptyAgreementVersion(
         lineCount: created.lines,
         participantCount: created.participants,
         itemCount: 0,
+        govSupportCount: created.govSupport,
       },
     };
   } catch (e) {
@@ -591,6 +763,7 @@ export async function cloneLatestAgreementVersion(
         lineCount: created.lines,
         participantCount: created.participants,
         itemCount: created.items,
+        govSupportCount: created.govSupport,
         sourceVersionId: latest.id,
       },
     };
@@ -780,6 +953,133 @@ export async function setAgreementCellAmount(
         result = { kind: 'insert', line };
         break;
       }
+    }
+
+    revalidateAgreement(version.projectId);
+    return { ok: true, data: result };
+  } catch (e) {
+    return toFailure(e, client);
+  }
+}
+
+// ─── 붙임4형 편집 (AG-3) ──────────────────────────────────────────────────────
+
+/** 작성 중 버전의 내용 편집 공통 관문 — 확정 잠금(AV-2)·과제 경계를 트리거보다 먼저 사람이 읽을 문장으로 */
+async function loadEditableVersionYear(
+  client: SupabaseClient,
+  versionId: string,
+  yearId: string
+): Promise<AgreementVersion> {
+  const [version, year] = await Promise.all([
+    agreementsRepo.getVersionById(client, versionId),
+    yearsRepo.getYearById(client, yearId),
+  ]);
+  if (version.status === 'confirmed') throw new RuleViolationError(CONFIRMED_LOCK_MESSAGE);
+  if (year.projectId !== version.projectId) {
+    throw new RuleViolationError('이 과제에 속하지 않은 연차입니다.');
+  }
+  return version;
+}
+
+/**
+ * 붙임4형 8-2 데이터 칸 (연차, 양식 행, 축)의 총액을 `amount`로(S-12). 어느 줄을 고칠지는 resolveFormCellEdit가
+ * 정한다 — 칸에 함께 묶인 다른 줄은 건드리지 않는다. 결과는 금액 줄이라 비목별 보기도 같은 값을 보인다(AG-1).
+ * O-2: 클라이언트는 version을 보내지 않고 여기서 방금 읽은 줄의 version으로 갱신해 그사이 경합만 STALE로 알린다.
+ */
+export async function setAgreementFormCellAmount(
+  versionId: string,
+  input: unknown
+): Promise<ActionResult<AgreementFormCellEditResult>> {
+  let client: SupabaseClient | undefined;
+  try {
+    const vid = parseOrThrow(uuidSchema, versionId, '버전 ID 형식이 올바르지 않습니다.');
+    const target = parseOrThrow(formCellEditSchema, input, '편집할 칸이 올바르지 않습니다.');
+    const ctx = await requireApprovedUser();
+    client = ctx.client;
+
+    const version = await loadEditableVersionYear(client, vid, target.yearId);
+    const lines = await agreementsRepo.listLinesByVersionIds(client, [vid]);
+    const resolution = computeOrCorrupt(() => resolveFormCellEdit(lines, target));
+
+    let result: AgreementFormCellEditResult;
+    switch (resolution.kind) {
+      case 'reject':
+        if (resolution.reason === 'invalid_amount') throw new ValidationError(resolution.message);
+        throw new RuleViolationError(resolution.message);
+      case 'noop':
+        // 이미 그 금액이다 — 쓰지 않으므로 다시 그릴 것도 없다
+        return { ok: true, data: { kind: 'noop', line: null } };
+      case 'update': {
+        const read = lines.find((l) => l.id === resolution.lineId);
+        if (!read) throw new ValidationError('고칠 금액 줄을 찾지 못했습니다.');
+        const line = await agreementsRepo.updateLineAmount(
+          client,
+          read.id,
+          resolution.amount,
+          read.version,
+          ctx.user.id
+        );
+        result = { kind: 'update', line };
+        break;
+      }
+      case 'insert': {
+        const seed = parseOrThrow(lineSeedSchema, resolution.line, '새 금액 줄이 올바르지 않습니다.');
+        const line = await agreementsRepo.insertLine(client, {
+          versionId: vid,
+          ...seed,
+          createdBy: ctx.user.id,
+          updatedBy: ctx.user.id,
+        });
+        result = { kind: 'insert', line };
+        break;
+      }
+    }
+
+    revalidateAgreement(version.projectId);
+    return { ok: true, data: result };
+  } catch (e) {
+    return toFailure(e, client);
+  }
+}
+
+/**
+ * §5.25 버전의 연차 정부지원 현금(붙임4형 8-1 A 칸). `null` = 미입력으로 되돌림, 0은 입력값이다.
+ * O-2(S-4): 클라이언트 version 없이 서버가 방금 읽은 행으로 가른다 — 행+null → 그 version으로 삭제,
+ * 행+값 → 갱신, 없음+값 → 삽입, 없음+null → 변화 없음. 0행 갱신·삭제·유일 위반(그사이 경합)은 STALE.
+ * 확정 버전 행 삭제는 트리거가 막지 않는다(S-4) — 여기 관문이 유일한 잠금이다.
+ */
+export async function setAgreementGovCash(
+  versionId: string,
+  yearId: string,
+  amount: number | null
+): Promise<ActionResult<AgreementGovCashEditResult>> {
+  let client: SupabaseClient | undefined;
+  try {
+    const vid = parseOrThrow(uuidSchema, versionId, '버전 ID 형식이 올바르지 않습니다.');
+    const yid = parseOrThrow(uuidSchema, yearId, '연차 ID 형식이 올바르지 않습니다.');
+    const value = parseOrThrow(wonAmountSchema.nullable(), amount, '정부지원 현금이 올바르지 않습니다.');
+    const ctx = await requireApprovedUser();
+    client = ctx.client;
+
+    const version = await loadEditableVersionYear(client, vid, yid);
+    const existing =
+      (await agreementsRepo.listGovSupportByVersionIds(client, [vid])).find((g) => g.yearId === yid) ?? null;
+
+    let result: AgreementGovCashEditResult;
+    if (value === null) {
+      if (existing === null) return { ok: true, data: { kind: 'noop', row: null } };
+      await agreementsRepo.removeGovSupport(client, vid, yid, existing.version);
+      result = { kind: 'delete', row: null };
+    } else {
+      const row = await agreementsRepo.upsertGovSupport(
+        client,
+        vid,
+        yid,
+        value,
+        existing === null ? null : existing.version,
+        ctx.user.id
+      );
+      result = { kind: existing === null ? 'insert' : 'update', row };
     }
 
     revalidateAgreement(version.projectId);

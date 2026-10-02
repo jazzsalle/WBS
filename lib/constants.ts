@@ -9,6 +9,9 @@ import type {
   AgreementNoticeType,
   AgreementVersionKind,
   AgreementVersionStatus,
+  Attachment4RowId,
+  Attachment4RowKind,
+  Attachment81ColumnId,
   BudgetCategory,
   DeliverableType,
   DetailAxis,
@@ -22,6 +25,7 @@ import type {
   MilestoneType,
   NoteType,
   OrgRole,
+  ParticipantAmountKind,
   Priority,
   ProjectStatus,
   RiskCategory,
@@ -43,7 +47,8 @@ export const MAX_TASK_DEPTH = 10;
 // 4 = Phase 16(staff·staff_salaries 신설 + members 컬럼 4종, §5.19·§5.20) — 같은 이유
 // 5 = Phase 23(집행 테이블 삭제 — 백업 대상에서 빠진다, §8.8) — 같은 이유
 // 6 = Phase 24(협약 예산 테이블 4종 신설, §5.21~§5.24) — 같은 이유. v5 백업은 복원 거부(K-9)
-export const EXPECTED_SCHEMA_VERSION = 6;
+// 7 = Phase 25(agreement_gov_support 신설 + years.gov_support_cash, §5.25·§5.5) — 같은 이유. v6 백업은 복원 거부
+export const EXPECTED_SCHEMA_VERSION = 7;
 
 // ─── 부록 A.1 비목 라벨 ──────────────────────────────────────
 
@@ -469,6 +474,260 @@ export function agreementSubcategoryLabel(category: BudgetCategory, code: string
   }
   return preset?.label ?? null;
 }
+
+// ─── 부록 A.4 협약 보기 라벨 (§6.19 AG-3~AG-5, Phase 25) ─────
+
+export const PARTICIPANT_AMOUNT_KIND_LABELS: Record<ParticipantAmountKind, string> = {
+  auto: '자동',
+  manual: '수동',
+  salary_unknown: '연봉 모름',
+};
+
+// 부록 A.4 "협약 보기 고정 문구". 양식 기호 라벨에 "양식"을 붙이는 이유: 양식 E2 = PL-11의 E1이라 혼동된다
+export const AGREEMENT_VIEW_TEXT = {
+  unassignedMember: '인력 미지정',
+  outsideCategoriesRow: '양식에 없는 비목',
+  companyType: '중소기업',
+  judgementPass: '통과',
+  judgementFail: '위반',
+  judgementSkipped: '판정하지 않음',
+  adjustmentBefore: '변경전 (제안)',
+  notCurrentVersion: '현재 버전 아님',
+  formE1: '양식 E1(총 인건비)',
+  formE2: '양식 E2(수정인건비)',
+} as const;
+
+// 조정회의형 변경후 머리 — 보고 있는 버전 이름을 끼운다(부록 A.4)
+export function adjustmentAfterLabel(versionName: string): string {
+  return `변경후 (${versionName})`;
+}
+
+// ─── 부록 C.4 붙임4 양식 행 대응표 (§6.19 AG-3, §5.21 AV-7, Phase 25) ─
+
+// 양식 8-2에 행이 없는 비목(U-2). 0이 아니면 "양식에 없는 비목" 행으로 보이고 K·M에 들어간다
+export const ATTACHMENT4_OUTSIDE_CATEGORIES = [
+  'consignment',
+  'international',
+  'burden',
+  'other',
+] as const satisfies readonly BudgetCategory[];
+
+// 보기 소스 = 이 (비목, 세목들)의 금액 줄. 'all' = 그 비목의 모든 세목(default 포함)
+export interface Attachment4SourceDef {
+  category: BudgetCategory;
+  subcategoryCodes: readonly string[] | 'all';
+}
+
+/**
+ * 가져오기 행 식별(C.4.1 판정 세부 ①). itemKey = 세목 열들의 가장 구체적인 라벨,
+ * subKey = 축 열 라벨(`현금`·`현물`·`일반`·`통합관리`, 없으면 null). 둘 다 attachment4LabelKey 정규형이다.
+ * axis = 그 줄이 어느 축인지(split 행만 — combined 행은 null)
+ */
+export interface Attachment4MatchDef {
+  itemKey: string;
+  subKey: string | null;
+  axis: DetailAxis | null;
+}
+
+export interface Attachment4FormRowDef {
+  id: Attachment4RowId;
+  kind: Attachment4RowKind;
+  // 양식 기호. 우리 PL-11 기호와 다르다 — 양식 E1 = 총 인건비, 양식 E2 = 수정인건비(PL-11의 E1)
+  symbol: string | null;
+  label: string;
+  subLabel: string | null;
+  // split = 현금/현물 두 줄(축 그대로) · combined = 한 줄(현금 + 현물 합, 가져오기는 현금) · 금액 행이 아니면 null
+  axes: 'split' | 'combined' | null;
+  match: readonly Attachment4MatchDef[];       // 양식에 없는 행(양식 밖 비목)은 빈 배열
+  sources: readonly Attachment4SourceDef[];    // data 행만. memo(연구실 안전관리비)는 소스 없음 — 보기 "—"
+  // 가져오기 대상 금액 줄. 축은 split이면 그 줄의 축, combined면 현금. null = 반영하지 않음
+  importTarget: { category: BudgetCategory; subcategoryCode: string } | null;
+}
+
+const splitMatch = (itemKey: string): readonly Attachment4MatchDef[] => [
+  { itemKey, subKey: '현금', axis: 'cash' },
+  { itemKey, subKey: '현물', axis: 'in_kind' },
+];
+const singleMatch = (itemKey: string, subKey: string | null = null): readonly Attachment4MatchDef[] => [
+  { itemKey, subKey, axis: null },
+];
+
+/**
+ * 8-2 사용계획 기관 블록 행(부록 C.4.1). **배열 순서 = 보기 행 순서**다.
+ * `ignored` 행(통합관리비(현금))은 가져오기가 인식만 하도록 들어 있고 보기에는 행이 없다(U-3).
+ * 인건비 A~D를 세목 단위로 가져오는 이유: 양식 E2 = A+B+D에서 C를 빼는 것이 세목 단위다(PL-11).
+ * personnel·student_personnel의 `default` 줄(세목 미지정)은 각각 A·D 일반 행에 들어간다(C.4.1, 메인 결정) —
+ * 보기는 그 금액을 검토사항에 적는다. 가져오기 대상은 세목 그대로다.
+ */
+export const ATTACHMENT4_FORM_ROWS: readonly Attachment4FormRowDef[] = [
+  {
+    id: 'personnel_internal', kind: 'data', symbol: 'A', label: '내부인건비(A)', subLabel: null, axes: 'split',
+    match: splitMatch('내부인건비'),
+    // 세목 미지정 인건비(default)도 여기 — D-3a②와 같은 방향. PL-11 E2에 들어가므로 빠지면 E1 < E2가 된다
+    sources: [{ category: 'personnel', subcategoryCodes: ['personnel_internal', DEFAULT_SUBCATEGORY_CODE] }],
+    importTarget: { category: 'personnel', subcategoryCode: 'personnel_internal' },
+  },
+  {
+    id: 'personnel_external', kind: 'data', symbol: 'B', label: '외부인건비(B)', subLabel: null, axes: 'split',
+    match: splitMatch('외부인건비'),
+    sources: [{ category: 'personnel', subcategoryCodes: ['personnel_external'] }],
+    importTarget: { category: 'personnel', subcategoryCode: 'personnel_external' },
+  },
+  {
+    id: 'personnel_support', kind: 'data', symbol: 'C', label: '연구지원인력인건비(C)', subLabel: null, axes: 'combined',
+    match: singleMatch('연구지원인력인건비'),
+    sources: [{ category: 'personnel', subcategoryCodes: ['personnel_support'] }],
+    importTarget: { category: 'personnel', subcategoryCode: 'personnel_support' },
+  },
+  {
+    id: 'personnel_subtotal', kind: 'aggregate', symbol: null, label: '인건비 소계', subLabel: null, axes: null,
+    match: singleMatch('소계'), sources: [], importTarget: null,
+  },
+  {
+    id: 'student_general', kind: 'data', symbol: 'D', label: '학생 인건비(D)', subLabel: '일반', axes: 'combined',
+    match: singleMatch('학생인건비', '일반'),
+    // 세목 미지정 학생인건비(default)도 여기 — 총액 보존
+    sources: [{ category: 'student_personnel', subcategoryCodes: ['student_general', DEFAULT_SUBCATEGORY_CODE] }],
+    importTarget: { category: 'student_personnel', subcategoryCode: 'student_general' },
+  },
+  {
+    id: 'student_managed', kind: 'data', symbol: 'D', label: '학생 인건비(D)', subLabel: '통합관리', axes: 'combined',
+    match: singleMatch('학생인건비', '통합관리'),
+    sources: [{ category: 'student_personnel', subcategoryCodes: ['student_managed'] }],
+    importTarget: { category: 'student_personnel', subcategoryCode: 'student_managed' },
+  },
+  {
+    id: 'total_personnel', kind: 'aggregate', symbol: 'E1', label: AGREEMENT_VIEW_TEXT.formE1, subLabel: null, axes: null,
+    match: singleMatch('총인건비'), sources: [], importTarget: null,
+  },
+  {
+    id: 'modified_personnel', kind: 'aggregate', symbol: 'E2', label: AGREEMENT_VIEW_TEXT.formE2, subLabel: null, axes: null,
+    match: singleMatch('수정인건비'), sources: [], importTarget: null,
+  },
+  {
+    id: 'facility_equipment', kind: 'data', symbol: 'F', label: '연구시설·장비비(F)', subLabel: null, axes: 'split',
+    match: splitMatch('연구시설장비비'),
+    sources: [{ category: 'facility_equipment', subcategoryCodes: 'all' }],
+    importTarget: { category: 'facility_equipment', subcategoryCode: DEFAULT_SUBCATEGORY_CODE },
+  },
+  {
+    // 사용자 결정(U-3): 필요 없는 항목 — 보기에 행이 없고 가져오기는 경고 없이 넘긴다
+    id: 'facility_integrated_mgmt', kind: 'ignored', symbol: null, label: '(연구시설·장비비 중 통합관리비(현금))',
+    subLabel: null, axes: null,
+    match: singleMatch('(연구시설‧장비비중통합관리비(현금))'), sources: [], importTarget: null,
+  },
+  {
+    id: 'material', kind: 'data', symbol: 'G', label: '연구재료비(G)', subLabel: null, axes: 'split',
+    match: splitMatch('연구재료비'),
+    sources: [{ category: 'material', subcategoryCodes: 'all' }],
+    importTarget: { category: 'material', subcategoryCode: DEFAULT_SUBCATEGORY_CODE },
+  },
+  {
+    // U-1: 연구과제추진비를 연구활동비에 넣어야 양식 간접비 분모가 RL-3과 맞는다
+    id: 'activity', kind: 'data', symbol: 'H', label: '연구활동비(H)', subLabel: null, axes: 'split',
+    match: splitMatch('연구활동비'),
+    sources: [
+      { category: 'activity', subcategoryCodes: 'all' },
+      { category: 'promotion', subcategoryCodes: 'all' },
+    ],
+    importTarget: { category: 'activity', subcategoryCode: DEFAULT_SUBCATEGORY_CODE },
+  },
+  {
+    id: 'allowance', kind: 'data', symbol: 'I', label: '연구수당(I)', subLabel: null, axes: 'combined',
+    match: singleMatch('연구수당'),
+    sources: [{ category: 'allowance', subcategoryCodes: 'all' }],
+    importTarget: { category: 'allowance', subcategoryCode: DEFAULT_SUBCATEGORY_CODE },
+  },
+  {
+    id: 'allowance_ratio', kind: 'ratio', symbol: null, label: '연구수당 비율(I/E2)', subLabel: null, axes: null,
+    match: singleMatch('연구수당비율'), sources: [], importTarget: null,
+  },
+  {
+    // 양식에 없는 행 — 가져오기 대상도 식별 라벨도 없다. 0이면 보기에 행이 없다(U-2)
+    id: 'outside', kind: 'data', symbol: null, label: AGREEMENT_VIEW_TEXT.outsideCategoriesRow, subLabel: null,
+    axes: 'combined', match: [],
+    sources: ATTACHMENT4_OUTSIDE_CATEGORIES.map((category) => ({ category, subcategoryCodes: 'all' as const })),
+    importTarget: null,
+  },
+  {
+    id: 'direct_subtotal', kind: 'aggregate', symbol: 'K', label: '직접비 소계(K)', subLabel: null, axes: null,
+    match: singleMatch('직접비소계'), sources: [], importTarget: null,
+  },
+  {
+    id: 'indirect', kind: 'data', symbol: 'L', label: '간접비(L)', subLabel: null, axes: 'combined',
+    match: singleMatch('간접비'),
+    sources: [{ category: 'indirect', subcategoryCodes: 'all' }],
+    importTarget: { category: 'indirect', subcategoryCode: DEFAULT_SUBCATEGORY_CODE },
+  },
+  {
+    // 소스 없음(U-3) — 보기 전 칸 "—". 세목 신설은 Phase 26(RL-22)과 함께
+    id: 'lab_safety', kind: 'memo', symbol: null, label: '(간접비 중 연구실 안전관리비)', subLabel: null, axes: null,
+    match: singleMatch('(간접비중연구실안전관리비)'), sources: [], importTarget: null,
+  },
+  {
+    id: 'indirect_ratio', kind: 'ratio', symbol: null, label: '간접비 비율(양식 분모)', subLabel: null, axes: null,
+    match: singleMatch('간접비비율'), sources: [], importTarget: null,
+  },
+  {
+    id: 'total', kind: 'aggregate', symbol: 'M', label: '연구개발비 총액(M)', subLabel: null, axes: null,
+    match: singleMatch('연구개발비총액'), sources: [], importTarget: null,
+  },
+  {
+    // 실측은 총합 블록에만 있다 — 다른 판의 기관 블록에 있어도 인식한다
+    id: 'personnel_ratio', kind: 'ratio', symbol: null, label: '인건비 비율(E1/M)', subLabel: null, axes: null,
+    match: singleMatch('인건비비율'), sources: [], importTarget: null,
+  },
+];
+
+/**
+ * 붙임4 라벨 정규형(C.4.1 판정 세부 ①). 괄호로 감싼 내역 행은 I-1이 괄호 안(= 본문)을 지워
+ * 빈 문자열이 되므로 **괄호를 지우기 전 공백 제거형**으로 비교하고, 나머지는 I-1 정규화
+ * (`(A)`·`(E1=…)`·`현금(N)`의 괄호 기호는 사라진다).
+ */
+export function attachment4LabelKey(raw: string | null | undefined): string {
+  if (raw === null || raw === undefined) return '';
+  const compact = String(raw).normalize('NFC').replace(/\s+/g, '');
+  if (compact.startsWith('(') && compact.endsWith(')')) return compact;
+  return normalizeLabel(raw);
+}
+
+export type Attachment81ImportUse =
+  | 'match_org'     // 8-2 고른 블록의 B열 텍스트와 같은 행 찾기(NFC·공백 정규화)
+  | 'gov_cash'      // → 버전 정부지원 현금(§5.25)
+  | 'reconcile'     // 8-2 금액과 정합 대조 — 어긋나면 경고
+  | 'warn_nonzero'  // 그 외 기관 지원금 — 0이 아니면 경고
+  | 'ignore';       // 읽지 않음
+
+export interface Attachment81ColumnDef {
+  id: Attachment81ColumnId;
+  symbol: string | null;
+  groupLabel: string | null;   // 실측 상위 머리
+  label: string;               // 실측 하위 머리
+  groupKey: string | null;     // normalizeLabel 정규형
+  labelKey: string;            // normalizeLabel 정규형 — `현금(A)`·`현금(B)`는 같은 '현금'이라 groupKey와 함께 식별한다
+  importUse: Attachment81ImportUse;
+}
+
+/**
+ * 8-1 지원·부담계획 열(부록 C.4.2). 기관마다 금액 행 + 비율 행이 있고 비율 행은 읽지 않는다.
+ * 기업유형·검토사항은 읽지 않는다 — 한도는 과제별 RL-8·RL-9 행이다(과제 유형 개념 없음).
+ */
+export const ATTACHMENT8_1_COLUMNS: readonly Attachment81ColumnDef[] = [
+  { id: 'org', symbol: null, groupLabel: '구분', label: '연구개발 기관', groupKey: '구분', labelKey: '연구개발기관', importUse: 'match_org' },
+  { id: 'company_type', symbol: null, groupLabel: '구분', label: '기업유형', groupKey: '구분', labelKey: '기업유형', importUse: 'ignore' },
+  { id: 'gov_cash', symbol: 'A', groupLabel: '정부지원연구개발비', label: '현금(A)', groupKey: '정부지원연구개발비', labelKey: '현금', importUse: 'gov_cash' },
+  { id: 'own_cash', symbol: 'B', groupLabel: '기관부담연구개발비', label: '현금(B)', groupKey: '기관부담연구개발비', labelKey: '현금', importUse: 'reconcile' },
+  { id: 'own_in_kind', symbol: 'C', groupLabel: '기관부담연구개발비', label: '현물(C)', groupKey: '기관부담연구개발비', labelKey: '현물', importUse: 'reconcile' },
+  { id: 'own_subtotal', symbol: 'D', groupLabel: '기관부담연구개발비', label: '소계(D)', groupKey: '기관부담연구개발비', labelKey: '소계', importUse: 'reconcile' },
+  { id: 'other_cash', symbol: 'E', groupLabel: '그 외 기관 등의 지원금', label: '현금(E)', groupKey: '그외기관등의지원금', labelKey: '현금', importUse: 'warn_nonzero' },
+  { id: 'other_in_kind', symbol: 'F', groupLabel: '그 외 기관 등의 지원금', label: '현물(F)', groupKey: '그외기관등의지원금', labelKey: '현물', importUse: 'warn_nonzero' },
+  { id: 'other_subtotal', symbol: 'G', groupLabel: '그 외 기관 등의 지원금', label: '소계(G)', groupKey: '그외기관등의지원금', labelKey: '소계', importUse: 'warn_nonzero' },
+  { id: 'total_cash', symbol: null, groupLabel: '합 계', label: '현금 (A+B+E)', groupKey: '합계', labelKey: '현금', importUse: 'reconcile' },
+  { id: 'total_in_kind', symbol: null, groupLabel: '합 계', label: '현물 (C+F)', groupKey: '합계', labelKey: '현물', importUse: 'reconcile' },
+  { id: 'total', symbol: 'H', groupLabel: '합 계', label: '합계 (H)', groupKey: '합계', labelKey: '합계', importUse: 'reconcile' },
+  { id: 'gov_share_review', symbol: null, groupLabel: '검토사항', label: '정부출연금비율', groupKey: '검토사항', labelKey: '정부출연금비율', importUse: 'ignore' },
+  { id: 'own_cash_review', symbol: null, groupLabel: '검토사항', label: '민간현금비율', groupKey: '검토사항', labelKey: '민간현금비율', importUse: 'ignore' },
+];
 
 // ─── 부록 C.2 세목 별칭 사전 (산출근거 임포트 §6.11 D-3) ──────
 // 키는 I-1 정규화형 + 선행 번호 제거형(subcategoryLookupKey)이다.

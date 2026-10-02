@@ -110,7 +110,7 @@ describe('협약 금액 줄 세목 표시 (§5.22, 부록 A.4 세목 default)', 
 });
 
 describe('§8.8 schema_version', () => {
-  it('Phase 24(협약 예산 테이블 4종 신설) = 6', () => {
-    expect(EXPECTED_SCHEMA_VERSION).toBe(6);
+  it('Phase 25(agreement_gov_support 신설 + years.gov_support_cash) = 7', () => {
+    expect(EXPECTED_SCHEMA_VERSION).toBe(7);
   });
 });

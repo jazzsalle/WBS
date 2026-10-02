@@ -1,6 +1,6 @@
-// 제안 편성 → 협약 기준선 (SOT §5.21 AV-6, 계획서 S-6·Q2).
+// 제안 편성 → 협약 기준선 (SOT §5.21 AV-6, 계획서 S-6·Q2 — Phase 25 S-4 정부지원 현금).
 //
-// [협약 기준선으로 보내기]가 만들 버전의 내용(금액 줄·참여인원·편성 항목)을 계산한다. 쓰기는 단일 트랜잭션
+// [협약 기준선으로 보내기]가 만들 버전의 내용(금액 줄·참여인원·편성 항목·정부지원 현금)을 계산한다. 쓰기는 단일 트랜잭션
 // RPC가 하고, 여기는 순수 함수다. 보낸 뒤 두 모드는 독립이다 — 그래서 산출근거 금액은 저장된 `amount`를
 // 그대로 옮긴다(재계산하지 않는다): 사용자가 제안 화면에서 본 숫자가 버전의 숫자여야 한다.
 //
@@ -26,7 +26,8 @@ export type PlanDetailInput = Pick<
   'yearId' | 'category' | 'subcategory' | 'axis' | 'formula' | 'memberId' | 'factors' | 'amount'
 >;
 export type PlanMemberInput = Pick<Member, 'id' | 'annualSalary'>;
-export type PlanYearInput = Pick<Year, 'id' | 'name' | 'order'>;
+// govSupportCash는 Phase 25에 생겼다(§5.5). 생략 = null(미입력)과 같다 — 리포지토리가 주는 Year에는 항상 있다
+export type PlanYearInput = Pick<Year, 'id' | 'name' | 'order'> & Partial<Pick<Year, 'govSupportCash'>>;
 
 export interface BaselineFromPlanInput {
   items: readonly PlanItemInput[];
@@ -106,6 +107,11 @@ export type BaselineFromPlanResult =
       participants: BaselineParticipant[];
       /** 편성 항목은 Phase 26까지 0건이다(AV-6 ③) — 빈 배열이 "만들 것 없음"이라는 값이다 */
       items: [];
+      /**
+       * 정부지원 현금 {연차 id: 원}(AV-6 ④, §5.25). 제안 연차 `govSupportCash`가 null인 연차는 키가 없다 —
+       * 미입력은 행 없음이고 0은 입력값이다. RPC `p_gov_cash`에 그대로 넘긴다
+       */
+      govCash: Record<string, number>;
       summary: BaselineSummary;
     }
   | { ok: false; issues: BaselineIssue[] };
@@ -266,11 +272,23 @@ export function buildBaselineFromPlan(input: BaselineFromPlanInput): BaselineFro
     if (l.axis === 'cash') cashTotal += l.amount;
     else inKindTotal += l.amount;
   }
+  // ④ 정부지원 현금 — 연차 order 순 키. DB check(null 또는 0 이상)를 어긴 값은 사유를 붙일 비목이 없는 손상이다
+  const govCash: Record<string, number> = {};
+  for (const y of years) {
+    const v = y.govSupportCash;
+    if (v === null || v === undefined) continue;
+    if (!Number.isSafeInteger(v) || v < 0) {
+      throw new Error(`${y.name} 정부지원 현금이 0 이상의 원 단위 정수가 아닙니다 (${v}) — 데이터가 손상되었습니다.`);
+    }
+    govCash[y.id] = v;
+  }
+
   return {
     ok: true,
     lines,
     participants,
     items: [],
+    govCash,
     summary: {
       lineCount: lines.length,
       participantCount: participants.length,

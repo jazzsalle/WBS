@@ -94,6 +94,8 @@ export const yearRowSchema = z.object({
   end_date: isoDate.nullable(),
   budget: z.number().nullable(),
   status: yearStatusSchema,
+  // Phase 25 — 제안 모드 연차 정부지원 현금. null = 미입력, 원 단위 정수가 아니면 손상(절대 규칙 4)
+  gov_support_cash: z.number().int().min(0).nullable(),
 });
 
 // ─── §5.6 tasks — memberIds 등 조인 테이블 배열은 row에 없다 (N-2) ─
@@ -435,6 +437,14 @@ export const agreementItemRowSchema = z.object({
   evidence: z.array(agreementEvidenceCheckSchema),
 });
 
+// §5.25 (Phase 25) — 버전·연차당 0~1행(unique)은 DB가 지킨다. 행 없음 = 미입력
+export const agreementGovSupportRowSchema = z.object({
+  ...baseRow,
+  version_id: z.uuid(),
+  year_id: z.uuid(),
+  gov_cash: wonAmount,
+});
+
 // ─── §5.13 risks ─────────────────────────────────────────────
 
 export const riskCategorySchema = z.enum(['technical', 'schedule', 'budget', 'resource', 'external', 'other']);
@@ -649,6 +659,7 @@ export type AgreementVersionRow = z.infer<typeof agreementVersionRowSchema>;
 export type AgreementLineRow = z.infer<typeof agreementLineRowSchema>;
 export type AgreementParticipantRow = z.infer<typeof agreementParticipantRowSchema>;
 export type AgreementItemRow = z.infer<typeof agreementItemRowSchema>;
+export type AgreementGovSupportRow = z.infer<typeof agreementGovSupportRowSchema>;
 export type RiskRow = z.infer<typeof riskRowSchema>;
 export type NoteRow = z.infer<typeof noteRowSchema>;
 export type TodoRow = z.infer<typeof todoRowSchema>;

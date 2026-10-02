@@ -1,7 +1,7 @@
 // 도움말 페이지 (SOT §7.16, §7.1)
 // 본문은 content/help/*.md를 서버가 fs로 읽어 AST로 내린다(HP-1·HP-2). 데이터가 없으므로
 // DB·Realtime 조회가 없다(HP-5) — 그래도 인증 뒤에만 연다(미들웨어 + 페이지 가드).
-// 17편 중 하나라도 못 읽으면 어느 slug인지 배너로 보인다 — 빈 절로 대체하지 않는다(절대 규칙 5).
+// 18편 중 하나라도 못 읽으면 어느 slug인지 배너로 보인다 — 빈 절로 대체하지 않는다(절대 규칙 5).
 
 import { redirect } from 'next/navigation';
 import Link from 'next/link';

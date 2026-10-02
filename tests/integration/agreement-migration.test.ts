@@ -259,11 +259,13 @@ describe('(a) 스키마 — RLS·타입·publication·schema_version', () => {
     expect(rows.filter((r) => r.prosecdef).map((r) => r.proname)).toEqual([]);
   });
 
-  it('schema_version = 6 = EXPECTED_SCHEMA_VERSION (§8.8)', async () => {
+  // 이 마이그레이션은 6으로 올렸고 이후 Phase가 더 올린다(7 = Phase 25). 현재 값의 정확한 검증은
+  // 최신 마이그레이션 테스트가 맡고, 여기서는 "이 마이그레이션이 적용됐다"는 하한만 본다
+  it('schema_version ≥ 6, EXPECTED_SCHEMA_VERSION ≥ 6 (§8.8)', async () => {
     const rows = await sql<{ v: number }[]>`select schema_version::int as v from public.app_settings`;
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.v).toBe(6);
-    expect(EXPECTED_SCHEMA_VERSION).toBe(6);
+    expect(rows[0]!.v).toBeGreaterThanOrEqual(6);
+    expect(EXPECTED_SCHEMA_VERSION).toBeGreaterThanOrEqual(6);
   });
 });
 
@@ -748,7 +750,9 @@ describe('(h) restore_backup — c_tables·가드 on/off (K-9)', () => {
     const triggers = await sql<{ rel: string; enabled: string }[]>`
       select t.tgrelid::regclass::text as rel, t.tgenabled as enabled from pg_trigger t
        where t.tgname = 'agreement_child_guard'`;
-    expect(triggers.map((r) => [r.rel, r.enabled]).sort()).toEqual(
+    // Phase 25가 같은 가드를 agreement_gov_support에도 건다 — 이 단언은 Phase 24의 3종만 본다
+    const phase24 = triggers.filter((r) => (CHILD_TABLES as readonly string[]).includes(r.rel));
+    expect(phase24.map((r) => [r.rel, r.enabled]).sort()).toEqual(
       CHILD_TABLES.map((t) => [t, 'O']).sort()
     );
   });

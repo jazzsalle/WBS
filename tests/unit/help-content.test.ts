@@ -57,8 +57,8 @@ function headingTexts(source: string): string[] {
 
 // ─── content/help (HP-1·HP-6) ────────────────────────────────────────────────
 
-describe('content/help — 17편 (HP-1)', () => {
-  it('HELP_SLUGS 17개 파일이 모두 있다', () => {
+describe('content/help — 18편 (HP-1)', () => {
+  it('HELP_SLUGS 18개 파일이 모두 있다', () => {
     const missing = HELP_SLUGS.filter((slug) => !fs.existsSync(path.join(HELP_DIR, `${slug}.md`)));
     expect(missing, `없는 도움말: ${missing.join(', ')} (T3 미완이면 정상)`).toEqual([]);
   });
@@ -228,11 +228,56 @@ describe('협약 예산 도움말 (§7.9.8)', () => {
     expect(calculations).toContain('기준 버전 없음');
   });
 
-  it('Phase 25·26 기능을 있는 것처럼 쓰지 않는다', () => {
-    for (const word of ['붙임4', '조정회의형', '참여인원 보기', '편성 항목', 'RL-20', 'RL-21', 'RL-22', '과제 유형']) {
+  it('Phase 26 기능·폐기된 과제 유형을 있는 것처럼 쓰지 않는다', () => {
+    const agreement = readIfExists(path.join(HELP_DIR, 'agreement.md')) ?? '';
+    for (const word of ['편성 항목', '증빙', 'RL-20', 'RL-21', 'RL-22', '과제 유형']) {
       expect(budget, word).not.toContain(word);
       expect(calculations, word).not.toContain(word);
+      expect(agreement, word).not.toContain(word);
     }
+  });
+});
+
+// ─── 협약 예산 양식 도움말 (Phase 25, S-21) ──────────────────────────────────
+
+describe('협약 예산 양식 도움말 (Phase 25)', () => {
+  const agreement = readIfExists(path.join(HELP_DIR, 'agreement.md')) ?? '';
+  const budget = readIfExists(path.join(HELP_DIR, 'budget.md')) ?? '';
+
+  it('agreement.md에 보기 3종·가져오기 절이 있다 — 화면 HelpLink anchor가 가리킬 제목', () => {
+    const headings = headingTexts(agreement);
+    for (const heading of [
+      '양식은 자동으로 채워진다',
+      '붙임4형 — 8-2 사용계획',
+      '붙임4형 — 8-1 지원·부담계획',
+      '조정회의형',
+      '참여인원',
+      '붙임4 가져오기',
+    ]) {
+      expect(headings, heading).toContain(heading);
+    }
+  });
+
+  it('양식 분모·양식 E1/E2·연구과제추진비·내역 행·변경전/변경후를 설명한다', () => {
+    for (const phrase of [
+      '양식 E1/E2',
+      '연구과제추진비',
+      '양식에 없는 비목',
+      '연구실 안전관리비',
+      '변경전 = 제안 모드',
+      '변경후 = 보고 있는 협약 버전',
+      '판정하지 않음',
+      '8-1 쓰지 않음',
+      '연봉 모름',
+    ]) {
+      expect(agreement, phrase).toContain(phrase);
+    }
+  });
+
+  it('budget.md는 제안 연차 정부지원 현금과 협약 예산 양식 연결 한 줄을 담는다', () => {
+    expect(budget).toContain('정부지원 현금');
+    expect(budget).toContain('기관부담 현금');
+    expect(budget).toContain('협약 예산 양식');
   });
 });
 

@@ -35,6 +35,7 @@ function year(id: string, projectId: string, startDate: string | null): Year {
     endDate: null,
     budget: null,
     status: 'planned',
+    govSupportCash: null,
   };
 }
 

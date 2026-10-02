@@ -1,10 +1,11 @@
-// 협약 예산 리포지토리 — agreement_versions·agreement_lines·agreement_participants·agreement_items
-// (SOT §5.21~§5.24, §8.4, §8.6, §9 Agreement Budget, 계획서 docs/plans/phase-24-plan.md S-3·S-4·S-14~S-16)
+// 협약 예산 리포지토리 — agreement_versions·agreement_lines·agreement_participants·agreement_items·
+// agreement_gov_support (SOT §5.21~§5.25, §8.4, §8.6, §9 Agreement Budget,
+// 계획서 docs/plans/phase-24-plan.md S-3·S-4·S-14~S-16, phase-25-plan.md S-3·S-4·S-11·S-15)
 //
 // 쓰기 경로가 둘로 나뉜다(§9 X-1):
 //  - 여러 테이블을 한 번에 바꾸는 일(보내기·빈 버전·복제·전체 삭제)은 RPC 3종 — 단일 트랜잭션·과제 경계 검증이
 //    RPC 안에 있다. 여기서 PostgREST 여러 번으로 쪼개면 줄 일부만 복사된 버전이 남을 수 있다.
-//  - 단일 행 쓰기(메타·확정·확정 취소·버전 삭제·줄 추가/갱신)는 PostgREST로 직접 한다.
+//  - 단일 행 쓰기(메타·확정·확정 취소·버전 삭제·줄 추가/갱신·참여인원·정부지원 현금)는 PostgREST로 직접 한다.
 //
 // 확정 잠금(AV-2)·과제 경계·확정 취소 조건(AV-8)은 DB 가드 트리거가 최후 방어선이다. 트리거의
 // raise exception은 P0001로 오고 메시지가 그대로 사용자 문구다 — 그래서 P0001은 메시지 그대로 RULE로 올린다.
@@ -14,6 +15,7 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import type {
+  AgreementGovSupport,
   AgreementItem,
   AgreementLine,
   AgreementParticipant,
@@ -23,6 +25,7 @@ import type {
 } from '@/types';
 import { appToDb, dbToApp } from './mapper';
 import {
+  agreementGovSupportRowSchema,
   agreementItemRowSchema,
   agreementLineRowSchema,
   agreementParticipantRowSchema,
@@ -34,8 +37,9 @@ const VERSIONS = 'agreement_versions';
 const LINES = 'agreement_lines';
 const PARTICIPANTS = 'agreement_participants';
 const ITEMS = 'agreement_items';
-type Table = typeof VERSIONS | typeof LINES | typeof PARTICIPANTS | typeof ITEMS;
-type ChildTable = typeof LINES | typeof PARTICIPANTS | typeof ITEMS;
+const GOV_SUPPORT = 'agreement_gov_support';
+type Table = typeof VERSIONS | typeof LINES | typeof PARTICIPANTS | typeof ITEMS | typeof GOV_SUPPORT;
+type ChildTable = typeof LINES | typeof PARTICIPANTS | typeof ITEMS | typeof GOV_SUPPORT;
 
 // PostgREST 응답 상한(max-rows 1000) — 줄은 버전 × 연차 × 비목 × 세목 × 축이라 버전 몇 개만 모여도
 // 1000행을 넘는다. budget-details.ts와 같은 이유로 일괄 조회는 전부 페이징한다 (§12)
@@ -48,6 +52,7 @@ const SCHEMA_MISMATCH_MESSAGE =
   'DB 응답이 앱이 기대하는 형식과 다릅니다. 앱과 DB 마이그레이션 버전을 확인하세요.';
 const VERSION_NOT_FOUND_MESSAGE = '협약 예산 버전을 찾을 수 없습니다.';
 const LINE_NOT_FOUND_MESSAGE = '협약 예산 금액 줄을 찾을 수 없습니다.';
+const PARTICIPANT_NOT_FOUND_MESSAGE = '협약 예산 참여인원을 찾을 수 없습니다.';
 
 // ─── 에러 매핑 ───────────────────────────────────────────────
 
@@ -55,6 +60,7 @@ const LINE_NOT_FOUND_MESSAGE = '협약 예산 금액 줄을 찾을 수 없습니
 //  - versions: 작성 중 1개 부분 유일 인덱스(AV-2) — RPC 선검사와 동시에 들어온 경합. 규칙 위반이다(S-4)
 //  - lines: (버전·연차·비목·세목·축) 유일 — 셀 편집 중 다른 사람이 같은 칸에 먼저 줄을 만든 경합.
 //    S-16에 따라 경합은 STALE로 알린다(다시 읽으면 그 줄을 update하게 된다)
+//  - gov_support: (버전·연차) 유일 — 미입력 칸에 그사이 다른 사람이 값을 넣은 경합. lines와 같이 STALE(S-4)
 const DRAFT_EXISTS_MESSAGE = '작성 중 버전이 이미 있습니다 — 확정하거나 삭제한 뒤 만드세요';
 const UNKNOWN_CHECK_MESSAGE = '입력값이 DB 제약을 위반했습니다. 값을 확인하세요.';
 
@@ -62,7 +68,7 @@ const NOT_FOUND_MESSAGE_PATTERN = /찾을 수 없습니다|not found/i;
 
 function raiseDbError(error: PostgrestError, table: Table): never {
   if (error.code === '23505') {
-    if (table === LINES) throw new StaleDataError();
+    if (table === LINES || table === GOV_SUPPORT) throw new StaleDataError();
     throw new RuleViolationError(DRAFT_EXISTS_MESSAGE);
   }
   // check 위반(금액 < 0, 참여율 범위, status·confirmed_at 짝 등) — 액션 Zod 뒤의 방어선
@@ -103,6 +109,10 @@ function toItem(row: unknown): AgreementItem {
   return dbToApp<AgreementItem>(parseRow(agreementItemRowSchema, row));
 }
 
+function toGovSupport(row: unknown): AgreementGovSupport {
+  return dbToApp<AgreementGovSupport>(parseRow(agreementGovSupportRowSchema, row));
+}
+
 // undefined 키 제거 — JSON 직렬화에서 빠져 빈 body가 되는 것을 막고 "갱신할 내용 없음"을 명시적으로 판정한다
 function definedOnly(obj: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
@@ -112,13 +122,19 @@ function definedOnly(obj: Record<string, unknown>): Record<string, unknown> {
 // O-3 표시("OO님이 먼저 수정했습니다")를 위해 최신 행의 updated_by를 담는다.
 async function raiseStaleOrNotFound(
   client: SupabaseClient,
-  table: typeof VERSIONS | typeof LINES,
+  table: typeof VERSIONS | typeof LINES | typeof PARTICIPANTS,
   id: string
 ): Promise<never> {
   const { data, error } = await client.from(table).select('updated_by').eq('id', id).maybeSingle();
   if (error) raiseDbError(error, table);
   if (!data) {
-    throw new NotFoundError(table === VERSIONS ? VERSION_NOT_FOUND_MESSAGE : LINE_NOT_FOUND_MESSAGE);
+    throw new NotFoundError(
+      table === VERSIONS
+        ? VERSION_NOT_FOUND_MESSAGE
+        : table === LINES
+          ? LINE_NOT_FOUND_MESSAGE
+          : PARTICIPANT_NOT_FOUND_MESSAGE
+    );
   }
   throw new StaleDataError(
     parseRow(z.object({ updated_by: z.uuid().nullable() }), data).updated_by
@@ -251,6 +267,26 @@ export async function listParticipantsByVersionIds(
 ): Promise<AgreementParticipant[]> {
   const participants = await fetchByVersionIds(client, PARTICIPANTS, versionIds, toParticipant);
   return participants.sort(compareByVersionYear);
+}
+
+/** 참여인원 하나. 액션이 편집 전에 버전(확정 잠금)·과제 소속을 확인하는 데 쓴다 */
+export async function getParticipantById(
+  client: SupabaseClient,
+  id: string
+): Promise<AgreementParticipant> {
+  const { data, error } = await client.from(PARTICIPANTS).select('*').eq('id', id).maybeSingle();
+  if (error) raiseDbError(error, PARTICIPANTS);
+  if (!data) throw new NotFoundError(PARTICIPANT_NOT_FOUND_MESSAGE);
+  return toParticipant(data);
+}
+
+/** 여러 버전의 연차별 정부지원 현금 전량(§5.25). 행이 없는 (버전, 연차) = 미입력 — 0과 다르다 */
+export async function listGovSupportByVersionIds(
+  client: SupabaseClient,
+  versionIds: readonly string[]
+): Promise<AgreementGovSupport[]> {
+  const rows = await fetchByVersionIds(client, GOV_SUPPORT, versionIds, toGovSupport);
+  return rows.sort(compareByVersionYear);
 }
 
 /** 여러 버전의 편성 항목 전량(증빙 포함). Phase 24는 화면이 없어 복제·백업 확인용이다 */
@@ -407,6 +443,170 @@ export async function updateLineAmount(
   return toLine(row);
 }
 
+// ─── 참여인원 쓰기 (AG-5 편집 — 단일 행, Phase 25 S-11) ──────
+
+type ParticipantFieldKeys = Exclude<keyof AgreementParticipant, keyof BaseEntity | 'versionId'>;
+
+export type AgreementParticipantInsert = Pick<AgreementParticipant, 'versionId' | ParticipantFieldKeys> & {
+  createdBy?: string | null;
+  updatedBy?: string | null;
+};
+
+/** versionId는 바꾸지 않는다 — 가드 트리거도 거부하지만 patch 타입에서 먼저 뺀다 */
+export type AgreementParticipantPatch = Partial<Pick<AgreementParticipant, ParticipantFieldKeys>> & {
+  updatedBy?: string | null;
+};
+
+// 넓은 객체가 넘어와도 versionId 같은 키가 새어 들어가지 않게 고른다
+function pickParticipantFields(patch: AgreementParticipantPatch): Record<string, unknown> {
+  return {
+    memberId: patch.memberId,
+    yearId: patch.yearId,
+    participationRate: patch.participationRate,
+    months: patch.months,
+    annualSalary: patch.annualSalary,
+    personnelCash: patch.personnelCash,
+    personnelInKind: patch.personnelInKind,
+    role: patch.role,
+    updatedBy: patch.updatedBy,
+  };
+}
+
+/**
+ * 참여인원 하나 추가. 확정 버전·다른 과제의 연차/인력은 가드 트리거가 RuleViolationError.
+ * 연봉 스냅샷·금액 자동 계산은 액션 몫이다 — 여기서는 받은 값을 그대로 싣는다
+ */
+export async function insertParticipant(
+  client: SupabaseClient,
+  input: AgreementParticipantInsert
+): Promise<AgreementParticipant> {
+  const { data, error } = await client
+    .from(PARTICIPANTS)
+    .insert(definedOnly(appToDb({ ...input })))
+    .select('*')
+    .single();
+  if (error) raiseDbError(error, PARTICIPANTS);
+  return toParticipant(data);
+}
+
+/** 참여인원 갱신(§8.4 O-1 — 사용자가 읽은 expectedVersion 조건). 불일치는 StaleDataError, 확정 버전은 RuleViolationError */
+export async function updateParticipant(
+  client: SupabaseClient,
+  id: string,
+  patch: AgreementParticipantPatch,
+  expectedVersion: number
+): Promise<AgreementParticipant> {
+  const dbPatch = definedOnly(appToDb(pickParticipantFields(patch)));
+  if (Object.keys(dbPatch).every((key) => key === 'updated_by')) {
+    throw new ValidationError('갱신할 내용이 없습니다.');
+  }
+  const { data, error } = await client
+    .from(PARTICIPANTS)
+    .update(dbPatch)
+    .eq('id', id)
+    .eq('version', expectedVersion)
+    .select('*');
+  if (error) raiseDbError(error, PARTICIPANTS);
+  const row = (data ?? [])[0];
+  if (row === undefined) return raiseStaleOrNotFound(client, PARTICIPANTS, id);
+  return toParticipant(row);
+}
+
+/**
+ * 참여인원 하나 삭제. 가드 트리거는 DELETE를 막지 않는다(Phase 24 하위 테이블과 같다) —
+ * 확정 버전 거부(RULE)는 액션이 getParticipantById → getVersionById로 먼저 판단한다(S-11)
+ */
+export async function removeParticipant(client: SupabaseClient, id: string): Promise<void> {
+  const { data, error } = await client.from(PARTICIPANTS).delete().eq('id', id).select('id');
+  if (error) raiseDbError(error, PARTICIPANTS);
+  if ((data ?? []).length === 0) throw new NotFoundError(PARTICIPANT_NOT_FOUND_MESSAGE);
+}
+
+// ─── 정부지원 현금 쓰기 (§5.25 — 값 1개, O-2) ────────────────
+// S-4: 액션이 방금 읽은 (버전, 연차) 행으로 분기한다 — 행 없음+값 = 삽입, 행 있음+값 = 그 행 version 조건 갱신,
+// 행 있음+null = 그 version 조건 삭제. 그 읽기와 이 쓰기 사이의 경합(0행·23505)은 모두 StaleDataError다.
+// 행이 그사이 지워진 경우도 NotFound가 아니라 STALE — 사용자가 보던 칸이 바뀐 것이기 때문이다
+
+// 0행 갱신·삭제 — 최신 행이 있으면 그 updated_by를 담아 O-3 표시를 돕는다
+async function raiseGovSupportStale(
+  client: SupabaseClient,
+  versionId: string,
+  yearId: string
+): Promise<never> {
+  const { data, error } = await client
+    .from(GOV_SUPPORT)
+    .select('updated_by')
+    .eq('version_id', versionId)
+    .eq('year_id', yearId)
+    .maybeSingle();
+  if (error) raiseDbError(error, GOV_SUPPORT);
+  if (!data) throw new StaleDataError();
+  throw new StaleDataError(parseRow(z.object({ updated_by: z.uuid().nullable() }), data).updated_by);
+}
+
+/**
+ * (버전, 연차)의 정부지원 현금 저장. `readVersion` = 액션이 방금 읽은 행의 version, 행이 없었으면 null(삽입).
+ * 0도 입력값으로 저장한다. 확정 버전·다른 과제 연차는 가드 트리거가 RuleViolationError
+ */
+export async function upsertGovSupport(
+  client: SupabaseClient,
+  versionId: string,
+  yearId: string,
+  govCash: number,
+  readVersion: number | null,
+  updatedBy?: string | null
+): Promise<AgreementGovSupport> {
+  if (readVersion === null) {
+    const { data, error } = await client
+      .from(GOV_SUPPORT)
+      .insert(
+        definedOnly({
+          version_id: versionId,
+          year_id: yearId,
+          gov_cash: govCash,
+          created_by: updatedBy,
+          updated_by: updatedBy,
+        })
+      )
+      .select('*')
+      .single();
+    if (error) raiseDbError(error, GOV_SUPPORT);
+    return toGovSupport(data);
+  }
+  const { data, error } = await client
+    .from(GOV_SUPPORT)
+    .update(definedOnly({ gov_cash: govCash, updated_by: updatedBy }))
+    .eq('version_id', versionId)
+    .eq('year_id', yearId)
+    .eq('version', readVersion)
+    .select('*');
+  if (error) raiseDbError(error, GOV_SUPPORT);
+  const row = (data ?? [])[0];
+  if (row === undefined) return raiseGovSupportStale(client, versionId, yearId);
+  return toGovSupport(row);
+}
+
+/**
+ * (버전, 연차)의 정부지원 현금을 미입력으로 되돌린다(행 삭제). 가드 트리거는 DELETE를 막지 않는다 —
+ * 확정 버전 거부(RULE)는 액션이 먼저 판단한다(S-4)
+ */
+export async function removeGovSupport(
+  client: SupabaseClient,
+  versionId: string,
+  yearId: string,
+  readVersion: number
+): Promise<void> {
+  const { data, error } = await client
+    .from(GOV_SUPPORT)
+    .delete()
+    .eq('version_id', versionId)
+    .eq('year_id', yearId)
+    .eq('version', readVersion)
+    .select('id');
+  if (error) raiseDbError(error, GOV_SUPPORT);
+  if ((data ?? []).length === 0) return raiseGovSupportStale(client, versionId, yearId);
+}
+
 // ─── RPC 3종 (여러 테이블 — 단일 트랜잭션, SA-3) ──────────────
 
 // RPC 페이로드는 DB 표기(snake_case)다 — 케이스 변환은 매퍼에만 맡긴다
@@ -419,6 +619,8 @@ export interface CreateAgreementVersionInput {
   /** 빈 버전은 둘 다 빈 배열 */
   lines: readonly AgreementLineSeed[];
   participants: readonly AgreementParticipantSeed[];
+  /** 연차 id → 정부지원 현금(원). 키가 없는 연차는 행을 만들지 않는다(미입력). 생략 = 빈 객체 */
+  govCash?: Readonly<Record<string, number>>;
 }
 
 const createResultSchema = z.object({
@@ -426,6 +628,7 @@ const createResultSchema = z.object({
   order: z.number().int(),
   lines: z.number().int().min(0),
   participants: z.number().int().min(0),
+  govSupport: z.number().int().min(0),
 });
 export type CreateAgreementVersionResult = z.infer<typeof createResultSchema>;
 
@@ -454,13 +657,15 @@ export async function createVersion(
     p_name: input.name,
     p_lines: input.lines.map((line) => appToDb({ ...line })),
     p_participants: input.participants.map((participant) => appToDb({ ...participant })),
+    // 키가 연차 uuid라 매퍼를 거치지 않는다 — 케이스 변환 대상이 아니다
+    p_gov_cash: { ...(input.govCash ?? {}) },
   });
   if (error) raiseDbError(error, VERSIONS);
   return parseRpcResult(createResultSchema, data);
 }
 
 /**
- * AV-1 복제 — 원본의 줄·참여인원·편성 항목(증빙 포함)을 새 id로 복사하고 원본은 바꾸지 않는다.
+ * AV-1 복제 — 원본의 줄·참여인원·편성 항목(증빙 포함)·정부지원 현금을 새 id로 복사하고 원본은 바꾸지 않는다.
  * 원본이 과제의 마지막 버전인지는 검사하지 않는다 — "직전 버전" 선택은 호출자 몫이다
  */
 export async function cloneVersion(
