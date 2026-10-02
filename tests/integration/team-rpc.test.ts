@@ -198,6 +198,8 @@ describe('delete_member — H-9 참조 8곳 정리', () => {
       // H-9a: 산출근거는 "정리되는 참조"가 아니라 "삭제를 막는 참조"라 별도 항목이다.
       // 0건이므로 이 삭제는 통과한다
       budgetDetails: 0,
+      // H-9b: 협약 예산 참여인원도 삭제를 막는 참조라 산출근거와 다른 키로 센다
+      agreementParticipants: 0,
     };
     // 삭제 확인 대화상자용 집계와 삭제가 같은 숫자를 봐야 한다
     expect(await members.countMemberReferences(user.client, member.id)).toEqual(expected);
@@ -269,6 +271,7 @@ describe('delete_member — H-9 참조 8곳 정리', () => {
       noteAttendees: 0,
       appUsers: 0,
       budgetDetails: 0, // H-9a
+      agreementParticipants: 0, // H-9b
     };
     expect(await members.countMemberReferences(user.client, member.id)).toEqual(zeros);
     expect(await members.removeMember(user.client, member.id)).toEqual(zeros);

@@ -17,6 +17,8 @@ const JSONB_PASSTHROUGH_KEYS = new Set([
   'skip_row_patterns', 'skipRowPatterns',
   'snapshot', // import_snapshots.snapshot — commit_import RPC가 기록한 원본 그대로 (I-17)
   'factors',  // budget_details.factors — 내부 isPercent가 is_percent로 바뀌면 §6.10.1 계산이 깨진다
+  // agreement_items.evidence — 지금 내부 키는 한 단어라 변환해도 같지만, 키가 늘 때 조용히 깨지지 않게
+  'evidence',
 ]);
 
 function snakeToCamelKey(key: string): string {

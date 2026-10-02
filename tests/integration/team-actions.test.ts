@@ -94,6 +94,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // 협약 버전의 연차·인력 FK는 no action이다(H-5a·H-9b) — 버전을 먼저 지워야 과제가 지워진다
+  for (const id of tempProjectIds) {
+    await sql`delete from public.agreement_versions where project_id = ${id}::uuid`;
+  }
   for (const id of tempProjectIds) {
     await sql`delete from public.projects where id = ${id}::uuid`;
   }
@@ -645,6 +649,68 @@ describe('연봉 변경 파급 (PL-10b) · 삭제 차단 (H-9a)', () => {
     await budgetDetails.deleteDetail(user.client, personnelDetailId);
     await budgetDetails.deleteDetail(user.client, studentDetailId);
     unwrap(await team.deleteMember(salaryMemberId));
+  });
+});
+
+// H-9b: 협약 예산 참여인원이 걸린 인력도 삭제를 막는다. 대화상자가 막아도 액션을 직접 부르는
+// 우회 경로가 있으므로 서버가 RULE로 거부하는지, 거부 뒤 데이터가 그대로인지를 저장된 값으로 본다.
+describe('삭제 차단 (H-9b) — 협약 예산 참여인원', () => {
+  it('참여인원이 걸린 인력은 RULE로 거부되고, 버전을 지우면 삭제된다', async () => {
+    const member = unwrap(await team.createMember(projectId, { name: '협약참여자' }));
+
+    const { data, error } = await user.client.rpc('create_agreement_version', {
+      p_project_id: projectId,
+      p_kind: 'selection',
+      p_name: '삭제 차단 검증 버전',
+      p_lines: [],
+      p_participants: [
+        {
+          member_id: member.id,
+          year_id: yearId,
+          participation_rate: 50,
+          months: 12,
+          annual_salary: 60_000_000,
+          personnel_cash: 30_000_000,
+          personnel_in_kind: 0,
+          role: '연구원',
+        },
+        {
+          member_id: member.id,
+          year_id: yearId,
+          participation_rate: 10,
+          months: 6,
+          annual_salary: null,
+          personnel_cash: 0,
+          personnel_in_kind: 0,
+          role: '',
+        },
+      ],
+    });
+    if (error) throw new Error(`협약 버전 픽스처 생성 실패: ${error.message}`);
+    const versionId = (data as { versionId: string }).versionId;
+
+    // 산출근거(H-9a)와 다른 키로 센다 — 화면이 별도 줄로 띄우는 근거다
+    const counts = unwrap(await team.countMemberReferences(member.id));
+    expect(counts.agreementParticipants).toBe(2);
+    expect(counts.budgetDetails).toBe(0);
+
+    const message = expectRuleViolation(await team.deleteMember(member.id));
+    expect(message).toContain('협약 예산 참여인원 2건');
+
+    // 차단이므로 인력도 참여인원도 그대로 남아 있어야 한다
+    expect((await membersRepo.getMemberById(user.client, member.id)).name).toBe('협약참여자');
+    const remaining = await sql`
+      select count(*)::int as n from public.agreement_participants
+       where member_id = ${member.id}::uuid`;
+    expect((remaining[0] as { n: number }).n).toBe(2);
+
+    // 비활성화는 막지 않는다 (§7.10)
+    expect(unwrap(await team.setMemberActive(member.id, false)).active).toBe(false);
+
+    // 버전을 먼저 지우면 삭제된다 (두 단계)
+    await sql`delete from public.agreement_versions where id = ${versionId}::uuid`;
+    expect(unwrap(await team.countMemberReferences(member.id)).agreementParticipants).toBe(0);
+    unwrap(await team.deleteMember(member.id));
   });
 });
 

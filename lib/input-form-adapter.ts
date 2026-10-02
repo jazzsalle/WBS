@@ -39,7 +39,8 @@ import {
  * `0.1`이라 D-22의 ×100 되돌리기가 필요해진다 — 임포트에서 금액이 1/100로 어긋난 바로 그 함정이다.
  * 일반 숫자로 두면 양방향 모두 값 = 화면 숫자다.
  *
- * 수식 셀은 **`result` 없이** `{ formula }`만 쓴다(IN-7). exceljs는 result가 없으면 `<v>`를 아예 쓰지 않는다
+ * 수식 셀은 `FormCell.result`가 없으면 **`result` 없이** `{ formula }`만 쓴다(IN-7). `result`가 있으면(AG-8 협약 보기)
+ * `{ formula, result }`로 결과값도 싣는다 — 입력·목표 양식은 `result`를 넣지 않으므로 출력이 그대로다. exceljs는 result가 없으면 `<v>`를 아예 쓰지 않는다
  * (`<c r="N2"><f>…</f></c>`). 캐시를 넣으면 엑셀이 다시 계산하기 전까지 우리가 계산한 값이 보이는데, 그 값이
  * 앱 산식과 어긋나는 순간을 사용자가 알 길이 없다. 빈 채로 두면 엑셀이 열면서 계산하고, 앱은 어차피 금액 열을
  * 읽지 않는다(IN-3). 올리기 경로(`readWorkbook`, cellFormula:false)는 이 셀을 레코드 없음 → null로 읽는다.
@@ -55,7 +56,13 @@ function writeCellValue(target: ExcelJS.Cell, cell: FormCell, where: string, asD
     if (formula.startsWith('=')) {
       throw new Error(`${where}: 수식은 '=' 없이 담아야 합니다 (${formula}).`);
     }
-    target.value = { formula };
+    if (cell.result === undefined) {
+      target.value = { formula };
+      return;
+    }
+    // AG-8 보고서형 표만 결과값을 싣는다 — NaN·Infinity가 `<v>`에 흐르면 엑셀이 열지 못한다
+    if (!Number.isFinite(cell.result)) throw new Error(`${where}: 수식 결과값이 유한한 숫자가 아닙니다 (${cell.result}).`);
+    target.value = { formula, result: cell.result };
     return;
   }
 

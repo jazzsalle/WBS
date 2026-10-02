@@ -8,8 +8,12 @@ import {
   HELP_TITLES,
   HELP_TOC_GROUPS,
   TUTORIAL_STEP_SLUGS,
+  helpHeadingId,
+  helpHref,
   helpSlugForPath,
   isHelpSlug,
+  mdInlineText,
+  parseHelpHash,
   parseHelpHead,
   parseTutorialHead,
 } from '@/lib/help';
@@ -138,5 +142,58 @@ describe('parseHelpHead (HP-6)', () => {
       intro: '과제를 하나 만든다',
     });
     expect(parseTutorialHead('# 과제 만들기\n> 언제 쓰나: x')).toHaveProperty('error');
+  });
+});
+
+describe('절 앵커 (HP-4 — 화면 ? → 편 안의 절)', () => {
+  it('helpHeadingId: 문자·숫자만 남기고 기호·공백 덩어리는 - 하나, slug 접두', () => {
+    expect(helpHeadingId('budget', '수행 모드 — 협약 예산')).toBe('budget--수행-모드-협약-예산');
+    expect(helpHeadingId('budget', '모드 — 제안 | 수행')).toBe('budget--모드-제안-수행');
+    expect(helpHeadingId('calculations', '진척률 (SOT §6.1)')).toBe('calculations--진척률-sot-6-1');
+    expect(helpHeadingId('budget-rules', '  할 수 있는 것  ')).toBe('budget-rules--할-수-있는-것');
+    // 기호만 있는 제목은 편 자체로 — 빈 앵커를 만들지 않는다
+    expect(helpHeadingId('wbs', '— | —')).toBe('wbs');
+  });
+
+  it('같은 제목이라도 편이 다르면 id가 다르다', () => {
+    expect(helpHeadingId('wbs', '할 수 있는 것')).not.toBe(helpHeadingId('budget', '할 수 있는 것'));
+  });
+
+  it('mdInlineText: 굵게·코드로 꾸민 제목도 글자만 잇는다', () => {
+    expect(
+      mdInlineText([
+        { kind: 'text', text: '수행 ' },
+        { kind: 'strong', children: [{ kind: 'text', text: '모드' }] },
+        { kind: 'code', text: ' x' },
+      ])
+    ).toBe('수행 모드 x');
+  });
+
+  it('helpHref: anchor 없으면 편, 있으면 절 — 해시는 퍼센트 인코딩', () => {
+    expect(helpHref('budget')).toBe('/help#budget');
+    const href = helpHref('budget', '수행 모드 — 협약 예산');
+    expect(href.startsWith('/help#budget--')).toBe(true);
+    expect(decodeURIComponent(href.slice('/help#'.length))).toBe('budget--수행-모드-협약-예산');
+  });
+
+  it('parseHelpHash: 편·절 해시를 읽고 slug를 가른다 (budget-rules처럼 -가 든 slug 포함)', () => {
+    expect(parseHelpHash('#wbs')).toEqual({ slug: 'wbs', targetId: 'wbs' });
+    expect(parseHelpHash(helpHref('budget', '수행 모드 — 협약 예산').slice('/help'.length))).toEqual({
+      slug: 'budget',
+      targetId: 'budget--수행-모드-협약-예산',
+    });
+    expect(parseHelpHash('#budget-rules--할-수-있는-것')).toEqual({
+      slug: 'budget-rules',
+      targetId: 'budget-rules--할-수-있는-것',
+    });
+  });
+
+  it('parseHelpHash: 모르는 slug·빈 절·깨진 인코딩은 null', () => {
+    expect(parseHelpHash('')).toBeNull();
+    expect(parseHelpHash('#unknown')).toBeNull();
+    expect(parseHelpHash('#unknown--x')).toBeNull();
+    expect(parseHelpHash('#budget--')).toBeNull();
+    expect(parseHelpHash('#--x')).toBeNull();
+    expect(parseHelpHash('#budget--%E0%A4%A')).toBeNull();
   });
 });

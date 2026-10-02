@@ -6,7 +6,7 @@
 //      drop table에 cascade를 쓰지 않았지만, plpgsql 본문의 참조는 의존으로 잡히지 않아
 //      drop이 성공해도 남을 수 있다 — 그러면 그 함수는 호출 시점에야 깨진다. 카탈로그로 직접 본다.
 //  (b) import_profiles.kind check가 ('budget_plan','budget_detail','goal_form')이다 (S-1).
-//  (c) schema_version = 5 (§8.8)이고 lib/constants.ts와 같다.
+//  (c) schema_version ≥ 5 (§8.8) — 정확한 값은 최신 마이그레이션 테스트(agreement-migration)가 본다.
 //  (d) 연쇄 삭제 RPC(delete_year·delete_project)가 집행 테이블 없이 그대로 동작한다.
 //  (e) restore_import_snapshot의 goals 거부(GF-11)·산출근거(D-17a) 경로가 남아 있다.
 //
@@ -156,12 +156,14 @@ describe('(b) import_profiles.kind check (S-1)', () => {
 
 // ─── (c) schema_version ──────────────────────────────────────
 
-describe('(c) schema_version 5 (§8.8)', () => {
-  it('app_settings.schema_version = 5 = EXPECTED_SCHEMA_VERSION', async () => {
+describe('(c) schema_version ≥ 5 (§8.8)', () => {
+  // 이 마이그레이션은 5로 올렸고 이후 Phase가 더 올린다(6 = Phase 24). 현재 값의 정확한 검증은
+  // 최신 마이그레이션 테스트가 맡고, 여기서는 "이 마이그레이션이 적용됐다"는 하한만 본다
+  it('app_settings.schema_version >= 5, EXPECTED_SCHEMA_VERSION >= 5', async () => {
     const rows = await sql<{ v: number }[]>`select schema_version::int as v from public.app_settings`;
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.v).toBe(5);
-    expect(EXPECTED_SCHEMA_VERSION).toBe(5);
+    expect(rows[0]!.v).toBeGreaterThanOrEqual(5);
+    expect(EXPECTED_SCHEMA_VERSION).toBeGreaterThanOrEqual(5);
   });
 });
 

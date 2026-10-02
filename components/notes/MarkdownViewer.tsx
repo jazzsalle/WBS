@@ -86,12 +86,20 @@ function ListItem({ item }: { item: MdListItem }) {
   );
 }
 
-function Block({ block }: { block: MdBlock }) {
+/** 제목 AST → DOM id. 도움말만 쓴다(절 앵커, HP-4) — 노트는 주지 않는다: 본문이 사용자 입력이라 페이지의 다른 id와 겹칠 수 있다 */
+type HeadingIdFn = (children: MdInline[]) => string;
+
+function Block({ block, headingId }: { block: MdBlock; headingId?: HeadingIdFn }) {
   switch (block.kind) {
     case 'heading': {
       const Tag = `h${block.level}` as 'h1';
+      const id = headingId?.(block.children);
       return (
-        <Tag className={HEADING_CLASS[block.level] ?? HEADING_CLASS[6]}>
+        <Tag
+          id={id}
+          // scroll-mt: 앵커로 도착했을 때 제목이 화면 위 모서리에 붙지 않게
+          className={`${HEADING_CLASS[block.level] ?? HEADING_CLASS[6]}${id ? ' scroll-mt-6' : ''}`}
+        >
           <Inline nodes={block.children} />
         </Tag>
       );
@@ -146,6 +154,8 @@ export interface MarkdownViewerProps {
   /** 블록이 하나도 없을 때 보일 안내. 기본은 노트 편집기 문구 */
   emptyText?: string;
   className?: string;
+  /** 제목마다 id를 붙인다(도움말 절 앵커). 없으면 id 없음 */
+  headingId?: HeadingIdFn;
 }
 
 export default function MarkdownViewer({
@@ -153,6 +163,7 @@ export default function MarkdownViewer({
   blocks: given,
   emptyText = '본문이 비어 있습니다. 왼쪽 편집기에 마크다운으로 적으세요.',
   className = '',
+  headingId,
 }: MarkdownViewerProps) {
   if (given === undefined && source === undefined) {
     // 둘 다 없으면 호출부 버그다 — 빈 화면으로 넘기지 않는다
@@ -171,7 +182,7 @@ export default function MarkdownViewer({
   return (
     <div className={className}>
       {blocks.map((block, index) => (
-        <Block key={index} block={block} />
+        <Block key={index} block={block} headingId={headingId} />
       ))}
     </div>
   );

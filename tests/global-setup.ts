@@ -49,7 +49,10 @@ export default async function setup(): Promise<void> {
     if (stale.length > 0) {
       const ids = stale.map((u) => u.id);
 
-      // 소유 행 먼저 (created_by가 아직 살아 있을 때). projects는 cascade로 하위 전부를 끌고 간다
+      // 소유 행 먼저 (created_by가 아직 살아 있을 때). projects는 cascade로 하위 전부를 끌고 간다.
+      // 협약 버전만 먼저 지운다 — 연차·인력의 no action FK(H-5a·H-9b)가 과제 cascade를 막는다(delete_project와 같은 순서)
+      await sql`delete from public.agreement_versions
+                 where project_id in (select id from public.projects where created_by = any(${ids}::uuid[]))`;
       const projects = await sql`delete from public.projects        where created_by = any(${ids}::uuid[]) returning id`;
       const todos = await sql`delete from public.todos           where created_by = any(${ids}::uuid[]) returning id`;
       const notes = await sql`delete from public.notes           where created_by = any(${ids}::uuid[]) returning id`;
@@ -79,6 +82,14 @@ export default async function setup(): Promise<void> {
 //     실사용자가 소유한 행은 표식이 붙어 있어도 여기서 절대 건드리지 않는다
 //  ③ 2시간 경과 — 지금 돌고 있는 다른 실행이 방금 표식을 찍었을 가능성을 배제한다
 async function cleanupMarkedOrphans(sql: Sql): Promise<void> {
+  // 위와 같은 이유로 협약 버전 먼저 — 조건은 아래 과제 삭제와 똑같다
+  await sql`
+    delete from public.agreement_versions
+     where project_id in (
+       select id from public.projects
+        where project_no like ${TEST_ROW_MARK_PATTERN}
+          and created_by is null
+          and created_at < now() - ${STALE_AFTER}::interval)`;
   const projects = await sql`
     delete from public.projects
      where project_no like ${TEST_ROW_MARK_PATTERN}

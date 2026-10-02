@@ -8,16 +8,11 @@
 import { useEffect, useState } from 'react';
 import type { HelpDocument } from '@/lib/content';
 import type { HelpSlug } from '@/lib/help';
-import { HELP_RELATED, HELP_TITLES, HELP_TOC_GROUPS, isHelpSlug } from '@/lib/help';
+import { HELP_RELATED, HELP_TITLES, HELP_TOC_GROUPS, helpHeadingId, mdInlineText, parseHelpHash } from '@/lib/help';
 import MarkdownViewer from '@/components/notes/MarkdownViewer';
 
 /** 강조가 사라지는 시간. 눈에 띌 만큼만 — 계속 남으면 다른 절을 읽을 때 방해된다 */
 const HIGHLIGHT_MS = 2000;
-
-function slugFromHash(hash: string): HelpSlug | null {
-  const raw = decodeURIComponent(hash.replace(/^#/, ''));
-  return isHelpSlug(raw) ? raw : null;
-}
 
 export interface HelpPageProps {
   documents: HelpDocument[];
@@ -29,11 +24,13 @@ export default function HelpPage({ documents }: HelpPageProps) {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const focusFromHash = (): void => {
-      const slug = slugFromHash(window.location.hash);
-      if (!slug) return;
-      // 브라우저의 기본 해시 점프는 sticky 목차·레이아웃 시프트 뒤에 어긋날 수 있어 직접 스크롤한다
-      document.getElementById(slug)?.scrollIntoView({ block: 'start' });
-      setActive(slug);
+      const target = parseHelpHash(window.location.hash);
+      if (!target) return;
+      // 브라우저의 기본 해시 점프는 sticky 목차·레이아웃 시프트 뒤에 어긋날 수 있어 직접 스크롤한다.
+      // 절 앵커(/help#budget--…)는 그 제목으로, 강조는 그 절이 든 편 전체에 준다
+      const element = document.getElementById(target.targetId) ?? document.getElementById(target.slug);
+      element?.scrollIntoView({ block: 'start' });
+      setActive(target.slug);
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => setActive(null), HIGHLIGHT_MS);
     };
@@ -89,7 +86,11 @@ export default function HelpPage({ documents }: HelpPageProps) {
                 언제 쓰나: {doc.intro}
               </p>
               {/* 1행(제목)·2행(intro)은 위에 따로 그렸으므로 AST에서는 뺀다 */}
-              <MarkdownViewer blocks={doc.blocks.slice(2)} emptyText="본문이 아직 없습니다." />
+              <MarkdownViewer
+                blocks={doc.blocks.slice(2)}
+                emptyText="본문이 아직 없습니다."
+                headingId={(children) => helpHeadingId(doc.slug, mdInlineText(children))}
+              />
               {related.length > 0 && (
                 <p className="mt-4 border-t border-grey-100 pt-3 text-t7 text-grey-500">
                   관련 도움말:{' '}

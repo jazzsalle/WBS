@@ -16,6 +16,11 @@ import type { FormCellFormat } from './layout';
 export interface FormCell {
   value?: string | number | null;
   formula?: string;
+  /**
+   * 수식 셀의 결과값(캐시). **있을 때만** 어댑터가 `<v>`로 쓴다 — 없으면 Phase 19 그대로 수식만(IN-7, 기존 양식 바이트 불변).
+   * 협약 예산 보기 내려받기(AG-8)는 앱이 이미 계산한 표라 엑셀이 다시 계산하기 전에도 같은 값이 보여야 한다.
+   */
+  result?: number;
 }
 
 /** 행 역할. 어댑터가 부록 F-2(헤더)·F-4(소계·합계) 서식을 고를 때 쓴다 */

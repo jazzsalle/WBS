@@ -60,6 +60,9 @@ export async function applySeed(sql: Sql): Promise<void> {
 }
 
 export async function removeSeed(sql: Sql): Promise<void> {
+  // 협약 예산 버전을 먼저 지운다 — delete_project(H-7)와 같은 순서. 하위 줄·참여인원·편성 항목의
+  // 연차·인력 FK가 no action이라(H-5a·H-9b) 과제 cascade 순서에 따라 23503으로 막힐 수 있다
+  await sql`delete from public.agreement_versions where project_id = ${SEED.projectId}::uuid`;
   await sql`delete from public.projects where id = ${SEED.projectId}::uuid`;
 }
 

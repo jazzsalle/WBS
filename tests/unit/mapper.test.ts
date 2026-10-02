@@ -3,12 +3,24 @@
 import { describe, it, expect } from 'vitest';
 import { dbToApp, appToDb, dbToAppArray } from '@/lib/db/mapper';
 import {
+  agreementItemRowSchema,
+  agreementLineRowSchema,
+  agreementParticipantRowSchema,
+  agreementVersionRowSchema,
   deliverableRowSchema,
   importKindSchema,
   importSnapshotRowSchema,
   techTargetRowSchema,
 } from '@/lib/db/schema';
-import type { Deliverable, ImportSnapshot, TechTarget } from '@/types';
+import type {
+  AgreementItem,
+  AgreementLine,
+  AgreementParticipant,
+  AgreementVersion,
+  Deliverable,
+  ImportSnapshot,
+  TechTarget,
+} from '@/types';
 
 describe('mapper: snake_case ↔ camelCase 기본 변환', () => {
   it('DB row(snake) → 앱 객체(camel)', () => {
@@ -438,5 +450,217 @@ describe('schema: 목표 양식 스냅샷 (§5.12.1, GF-11)', () => {
     // 평면 배열(테이블 키 없음)은 RPC가 쓰는 형태가 아니다
     const flat = { ...goalSnapshot, goals: { ...goalSnapshot.goals, added: [UUID_ADDED] } };
     expect(importSnapshotRowSchema.safeParse(snapshotRow(flat)).success).toBe(false);
+  });
+});
+
+// ─── §5.21~§5.24 협약 예산 (Phase 24) ────────────────────────
+
+const UUID_AV = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const UUID_AL = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const UUID_AP = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const UUID_AI = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+
+function agreementBase(id: string): Record<string, unknown> {
+  return {
+    id,
+    version: 3,
+    created_at: '2026-10-01T00:00:00+00:00',
+    updated_at: '2026-10-01T00:00:00+00:00',
+    created_by: null,
+    updated_by: null,
+  };
+}
+
+function agreementVersionRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...agreementBase(UUID_AV),
+    project_id: UUID_PROJECT,
+    kind: 'amendment',
+    name: '협약변경 1차',
+    base_date: '2026-10-01',
+    change_reason: '재료비 연차 간 이동',
+    notice_type: 'approval',
+    iris_requested_at: '2026-09-20',
+    note: '',
+    status: 'confirmed',
+    confirmed_at: '2026-10-02T09:00:00+00:00',
+    sort_order: 2,
+    ...overrides,
+  };
+}
+
+function agreementLineRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...agreementBase(UUID_AL),
+    version_id: UUID_AV,
+    year_id: UUID_YEAR,
+    category: 'activity',
+    subcategory_code: 'activity_travel_intl',
+    axis: 'in_kind',
+    amount: 9_007_199_254_740_991, // bigint가 JSON 숫자로 올 때 안전 정수 상한까지 정수로 남는다
+    ...overrides,
+  };
+}
+
+function agreementParticipantRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...agreementBase(UUID_AP),
+    version_id: UUID_AV,
+    member_id: UUID_MEMBER,
+    year_id: UUID_YEAR,
+    participation_rate: 12.5,
+    months: 6,
+    annual_salary: 60_000_000,
+    personnel_cash: 3_750_000,
+    personnel_in_kind: 0,
+    role: '참여연구원',
+    ...overrides,
+  };
+}
+
+function agreementItemRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...agreementBase(UUID_AI),
+    version_id: UUID_AV,
+    year_id: UUID_YEAR,
+    kind: 'equipment',
+    name: '고속 카메라',
+    amount: 33_000_000,
+    quantity: 1.5,
+    evidence: [
+      { label: '견적서', obtained: true, memo: 'A사' },
+      { label: '비교견적서', obtained: false, memo: '' },
+    ],
+    ...overrides,
+  };
+}
+
+describe('mapper·schema: 협약 예산 4종 (§5.21~§5.24 Phase 24)', () => {
+  it('agreement_versions: sort_order ↔ order, 메타 7개·confirmedAt이 camel 필드로 온다', () => {
+    const app = dbToApp<AgreementVersion>(agreementVersionRowSchema.parse(agreementVersionRow()));
+    const expected: AgreementVersion = {
+      id: UUID_AV,
+      version: 3,
+      createdAt: '2026-10-01T00:00:00+00:00',
+      updatedAt: '2026-10-01T00:00:00+00:00',
+      createdBy: null,
+      updatedBy: null,
+      projectId: UUID_PROJECT,
+      kind: 'amendment',
+      name: '협약변경 1차',
+      baseDate: '2026-10-01',
+      changeReason: '재료비 연차 간 이동',
+      noticeType: 'approval',
+      irisRequestedAt: '2026-09-20',
+      note: '',
+      status: 'confirmed',
+      confirmedAt: '2026-10-02T09:00:00+00:00',
+      order: 2,
+    };
+    // toEqual 전체 비교 — 삭제된 officialDocNo·irisApprovedAt 같은 여분 필드가 있으면 깨진다
+    expect(app).toEqual(expected);
+    expect(app).not.toHaveProperty('sortOrder');
+    expect(appToDb({ order: 7 })).toEqual({ sort_order: 7 });
+  });
+
+  it('agreement_versions DB → 앱 → DB 왕복 (작성 중: null 메타·confirmed_at null)', () => {
+    const row = agreementVersionRow({
+      status: 'draft',
+      confirmed_at: null,
+      notice_type: null,
+      base_date: null,
+      iris_requested_at: null,
+    });
+    expect(agreementVersionRowSchema.safeParse(row).success).toBe(true);
+    expect(appToDb(dbToApp(row))).toEqual(row);
+  });
+
+  it('agreement_lines: subcategory_code·bigint 금액 왕복, 금액은 number 정수', () => {
+    const row = agreementLineRow();
+    const app = dbToApp<AgreementLine>(agreementLineRowSchema.parse(row));
+    expect(app).toMatchObject({
+      versionId: UUID_AV,
+      yearId: UUID_YEAR,
+      category: 'activity',
+      subcategoryCode: 'activity_travel_intl',
+      axis: 'in_kind',
+    });
+    expect(typeof app.amount).toBe('number');
+    expect(Number.isSafeInteger(app.amount)).toBe(true);
+    expect(appToDb(dbToApp(row))).toEqual(row);
+  });
+
+  it('agreement_lines: default 세목은 모든 비목에서 통과한다(세목 목록 검증은 액션 Zod 몫)', () => {
+    const row = agreementLineRow({ category: 'personnel', subcategory_code: 'default' });
+    expect(agreementLineRowSchema.safeParse(row).success).toBe(true);
+  });
+
+  it('agreement_participants: 숫자 컬럼이 camel로, member_id null(인력 미지정)·annual_salary null 보존', () => {
+    const app = dbToApp<AgreementParticipant>(agreementParticipantRowSchema.parse(agreementParticipantRow()));
+    expect(app).toMatchObject({
+      memberId: UUID_MEMBER,
+      participationRate: 12.5,
+      months: 6,
+      annualSalary: 60_000_000,
+      personnelCash: 3_750_000,
+      personnelInKind: 0,
+      role: '참여연구원',
+    });
+    const unassigned = agreementParticipantRow({ member_id: null, annual_salary: null });
+    expect(agreementParticipantRowSchema.safeParse(unassigned).success).toBe(true);
+    expect(appToDb(dbToApp(unassigned))).toEqual(unassigned);
+  });
+
+  it('agreement_items: evidence jsonb 배열이 내부 그대로 왕복한다', () => {
+    const row = agreementItemRow();
+    const app = dbToApp<AgreementItem>(agreementItemRowSchema.parse(row));
+    expect(app.evidence).toEqual([
+      { label: '견적서', obtained: true, memo: 'A사' },
+      { label: '비교견적서', obtained: false, memo: '' },
+    ]);
+    expect(app.quantity).toBe(1.5);
+    expect(appToDb(dbToApp(row))).toEqual(row);
+    // N-3: 내부 키는 손대지 않는다 — 나중에 여러 단어 키가 생겨도 그대로 남는다
+    expect(appToDb({ evidence: [{ checkedAt: 'x' }] })).toEqual({ evidence: [{ checkedAt: 'x' }] });
+    expect(dbToApp({ evidence: [{ checked_at: 'x' }] })).toEqual({ evidence: [{ checked_at: 'x' }] });
+  });
+
+  it('agreement_items: 빈 evidence·null quantity가 통과한다', () => {
+    const row = agreementItemRow({ evidence: [], quantity: null });
+    expect(agreementItemRowSchema.safeParse(row).success).toBe(true);
+    expect(appToDb(dbToApp(row))).toEqual(row);
+  });
+
+  it('금액이 정수가 아니거나 음수면 거부한다 — 손상을 조용히 넘기지 않는다(절대 규칙 4·5)', () => {
+    expect(agreementLineRowSchema.safeParse(agreementLineRow({ amount: 1.5 })).success).toBe(false);
+    expect(agreementLineRowSchema.safeParse(agreementLineRow({ amount: -1 })).success).toBe(false);
+    expect(agreementLineRowSchema.safeParse(agreementLineRow({ amount: '1000' })).success).toBe(false);
+    expect(agreementParticipantRowSchema.safeParse(agreementParticipantRow({ personnel_cash: 0.5 })).success).toBe(false);
+    expect(agreementParticipantRowSchema.safeParse(agreementParticipantRow({ annual_salary: -1 })).success).toBe(false);
+    expect(agreementItemRowSchema.safeParse(agreementItemRow({ amount: 10.1 })).success).toBe(false);
+  });
+
+  it('범위·enum·형태가 어긋난 행은 거부한다', () => {
+    expect(agreementParticipantRowSchema.safeParse(agreementParticipantRow({ participation_rate: 100.1 })).success).toBe(false);
+    expect(agreementParticipantRowSchema.safeParse(agreementParticipantRow({ months: 13 })).success).toBe(false);
+    expect(agreementVersionRowSchema.safeParse(agreementVersionRow({ kind: 'draft' })).success).toBe(false);
+    expect(agreementVersionRowSchema.safeParse(agreementVersionRow({ status: 'locked' })).success).toBe(false);
+    expect(agreementVersionRowSchema.safeParse(agreementVersionRow({ notice_type: 'report' })).success).toBe(false);
+    expect(agreementItemRowSchema.safeParse(agreementItemRow({ kind: 'travel' })).success).toBe(false);
+    expect(agreementItemRowSchema.safeParse(agreementItemRow({ evidence: {} })).success).toBe(false);
+    expect(agreementItemRowSchema.safeParse(agreementItemRow({ evidence: [{ label: '견적서' }] })).success).toBe(false);
+    expect(agreementLineRowSchema.safeParse(agreementLineRow({ axis: 'inKind' })).success).toBe(false);
+  });
+
+  it('컬럼이 빠진 응답(마이그레이션 누락)은 거부된다', () => {
+    const v = agreementVersionRow();
+    delete v.confirmed_at;
+    expect(agreementVersionRowSchema.safeParse(v).success).toBe(false);
+    const p = agreementParticipantRow();
+    delete p.annual_salary;
+    expect(agreementParticipantRowSchema.safeParse(p).success).toBe(false);
+    const i = agreementItemRow();
+    delete i.evidence;
+    expect(agreementItemRowSchema.safeParse(i).success).toBe(false);
   });
 });

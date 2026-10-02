@@ -10,8 +10,8 @@
 //
 // **모드 토글 `[제안 | 수행]`** (§7.9): 기본은 `제안`이고, 모드는 **화면 로컬 상태**다 — URL을
 // 바꾸지도 저장하지도 않으므로 새로고침하면 `제안`으로 돌아간다(§7.5 접힘 상태와 같은 결정).
-// v4.9 Phase 23 ~ Phase 24 착수 사이의 `수행`(= 협약 예산, 'agreement')은 매트릭스·숫자 없이 안내만
-// 보인다 — 빈 매트릭스에 0을 보이면 데이터가 없는 것인지 금액이 0인지 구별할 수 없다(절대 규칙 5).
+// `수행`(= 협약 예산, 'agreement', v4.9)은 §7.9.8 협약 예산 화면(AgreementScreen)이 매트릭스 자리에 들어선다.
+// 협약 데이터는 제안과 별개 조회라, 그 조회가 실패해도 제안 모드는 그대로 쓰고 수행 모드에만 오류를 보인다.
 // 인쇄(§12 P-R1)도 현재 모드를 따른다 — 모드가 DOM을 정하고 인쇄는 그 DOM을 그대로 뽑는다.
 //
 // **보기 토글 `[매트릭스 | 인건비]`** (§7.9.6, Phase 16): 제안 모드 안의 두 번째 축이다. `인건비`는 같은 산출근거를
@@ -26,6 +26,7 @@ import { useRouter } from 'next/navigation';
 import type { ActionResult, BudgetCategory, BudgetItem, ImportProfile, RuleCode } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import type { BudgetPlanCellView, BudgetPlanData } from '@/actions/budget-plan';
+import type { AgreementData } from '@/actions/agreement';
 import { updateBudgetPlan } from '@/actions/budget';
 import { BUDGET_CATEGORY_LABELS } from '@/lib/constants';
 import Button from '@/components/ui/Button';
@@ -42,6 +43,9 @@ import ExportModal from './ExportModal';
 import InputFormDownload from './input-form/InputFormDownload';
 import InputFormUpload from './input-form/InputFormUpload';
 import PersonnelTab from './personnel/PersonnelTab';
+import AgreementScreen from './agreement/AgreementScreen';
+import SendBaselineDialog from './agreement/SendBaselineDialog';
+import { draftExistsReason } from './agreement/VersionBar';
 
 /** §7.9 모드 토글. 화면 로컬 상태이며 URL·DB에 저장하지 않는다. 수행 = 협약 예산(v4.9)이라 값 이름이 'agreement'다 */
 type BudgetMode = 'plan' | 'agreement';
@@ -57,12 +61,8 @@ const PLAN_VIEWS: readonly { value: PlanView; label: string; hint: string }[] = 
 // §7.9 표의 순서대로 `[제안 | 수행]`. 기본 선택은 `제안`이다
 const MODES: readonly { value: BudgetMode; label: string; hint: string }[] = [
   { value: 'plan', label: '제안', hint: '셀에 예산 / 현금 / 현물을 보여주고, 클릭하면 산출근거 패널이 열립니다 (§7.9.2)' },
-  { value: 'agreement', label: '수행', hint: '협약 예산 버전·보기 — 준비 중입니다 (§7.9)' },
+  { value: 'agreement', label: '수행', hint: '협약 예산 버전을 비목별·변경 이력으로 봅니다 (§7.9.8)' },
 ];
-
-// §7.9 Phase 23 ~ Phase 24 착수 사이의 수행 모드 안내. 문구는 SOT 그대로다
-const AGREEMENT_PENDING_NOTICE =
-  '수행 모드(협약 예산 버전·보기)는 준비 중입니다. 집행 관리는 v4.9에서 삭제되었습니다 — 집행은 RCMS·경영관리팀·정산 시스템에서 관리합니다.';
 
 // 원본 행(version(O-1)·현금/현물 null 여부·PL-9 detailCount)은 props로 따로 받지 않는다.
 // `plan.items`가 집계와 **같은 조회**에서 나온 배열이라, 따로 받으면 호출부가 다른 시점의 두 스냅샷을
@@ -78,9 +78,19 @@ export interface BudgetScreenProps {
    * 조회 실패는 page.tsx가 화면 전체를 막고 알린다 (절대 규칙 5)
    */
   plan: BudgetPlanData;
+  /** 수행 모드 한 벌 (§7.9.8, getAgreementData). 조회 실패면 null — 제안 모드는 막지 않는다 */
+  agreement: AgreementData | null;
+  /** 협약 조회 실패 문구. 수행 모드에만 배너로 보인다 (절대 규칙 5) */
+  agreementError: string | null;
 }
 
-export default function BudgetScreen({ importProfiles, importProfilesError, plan }: BudgetScreenProps) {
+export default function BudgetScreen({
+  importProfiles,
+  importProfilesError,
+  plan,
+  agreement,
+  agreementError,
+}: BudgetScreenProps) {
   const router = useRouter();
   // §7.9: 화면 로컬 상태. 기본은 `제안`이고 새로고침하면 되돌아온다
   const [mode, setMode] = useState<BudgetMode>('plan');
@@ -98,6 +108,15 @@ export default function BudgetScreen({ importProfiles, importProfilesError, plan
   const [inputFormUploadOpen, setInputFormUploadOpen] = useState(false);
   // §7.9.5 [연구비 규칙] 모달. 제안 모드의 것이라 모드를 바꾸면 닫는다
   const [rulesOpen, setRulesOpen] = useState(false);
+  // §7.9 [협약 기준선으로 보내기] 확인 대화 (제안 모드 전용, AV-6)
+  const [sendBaselineOpen, setSendBaselineOpen] = useState(false);
+  const sendBlockedReason: string | null =
+    agreement !== null && agreement.draftVersionId !== null
+      ? draftExistsReason(
+          agreement.versions.find((v) => v.version.id === agreement.draftVersionId)?.version.name ??
+            '(목록에 없는 버전)'
+        )
+      : null;
   const [importResult, setImportResult] = useState<string | null>(null);
   // §7.9 규칙 검증 패널의 "클릭 → 이동". 연차 finding은 매트릭스 열 강조, 행 finding은 셀 패널 + 행 강조.
   // 둘 다 화면 로컬 상태다 — URL·DB에 남기지 않고 모드를 바꾸면 버린다 (모드 토글과 같은 결정)
@@ -210,6 +229,7 @@ export default function BudgetScreen({ importProfiles, importProfilesError, plan
                     selectCell(null);
                     setHighlightYearId(null);
                     setRulesOpen(false);
+                    setSendBaselineOpen(false);
                     setPlanView('matrix');
                     setFailure(null);
                   }}
@@ -267,7 +287,8 @@ export default function BudgetScreen({ importProfiles, importProfilesError, plan
           )}
         </div>
         {/* §7.9: 툴바 버튼은 전부 **제안 모드 전용**이다 — [산출근거 가져오기](§7.9.3)·[연구비 규칙](§7.9.5)·
-            [제출 서식 내보내기](§7.9.4)·[입력 양식 내려받기·올리기](§7.9.7)·[엑셀 가져오기](§7.9.1).
+            [제출 서식 내보내기](§7.9.4)·[입력 양식 내려받기·올리기](§7.9.7)·[협약 기준선으로 보내기](AV-6)·
+            [엑셀 가져오기](§7.9.1).
             `mode` 하나가 노출을 정하므로 조건이 갈릴 수 없다 */}
         {mode === 'plan' && (
           <div className="flex flex-wrap items-center gap-2">
@@ -318,6 +339,22 @@ export default function BudgetScreen({ importProfiles, importProfilesError, plan
             </Button>
             <Button
               size="sm"
+              variant="secondary"
+              // 종류·이름 초깃값(nextVersionMeta)이 협약 조회에서 온다 — 그 조회가 실패했으면 초깃값을 지어내지 않고 막는다.
+              // 작성 중 버전이 있으면 서버가 RULE로 거부하므로(AV-2) 버튼에서 미리 막고 이유를 보인다. 대화도 다시 검사한다
+              disabled={busy || agreement === null || sendBlockedReason !== null}
+              title={
+                agreement === null
+                  ? '협약 예산 데이터를 읽지 못해 보낼 수 없습니다 — [수행] 모드의 오류를 확인하세요'
+                  : (sendBlockedReason ??
+                    '지금의 제안 편성으로 작성 중 협약 예산 버전을 만듭니다 (§5.21 AV-6). 이후 제안과 협약은 독립입니다')
+              }
+              onClick={() => setSendBaselineOpen(true)}
+            >
+              협약 기준선으로 보내기
+            </Button>
+            <Button
+              size="sm"
               variant="primary"
               disabled={busy}
               title="예산계획 엑셀을 5단계 마법사로 가져옵니다 (§7.9.1)"
@@ -357,13 +394,8 @@ export default function BudgetScreen({ importProfiles, importProfilesError, plan
       )}
 
       {mode === 'agreement' ? (
-        // §7.9: 매트릭스·숫자 없이 안내만. 0으로 채운 표는 "데이터 없음"과 "금액 0"을 구별하지 못한다
-        <p
-          role="status"
-          className="rounded-xl border border-dashed border-grey-300 bg-surface p-6 text-center text-sm text-grey-600"
-        >
-          {AGREEMENT_PENDING_NOTICE}
-        </p>
+        // §7.9.8 협약 예산 화면. 버전이 없을 때의 안내(0 매트릭스 금지)·조회 실패 배너는 AgreementScreen이 맡는다
+        <AgreementScreen data={agreement} error={agreementError} />
       ) : (
         <>
           {/* 매트릭스에 실리지 못한 예산이 있으면 조용히 넘기지 않는다 (절대 규칙 5) */}
@@ -521,6 +553,22 @@ export default function BudgetScreen({ importProfiles, importProfilesError, plan
           onClose={() => setInputFormUploadOpen(false)}
           onDone={(message) => {
             // 결과는 모달이 먼저 보여 주고, 매트릭스·규칙 패널은 서버에서 다시 그린다 (총괄표 마법사와 같은 갱신)
+            setImportResult(message);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* §7.9 [협약 기준선으로 보내기]. 결과는 대화가 닫혀도 남도록 토스트로 옮긴다 */}
+      {mode === 'plan' && sendBaselineOpen && agreement && (
+        <SendBaselineDialog
+          projectId={plan.projectId}
+          years={plan.years.map((y) => ({ id: y.id, name: y.name }))}
+          currencyUnit={plan.currencyUnit}
+          initialMeta={agreement.nextVersionMeta}
+          onClose={() => setSendBaselineOpen(false)}
+          onSent={(message) => {
+            setSendBaselineOpen(false);
             setImportResult(message);
             router.refresh();
           }}

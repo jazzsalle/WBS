@@ -69,6 +69,8 @@ export interface MemberWithProject extends Member {
 // budgetDetails만 성격이 다르다: 나머지는 "정리되는 참조"지만 이것은 **삭제를 막는 참조**다
 // (H-9a·PL-D8 — member_id가 on delete restrict). 화면이 별도 줄로 세고, 1건 이상이면
 // 삭제 버튼 대신 연구비 화면 링크를 보여 준다.
+// agreementParticipants(H-9b)도 삭제를 막는 참조다. 정리하는 화면(수행 모드 협약 예산)이
+// 산출근거와 달라 키를 나눈다 — 화면이 별도 줄로 세고 1건 이상이면 삭제를 막는다.
 export interface MemberReferenceCounts {
   tasks: number;
   taskMembers: number;
@@ -79,6 +81,7 @@ export interface MemberReferenceCounts {
   noteAttendees: number;
   appUsers: number;
   budgetDetails: number;
+  agreementParticipants: number;
 }
 
 // ─── 파일 내부 헬퍼 ──────────────────────────────────────────
@@ -87,7 +90,8 @@ export interface MemberReferenceCounts {
 // PostgREST는 모든 raise exception을 P0001 하나로 내려보내므로 코드만으로는 낙관적 잠금 실패와
 // 규칙 위반을 가를 수 없다. 전부 RuleViolationError로 보내면 apply_salary_change의 version
 // 불일치가 RULE로 보고돼 §8.4 O-3 충돌 다이얼로그가 뜨지 않는다.
-// H-9a 거부 문구('인건비 산출근거 N건이 …')는 두 패턴 어디에도 걸리지 않아 RULE로 간다 — 의도된 것이다.
+// H-9a 거부 문구('인건비 산출근거 N건이 …')와 H-9b 문구('협약 예산 참여인원 N건이 …')는
+// 두 패턴 어디에도 걸리지 않아 RULE로 간다 — 의도된 것이다.
 const STALE_MESSAGE_PATTERN = /먼저 수정|stale/i;
 const NOT_FOUND_MESSAGE_PATTERN = /찾을 수 없습니다|not found/i;
 
@@ -202,6 +206,8 @@ const memberReferenceCountsRowSchema = z.object({
   app_users: z.number().int().nonnegative(),
   // H-9a: 인건비 산출근거 건수. 다른 항목과 달리 이 값이 0이 아니면 삭제가 거부된다
   budget_details: z.number().int().nonnegative(),
+  // H-9b: 협약 예산 참여인원 건수. 이것도 0이 아니면 삭제가 거부된다
+  agreement_participants: z.number().int().nonnegative(),
 });
 
 function toReferenceCounts(payload: unknown): MemberReferenceCounts {
@@ -401,7 +407,8 @@ export async function applySalaryChange(
 }
 
 // 삭제 확인 대화상자용 — 어떤 참조가 몇 건 정리되는지 미리 보여준다 (H-9).
-// budgetDetails가 1건 이상이면 removeMember는 H-9a로 거부된다 — 대화상자가 미리 막는다.
+// budgetDetails가 1건 이상이면 removeMember는 H-9a로, agreementParticipants가 1건 이상이면
+// H-9b로 거부된다 — 대화상자가 미리 막는다.
 export async function countMemberReferences(
   client: SupabaseClient,
   id: string
@@ -415,6 +422,7 @@ export async function countMemberReferences(
 // 정리된 건수를 돌려준다 (§8.3). 대상이 없으면 RPC가 실패한다 — 무음 삭제는 없다.
 // H-9a: 인건비 산출근거가 1건이라도 있으면 RPC가 거부한다(RuleViolationError) —
 // 사람을 지운 조작만으로 비목 총액이 줄어드는 것을 막기 위해서다 (PL-D8).
+// H-9b: 협약 예산 참여인원이 있어도 같은 방식으로 거부한다 — 확정 버전의 기록을 지키기 위해서다(AV-2).
 export async function removeMember(
   client: SupabaseClient,
   id: string

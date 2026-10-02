@@ -7,6 +7,8 @@
 //  - 삭제는 H-9의 참조 8곳 건수를 먼저 보여주고, 삭제 후에는 실제로 정리된 건수를 알린다.
 //  - H-9a: 인건비 산출근거는 정리 대상이 아니라 **삭제 차단 사유**다. 별도 줄로 세고 1건 이상이면
 //    삭제 버튼을 막는다 — 사람을 지운 조작만으로 비목 총액이 줄어드는 것을 막는다.
+//  - H-9b: 협약 예산 참여인원도 삭제 차단 사유다. 정리하는 화면(연구비 [수행])이 산출근거와 달라
+//    산출근거와 다른 줄로 세고, 어느 쪽이든 1건 이상이면 삭제 버튼을 막는다.
 //  - hireType='new'는 '채용예정' 배지로 구분한다 (§5.11 — 사람이 정해지지 않은 자리도 Member다).
 //  - §7.10.1 [사내 명부에서 추가]: HR 호출은 그 버튼의 클릭 핸들러에서만 시작한다(HR-7). 모달을
 //    닫으면 hrState를 null로 돌려 받아온 명부를 버린다(HR-17). 수동 [인력 추가]는 그대로 남긴다 —
@@ -74,7 +76,7 @@ const ORG_ROLE_TONES: Record<OrgRole, BadgeTone> = {
 
 // H-9의 참조 8곳 — **정리되는** 참조다. 삭제 확인과 삭제 결과가 같은 정의를 쓴다 — 한쪽만 빠지면
 // "무엇이 정리됐는지"가 사용자에게 어긋나 보인다.
-// budgetDetails(H-9a)는 여기 없다: 성격이 달라 별도 줄로 세고 삭제 자체를 막는다.
+// budgetDetails(H-9a)·agreementParticipants(H-9b)는 여기 없다: 성격이 달라 별도 줄로 세고 삭제 자체를 막는다.
 const REFERENCE_FIELDS: readonly { key: keyof MemberReferenceCounts; label: string }[] = [
   { key: 'tasks', label: '담당 작업' },
   { key: 'taskMembers', label: '참여 작업' },
@@ -215,8 +217,11 @@ export default function MemberSection({
   const selectedMember = selectedId === null ? null : (byId.get(selectedId) ?? null);
   const pmTarget = pmTargetId === null ? null : (byId.get(pmTargetId) ?? null);
   const deletingMember = deletingId === null ? null : (byId.get(deletingId) ?? null);
-  // H-9a: 산출근거가 1건이라도 있으면 삭제 자체가 불가능하다 (서버 RPC도 같은 판단으로 거부한다)
-  const deleteBlocked = counts !== null && counts.budgetDetails > 0;
+  // H-9a·H-9b: 산출근거나 협약 참여인원이 1건이라도 있으면 삭제 자체가 불가능하다
+  // (서버 RPC도 같은 판단으로 거부한다). 사유가 다르므로 따로 들고 각각 안내한다
+  const blockedByDetails = counts !== null && counts.budgetDetails > 0;
+  const blockedByParticipants = counts !== null && counts.agreementParticipants > 0;
+  const deleteBlocked = blockedByDetails || blockedByParticipants;
   const currentPmName =
     pmMemberId === null ? null : (byId.get(pmMemberId)?.name ?? '(삭제된 인력)');
   const linkTarget = linkTargetId === null ? null : (byId.get(linkTargetId) ?? null);
@@ -777,7 +782,7 @@ export default function MemberSection({
                 size="sm"
                 variant="danger"
                 // 무엇이 정리되는지 모른 채 삭제하지 않는다.
-                // H-9a: 인건비 산출근거가 걸려 있으면 아예 막는다 — 서버도 같은 판단으로 거부한다
+                // H-9a·H-9b: 산출근거나 협약 참여인원이 걸려 있으면 아예 막는다 — 서버도 같은 판단으로 거부한다
                 disabled={busy || countsLoading || counts === null || deleteBlocked}
                 onClick={() => handleDelete(deletingMember)}
               >
@@ -813,17 +818,33 @@ export default function MemberSection({
           {counts && (
             <div
               className={`mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg p-3 text-sm ${
-                deleteBlocked ? 'bg-red-50 text-red-800' : 'bg-grey-50 text-grey-600'
+                blockedByDetails ? 'bg-red-50 text-red-800' : 'bg-grey-50 text-grey-600'
               }`}
             >
               <span>인건비 산출근거</span>
-              <span className={`tabular-nums ${deleteBlocked ? 'font-semibold' : 'text-grey-400'}`}>
+              <span className={`tabular-nums ${blockedByDetails ? 'font-semibold' : 'text-grey-400'}`}>
                 {counts.budgetDetails}건
               </span>
             </div>
           )}
 
-          {deleteBlocked && counts && (
+          {/* H-9b: 산출근거와 정리하는 화면이 달라 다른 줄로 센다 */}
+          {counts && (
+            <div
+              className={`mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg p-3 text-sm ${
+                blockedByParticipants ? 'bg-red-50 text-red-800' : 'bg-grey-50 text-grey-600'
+              }`}
+            >
+              <span>협약 예산 참여인원</span>
+              <span
+                className={`tabular-nums ${blockedByParticipants ? 'font-semibold' : 'text-grey-400'}`}
+              >
+                {counts.agreementParticipants}건
+              </span>
+            </div>
+          )}
+
+          {blockedByDetails && counts && (
             <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
               <p>
                 <strong>인건비 산출근거 {counts.budgetDetails}건</strong>이 이 인력을 참조합니다.
@@ -839,6 +860,25 @@ export default function MemberSection({
               <p className="mt-2 text-xs">
                 참여가 끝난 인력이라면 <strong>[비활성]</strong>은 그대로 가능합니다. 비활성 인력의
                 지난 연차 인건비는 남아 있어야 정상입니다.
+              </p>
+            </div>
+          )}
+
+          {blockedByParticipants && counts && (
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              <p>
+                <strong>협약 예산 참여인원 {counts.agreementParticipants}건</strong>이 이 인력을
+                참조합니다. 함께 지우면 사람을 지운 조작만으로 협약 예산 버전의 기록이 바뀌기 때문에
+                삭제할 수 없습니다. 연구비 화면의 [수행]에서 해당 협약 예산 버전을 먼저 삭제하세요.
+              </p>
+              <Link
+                href={`/projects/${projectId}/budget`}
+                className="mt-2 inline-block font-semibold underline underline-offset-2"
+              >
+                연구비로 이동
+              </Link>
+              <p className="mt-2 text-xs">
+                참여가 끝난 인력이라면 <strong>[비활성]</strong>은 그대로 가능합니다.
               </p>
             </div>
           )}

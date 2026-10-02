@@ -6,6 +6,7 @@
 // HELP_RELATED로 페이지가 그린다.
 
 import type { TutorialStepId } from '@/types';
+import type { MdInline } from './notes';
 import { TUTORIAL_STEP_IDS } from './local-config';
 
 // ─── slug 목록 (HP-1) — 순서 = §7.1 화면 순 + 계산 방식 + 자주 묻는 것 ──────────
@@ -124,6 +125,64 @@ export function helpSlugForPath(pathname: string): HelpSlug | null {
     if (head === 'settings') return 'settings';
   }
   return null;
+}
+
+// ─── 절 앵커 (HP-4 — `?`가 화면 도움말 안의 특정 절로 간다) ──────────────────
+
+/**
+ * 절 앵커와 slug를 가르는 구분자. slug에는 `--`가 없고 정규화된 제목은 `-`를 겹쳐 쓰지
+ * 않으므로 해시의 첫 `--` 앞이 항상 slug다.
+ */
+const HEADING_ID_SEPARATOR = '--';
+
+/** 헤딩 AST의 글자만 이어 붙인다 — 굵게·코드로 꾸민 제목도 같은 앵커가 되게 */
+export function mdInlineText(nodes: readonly MdInline[]): string {
+  return nodes.map((node) => ('text' in node ? node.text : mdInlineText(node.children))).join('');
+}
+
+/**
+ * 도움말 절 제목의 DOM id. 문자·숫자만 남기고 공백·기호 덩어리는 `-` 하나로 바꾼다
+ * (`수행 모드 — 협약 예산` → `budget--수행-모드-협약-예산`). slug를 앞에 붙이는 이유:
+ * `## 할 수 있는 것`처럼 여러 편에 같은 제목이 있어 제목만으로는 id가 겹친다.
+ */
+export function helpHeadingId(slug: HelpSlug, heading: string): string {
+  const normalized = heading
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized === '' ? slug : `${slug}${HEADING_ID_SEPARATOR}${normalized}`;
+}
+
+/** 화면 `?`의 이동 주소. heading을 주면 그 절, 없으면 편의 첫머리 */
+export function helpHref(slug: HelpSlug, heading?: string): string {
+  const id = heading === undefined ? slug : helpHeadingId(slug, heading);
+  return `/help#${encodeURIComponent(id)}`;
+}
+
+export interface HelpHashTarget {
+  /** 강조할 편(목차·테두리) */
+  slug: HelpSlug;
+  /** 스크롤할 요소의 id — 편 자체면 slug와 같다 */
+  targetId: string;
+}
+
+/**
+ * `/help#…`의 해시를 해석한다. 등록되지 않은 slug·깨진 퍼센트 인코딩은 null —
+ * 엉뚱한 편을 강조하지 않는다.
+ */
+export function parseHelpHash(hash: string): HelpHashTarget | null {
+  let raw: string;
+  try {
+    raw = decodeURIComponent(hash.replace(/^#/, ''));
+  } catch {
+    return null;
+  }
+  if (isHelpSlug(raw)) return { slug: raw, targetId: raw };
+  const cut = raw.indexOf(HEADING_ID_SEPARATOR);
+  if (cut <= 0 || cut + HEADING_ID_SEPARATOR.length >= raw.length) return null;
+  const slug = raw.slice(0, cut);
+  return isHelpSlug(slug) ? { slug, targetId: raw } : null;
 }
 
 // ─── 본문 머리 형식 (HP-6 · TU-7) ─────────────────────────────────────────────

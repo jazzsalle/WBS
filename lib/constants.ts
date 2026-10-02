@@ -5,6 +5,10 @@
 // normalize.ts는 아무것도 import하지 않으므로 순환이 생기지 않는다
 import { normalizeLabel } from '@/lib/import/normalize';
 import type {
+  AgreementItemKind,
+  AgreementNoticeType,
+  AgreementVersionKind,
+  AgreementVersionStatus,
   BudgetCategory,
   DeliverableType,
   DetailAxis,
@@ -38,7 +42,8 @@ export const MAX_TASK_DEPTH = 10;
 // 3 = Phase 13(budget_rules 신설 + projects 한도 컬럼 2종 삭제, §5.18 RL-D7) — 같은 이유
 // 4 = Phase 16(staff·staff_salaries 신설 + members 컬럼 4종, §5.19·§5.20) — 같은 이유
 // 5 = Phase 23(집행 테이블 삭제 — 백업 대상에서 빠진다, §8.8) — 같은 이유
-export const EXPECTED_SCHEMA_VERSION = 5;
+// 6 = Phase 24(협약 예산 테이블 4종 신설, §5.21~§5.24) — 같은 이유. v5 백업은 복원 거부(K-9)
+export const EXPECTED_SCHEMA_VERSION = 6;
 
 // ─── 부록 A.1 비목 라벨 ──────────────────────────────────────
 
@@ -413,6 +418,57 @@ export const SUBCATEGORY_PRESETS: Record<BudgetCategory, SubcategoryDef[]> = {
 
 // 세목이 없는 비목의 세목 코드 (부록 A.5 주의 3)
 export const DEFAULT_SUBCATEGORY_CODE = 'default';
+
+// ─── 부록 A.4 협약 예산 라벨 (§5.21~§5.24, Phase 24) ─────────
+
+// 쌓이는 순서(선정평가 → 조정회의 → 최종협약 → 협약변경). 종류 선택 목록의 나열 순서 원본
+export const AGREEMENT_VERSION_KIND_ORDER = [
+  'selection',
+  'adjustment',
+  'final',
+  'amendment',
+] as const satisfies readonly AgreementVersionKind[];
+
+export const AGREEMENT_VERSION_KIND_LABELS: Record<AgreementVersionKind, string> = {
+  selection: '선정평가본',
+  adjustment: '조정회의본',
+  final: '최종협약본',
+  amendment: '협약변경',
+};
+
+export const AGREEMENT_VERSION_STATUS_LABELS: Record<AgreementVersionStatus, string> = {
+  draft: '작성 중',
+  confirmed: '확정',
+};
+
+export const AGREEMENT_NOTICE_TYPE_LABELS: Record<AgreementNoticeType, string> = {
+  notice: '통보',
+  approval: '승인',
+};
+
+export const AGREEMENT_ITEM_KIND_LABELS: Record<AgreementItemKind, string> = {
+  equipment: '장비',
+  material: '재료',
+  outsourcing: '외주용역',
+};
+
+// 세목이 여럿인 비목의 default 줄 — 제안 모드의 산출근거 없는 셀·AG-2 셀 편집이 세목을 모른 채 넣은 금액이다
+export const AGREEMENT_DEFAULT_SUBCATEGORY_LABEL = '세목 미지정';
+
+/**
+ * 협약 금액 줄 세목 표시(§5.22, 부록 A.4). 부록 A.5에서 `default`만 있는 비목은 그 표시를
+ * 그대로 쓰고, 그 밖의 비목의 `default`는 "세목 미지정"이다. A.5 밖 코드는 null —
+ * 액션 Zod가 막았어야 하는 값이므로 호출자가 원시 코드를 숨기지 않고 오류로 다룬다.
+ */
+export function agreementSubcategoryLabel(category: BudgetCategory, code: string): string | null {
+  const presets = SUBCATEGORY_PRESETS[category];
+  const preset = presets.find((def) => def.code === code);
+  if (code === DEFAULT_SUBCATEGORY_CODE) {
+    const onlyDefault = presets.length === 1 && preset !== undefined;
+    return onlyDefault ? preset.label : AGREEMENT_DEFAULT_SUBCATEGORY_LABEL;
+  }
+  return preset?.label ?? null;
+}
 
 // ─── 부록 C.2 세목 별칭 사전 (산출근거 임포트 §6.11 D-3) ──────
 // 키는 I-1 정규화형 + 선행 번호 제거형(subcategoryLookupKey)이다.

@@ -1,6 +1,8 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
+2026-10-03 (**Phase 24 완료** — 협약 예산 버전 + 비목별 보기. evaluator 재채점 PASS(1차 FAIL 3건 수정), 테스트 3,442건 + 파괴적 13건, `schema_version` 6 적용(DB 공유 — 다른 PC는 `git pull`만). 다음 `/phase-run 25`)
+
 2026-09-30 (**Phase 24 착수 전 — 합격 기준 초안·계획 초안까지**. 코드 변경 없음. 다음 세션: Q1~Q5 답 받기 → T0)
 
 2026-09-29 회사 PC (**Phase 23 완료** — 집행 관리 삭제. evaluator PASS, 테스트 3,180건 + 파괴적 11건, `schema_version` 5 적용(DB 공유 — 집 PC는 `git pull`만). 다음 `/phase-run 24`)
@@ -22,6 +24,8 @@
 2026-09-25 (**Phase 18 완료** — 다크 모드. 사용자 추가 지시 5건(성능·입력 양식·조직원·인건비·다크) 전부 끝. evaluator PASS)
 
 ## Current goal
+**Phase 25 — 붙임4형·조정회의형·참여인원 보기 + 과제 유형 (SOT v4.9).** Phase 24 끝. 남은 순서: 25 → 26 규칙 공통 적용(RL-20~22) + 증빙 체크리스트. 수동 검증 일괄은 26 뒤. Phase 25 합격 기준(`evaluation_criteria.md`)은 아직 없다 — 먼저 작성.
+
 **Phase 24 — 협약 예산 버전 + 비목별 보기 (SOT v4.9).** Phase 23(집행 관리 삭제) 끝. 남은 순서: 24 협약 예산 버전 + 비목별 보기 → 25 붙임4형·조정회의형·참여인원 보기 + 과제 유형 → 26 규칙 공통 적용 + 증빙 체크리스트. 수동 검증 일괄은 26 뒤.
 
 **Phase 23~26 — 수행 모드를 "협약 예산"으로 재정의 (2026-09-29 사용자 지시, SOT v4.9).** 설계 근거: `docs/plans/v4.9-agreement-budget-brief.md`(결정 D-1~D-16). 순서: 23 집행 관리 삭제 → 24 협약 예산 버전 + 비목별 보기 → 25 붙임4형·조정회의형·참여인원 보기 + 과제 유형 → 26 규칙 공통 적용 + 증빙 체크리스트. 수동 검증 일괄은 26 뒤로 미룬다.
@@ -46,6 +50,13 @@
 > ⚠️ **회사 PC는 `git pull` 후 반드시 `db push`를 해야 앱에 진입할 수 있다.** Phase 9에서 `schema_version`이 1 → 2로 올라가 §8.8 게이트가 걸린다. 의도된 안전장치다. (Phase 12는 스키마 변경이 없다.)
 
 ## Done this session
+- **Phase 24 완료 (2026-10-03, evaluator 재채점 PASS, 테스트 134파일 3,442건 + 파괴적 13건, `tsc`·`build` 통과)** — 협약 예산 버전 + 비목별 보기. 계획·결정: `docs/plans/phase-24-plan.md`(U-1~U-6, Q1~Q5, S-1~S-22, S-20 픽스처, 끝에 T12 검증 결과·수동 확인 URL 표)
+  - 마이그레이션 `20261001000000_agreement_budget.sql`: `agreement_versions`·`agreement_lines`·`agreement_participants`·`agreement_items` + RLS, 작성 중 1개 부분 유일 인덱스, 확정 잠금 가드 트리거 2종, RPC 3종(security invoker), `delete_year`·`delete_member` 차단(H-5a·H-9b), `delete_project` 버전 선삭제, `restore_backup` 4종 추가, publication 2종, `schema_version` **6**(v5 백업 복원 불가)
+  - `lib/agreement/` 8모듈(versions·category-view·cell-edit·from-plan·diff·preservation(RL-23)·changes-table·table), `lib/db/agreements.ts`, `actions/agreement.ts`(12종 — `previewAgreementBaseline` 포함)·`actions/agreement-export.ts`, 화면 `components/budget/agreement/`(버전 바·대화·비목별·변경 이력·엑셀/복사·보내기 대화), 인력 삭제 화면 H-9b 표시, 도움말 "수행 모드 — 협약 예산" 절 + 절 앵커(`HelpLink anchor`, HP-4)
+  - 사용자 결정: RL-23(세목 총액 보존)을 Phase 24로 당김 · IRIS 승인일·공문 번호 삭제 · 확정 0개면 작성 중이 현재 · 확정 취소는 마지막 버전만 · 기준 버전 = 앞선 final → 직전 확정 → 없음 · 미구현 탭 숨김 · 미분리 셀은 현금으로 보냄 · 버전 있어도 작성 중 없으면 보내기 허용 · 협약 버전이 쓰는 연차·인력 삭제 차단
+  - 1차 FAIL 3건(수정됨): 엑셀 내려받기 실패 시 DB 내부 오류 노출(SA-4) · `previewAgreementBaseline` SOT 누락 · 도움말 절 앵커 SOT 누락
+  - 덤으로 고친 것: v5 백업을 올리면 "테이블 데이터가 없습니다"로 거부되던 것 → 버전 불일치 메시지(`parseBackupFile`), 테스트 정리(`global-setup.ts`·`helpers.removeSeed`)가 협약 버전을 먼저 지움
+  - 관찰(미수정): `content/help/calculations.md` 3,483자(한도 3,500) — 다음 추가 시 줄여야 함 · 제안 툴바 [협약 기준선으로 보내기] 비활성 이유는 title 툴팁뿐(WebView2에서 뜨는지 수동 확인)
 - **Phase 23 완료 (2026-09-29 회사 PC, evaluator PASS, 테스트 125파일 3,180건 + 파괴적 11건, `tsc`·`build` 통과)** — 집행 관리 삭제 (SOT v4.9, D-1). 계획: `docs/plans/phase-23-plan.md`(T0 결정 S-1~S-12, T9 검증 결과·grep 예외 매핑)
   - 마이그레이션 `20260930000000_drop_budget_executions.sql` — `budget_executions`·`commit_execution_form` drop(cascade 없음), `restore_import_snapshot`·`restore_backup`에서 집행 분기만 제거(나머지 글자 불변 — diff 확인), `execution_form` 스냅샷 삭제·`import_profiles.kind` check 3값, `schema_version` **5** + `EXPECTED_SCHEMA_VERSION = 5`. 적용 전 집행·스냅샷·프로파일 0건 확인(아래 In progress 기록). 백업 28종/복원 26종, v5 왕복·옛 v4 백업 거부(버전 불일치 메시지) 파괴적 테스트
   - 사용자 결정(2026-09-29, 권고안 승인): S-2 수행 스냅샷 삭제 · S-3 옛 수행 양식 파일은 `_meta`에 mode 행이 있으면 거부("수행 양식(집행 내역) 파일입니다 — …") · S-6 기본 모드 **제안**, [수행]은 Phase 24 전까지 안내 문구만(툴바는 제안 전용) · S-8 산출근거 없는 셀의 현금/현물 분리 입력 삭제(산출근거 축·총괄표 임포트로만) · S-10 부록 D.3 문구 · S-11 grep 예외 목록
@@ -346,6 +357,10 @@
 - 명세 밖 추가: `actions/budget.ts` `getExecutionDetailOptions(projectId)`(패널 인력·산출근거 선택지, 읽기 전용) · `tests/unit/input-form-boundary.test.ts` 산식 호출 허용 목록에 `parse-execution.ts`·`execution-preview.ts` 추가(IN-11 금액 보완 — 산식 재사용이지 재구현 아님)
 
 ## Next steps
+> **다음 작업 (2026-10-03 정리)**: ① 다른 PC는 `git pull`만(DB 공유 — `20261001000000`까지 적용, 새 패키지 없음) ② **Phase 25 합격 기준 작성** → `/phase-run 25`(붙임4형·조정회의형·참여인원 보기 + 과제 유형 + 붙임4 우리 회사 블록 가져오기). 도메인 결정은 초안 + 열린 질문으로 ③ Phase 24 수동 확인(Tauri [복사]→엑셀 붙여넣기·다크·인쇄·비활성 툴팁)은 `docs/plans/phase-24-plan.md` 끝 URL 표로 — 수동 검증 일괄(26 뒤)에 합류 ④ 업데이트 후 앱에서 새 백업(v6)
+
+> (처리됨, 2026-10-03) Phase 24 협약 예산 버전 + 비목별 보기.
+
 > **다음 작업 (2026-09-30 정리) — Phase 24 이어서**:
 > ① `evaluation_criteria.md` "## Phase 24" 초안(체크박스 41개)이 커밋돼 있다 — T0에서 사용자 결정대로 갱신한다
 > ② 계획 초안 `docs/plans/phase-24-plan-draft.md`(planner 산출물: S-1~S-22 권고안, S-20 픽스처, 태스크 T0~T12·파일 소유권). **다시 planner를 돌리지 말고 이걸로 이어서**

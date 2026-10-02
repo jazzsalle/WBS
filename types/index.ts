@@ -978,6 +978,76 @@ export interface StaffSalary extends BaseEntity {
   note: string;                 // 예: "2026 연봉계약", "성과급 제외"
 }
 
+// ─── §5.21 AgreementVersion (협약 예산 버전, Phase 24) ─────────
+// 수행 모드의 데이터 단위. 제안 모드(budget_items·budget_details)와 별개 구조다(D-3).
+// 현재 버전(AV-3)·기준 버전(AV-5)은 파생 값이라 필드로 두지 않는다.
+
+export type AgreementVersionKind = 'selection' | 'adjustment' | 'final' | 'amendment';
+export type AgreementNoticeType = 'notice' | 'approval';        // 통보 / 승인
+export type AgreementVersionStatus = 'draft' | 'confirmed';     // 작성 중 / 확정(잠금)
+
+export interface AgreementVersion extends BaseEntity {
+  projectId: string;
+  // 메타 7개 — 확정 후에도 편집할 수 있다(AV-2). 내용(줄·참여인원·편성 항목)만 잠긴다
+  kind: AgreementVersionKind;              // 바꾸면 기준 버전이 즉시 다시 계산된다(AV-5)
+  name: string;                            // 협약변경 차수는 이름으로만 적는다(별도 번호 없음)
+  baseDate: string | null;                 // 기준일 'YYYY-MM-DD'
+  changeReason: string;
+  noticeType: AgreementNoticeType | null;
+  irisRequestedAt: string | null;          // IRIS 신청일 'YYYY-MM-DD'
+  note: string;
+  status: AgreementVersionStatus;
+  confirmedAt: string | null;              // 작성 중이면 null — 확정 취소(AV-8) 시 null로 돌아간다
+  order: number;                           // DB sort_order(N-9). 지워도 재매김하지 않는다(AV-4)
+}
+
+// ─── §5.22 AgreementLine (금액 줄, Phase 24) ───────────────────
+
+export interface AgreementLine extends BaseEntity {
+  versionId: string;
+  yearId: string;                          // 연차 삭제를 막는다(H-5a)
+  category: BudgetCategory;
+  subcategoryCode: string;                 // 부록 A.5 세목 코드 또는 'default'(모든 비목에 허용)
+  axis: DetailAxis;
+  amount: number;                          // 원 단위 정수, 0 이상
+}
+
+// ─── §5.23 AgreementParticipant (참여인원, Phase 24) ───────────
+// 계산값/수동값 구분은 저장하지 않는다 — annualSalary × 참여율 × 개월과 읽을 때 비교한다
+
+export interface AgreementParticipant extends BaseEntity {
+  versionId: string;
+  memberId: string | null;                 // null = 인력 미지정. 인력 삭제를 막는다(H-9b)
+  yearId: string;
+  participationRate: number;               // % 0~100
+  months: number;                          // 0~12
+  // Member 연봉을 매번 읽으면 연봉을 고칠 때 확정 버전의 계산값이 바뀐다(AV-2) — 그래서 스냅샷
+  annualSalary: number | null;             // 원 단위 정수. null = 모름
+  personnelCash: number;                   // 원 단위 정수
+  personnelInKind: number;                 // 원 단위 정수
+  role: string;
+}
+
+// ─── §5.24 AgreementItem (편성 항목·증빙, Phase 24 테이블) ─────
+
+export type AgreementItemKind = 'equipment' | 'material' | 'outsourcing';
+
+export interface AgreementEvidenceCheck {
+  label: string;                           // 견적서 · 비교견적서 · 과업지시서 · 계약서 …
+  obtained: boolean;
+  memo: string;
+}
+
+export interface AgreementItem extends BaseEntity {
+  versionId: string;
+  yearId: string;
+  kind: AgreementItemKind;
+  name: string;                            // 품명
+  amount: number;                          // 원 단위 정수. 장비는 부가세 포함(D-8, RL-17)
+  quantity: number | null;
+  evidence: AgreementEvidenceCheck[];      // jsonb 배열(N-3) — 내부 키는 매퍼가 바꾸지 않는다
+}
+
 // ─── §14.2 AppUser ───────────────────────────────────────────
 
 export interface AppUser {

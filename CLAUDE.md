@@ -54,7 +54,7 @@
 | `lib/input-form/` | 사업비 입력 양식 좌표·검증·파싱(IN-1~IN-8) | §6.16 |
 | `lib/goal-form/` | 성과·기술목표 양식 좌표·검증·파싱, GF-6 숫자 해석 | §6.17 |
 | `lib/hwpx/` | hwpx 표 격자 추출·헤더 서명 식별·쪽 나뉨 잇기·행 해석(HX-1~HX-8). 클라이언트·Node 공용 | §6.18, 부록 C.3 |
-| `lib/agreement/` | 협약 예산 버전 계산 — 보기별 집계(비목별·붙임4형 E1·E2·비율·8-1 판정·조정회의형 A~F), 버전 간 증감, 세목 총액 보존 (이름은 Phase 24 T0에서 확정) | §6.19, SOT v4.9 |
+| `lib/agreement/` | 협약 예산 버전 계산 — 보기별 집계(비목별·붙임4형 E1·E2·비율·8-1 판정·조정회의형 A~F), 버전 간 증감, 세목 총액 보존 — `versions`(현재·기준 버전)·`category-view`·`cell-edit`·`from-plan`(제안→기준선)·`diff`·`preservation`(RL-23)·`changes-table`·`table`(엑셀·TSV 공통 표 모델) | §6.19, SOT v4.9 |
 
 비목 별칭 사전·스킵 패턴·축 라벨은 SOT **부록 C**가 원본이고 `lib/constants.ts`에 정의한다. 임포트 관련 수정 시 부록 C를 먼저 본다.
 

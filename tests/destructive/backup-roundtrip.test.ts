@@ -1,13 +1,13 @@
 // 백업 왕복 통합 테스트 — §8.7 K-1·K-5·K-7·K-8
 //
 // ⚠️ 파괴적 테스트다. `npm test`에 포함되지 않고 `npm run test:destructive`로만 돌린다.
-//    K-7 복원이 대상 26종 테이블(백업 28종 중 app_users·app_settings 제외)의 전 행을 지우고 백업 시점 행으로 되돌리기 때문에,
+//    K-7 복원이 대상 30종 테이블(백업 32종 중 app_users·app_settings 제외)의 전 행을 지우고 백업 시점 행으로 되돌리기 때문에,
 //    실데이터가 있는 dev DB에서 돌리면 export 이후 다른 PC에서 추가된 변경분이 사라진다.
 //    시작 전 assertNoForeignData가 테스트 소유가 아닌 데이터를 발견하면 실행을 거부한다.
 //
 // 왕복·K-5·K-8 검증은 리포지토리 레벨(lib/db/backup, 실제 세션 클라이언트 주입 = RLS·RPC
 // 경로 실검증)로 수행하고, 액션이 쓰는 순수 부분(parseBackupFile의 Zod 거부)을 별도로 커버한다.
-// 옛 v4 파일 거부(§8.8, Phase 23 S-12)만은 액션(actions/backup.ts importAll)을 부른다 —
+// 옛 v4·v5 파일 거부(§8.8, Phase 23 S-12·Phase 24 K-9)만은 액션(actions/backup.ts importAll)을 부른다 —
 // 사용자가 보는 버전 불일치 메시지를 내는 곳이 액션의 K-5 비교이기 때문이다.
 // 쿠키 세션은 next/headers를 모킹해 실제 세션 토큰을 넣는다(통합 테스트의 액션 호출 방식과 같다).
 //
@@ -60,9 +60,10 @@ const tempProjectIds: string[] = []; // afterAll 안전망 — 복원 실패로 
 // budget_details 리포지토리·서버 액션(PL-10 재계산)은 별도 테스트가 다룬다.
 const SEED_DETAIL_ID = 'aaaa0000-0000-4000-8000-0000000000d1';
 
-// v5 왕복(Phase 23)이 행 수만이 아니라 대표 행으로도 확인할 테이블들. 시드에는 없으므로 만든다 —
+// v6 왕복이 행 수만이 아니라 대표 행으로도 확인할 테이블들. 시드에는 없으므로 만든다 —
 // 빈 테이블의 왕복은 "[] = []"로 통과해 목록 누락을 드러내지 못한다.
 // staff는 과제 하위가 아니라 removeSeed의 cascade로 지워지지 않는다 — afterAll이 따로 지운다.
+// 협약 예산(§5.21~§5.24)은 확정 1·작성 중 1 — 확정 버전 아래 줄이 복원 중 가드에 막히지 않는지 본다(K-9).
 const FIXTURE = {
   ruleId: 'aaaa0000-0000-4000-8000-0000000000b1',
   staffId: 'aaaa0000-0000-4000-8000-0000000000b2',
@@ -71,7 +72,21 @@ const FIXTURE = {
   achievementId: 'aaaa0000-0000-4000-8000-0000000000b5',
   techTargetId: 'aaaa0000-0000-4000-8000-0000000000b6',
   recordId: 'aaaa0000-0000-4000-8000-0000000000b7',
+  memberId: 'aaaa0000-0000-4000-8000-0000000000c1',
+  confirmedVersionId: 'aaaa0000-0000-4000-8000-0000000000c2',
+  draftVersionId: 'aaaa0000-0000-4000-8000-0000000000c3',
+  confirmedLineId: 'aaaa0000-0000-4000-8000-0000000000c4',
+  draftLineId: 'aaaa0000-0000-4000-8000-0000000000c5',
+  participantId: 'aaaa0000-0000-4000-8000-0000000000c6',
+  unassignedParticipantId: 'aaaa0000-0000-4000-8000-0000000000c7',
+  itemId: 'aaaa0000-0000-4000-8000-0000000000c8',
 } as const;
+const AGREEMENT_CHILD_TABLES = ['agreement_lines', 'agreement_participants', 'agreement_items'] as const;
+const AGREEMENT_TABLES = ['agreement_versions', ...AGREEMENT_CHILD_TABLES] as const;
+const EVIDENCE = [
+  { label: '견적서', obtained: true, memo: '2개 업체' },
+  { label: '비교견적서', obtained: false, memo: '' },
+];
 const STAFF_EMAIL = `wbs-backup-${Date.now()}-${randomUUID().slice(0, 8)}@unes.co.kr`;
 
 // 테이블 → 대표 행 id. 왕복 뒤 이 행들이 원본과 같아야 한다
@@ -84,6 +99,10 @@ const REPRESENTATIVE_ROWS: Record<string, string> = {
   deliverable_achievements: FIXTURE.achievementId,
   tech_targets: FIXTURE.techTargetId,
   tech_target_records: FIXTURE.recordId,
+  agreement_versions: FIXTURE.confirmedVersionId,
+  agreement_lines: FIXTURE.confirmedLineId,
+  agreement_participants: FIXTURE.unassignedParticipantId,
+  agreement_items: FIXTURE.itemId,
 };
 
 async function insertFixtures(u: TestUser): Promise<void> {
@@ -122,6 +141,55 @@ async function insertFixtures(u: TestUser): Promise<void> {
       (id, tech_target_id, value, date, year_id, created_by, updated_by)
     values (${FIXTURE.recordId}::uuid, ${FIXTURE.techTargetId}::uuid, 87.5, '2026-06-15',
             ${SEED.year1Id}::uuid, ${u.id}::uuid, ${u.id}::uuid)`;
+
+  // 협약 예산: 확정 가드는 postgres role에도 걸린다 — 작성 중일 때 내용을 넣고 나서 확정한다
+  await sql`
+    insert into public.members (id, project_id, name, role, active, created_by, updated_by)
+    values (${FIXTURE.memberId}::uuid, ${SEED.projectId}::uuid, '협약 참여자', 'researcher', true,
+            ${u.id}::uuid, ${u.id}::uuid)`;
+  await sql`
+    insert into public.agreement_versions
+      (id, project_id, kind, name, base_date, change_reason, notice_type, note, sort_order,
+       created_by, updated_by)
+    values (${FIXTURE.confirmedVersionId}::uuid, ${SEED.projectId}::uuid, 'final', '최종협약본',
+            '2026-03-01', '', 'notice', '왕복 테스트', 1, ${u.id}::uuid, ${u.id}::uuid)`;
+  await sql`
+    insert into public.agreement_lines
+      (id, version_id, year_id, category, subcategory_code, axis, amount, created_by, updated_by)
+    values (${FIXTURE.confirmedLineId}::uuid, ${FIXTURE.confirmedVersionId}::uuid, ${SEED.year1Id}::uuid,
+            'material', 'material_purchase', 'cash', 5000000, ${u.id}::uuid, ${u.id}::uuid)`;
+  await sql`
+    insert into public.agreement_participants
+      (id, version_id, member_id, year_id, participation_rate, months, annual_salary,
+       personnel_cash, personnel_in_kind, role, created_by, updated_by)
+    values
+      (${FIXTURE.participantId}::uuid, ${FIXTURE.confirmedVersionId}::uuid, ${FIXTURE.memberId}::uuid,
+       ${SEED.year1Id}::uuid, 50, 12, 60000000, 30000000, 0, '', ${u.id}::uuid, ${u.id}::uuid),
+      (${FIXTURE.unassignedParticipantId}::uuid, ${FIXTURE.confirmedVersionId}::uuid, null,
+       ${SEED.year2Id}::uuid, 30, 6, null, 5000000, 0, '인력 미지정', ${u.id}::uuid, ${u.id}::uuid)`;
+  await sql`
+    insert into public.agreement_items
+      (id, version_id, year_id, kind, name, amount, quantity, evidence, created_by, updated_by)
+    values (${FIXTURE.itemId}::uuid, ${FIXTURE.confirmedVersionId}::uuid, ${SEED.year1Id}::uuid,
+            'equipment', '분석 장비', 33000000, 1, ${sql.json(EVIDENCE)}::jsonb,
+            ${u.id}::uuid, ${u.id}::uuid)`;
+  await sql`
+    update public.agreement_versions set status = 'confirmed', confirmed_at = '2026-03-02T09:00:00+09:00'
+     where id = ${FIXTURE.confirmedVersionId}::uuid`;
+  await sql`
+    insert into public.agreement_versions (id, project_id, kind, name, sort_order, created_by, updated_by)
+    values (${FIXTURE.draftVersionId}::uuid, ${SEED.projectId}::uuid, 'amendment', '협약변경 1차', 2,
+            ${u.id}::uuid, ${u.id}::uuid)`;
+  await sql`
+    insert into public.agreement_lines
+      (id, version_id, year_id, category, subcategory_code, axis, amount, created_by, updated_by)
+    values (${FIXTURE.draftLineId}::uuid, ${FIXTURE.draftVersionId}::uuid, ${SEED.year1Id}::uuid,
+            'material', 'default', 'in_kind', 1200000, ${u.id}::uuid, ${u.id}::uuid)`;
+}
+
+// 협약 버전은 시드 연차·인력을 no action FK로 잡는다(H-5a·H-9b) — 과제를 직결 SQL로 지우기 전에 먼저 지운다
+async function removeAgreements(): Promise<void> {
+  await sql`delete from public.agreement_versions where project_id = ${SEED.projectId}::uuid`;
 }
 
 function exportedBy(u: TestUser): BackupFile['exportedBy'] {
@@ -164,27 +232,31 @@ afterAll(async () => {
     await sql`delete from public.projects where id = ${id}::uuid`;
   }
   await sql`delete from public.staff where id = ${FIXTURE.staffId}::uuid`; // 이력은 cascade (ST-2)
+  await removeAgreements();
   await removeSeed(sql);
   await destroyTestUser(sql, user);
   await sql.end();
 });
 
 describe('K-1: exportAll — BackupFile 인터페이스 정확 일치', () => {
-  it('최상위 키 4개, tables는 28종 전부, JSON 직렬화 왕복 후에도 parseBackupFile을 통과한다', async () => {
+  it('최상위 키 4개, tables는 32종 전부, JSON 직렬화 왕복 후에도 parseBackupFile을 통과한다', async () => {
     const file = await backup.exportAll(user.client, exportedBy(user));
 
     expect(Object.keys(file).sort()).toEqual(
       ['exportedAt', 'exportedBy', 'schemaVersion', 'tables'].sort()
     );
-    // §8.8 Phase 23: 집행 테이블이 빠져 파일 형식이 바뀌었으므로 5다
-    expect(file.schemaVersion).toBe(5);
+    // §8.8 Phase 24: 협약 예산 4종이 더해져 파일 형식이 바뀌었으므로 6이다
+    expect(file.schemaVersion).toBe(6);
     expect(file.tables).not.toHaveProperty(DROPPED_TABLE);
     expect(backup.BACKUP_TABLES).not.toContain(DROPPED_TABLE);
-    expect(backup.RESTORE_TABLES).toHaveLength(26);
+    expect(backup.RESTORE_TABLES).toHaveLength(30);
+    // K-9: budget_rules 바로 뒤에 FK 정순(버전 → 하위 3종)
+    const at = backup.RESTORE_TABLES.indexOf('budget_rules');
+    expect(backup.RESTORE_TABLES.slice(at + 1, at + 5)).toEqual([...AGREEMENT_TABLES]);
     expect(Number.isNaN(Date.parse(file.exportedAt))).toBe(false);
     expect(file.exportedBy).toEqual({ id: user.id, email: user.email });
     expect(Object.keys(file.tables).sort()).toEqual([...backup.BACKUP_TABLES].sort());
-    expect(backup.BACKUP_TABLES).toHaveLength(28);
+    expect(backup.BACKUP_TABLES).toHaveLength(32);
 
     // 행은 DB snake_case 원본 그대로 (매퍼 미경유) — 시드 과제 행으로 확인
     const seedProject = file.tables['projects']!.find(
@@ -200,10 +272,10 @@ describe('K-1: exportAll — BackupFile 인터페이스 정확 일치', () => {
   });
 });
 
-describe('K-7: v5 복원 왕복 — 전체 대체', () => {
+describe('K-7: v6 복원 왕복 — 전체 대체', () => {
   it('export → 수정·삭제·추가 → restore → 재export가 원본과 테이블별로 일치한다', async () => {
     const original = await backup.exportAll(user.client, exportedBy(user));
-    expect(original.schemaVersion).toBe(5);
+    expect(original.schemaVersion).toBe(6);
     // 대표 행이 원본에 실제로 실려 있어야 아래 비교가 의미를 가진다 (빈 테이블끼리의 일치 방지)
     for (const [table, id] of Object.entries(REPRESENTATIVE_ROWS)) {
       const ids = original.tables[table]!.map((r) => (r as { id: string }).id);
@@ -225,6 +297,9 @@ describe('K-7: v5 복원 왕복 — 전체 대체', () => {
     await sql`delete from public.deliverables where id = ${FIXTURE.deliverableId}::uuid`;
     await sql`delete from public.tech_targets where id = ${FIXTURE.techTargetId}::uuid`;
     await sql`delete from public.staff where id = ${FIXTURE.staffId}::uuid`;
+    // 삭제: 확정 버전(하위 3종 cascade — AV-4) / 수정: 작성 중 버전의 줄 금액
+    await sql`delete from public.agreement_versions where id = ${FIXTURE.confirmedVersionId}::uuid`;
+    await sql`update public.agreement_lines set amount = 999 where id = ${FIXTURE.draftLineId}::uuid`;
     // 수정: 계획액 한 셀 — budget_items도 원본 값으로 돌아와야 한다
     await sql`
       update public.budget_items set planned_amount = planned_amount + 1234567
@@ -281,6 +356,50 @@ describe('K-7: v5 복원 왕복 — 전체 대체', () => {
       sort_order: 0,
     });
     expect(restoredDetail!.factors).toEqual([{ label: '회', value: 4, isPercent: false }]);
+
+    // 협약 예산 4종(K-9) — 확정 버전 아래 줄이 가드에 막히지 않고 원본 그대로 돌아왔다
+    const versions = await sql<{ id: string; status: string; confirmed_at: Date | null; sort_order: number }[]>`
+      select id, status, confirmed_at, sort_order from public.agreement_versions
+       where project_id = ${SEED.projectId}::uuid order by sort_order`;
+    expect(versions.map((v) => [v.id, v.status, v.sort_order])).toEqual([
+      [FIXTURE.confirmedVersionId, 'confirmed', 1],
+      [FIXTURE.draftVersionId, 'draft', 2],
+    ]);
+    expect(versions[0]!.confirmed_at?.toISOString()).toBe('2026-03-02T00:00:00.000Z');
+    expect(versions[1]!.confirmed_at).toBeNull();
+
+    const lines = await sql<{ id: string; amount: string }[]>`
+      select id, amount::text as amount from public.agreement_lines
+       where version_id in ${sql([FIXTURE.confirmedVersionId, FIXTURE.draftVersionId])} order by amount desc`;
+    expect(lines).toEqual([
+      { id: FIXTURE.confirmedLineId, amount: '5000000' },
+      { id: FIXTURE.draftLineId, amount: '1200000' },
+    ]);
+    const participants = await sql<{ id: string; member_id: string | null; salary: string | null; cash: string }[]>`
+      select id, member_id, annual_salary::text as salary, personnel_cash::text as cash
+        from public.agreement_participants where version_id = ${FIXTURE.confirmedVersionId}::uuid
+       order by personnel_cash desc`;
+    expect(participants).toEqual([
+      { id: FIXTURE.participantId, member_id: FIXTURE.memberId, salary: '60000000', cash: '30000000' },
+      { id: FIXTURE.unassignedParticipantId, member_id: null, salary: null, cash: '5000000' },
+    ]);
+    const items = await sql<{ id: string; amount: string; evidence: unknown }[]>`
+      select id, amount::text as amount, evidence from public.agreement_items
+       where version_id = ${FIXTURE.confirmedVersionId}::uuid`;
+    expect(items).toEqual([{ id: FIXTURE.itemId, amount: '33000000', evidence: EVIDENCE }]);
+
+    // 복원이 끝나면 가드는 다시 켜져 있다 — 확정 버전 아래 쓰기가 다시 거부된다
+    const guards = await sql<{ rel: string; enabled: string }[]>`
+      select tgrelid::regclass::text as rel, tgenabled as enabled from pg_trigger
+       where tgname = 'agreement_child_guard'`;
+    expect(guards.map((g) => [g.rel, g.enabled]).sort()).toEqual(
+      AGREEMENT_CHILD_TABLES.map((t) => [t, 'O']).sort()
+    );
+    const locked = await user.client
+      .from('agreement_lines')
+      .update({ amount: 1 })
+      .eq('id', FIXTURE.confirmedLineId);
+    expect(locked.error?.message).toMatch(/확정된 협약 예산 버전의 내용은 고칠 수 없습니다/);
   });
 });
 
@@ -336,19 +455,20 @@ describe('K-5: schemaVersion 불일치·형식 위반 파일의 복원 거부', 
   });
 });
 
-// §8.8 Phase 23: 집행 테이블이 빠져 schema_version이 5로 올랐다. 옛 v4 백업(집행 테이블 키 포함)은
-// 액션의 K-5 버전 비교가 버전 불일치 메시지로 거부해야 한다 — "테이블 데이터가 없습니다" 같은 엉뚱한
-// 메시지나, 집행 행을 조용히 버리고 나머지만 복원하는 것이면 실패다(S-12: 복원 RPC에 새 가드를 두지 않는다).
-describe('§8.8 Phase 23: 옛 v4 백업 거부', () => {
-  it('schemaVersion 4 + 집행 테이블 키가 든 파일은 importAll이 버전 불일치로 거부하고 데이터는 그대로다', async () => {
-    const current = jsonRoundtrip(await backup.exportAll(user.client, exportedBy(user)));
-    const legacy = jsonRoundtrip(current) as BackupFile;
-    legacy.schemaVersion = 4;
-    // v4 파일은 app_settings 행의 schema_version도 4였다
-    legacy.tables['app_settings'] = current.tables['app_settings']!.map((r) => ({
-      ...(r as Record<string, unknown>),
-      schema_version: 4,
-    }));
+// §8.8: 옛 백업은 K-5 버전 게이트가 **버전 불일치 메시지**로 거부해야 한다 — "테이블 데이터가 없습니다" 같은
+// 엉뚱한 메시지나, 모르는 행을 조용히 버리고 나머지만 복원하는 것이면 실패다.
+//  · v4(Phase 23 이전): 집행 테이블 키가 있고 협약 예산 4종 키가 없다
+//  · v5(Phase 24 이전): 협약 예산 4종 키가 없다 — 키 누락 검사보다 버전 판정이 먼저 보여야 한다(K-9)
+function legacyFile(current: BackupFile, version: 4 | 5, userId: string): BackupFile {
+  const legacy = jsonRoundtrip(current);
+  legacy.schemaVersion = version;
+  // 옛 파일은 app_settings 행의 schema_version도 그 버전이었다
+  legacy.tables['app_settings'] = current.tables['app_settings']!.map((r) => ({
+    ...(r as Record<string, unknown>),
+    schema_version: version,
+  }));
+  for (const t of AGREEMENT_TABLES) delete legacy.tables[t];
+  if (version === 4) {
     const item = current.tables['budget_items']!.find(
       (r) => (r as { year_id: string }).year_id === SEED.year1Id
     ) as { id: string };
@@ -358,8 +478,8 @@ describe('§8.8 Phase 23: 옛 v4 백업 거부', () => {
         created_at: '2026-05-10T00:00:00+00:00',
         updated_at: '2026-05-10T00:00:00+00:00',
         version: 1,
-        created_by: user.id,
-        updated_by: user.id,
+        created_by: userId,
+        updated_by: userId,
         budget_item_id: item.id,
         date: '2026-05-10',
         amount: 1200000,
@@ -374,47 +494,63 @@ describe('§8.8 Phase 23: 옛 v4 백업 거부', () => {
         detail_id: null,
       },
     ];
-    // 거부가 복원 전에 일어났는지 보려고 DB를 파일과 다르게 만들어 둔다 — 복원됐다면 이름이 되돌아간다
-    await projects.updateProject(user.client, SEED.projectId, {
-      name: 'v4 거부 확인용 이름',
-      updatedBy: user.id,
-    });
-    const before = await backup.exportAll(user.client, exportedBy(user));
+  }
+  return legacy;
+}
 
-    const result = await importAll(legacy);
+describe('§8.8: 옛 v4·v5 백업 거부', () => {
+  it.each([4, 5] as const)(
+    'schemaVersion %i 파일은 importAll이 버전 불일치로 거부하고 데이터는 그대로다',
+    async (version) => {
+      const current = jsonRoundtrip(await backup.exportAll(user.client, exportedBy(user)));
+      expect(current.schemaVersion).toBe(6);
+      const legacy = legacyFile(current, version, user.id);
+      // 거부가 복원 전에 일어났는지 보려고 DB를 파일과 다르게 만들어 둔다 — 복원됐다면 이름이 되돌아간다
+      await projects.updateProject(user.client, SEED.projectId, {
+        name: `v${version} 거부 확인용 이름`,
+        updatedBy: user.id,
+      });
+      const before = await backup.exportAll(user.client, exportedBy(user));
 
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.code).toBe('RULE');
-    expect(result.error).toBe(
-      '백업 파일의 스키마 버전(4)이 현재 스키마 버전(5)과 달라 복원할 수 없습니다.'
-    );
-    expect(result.error).not.toMatch(/데이터가 없습니다/);
+      const result = await importAll(legacy);
 
-    const after = await backup.exportAll(user.client, exportedBy(user));
-    for (const table of backup.BACKUP_TABLES) {
-      expect(after.tables[table], table).toEqual(before.tables[table]);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.code).toBe('RULE');
+      expect(result.error).toBe(
+        `백업 파일의 스키마 버전(${version})이 현재 스키마 버전(6)과 달라 복원할 수 없습니다.`
+      );
+      expect(result.error).not.toMatch(/데이터가 없습니다/);
+
+      const after = await backup.exportAll(user.client, exportedBy(user));
+      for (const table of backup.BACKUP_TABLES) {
+        expect(after.tables[table], table).toEqual(before.tables[table]);
+      }
+      const name = await sql`select name from public.projects where id = ${SEED.projectId}::uuid`;
+      expect(name[0]!.name).toBe(`v${version} 거부 확인용 이름`);
+      // 협약 예산 행도 그대로다 — 키가 없는 파일이 "전 행 삭제 + 0건 삽입"이 되지 않았다
+      expect(after.tables['agreement_versions']).toHaveLength(2);
+
+      // 다음 테스트를 위해 원래 상태로 되돌린다
+      await backup.restoreBackup(user.client, current);
     }
-    const name = await sql`select name from public.projects where id = ${SEED.projectId}::uuid`;
-    expect(name[0]!.name).toBe('v4 거부 확인용 이름');
+  );
 
-    // 다음 테스트를 위해 원래 상태로 되돌린다
-    await backup.restoreBackup(user.client, current);
-  });
+  it.each([4, 5] as const)(
+    'schemaVersion %i 파일을 RPC에 직접 넘겨도 K-5 게이트가 버전 불일치로 거부한다 (최종 방어선)',
+    async (version) => {
+      const current = jsonRoundtrip(await backup.exportAll(user.client, exportedBy(user)));
+      const legacy = legacyFile(current, version, user.id);
 
-  it('같은 파일을 RPC에 직접 넘겨도 K-5 게이트가 버전 불일치로 거부한다 (최종 방어선)', async () => {
-    const current = jsonRoundtrip(await backup.exportAll(user.client, exportedBy(user)));
-    const legacy = jsonRoundtrip(current);
-    legacy.schemaVersion = 4;
-    legacy.tables[DROPPED_TABLE] = [];
-
-    await expect(backup.restoreBackup(user.client, legacy)).rejects.toThrow(
-      /스키마 버전\(4\)이 현재 스키마 버전\(5\)과 다릅니다/
-    );
-    const left = await sql`
-      select count(*)::int as n from public.projects where id = ${SEED.projectId}::uuid`;
-    expect(left[0]!.n).toBe(1);
-  });
+      await expect(backup.restoreBackup(user.client, legacy)).rejects.toThrow(
+        `백업 파일의 스키마 버전(${version})이 현재 스키마 버전(6)과 다릅니다`
+      );
+      const left = await sql<{ projects: number; versions: number }[]>`
+        select (select count(*) from public.projects where id = ${SEED.projectId}::uuid)::int as projects,
+               (select count(*) from public.agreement_versions where project_id = ${SEED.projectId}::uuid)::int as versions`;
+      expect(left[0]).toEqual({ projects: 1, versions: 2 });
+    }
+  );
 });
 
 // §5.8·§5.9 Phase 21 목표 새 7컬럼 — 백업이 새 컬럼을 실어 나르고, 7컬럼이 없는 옛(Phase 21 이전)
@@ -543,7 +679,7 @@ describe('parseBackupFile — importAll 액션의 구조 검증 (Zod)', () => {
     ).toThrow(ValidationError);
   });
 
-  it('tables 값이 배열이 아니거나 28종 중 하나라도 빠지면 ValidationError', async () => {
+  it('tables 값이 배열이 아니거나 32종 중 하나라도 빠지면 ValidationError', async () => {
     const current = await backup.exportAll(user.client, exportedBy(user));
 
     const notArray = jsonRoundtrip(current) as unknown as {

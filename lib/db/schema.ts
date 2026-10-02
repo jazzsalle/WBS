@@ -368,6 +368,73 @@ export const staffSalaryRowSchema = z.object({
   note: z.string(),
 });
 
+// ─── §5.21~§5.24 협약 예산 (Phase 24) ────────────────────────
+// 작성 중 1개(부분 유일 인덱스)·확정 잠금(가드 트리거)·세목 목록(액션 Zod)은 여기서 보지 않는다 — 드리프트 감지만.
+// bigint 금액은 PostgREST가 JSON 숫자로 준다. 원 단위 정수가 아니면 손상이므로 거부한다(절대 규칙 4).
+
+export const agreementVersionKindSchema = z.enum(['selection', 'adjustment', 'final', 'amendment']);
+export const agreementVersionStatusSchema = z.enum(['draft', 'confirmed']);
+export const agreementNoticeTypeSchema = z.enum(['notice', 'approval']);
+export const agreementItemKindSchema = z.enum(['equipment', 'material', 'outsourcing']);
+
+const wonAmount = z.number().int().min(0);
+
+export const agreementVersionRowSchema = z.object({
+  ...baseRow,
+  project_id: z.uuid(),
+  kind: agreementVersionKindSchema,
+  name: z.string(),
+  base_date: isoDate.nullable(),
+  change_reason: z.string(),
+  notice_type: agreementNoticeTypeSchema.nullable(),
+  iris_requested_at: isoDate.nullable(),
+  note: z.string(),
+  status: agreementVersionStatusSchema,
+  confirmed_at: isoTimestamp.nullable(),
+  sort_order: z.number().int(),
+});
+
+export const agreementLineRowSchema = z.object({
+  ...baseRow,
+  version_id: z.uuid(),
+  year_id: z.uuid(),
+  category: budgetCategorySchema,
+  subcategory_code: z.string(),
+  axis: detailAxisSchema,
+  amount: wonAmount,
+});
+
+export const agreementParticipantRowSchema = z.object({
+  ...baseRow,
+  version_id: z.uuid(),
+  member_id: z.uuid().nullable(),
+  year_id: z.uuid(),
+  participation_rate: z.number().min(0).max(100), // numeric — 소수 허용
+  months: z.number().min(0).max(12),
+  annual_salary: wonAmount.nullable(),
+  personnel_cash: wonAmount,
+  personnel_in_kind: wonAmount,
+  role: z.string(),
+});
+
+// jsonb 내부는 앱 형태 그대로 저장된다(mapper의 JSONB_PASSTHROUGH_KEYS)
+export const agreementEvidenceCheckSchema = z.object({
+  label: z.string(),
+  obtained: z.boolean(),
+  memo: z.string(),
+});
+
+export const agreementItemRowSchema = z.object({
+  ...baseRow,
+  version_id: z.uuid(),
+  year_id: z.uuid(),
+  kind: agreementItemKindSchema,
+  name: z.string(),
+  amount: wonAmount,
+  quantity: z.number().nullable(),  // numeric — 소수 허용
+  evidence: z.array(agreementEvidenceCheckSchema),
+});
+
 // ─── §5.13 risks ─────────────────────────────────────────────
 
 export const riskCategorySchema = z.enum(['technical', 'schedule', 'budget', 'resource', 'external', 'other']);
@@ -578,6 +645,10 @@ export type BudgetDetailRow = z.infer<typeof budgetDetailRowSchema>;
 export type BudgetRuleRow = z.infer<typeof budgetRuleRowSchema>;
 export type StaffRow = z.infer<typeof staffRowSchema>;
 export type StaffSalaryRow = z.infer<typeof staffSalaryRowSchema>;
+export type AgreementVersionRow = z.infer<typeof agreementVersionRowSchema>;
+export type AgreementLineRow = z.infer<typeof agreementLineRowSchema>;
+export type AgreementParticipantRow = z.infer<typeof agreementParticipantRowSchema>;
+export type AgreementItemRow = z.infer<typeof agreementItemRowSchema>;
 export type RiskRow = z.infer<typeof riskRowSchema>;
 export type NoteRow = z.infer<typeof noteRowSchema>;
 export type TodoRow = z.infer<typeof todoRowSchema>;

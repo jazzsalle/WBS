@@ -13,6 +13,8 @@ import {
   HELP_SCREEN_SLUGS,
   HELP_SLUGS,
   TUTORIAL_STEP_SLUGS,
+  helpHeadingId,
+  isHelpSlug,
   parseHelpHead,
   parseTutorialHead,
 } from '@/lib/help';
@@ -139,6 +141,98 @@ describe('content/tutorial — 9단계 (TU-7)', () => {
       expect(prose.join('\n').match(/\]\([^)]*\)/g) ?? []).toEqual([]);
       expect(prose.filter((l) => TABLE_ROW.test(l))).toEqual([]);
     });
+  });
+});
+
+// ─── 절 앵커 (HP-4) ──────────────────────────────────────────────────────────
+
+/** app·components의 .tsx 원문 (경로, 내용) */
+function readTsxSources(): Array<{ file: string; source: string }> {
+  const out: Array<{ file: string; source: string }> = [];
+  const walk = (dir: string): void => {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.tsx')) {
+        out.push({ file: path.relative(ROOT, full).split(path.sep).join('/'), source: fs.readFileSync(full, 'utf8') });
+      }
+    }
+  };
+  walk(path.join(ROOT, 'app'));
+  walk(path.join(ROOT, 'components'));
+  return out;
+}
+
+describe('절 앵커 (HP-4)', () => {
+  it('HelpLink의 anchor는 그 편에 실제로 있는 절 제목이다 — 제목을 바꾸면 여기서 깨진다', () => {
+    // 속성 순서는 slug → anchor로 쓴다(한 줄 JSX). 변수로 넘기면 정적으로 못 보므로 문자열만 허용
+    const usage = /<HelpLink\b[^>]*?\bslug="([^"]+)"[^>]*?\banchor=(?:"([^"]*)"|\{)/g;
+    const found: string[] = [];
+    const broken: string[] = [];
+    for (const { file, source } of readTsxSources()) {
+      for (const match of source.matchAll(usage)) {
+        const [, slug, anchor] = match;
+        if (anchor === undefined) {
+          broken.push(`${file}: anchor는 문자열 리터럴로 쓰세요`);
+          continue;
+        }
+        found.push(`${file}: ${slug}#${anchor}`);
+        if (!isHelpSlug(slug)) {
+          broken.push(`${file}: 모르는 slug ${slug}`);
+          continue;
+        }
+        const source = readIfExists(path.join(HELP_DIR, `${slug}.md`)) ?? '';
+        const ids = headingTexts(source).map((text) => helpHeadingId(slug, text));
+        if (!ids.includes(helpHeadingId(slug, anchor))) {
+          broken.push(`${file}: content/help/${slug}.md에 절 "${anchor}"가 없다`);
+        }
+      }
+    }
+    expect(broken).toEqual([]);
+    // 수행 모드 화면의 `?`는 협약 예산 절로 간다(§7.9.8)
+    expect(found.some((x) => x.includes('budget#수행 모드 — 협약 예산'))).toBe(true);
+  });
+
+  it.each(HELP_SLUGS)('content/help/%s.md 절 제목 id가 편 안에서 겹치지 않는다', (slug) => {
+    const source = readIfExists(path.join(HELP_DIR, `${slug}.md`));
+    expect(source).not.toBeNull();
+    const ids = headingTexts(source ?? '').map((text) => helpHeadingId(slug, text));
+    const dup = ids.filter((id, index) => ids.indexOf(id) !== index);
+    expect(dup, '같은 id면 앵커가 첫 절로만 간다').toEqual([]);
+  });
+});
+
+// ─── 협약 예산 도움말 (Phase 24, §7.9.8) ─────────────────────────────────────
+
+describe('협약 예산 도움말 (§7.9.8)', () => {
+  const budget = readIfExists(path.join(HELP_DIR, 'budget.md')) ?? '';
+  const calculations = readIfExists(path.join(HELP_DIR, 'calculations.md')) ?? '';
+
+  it('"준비 중" 문구가 도움말·따라하기에 없다', () => {
+    const offenders = [HELP_DIR, TUTORIAL_DIR].flatMap((dir) =>
+      fs.existsSync(dir)
+        ? fs
+            .readdirSync(dir)
+            .filter((name) => name.endsWith('.md') && fs.readFileSync(path.join(dir, name), 'utf8').includes('준비 중'))
+            .map((name) => `${path.basename(dir)}/${name}`)
+        : []
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('budget.md에 "수행 모드 — 협약 예산" 절, calculations.md에 협약 예산 절(RL-23·기준 버전)이 있다', () => {
+    expect(headingTexts(budget)).toContain('수행 모드 — 협약 예산');
+    expect(headingTexts(calculations).some((h) => h.startsWith('협약 예산'))).toBe(true);
+    expect(calculations).toContain('RL-23');
+    expect(calculations).toContain('기준 버전 없음');
+  });
+
+  it('Phase 25·26 기능을 있는 것처럼 쓰지 않는다', () => {
+    for (const word of ['붙임4', '조정회의형', '참여인원 보기', '편성 항목', 'RL-20', 'RL-21', 'RL-22', '과제 유형']) {
+      expect(budget, word).not.toContain(word);
+      expect(calculations, word).not.toContain(word);
+    }
   });
 });
 

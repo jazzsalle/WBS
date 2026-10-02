@@ -1,17 +1,19 @@
 // 실데이터 감지 가드 — 파괴적 테스트(§8.7 K-7 전체 대체 복원)를 시작하기 전에 부른다.
 //
-// K-7 복원은 대상 26종 테이블의 전 행을 지우고 백업 시점 행을 다시 넣는다. dev DB에
+// K-7 복원은 대상 30종 테이블의 전 행을 지우고 백업 시점 행을 다시 넣는다. dev DB에
 // 실제 과제 데이터가 있는 상태에서 이걸 돌리면, 백업(export) 이후 다른 PC에서 추가된
 // 변경분이 통째로 사라진다. 감지 못 한 채 진행하는 것이 가장 나쁜 결과이므로
 // "테스트가 만들지 않은 데이터가 하나라도 있으면 실행 거부"라는 보수적 규칙을 쓴다.
 //
-// 판정 대상은 루트 테이블 4종뿐이다. 나머지 22종 중 20종은 projects의 하위이거나
+// 판정 대상은 루트 테이블 4종뿐이다. 나머지 26종 중 24종은 projects의 하위이거나
 // (project_id not null + cascade) 그 하위의 조인 테이블이라 projects 판정에 포함된다.
 // 남은 2종 staff·staff_salaries(§5.19·§5.20, Phase 16)는 projects의 하위가 아닌 사내 명부인데
 // 이 판정에는 들어 있지 않다 — 여기 행이 있어도 가드는 거부하지 않는다.
 // budget_details(§5.17, Phase 9)도 project_id not null + on delete cascade라 여기에 해당한다 —
 // 산출근거는 반드시 어떤 과제에 속하므로 projects 탐지에 걸리지 않는 고아 행이 존재할 수 없고,
 // 별도 탐지 쿼리를 더할 이유가 없다.
+// 협약 예산 4종(§5.21~§5.24, Phase 24)도 같다 — agreement_versions.project_id가 not null + cascade이고
+// 하위 3종은 version_id not null + cascade라, 어느 행이든 projects 탐지에 걸리는 과제에 속한다.
 // app_users·app_settings는 사용자 데이터가 아니고 K-8에 따라 복원되지도 않으므로 제외한다.
 
 import type { Sql } from 'postgres';
@@ -84,7 +86,7 @@ export async function assertNoForeignData(sql: Sql): Promise<void> {
     [
       '파괴적 테스트를 거부했습니다: dev DB에 테스트가 만들지 않은 데이터가 있습니다.',
       '',
-      `이 테스트는 §8.7 K-7 전체 대체 복원을 검증하느라 대상 26종 테이블의 전 행을 지웠다 되돌립니다.`,
+      `이 테스트는 §8.7 K-7 전체 대체 복원을 검증하느라 대상 30종 테이블의 전 행을 지웠다 되돌립니다.`,
       '아래 데이터가 실제 과제 데이터라면, 다른 PC에서 그 사이 입력한 변경분이 사라질 수 있습니다.',
       '',
       `발견된 행 ${rows.length}건:`,
