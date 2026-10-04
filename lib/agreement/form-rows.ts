@@ -42,6 +42,14 @@ export const FORM_DATA_ROW_IDS = [
 
 export type FormDataRowId = (typeof FORM_DATA_ROW_IDS)[number];
 
+/**
+ * 상위 data 행 안의 내역 행(C.4.1 종류 breakdown — Phase 26). 같은 줄이 상위 행에도 들어가 있으므로
+ * 값은 보이기만 하고 K·L·M·양식 분모에 다시 더하지 않는다(이중 계산 0)
+ */
+export const FORM_BREAKDOWN_ROW_IDS = ['lab_safety'] as const satisfies readonly Attachment4RowId[];
+
+export type FormBreakdownRowId = (typeof FORM_BREAKDOWN_ROW_IDS)[number];
+
 /** 한 양식 행의 축별 금액. 그 축의 줄이 하나도 없으면 null, `total`은 두 축 모두 없을 때만 null */
 export interface FormRowAmounts {
   cash: number | null;
@@ -55,6 +63,8 @@ export interface FormRowsYear {
   /** 이 연차에 금액 줄이 하나라도 있는가(금액 0인 줄 포함) */
   hasLines: boolean;
   rows: Record<FormDataRowId, FormRowAmounts>;
+  /** 내역 행 금액 — `rows`의 상위 행 금액에 이미 들어 있다 */
+  breakdowns: Record<FormBreakdownRowId, FormRowAmounts>;
   /**
    * `lib/budget-plan.ts` 집계(비목 합계 + personnelSupportTotal). 양식 E2를 `modifiedPersonnel`로,
    * 교차 검증을 `modifiedDirectCost`·`evaluateRules`로 내기 위해 그대로 싣는다
@@ -79,6 +89,8 @@ export interface FormColumnMetrics {
   yearIds: string[];
   hasLines: boolean;
   rows: Record<FormDataRowId, FormRowAmounts>;
+  /** 내역 행 금액 — 아래 집계 어디에도 더하지 않는다 */
+  breakdowns: Record<FormBreakdownRowId, FormRowAmounts>;
   /** 인건비 소계 = A + B + C */
   personnelSubtotal: number | null;
   /** 양식 E1 = A + B + C + D (총 인건비) */
@@ -106,9 +118,14 @@ interface CategoryRouting {
 }
 
 const DATA_ROW_SET = new Set<string>(FORM_DATA_ROW_IDS);
+const BREAKDOWN_ROW_SET = new Set<string>(FORM_BREAKDOWN_ROW_IDS);
 
 function isDataRowId(id: Attachment4RowId): id is FormDataRowId {
   return DATA_ROW_SET.has(id);
+}
+
+function isBreakdownRowId(id: Attachment4RowId): id is FormBreakdownRowId {
+  return BREAKDOWN_ROW_SET.has(id);
 }
 
 /** C.4.1 보기 소스 → (비목, 세목) 라우팅. 대응표가 겹치거나 비목을 빠뜨리면 상수가 틀린 것이라 던진다 */
@@ -118,6 +135,8 @@ function buildRouting(): Map<BudgetCategory, CategoryRouting> {
   );
   for (const row of ATTACHMENT4_FORM_ROWS) {
     if (row.sources.length === 0) continue;
+    // 내역 행은 상위 data 행 안의 내역이라 여기서 라우팅하지 않는다 — 넣으면 같은 줄이 두 data 행에 들어간다
+    if (row.kind === 'breakdown') continue;
     if (row.kind !== 'data' || !isDataRowId(row.id)) {
       throw new Error(`부록 C.4 대응표: 금액 행이 아닌 '${row.id}'에 보기 소스가 있습니다.`);
     }
@@ -142,6 +161,40 @@ function buildRouting(): Map<BudgetCategory, CategoryRouting> {
 }
 
 const ROUTING = buildRouting();
+
+/**
+ * C.4.1 내역 행 소스 → (비목, 세목) → 내역 행. 내역 행의 세목은 반드시 어떤 data 행에도 들어가야 한다 —
+ * 아니면 내역 금액이 총액 밖에 떠서 "L 안의 내역"이 아니게 된다
+ */
+function buildBreakdownRouting(): Map<string, FormBreakdownRowId> {
+  const routing = new Map<string, FormBreakdownRowId>();
+  for (const row of ATTACHMENT4_FORM_ROWS) {
+    if (row.kind !== 'breakdown') continue;
+    if (!isBreakdownRowId(row.id)) throw new Error(`부록 C.4 대응표: 내역 행 '${row.id}'을 모릅니다.`);
+    for (const source of row.sources) {
+      if (source.subcategoryCodes === 'all') {
+        throw new Error(`부록 C.4 대응표: 내역 행 '${row.id}'은 비목 전체를 가리킬 수 없습니다.`);
+      }
+      for (const code of source.subcategoryCodes) {
+        const key = `${source.category}|${code}`;
+        if (routing.has(key)) throw new Error(`부록 C.4 대응표: ${key} 세목이 두 내역 행에 들어갑니다.`);
+        const r = ROUTING.get(source.category);
+        if (r === undefined || (r.explicit.get(code) ?? r.all) === null) {
+          throw new Error(`부록 C.4 대응표: 내역 행 '${row.id}'의 ${key}이 상위 data 행에 들어가지 않습니다.`);
+        }
+        routing.set(key, row.id);
+      }
+    }
+  }
+  return routing;
+}
+
+const BREAKDOWN_ROUTING = buildBreakdownRouting();
+
+/** (비목, 세목)이 들어가는 내역 행. 없으면 null(대부분의 줄) */
+export function breakdownRowOf(category: BudgetCategory, subcategoryCode: string): FormBreakdownRowId | null {
+  return BREAKDOWN_ROUTING.get(`${category}|${subcategoryCode}`) ?? null;
+}
 
 /** (비목, 세목)이 들어가는 양식 행. 없으면 null — 호출자가 손상 데이터로 다룬다 */
 export function formRowOf(category: BudgetCategory, subcategoryCode: string): FormDataRowId | null {
@@ -170,6 +223,10 @@ function addAmounts(a: FormRowAmounts, b: FormRowAmounts): FormRowAmounts {
 
 function emptyRows(): Record<FormDataRowId, FormRowAmounts> {
   return Object.fromEntries(FORM_DATA_ROW_IDS.map((id) => [id, { ...EMPTY_AMOUNTS }])) as Record<FormDataRowId, FormRowAmounts>;
+}
+
+function emptyBreakdowns(): Record<FormBreakdownRowId, FormRowAmounts> {
+  return Object.fromEntries(FORM_BREAKDOWN_ROW_IDS.map((id) => [id, { ...EMPTY_AMOUNTS }])) as Record<FormBreakdownRowId, FormRowAmounts>;
 }
 
 // ─── 집계 ─────────────────────────────────────────────────────────────────────
@@ -208,6 +265,7 @@ export function aggregateFormRows(lines: readonly FormRowLine[], years: readonly
 
   const perYear = sorted.map(() => ({
     rows: emptyRows(),
+    breakdowns: emptyBreakdowns(),
     hasLines: false,
     unassigned: { personnel: 0, studentPersonnel: 0 },
     categories: new Map<BudgetCategory, CategoryAccumulator>(
@@ -245,6 +303,8 @@ export function aggregateFormRows(lines: readonly FormRowLine[], years: readonly
         ? { cash: line.amount, inKind: null, total: line.amount }
         : { cash: null, inKind: line.amount, total: line.amount };
     y.rows[rowId] = addAmounts(y.rows[rowId], add);
+    const breakdownId = breakdownRowOf(line.category, line.subcategoryCode);
+    if (breakdownId !== null) y.breakdowns[breakdownId] = addAmounts(y.breakdowns[breakdownId], add);
 
     const acc = y.categories.get(line.category)!;
     acc.seen = true;
@@ -269,6 +329,7 @@ export function aggregateFormRows(lines: readonly FormRowLine[], years: readonly
         name: year.name,
         hasLines: y.hasLines,
         rows: y.rows,
+        breakdowns: y.breakdowns,
         totals: toYearTotals(y.categories),
         unassigned: y.unassigned,
         cashTotal: y.cashTotal,
@@ -291,6 +352,10 @@ export function formColumnMetrics(result: FormRowsResult, yearIds: readonly stri
 
   const rows = emptyRows();
   for (const id of FORM_DATA_ROW_IDS) rows[id] = picked.reduce((acc, y) => addAmounts(acc, y.rows[id]), EMPTY_AMOUNTS);
+  const breakdowns = emptyBreakdowns();
+  for (const id of FORM_BREAKDOWN_ROW_IDS) {
+    breakdowns[id] = picked.reduce((acc, y) => addAmounts(acc, y.breakdowns[id]), EMPTY_AMOUNTS);
+  }
   const t = (id: FormDataRowId): number | null => rows[id].total;
   const c = (id: FormDataRowId): number | null => rows[id].cash;
 
@@ -326,6 +391,7 @@ export function formColumnMetrics(result: FormRowsResult, yearIds: readonly stri
     yearIds: [...yearIds],
     hasLines: picked.some((y) => y.hasLines),
     rows,
+    breakdowns,
     personnelSubtotal,
     totalPersonnel,
     modifiedPersonnel: modified,

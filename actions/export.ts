@@ -43,6 +43,7 @@ import {
   type RuleRowInput,
   type RuleYearInput,
 } from '@/lib/rules';
+import { stripSubcategoryOrdinal } from '@/lib/constants';
 import { todayISO } from '@/lib/dates';
 import { DEFAULT_TEMPLATE_ID, TEMPLATE_REGISTRY, findTemplate, validateLayout } from '@/lib/export/layouts';
 import { buildDetailWrites, checkCapacity, exportFileName } from '@/lib/export/detail-sheet';
@@ -84,7 +85,7 @@ export interface ExportBlocker {
  */
 export type ExportNotice =
   | {
-      kind: 'skipped-row' | 'negative-amount' | 'missing-salary' | 'truncated-factor';
+      kind: 'skipped-row' | 'negative-amount' | 'missing-salary' | 'truncated-factor' | 'relocated-row';
       label: string;
       detail: string;
     }
@@ -214,6 +215,10 @@ function joinLabels(labels: readonly string[], shown = 5): string {
 }
 
 function summarySkipNotice(skip: SummarySkip): ExportNotice {
+  // 내역 행(X-10d ①)은 값이 나간 연차도 있다 — 어느 연차 칸이 비었는지는 메시지만 안다
+  if (skip.years !== undefined) {
+    return { kind: 'skipped-row', label: `총괄표 ${skip.row}행 '${skip.label}'`, detail: skip.message };
+  }
   const reason =
     skip.reason === 'conflict'
       ? `서식의 라벨과 수식이 어긋나 어느 비목인지 정할 수 없습니다${skip.conflict ? ` (${skip.conflict})` : ''} — ` +
@@ -286,11 +291,14 @@ function ruleFindingNotice(
     where = '과제 전체';
   } else if (finding.scope.kind === 'year') {
     where = yearLabelOf(plan, finding.scope.yearId);
-  } else {
+  } else if (finding.scope.kind === 'detail') {
     const detailId = finding.scope.detailId;
     const row = details.find((candidate) => candidate.id === detailId);
     const rowName = row ? rowLabel(row, plan.members) : '(알 수 없는 행)';
     where = `${yearLabelOf(plan, finding.scope.yearId)} · ${rowName}`;
+  } else {
+    // 제안 경로 입력에는 행 origin이 없어 참여인원·편성 항목 scope가 나오지 않는다 — 나오면 행을 모른다고 적는다
+    where = `${yearLabelOf(plan, finding.scope.yearId)} · (알 수 없는 행)`;
   }
   return {
     kind: 'rule-finding',
@@ -392,6 +400,19 @@ async function collectExport(
       kind: 'truncated-factor',
       label: truncated.rowLabel,
       detail: `${parts.join('. ')}. 금액은 그대로이지만 산출 과정이 서식에 보이지 않습니다.`,
+    });
+  }
+
+  // X-10d ②: 금액은 그대로지만 다시 가져오면 옮겨 적은 표의 세목으로 읽힌다 — 그 사실을 미리 말한다
+  for (const moved of capacity.relocated) {
+    const from = stripSubcategoryOrdinal(moved.fromLabel);
+    const to = stripSubcategoryOrdinal(moved.toLabel);
+    notices.push({
+      kind: 'relocated-row',
+      label: `${moved.fromLabel} ${moved.count}행`,
+      detail:
+        `서식에 ${from} 표가 없어 ${to} 표에 적었습니다 — 이 파일을 다시 가져오면 ${to}로 읽힙니다. ` +
+        `금액과 간접비 합계는 그대로입니다.`,
     });
   }
 

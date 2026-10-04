@@ -63,7 +63,7 @@ const PLAN_VIEWS: readonly { value: PlanView; label: string; hint: string }[] = 
 // §7.9 표의 순서대로 `[제안 | 수행]`. 기본 선택은 `제안`이다
 const MODES: readonly { value: BudgetMode; label: string; hint: string }[] = [
   { value: 'plan', label: '제안', hint: '셀에 예산 / 현금 / 현물을 보여주고, 클릭하면 산출근거 패널이 열립니다 (§7.9.2)' },
-  { value: 'agreement', label: '수행', hint: '협약 예산 버전을 비목별·붙임4형·조정회의형·참여인원·변경 이력으로 봅니다 (§7.9.8)' },
+  { value: 'agreement', label: '수행', hint: '협약 예산 버전을 비목별·붙임4형·조정회의형·참여인원·편성 항목·증빙·변경 이력으로 봅니다 (§7.9.8)' },
 ];
 
 // 원본 행(version(O-1)·현금/현물 null 여부·PL-9 detailCount)은 props로 따로 받지 않는다.
@@ -117,7 +117,8 @@ export default function BudgetScreen({
   // §7.9.7 입력 양식 내려받기·올리기 모달 (제안 모드 전용)
   const [inputFormDownloadOpen, setInputFormDownloadOpen] = useState(false);
   const [inputFormUploadOpen, setInputFormUploadOpen] = useState(false);
-  // §7.9.5 [연구비 규칙] 모달. 제안 모드의 것이라 모드를 바꾸면 닫는다
+  // §7.9.5 [연구비 규칙] 모달. 두 모드가 같은 모달·같은 규칙 행을 쓴다(Phase 26 — 제안 툴바, 수행 버전 바 오른쪽).
+  // 모드를 바꾸면 닫는다 — 열린 채 모드가 바뀌면 어느 판정을 갱신하는 편집인지 흐려진다
   const [rulesOpen, setRulesOpen] = useState(false);
   // §7.9 [협약 기준선으로 보내기] 확인 대화 (제안 모드 전용, AV-6)
   const [sendBaselineOpen, setSendBaselineOpen] = useState(false);
@@ -425,7 +426,12 @@ export default function BudgetScreen({
 
       {mode === 'agreement' ? (
         // §7.9.8 협약 예산 화면. 버전이 없을 때의 안내(0 매트릭스 금지)·조회 실패 배너는 AgreementScreen이 맡는다
-        <AgreementScreen data={agreement} error={agreementError} onImported={setImportResult} />
+        <AgreementScreen
+          data={agreement}
+          error={agreementError}
+          onImported={setImportResult}
+          onOpenRules={() => setRulesOpen(true)}
+        />
       ) : (
         <>
           {/* 매트릭스에 실리지 못한 예산이 있으면 조용히 넘기지 않는다 (절대 규칙 5) */}
@@ -635,12 +641,17 @@ export default function BudgetScreen({
         }}
       />
 
-      {/* §7.9.5 규칙 편집 모달. 항상 마운트하고 open으로 여닫는다 — 열릴 때 plan.rules를 받아들이고, 저장·적용·
-          삭제 뒤 onChanged → router.refresh()로 검증 패널과 이 모달의 행이 같은 조회를 보게 한다 */}
+      {/* §7.9.5 규칙 편집 모달. 항상 마운트하고 open으로 여닫는다 — 열릴 때 rules를 받아들이고, 저장·적용·
+          삭제 뒤 onChanged → router.refresh()로 검증 패널과 이 모달의 행이 같은 조회를 보게 한다.
+          두 모드가 같은 행(§5.18)을 편집한다. 행 원본은 그 모드의 패널을 그린 조회의 것이다(C5) — 수행 모드는
+          agreement.rules, 제안 모드는 plan.rules. 협약 조회가 실패했으면 수행 모드에는 버튼이 없어 열리지 않는다 */}
       <RulesEditor
         projectId={plan.projectId}
-        rules={plan.rules}
-        open={mode === 'plan' && planView === 'matrix' && rulesOpen}
+        rules={mode === 'agreement' && agreement !== null ? agreement.rules : plan.rules}
+        open={
+          rulesOpen &&
+          ((mode === 'plan' && planView === 'matrix') || (mode === 'agreement' && agreement !== null))
+        }
         onClose={() => setRulesOpen(false)}
         onChanged={() => {
           setFailure(null);

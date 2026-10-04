@@ -162,6 +162,7 @@ const templateLayoutSchema = z.object({
               'indirectRate',
               'directTotal',
               'grandTotal',
+              'labSafetyTotal',
             ])
             .optional(),
           memo: z.string().optional(),

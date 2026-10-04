@@ -234,7 +234,12 @@ export type SummaryAggregateKind =
   /** 직접비 계 K = 총액 − 간접비 */
   | 'directTotal'
   /** 연구개발비 총액 M = K + L */
-  | 'grandTotal';
+  | 'grandTotal'
+  /**
+   * 간접비 중 연구실 안전관리비 = 그 연차 `indirect_lab_safety` 세목 소계 (X-10d ①, Phase 26).
+   * 간접비 줄 안의 내역이라 다른 줄에 다시 더하지 않는다. 그 세목 행이 없는 연차는 비우고 알린다
+   */
+  | 'labSafetyTotal';
 
 export interface TemplateSummaryRow {
   row: number;
@@ -250,8 +255,9 @@ export interface TemplateSummaryRow {
   /**
    * X-10d: **앱에 대응 데이터가 없는 괄호 메모 행**이라는 표시와 그 이유.
    *
-   * `(연구시설‧장비비 중 통합관리비(현금))`·`(간접비 중 연구실 안전관리비)`는 부록 A.5의 세목이
-   * 아니고 §6.11 I-5·S-10이 임포트에서 이미 건너뛴다 — 읽지 않는 것을 내보내기가 지어낼 수 없다.
+   * `(연구시설‧장비비 중 통합관리비(현금))`는 부록 A.5의 세목이 아니고 §6.11 I-5·S-10이 임포트에서
+   * 이미 건너뛴다 — 읽지 않는 것을 내보내기가 지어낼 수 없다. (`(간접비 중 연구실 안전관리비)`는
+   * Phase 26부터 세목이 있어 `aggregate: 'labSafetyTotal'`이다 — X-10d ①)
    * 그렇다고 템플릿 수식을 남기면 다른 연차를 내보낼 때 **틀린 값이 찍히므로** 셀을 비우고 알린다.
    */
   memo?: string;

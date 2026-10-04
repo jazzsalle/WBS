@@ -1,6 +1,8 @@
 # PROGRESS — 회사↔집 인계 문서
 
 ## Last updated
+2026-10-05 (**Phase 26 완료 — 개발 범위(Phase 0~26) 종료.** 규칙 검증 공통 + 증빙. evaluator 재채점 PASS(1차 FAIL 1건 — 도움말 배치 기록), 테스트 4,187건 + 파괴적 15건, `schema_version` 7 유지(DB 공유 — 다른 PC는 `git pull`만). 다음: **수동 검증 일괄**)
+
 2026-10-03 (**Phase 25 완료** — 붙임4형·조정회의형·참여인원 보기 + 붙임4 가져오기 + 연차별 정부지원 현금. evaluator 재채점 PASS(1차 FAIL 1건 수정), 테스트 3,852건 + 파괴적 15건, `schema_version` 7 적용(DB 공유 — 다른 PC는 `git pull`만). 다음 `/phase-run 26`)
 
 2026-10-03 (**Phase 24 완료** — 협약 예산 버전 + 비목별 보기. evaluator 재채점 PASS(1차 FAIL 3건 수정), 테스트 3,442건 + 파괴적 13건, `schema_version` 6 적용(DB 공유 — 다른 PC는 `git pull`만). 다음 `/phase-run 25`)
@@ -26,6 +28,8 @@
 2026-09-25 (**Phase 18 완료** — 다크 모드. 사용자 추가 지시 5건(성능·입력 양식·조직원·인건비·다크) 전부 끝. evaluator PASS)
 
 ## Current goal
+**수동 검증 일괄 (Phase 23~26 + 이전 대기분).** 개발 Phase는 모두 끝났다. 확인 표는 `docs/plans/phase-26-plan.md` 끝 "T17 검증 결과"의 Phase 23~26 일괄 수동 검증 표(실제 URL 26행, 시드 데이터 준비 1~4단계 포함)와 아래 "수동 검증 > 대기". 그다음 후속 정리(Next steps)·§13 후보 중 사용자가 고르는 것.
+
 **Phase 26 — 규칙 검증 공통 + 증빙 (SOT v4.9).** Phase 25 끝. 26 범위: 제안 모드 규칙을 수행 현재 버전에도, 새 규칙 RL-21·RL-22(비율 한도는 과제별 수동 입력 — 과제 유형 자동 없음, RL-20 폐기), 연구실 안전관리비 세목 추가 여부, 편성 항목 증빙 체크리스트. Phase 26 합격 기준은 아직 없다 — 먼저 작성. 수동 검증 일괄은 26 뒤.
 
 **Phase 25 — 붙임4형·조정회의형·참여인원 보기 + 과제 유형 (SOT v4.9).** Phase 24 끝. 남은 순서: 25 → 26 규칙 공통 적용(RL-20~22) + 증빙 체크리스트. 수동 검증 일괄은 26 뒤. Phase 25 합격 기준(`evaluation_criteria.md`)은 아직 없다 — 먼저 작성.
@@ -54,6 +58,13 @@
 > ⚠️ **회사 PC는 `git pull` 후 반드시 `db push`를 해야 앱에 진입할 수 있다.** Phase 9에서 `schema_version`이 1 → 2로 올라가 §8.8 게이트가 걸린다. 의도된 안전장치다. (Phase 12는 스키마 변경이 없다.)
 
 ## Done this session
+- **Phase 26 완료 (2026-10-05, evaluator 재채점 PASS, 테스트 163파일 4,187건 + 파괴적 15건, `tsc`·`build` 통과)** — 규칙 검증 공통 + 증빙. 계획·결정: `docs/plans/phase-26-plan.md`(확정 결정·U-1~U-4·S-1~S-22·B.9.5~B.9.8 픽스처·T17 검증 결과·**Phase 23~26 일괄 수동 검증 표**)
+  - 사용자 결정(2026-10-05): 연구실 안전관리비 세목 신설(`indirect_lab_safety`) + RL-22 = (인건비+학생인건비) 1~2%(출처 간사 지침, 기존 품명 기록 이관 없음) · **RL-21 폐기(결번)** · RL-17 = 금액 **부가세 별도 입력**, 장비 구입 ×1.1(정수 `amount*11 >= value*10`)이 3천만 원 이상이면 「연구시설·장비 구입 및 활용계획서」·전담기관 사전 승인·IRIS/ZEUS 안내 + 변경 이력에서 새로 기준 넘은 장비 경고 · 증빙 체크리스트(파일 첨부 없음, 확정 후 체크·메모만) · 보내기가 편성 항목 자동 생성 · 수행 RL-8/9 = 버전 정부지원 현금 · 장비 = 구입만 · **취소**: 수의계약 2천만 원 규칙, 재료비 2천만 원 변경 승인 규칙(조사 중단 직전 표준매뉴얼에 '2천만 원' 조항 단서 — 나중에 다시 볼 때 출발점)
+  - 마이그레이션 `20261005000000_rules_common_evidence.sql`: 규칙 코드 20종, evidence 모양 check, `agreement_child_guard` 확정 버전 증빙 예외, `create_agreement_version` `p_items`(7인자). schema_version 7 유지
+  - 판정기는 `evaluateRules` 하나 + 수행 어댑터 `lib/agreement/rule-input.ts`(같은 편성이면 제안·수행 판정 동일 — B.9.7), `rule-view.ts`(8-2 판정 줄), `equipment-approval.ts`(AG-7), `evidence.ts`·`items-view.ts`. 액션 `actions/agreement-items.ts` 4종, `getAgreementData` 확장. 화면: 수행 탭 6개([편성 항목·증빙] 추가), 규칙 패널 공통·클릭 이동 3종, [연구비 규칙] 두 모드 공유
+  - 세목 전파: 입력 양식 새 세목 블록(4행, 옛 파일 수용·경고), 산출근거 임포트 헤더 판정 개선(B.8 품명 행 오인 수정), 제출 서식은 연구지원비 표에 적고 경고, 붙임4 안전관리비 행 = breakdown
+  - 도움말: 규칙별 설명은 `budget-rules.md`(agreement.md 3,484/3,500자 — 메인 결정, SOT §7.9.8 반영)
+  - 관찰(미수정): `agreement.md` 여유 16자 — 이후 도움말 추가는 다른 파일로 / 8-2 아래 간접비 분모 안내가 두 번 나옴(양식 분모 문단 + 판정 줄 note)
 - **Phase 25 완료 (2026-10-03, evaluator 재채점 PASS, 테스트 148파일 3,852건 + 파괴적 15건, `tsc`·`build` 통과)** — 계획·결정: `docs/plans/phase-25-plan.md`(핵심 원칙, G-1~G-11·U-1~U-4, S-1~S-24, 실측 구조, 픽스처, 끝에 T19 검증 결과·수동 확인 URL 표)
   - **핵심 원칙(사용자, 2026-10-03)**: 양식은 원 소스(제안·협약 버전)에서 자동으로 채우고 동기화한다. 양식 전용 수동 입력 칸 금지 — 필요한 값은 소스에 추가. 메모리 `forms-auto-filled-from-single-source`
   - **과제 유형 폐기**(사용자 — "케이스가 각자 다르니 정출금 비율은 수동 입력"). 비율 한도 = 기존 `budget_rules` RL-8/RL-9 행. SOT·CLAUDE.md Phase 표·brief 정리, RL-20 번호 비움
@@ -371,6 +382,10 @@
 - 명세 밖 추가: `actions/budget.ts` `getExecutionDetailOptions(projectId)`(패널 인력·산출근거 선택지, 읽기 전용) · `tests/unit/input-form-boundary.test.ts` 산식 호출 허용 목록에 `parse-execution.ts`·`execution-preview.ts` 추가(IN-11 금액 보완 — 산식 재사용이지 재구현 아님)
 
 ## Next steps
+> **다음 작업 (2026-10-05 정리)**: ① 다른 PC는 `git pull`만(DB 공유 — `20261005000000`까지 적용, 새 패키지 없음) ② **수동 검증 일괄** — `docs/plans/phase-26-plan.md` 끝 표(Phase 23~26, 시드 과제 URL, 데이터 준비 1~4) + 아래 "수동 검증 > 대기". 검증 중 `npm test`를 돌리면 시드가 지워진다 ③ 후속 정리 후보: Phase 22 ①②④, Phase 1 잔여 3건, `budget/page.tsx` govBudget 조회를 `BudgetPlanData`로, 8-2 간접비 안내 중복, 기타 아래 목록 (Phase 22 ③ bodySizeLimit은 Phase 25에서 해소) ④ 업데이트 후 앱에서 새 백업(v7)
+
+> (처리됨, 2026-10-05) Phase 26 — 개발 범위 종료.
+
 > **다음 작업 (2026-10-03 정리)**: ① 다른 PC는 `git pull`만(DB 공유 — `20261003000000`까지 적용, 새 패키지 없음) ② **Phase 26 합격 기준 작성** → `/phase-run 26`. 과제 유형 자동 비율은 폐기됐으니 SOT Phase 26 범위를 먼저 다시 읽을 것 ③ Phase 24·25 수동 확인(인쇄·다크·가져오기 대화·samples 실제 붙임4 파일·HelpLink 앵커)은 `docs/plans/phase-25-plan.md` 끝 URL 표 — 수동 검증 일괄에 합류 ④ 업데이트 후 앱에서 새 백업(v7)
 
 > (처리됨, 2026-10-03) Phase 25.

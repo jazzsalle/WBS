@@ -19,6 +19,8 @@ import {
   SEVERITY_ORDER,
   diffRuleDraft,
   displayDraftValue,
+  isAgreementOnlyRule,
+  isGuidelineSource,
   parseValueText,
   toRuleDraft,
   unresolvedRuleConflicts,
@@ -166,6 +168,11 @@ export default function RuleRow({
                 근사
               </Badge>
             )}
+            {isAgreementOnlyRule(baseline.code) && (
+              <Badge tone="violet" title="협약 예산 버전이 있어야 판정합니다 — 제안 모드 검증 패널에는 나오지 않습니다 (§6.14.8)">
+                수행 전용
+              </Badge>
+            )}
           </div>
           <p className="mt-0.5 font-mono text-[11px] text-grey-400">
             {baseline.code} · {spec.ruleRef}
@@ -234,6 +241,13 @@ export default function RuleRow({
             onKeyDown={blurOnEnter}
             className={INPUT_CLASS}
           />
+          {isGuidelineSource(draft.source) && (
+            <span className="mt-1 block">
+              <Badge tone="blue" title="고시 조문이 아니라 전담기관 간사 지침에서 온 규칙입니다 (§6.14.8)">
+                간사 지침
+              </Badge>
+            </span>
+          )}
         </td>
         <td className="min-w-40 px-3 py-2 align-top">
           <input

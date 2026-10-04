@@ -57,8 +57,7 @@ export interface UnmappedRows {
 
 /** 코드가 아니라 서식·화면에서 쓰는 이름으로 옮긴다. 프리셋에 없는 세목이면 코드를 그대로 보인다 */
 function unmappedLabel(category: BudgetCategory, subcategory: string): string {
-  const preset = SUBCATEGORY_PRESETS[category].find((def) => def.code === subcategory);
-  return `${BUDGET_CATEGORY_LABELS[category]} > ${preset?.label ?? subcategory}`;
+  return `${BUDGET_CATEGORY_LABELS[category]} > ${subcategoryLabel(category, subcategory)}`;
 }
 
 /**
@@ -87,11 +86,41 @@ export interface TruncatedFactors {
   unitPriceDropped: boolean;
 }
 
+/**
+ * 서식에 자기 표가 없어 **다른 세목의 표에 이어 적은** 행 (X-10d ②).
+ *
+ * 금액·합계는 그대로지만 이 파일을 다시 가져오면(§6.11) 그 표의 세목으로 읽힌다 —
+ * 거부할 일은 아니고 사용자가 알아야 할 일이라 경고다.
+ */
+export interface RelocatedRows {
+  blockKey: string;
+  /** 행의 원래 세목 라벨 (`연구실 안전관리비`) */
+  fromLabel: string;
+  /** 적힌 표의 서식 라벨 (`나. 연구지원비`) */
+  toLabel: string;
+  category: BudgetCategory;
+  subcategory: string;
+  count: number;
+}
+
 export interface CapacityReport {
   assignments: readonly BlockAssignment[];
   overflows: readonly CapacityOverflow[];
   unmapped: readonly UnmappedRows[];
   truncatedFactors: readonly TruncatedFactors[];
+  relocated: readonly RelocatedRows[];
+}
+
+/**
+ * X-10d ②: 서식에 표가 없을 때 대신 적을 세목. 서식에 자기 표가 있으면 그쪽이 이긴다 —
+ * 그래서 맵이 아니라 "표가 없을 때"의 규칙으로 둔다
+ */
+const SUBCATEGORY_FALLBACK: Readonly<Record<string, string>> = {
+  indirect_lab_safety: 'indirect_support',
+};
+
+function subcategoryLabel(category: BudgetCategory, subcategory: string): string {
+  return SUBCATEGORY_PRESETS[category].find((def) => def.code === subcategory)?.label ?? subcategory;
 }
 
 /** 인건비 행의 인력. 없으면 금액이 0원이 되고 §7.9.4가 "연봉 미입력"으로 경고한다 (D-8a) */
@@ -116,22 +145,46 @@ function findBlock(
   row: ExportDetailRow,
   member: ExportMember | null,
   blocks: readonly TemplateBlock[]
-): TemplateBlock | null {
+): { block: TemplateBlock; relocated: boolean } | null {
   const sameCategory = blocks.filter((block) => block.category === row.category);
-  const exact = sameCategory.filter((block) => block.subcategory === row.subcategory);
+  let relocated = false;
+  let exact = sameCategory.filter((block) => block.subcategory === row.subcategory);
+  const fallback = SUBCATEGORY_FALLBACK[row.subcategory];
+  if (exact.length === 0 && fallback !== undefined) {
+    exact = sameCategory.filter((block) => block.subcategory === fallback);
+    relocated = exact.length > 0;
+  }
   const candidates = exact.length > 0 ? exact : sameCategory.filter((block) => block.subcategory === null);
   if (candidates.length === 0) return null;
 
   const segmented = candidates.filter((block) => block.segment !== null);
-  if (segmented.length === 0) return candidates[0] ?? null;
+  if (segmented.length === 0) {
+    const only = candidates[0];
+    return only === undefined ? null : { block: only, relocated };
+  }
 
   const segment = member?.hireType === 'new' ? 'newHire' : 'existing';
-  return segmented.find((block) => block.segment === segment) ?? segmented[0] ?? null;
+  const chosen = segmented.find((block) => block.segment === segment) ?? segmented[0];
+  return chosen === undefined ? null : { block: chosen, relocated };
 }
 
-/** §5.17 order 오름차순. 같으면 입력 순서를 지킨다 — 배치가 실행마다 흔들리면 왕복 테스트가 무의미하다 */
-function sortRows(rows: readonly { row: ExportDetailRow; index: number }[]): ExportDetailRow[] {
-  return [...rows].sort((a, b) => a.row.order - b.row.order || a.index - b.index).map((entry) => entry.row);
+interface PlacedRow {
+  row: ExportDetailRow;
+  index: number;
+  relocated: boolean;
+}
+
+/**
+ * §5.17 order 오름차순. 같으면 입력 순서를 지킨다 — 배치가 실행마다 흔들리면 왕복 테스트가 무의미하다.
+ * 다른 세목에서 옮겨 온 행은 그 표의 제 행 **뒤에** 이어 적는다 (X-10d ②)
+ */
+function sortRows(rows: readonly PlacedRow[]): ExportDetailRow[] {
+  return [...rows]
+    .sort(
+      (a, b) =>
+        Number(a.relocated) - Number(b.relocated) || a.row.order - b.row.order || a.index - b.index
+    )
+    .map((entry) => entry.row);
 }
 
 function rowLabelOf(row: ExportDetailRow, member: ExportMember | null): string {
@@ -151,14 +204,15 @@ export function checkCapacity(
   layout: TemplateLayout
 ): CapacityReport {
   const memberIndex = new Map(members.map((member) => [member.id, member]));
-  const grouped = new Map<string, { block: TemplateBlock; rows: { row: ExportDetailRow; index: number }[] }>();
+  const grouped = new Map<string, { block: TemplateBlock; rows: PlacedRow[] }>();
   const unmapped = new Map<string, UnmappedRows>();
+  const relocated = new Map<string, RelocatedRows>();
   const truncatedFactors: TruncatedFactors[] = [];
 
   rows.forEach((row, index) => {
     const member = memberOf(row, memberIndex);
-    const block = findBlock(row, member, layout.detail.blocks);
-    if (block === null) {
+    const found = findBlock(row, member, layout.detail.blocks);
+    if (found === null) {
       const key = `${row.category}|${row.subcategory}`;
       const found = unmapped.get(key);
       if (found) found.count += 1;
@@ -171,9 +225,24 @@ export function checkCapacity(
         });
       return;
     }
+    const { block } = found;
     const bucket = grouped.get(block.key) ?? { block, rows: [] };
-    bucket.rows.push({ row, index });
+    bucket.rows.push({ row, index, relocated: found.relocated });
     grouped.set(block.key, bucket);
+    if (found.relocated) {
+      const key = `${block.key}|${row.category}|${row.subcategory}`;
+      const moved = relocated.get(key);
+      if (moved) moved.count += 1;
+      else
+        relocated.set(key, {
+          blockKey: block.key,
+          fromLabel: subcategoryLabel(row.category, row.subcategory),
+          toLabel: block.label,
+          category: row.category,
+          subcategory: row.subcategory,
+          count: 1,
+        });
+    }
 
     const factorColumns = block.columns.filter((column) => column.role === 'factor').length;
     const factorCount = row.formula === 'personnel' ? 0 : row.factors.length;
@@ -211,7 +280,13 @@ export function checkCapacity(
     assignments.push({ block, rows: assigned });
   }
 
-  return { assignments, overflows, unmapped: [...unmapped.values()], truncatedFactors };
+  return {
+    assignments,
+    overflows,
+    unmapped: [...unmapped.values()],
+    truncatedFactors,
+    relocated: [...relocated.values()],
+  };
 }
 
 // ─── 값 만들기 (X-4·X-6·X-7·X-8) ─────────────────────────────

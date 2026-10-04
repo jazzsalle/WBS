@@ -55,7 +55,7 @@ describe('C.4.1 8-2 행 순서·종류', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('종류 5종이 전부 쓰이고 행마다 C.4의 종류다', () => {
+  it('종류 5종이 전부 쓰이고 행마다 C.4의 종류다 — Phase 26부터 memo 없음, lab_safety는 breakdown', () => {
     const kinds: Record<string, Attachment4RowKind> = Object.fromEntries(
       ATTACHMENT4_FORM_ROWS.map((r) => [r.id, r.kind]),
     );
@@ -77,12 +77,12 @@ describe('C.4.1 8-2 행 순서·종류', () => {
       outside: 'data',
       direct_subtotal: 'aggregate',
       indirect: 'data',
-      lab_safety: 'memo',
+      lab_safety: 'breakdown',
       indirect_ratio: 'ratio',
       total: 'aggregate',
       personnel_ratio: 'ratio',
     });
-    expect(new Set(Object.values(kinds))).toEqual(new Set(['data', 'aggregate', 'ratio', 'memo', 'ignored']));
+    expect(new Set(Object.values(kinds))).toEqual(new Set(['data', 'aggregate', 'ratio', 'breakdown', 'ignored']));
   });
 
   it('양식 기호: 양식 E1 = 총 인건비, 양식 E2 = 수정인건비 — 라벨에 "양식"이 붙는다', () => {
@@ -118,7 +118,7 @@ describe('C.4.1 소스·가져오기 대상은 부록 A.1·A.5 코드만 가리�
     }
   });
 
-  it('가져오기 대상: 인건비 A~D는 세목, 나머지는 default (S-5)', () => {
+  it('가져오기 대상: 인건비 A~D는 세목, 나머지는 default (S-5), 연구실 안전관리비는 자기 세목(Phase 26 S-16)', () => {
     const targets = Object.fromEntries(
       ATTACHMENT4_FORM_ROWS.filter((r) => r.importTarget !== null).map((r) => [r.id, r.importTarget]),
     );
@@ -133,15 +133,25 @@ describe('C.4.1 소스·가져오기 대상은 부록 A.1·A.5 코드만 가리�
       activity: { category: 'activity', subcategoryCode: 'default' },
       allowance: { category: 'allowance', subcategoryCode: 'default' },
       indirect: { category: 'indirect', subcategoryCode: 'default' },
+      lab_safety: { category: 'indirect', subcategoryCode: 'indirect_lab_safety' },
     });
   });
 
-  it('data가 아닌 행은 소스·가져오기 대상이 없다 — 연구실 안전관리비는 소스 없음(U-3)', () => {
-    for (const r of ATTACHMENT4_FORM_ROWS.filter((x) => x.kind !== 'data')) {
+  it('data·breakdown이 아닌 행은 소스·가져오기 대상이 없다', () => {
+    for (const r of ATTACHMENT4_FORM_ROWS.filter((x) => x.kind !== 'data' && x.kind !== 'breakdown')) {
       expect(r.sources, r.id).toEqual([]);
       expect(r.importTarget, r.id).toBeNull();
       expect(r.axes, r.id).toBeNull();
     }
+  });
+
+  it('연구실 안전관리비 = breakdown — 소스·가져오기 대상 indirect/indirect_lab_safety, 한 줄(combined)', () => {
+    expect(row('lab_safety')).toMatchObject({
+      kind: 'breakdown',
+      axes: 'combined',
+      sources: [{ category: 'indirect', subcategoryCodes: ['indirect_lab_safety'] }],
+      importTarget: { category: 'indirect', subcategoryCode: 'indirect_lab_safety' },
+    });
   });
 
   it('양식에 없는 비목 행: 4종 전 세목, 식별 라벨·가져오기 대상 없음(U-2)', () => {

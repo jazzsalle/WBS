@@ -1,7 +1,8 @@
 'use client';
 
 // 연구비 규칙 편집 패널 (SOT §7.9.5, §5.18 RL-D2~D5, §8.4 O-1~O-3, §9 Budget Rules)
-// 제안 모드 툴바 [연구비 규칙]이 여는 모달. BudgetScreen이 open·onClose·onChanged로 연결한다.
+// 제안 모드 툴바 [연구비 규칙]과 수행 모드 버전 바 [연구비 규칙](Phase 26)이 여는 같은 모달 — 규칙 행은 과제에
+// 하나뿐이고 두 모드가 공유한다(§7.9.5). 부모가 open·onClose·onChanged로 연결한다.
 // `rules`는 초기값이다 — 열릴 때 그대로 받아들이고, 그 뒤에는 액션 결과로 자기 상태를 갱신한다.
 // 저장·적용·삭제가 끝나면 onChanged()를 올려 부모가 router.refresh()로 검증 패널을 다시 읽게 한다.
 //
@@ -31,6 +32,7 @@ import {
   buildRulePatch,
   diffRuleDraft,
   govShareOptions,
+  isAgreementOnlyRule,
   missingRuleCodes,
   parseValueText,
   sortRulesByCode,
@@ -452,6 +454,13 @@ export default function RulesEditor({ projectId, rules, open, onClose, onChanged
               켜짐 {enabledCount} / {sortedRows.length} · 텍스트 칸은 다른 곳을 누르거나 Enter로
               저장됩니다 · 출처는 비울 수 없습니다 (RL-D5)
             </p>
+            {/* RL-23은 행이 없어도 켜진 것으로 판정한다(§6.14.8) — 표에 없다고 꺼진 것으로 읽히지 않게 적는다 */}
+            {rows.preserve_subcategory_totals === undefined && (
+              <p role="note" className="text-t7 text-grey-500">
+                {RULE_SPECS.preserve_subcategory_totals.label} ({RULE_SPECS.preserve_subcategory_totals.ruleRef}, 수행
+                전용): 행 없음 — 켜진 것으로 판정합니다. 끄려면 아래에서 추가한 뒤 켜짐을 해제하세요.
+              </p>
+            )}
 
             <div className="overflow-x-auto rounded-xl border border-grey-200">
               <table className="w-full min-w-[1080px] text-t7">
@@ -525,6 +534,7 @@ export default function RulesEditor({ projectId, rules, open, onClose, onChanged
                       {missingCodes.map((code) => (
                         <option key={code} value={code}>
                           {RULE_SPECS[code].label}
+                          {isAgreementOnlyRule(code) ? ' (수행 전용)' : ''}
                         </option>
                       ))}
                     </select>

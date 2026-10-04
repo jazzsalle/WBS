@@ -18,6 +18,7 @@ import type { AgreementVersionView } from '@/actions/agreement';
 import { setAgreementFormCellAmount, setAgreementGovCash } from '@/actions/agreement';
 import type { Form81Row, Form82Row, FormViewCell, RatioJudgement } from '@/lib/agreement/attachment4-view';
 import type { FormColumn } from '@/lib/agreement/form-rows';
+import type { Form82RuleCell, Form82RuleView } from '@/lib/agreement/rule-view';
 import { formatRate, RATE_NONE_TEXT, type Rate } from '@/lib/agreement/rates';
 import { AGREEMENT_VERSION_STATUS_LABELS, AGREEMENT_VIEW_TEXT, ATTACHMENT8_1_COLUMNS } from '@/lib/constants';
 import { formatAmount } from '@/lib/currency';
@@ -275,6 +276,102 @@ function RateWithJudgement({ rate, judgement }: { rate: Rate; judgement: RatioJu
       </span>
       <JudgementBadge judgement={judgement} />
     </span>
+  );
+}
+
+// ─── 8-2 규칙 판정 줄 (S-15) ──────────────────────────────────────────────────
+
+/** 판정 줄 한 칸. 글자·한도·사유는 서버가 같은 evaluateRules 결과에서 옮긴 것 — 여기서 비교하지 않는다 */
+function Form82RuleCellView({ cell }: { cell: Form82RuleCell }) {
+  if (cell.status === 'skipped') {
+    return (
+      <span className="block text-[10px] leading-tight text-grey-500 print:text-black">
+        <span className="rounded bg-grey-100 px-1 py-0.5 font-medium text-grey-600 print:bg-transparent print:text-black">
+          {cell.label}
+        </span>{' '}
+        {cell.reason}
+      </span>
+    );
+  }
+  const fail = cell.status === 'fail';
+  return (
+    <span className="flex flex-col items-end gap-0.5">
+      <span className="font-semibold tabular-nums text-grey-900 print:text-black">{formatRate(cell.actual)}</span>
+      <span
+        title={fail ? cell.message : `실제 ${formatRate(cell.actual)} · 한도 ${formatRate(cell.limit)}`}
+        className={`inline-block rounded px-1 py-0.5 text-[10px] font-semibold print:bg-transparent print:text-black ${
+          fail ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+        }`}
+      >
+        {cell.label} · 한도 {formatRate(cell.limit)}
+      </span>
+    </span>
+  );
+}
+
+function Form82RuleLines({ rules, yearColumns }: { rules: Form82RuleView; yearColumns: readonly FormColumn[] }) {
+  const yearName = new Map(yearColumns.map((c) => [c.key, c.label]));
+  return (
+    <section className="space-y-1.5">
+      <h3 className="flex items-center gap-1.5 text-t6 font-semibold text-grey-800 print:text-black">
+        8-2 규칙 판정
+        <span className="text-t7 font-normal text-grey-500 print:text-black">
+          · 아래 규칙 검증 패널과 같은 판정 결과입니다
+        </span>
+      </h3>
+      <div className={`overflow-x-auto rounded-xl border border-grey-200 bg-surface ${PRINT_TABLE_WRAP}`}>
+        <table className={`w-full min-w-max text-xs ${PRINT_TABLE}`}>
+          <caption className="sr-only">8-2 규칙 판정 — 연차별 통과·경고·판정하지 않음</caption>
+          <thead className="text-grey-500 print:text-black">
+            <tr className="border-b border-grey-100">
+              <th scope="col" className={`px-3 py-2 text-left font-medium ${PRINT_TH}`}>
+                규칙
+              </th>
+              {(rules.lines[0]?.years ?? []).map((y) => (
+                <th
+                  key={y.yearId}
+                  scope="col"
+                  className={`border-l border-grey-100 px-3 py-2 text-right font-medium text-grey-700 ${PRINT_TH}`}
+                >
+                  {/* 8-2 열에 없는 연차라면 id를 보이지 않는다 — 원시 코드 노출 금지 */}
+                  {yearName.get(y.yearId) ?? '(연차 이름 없음)'}
+                </th>
+              ))}
+              <th
+                scope="col"
+                className={`border-l border-grey-200 px-3 py-2 text-right font-medium text-grey-700 ${PRINT_TH}`}
+                title="전 연차 합계 비율 — 참고값이며 판정하지 않습니다 (RL-2)"
+              >
+                합계(참고)
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-grey-100">
+            {rules.lines.map((line) => (
+              <tr key={line.code}>
+                <th scope="row" className={`px-3 py-1.5 text-left align-top font-medium text-grey-800 ${PRINT_TD}`}>
+                  <span className="block">{line.label}</span>
+                  {line.baseLabel !== null && (
+                    <span className="block text-[11px] font-normal text-grey-500 print:text-black">
+                      분모: {line.baseLabel}
+                    </span>
+                  )}
+                </th>
+                {line.years.map((y) => (
+                  <td key={y.yearId} className={`border-l border-grey-100 px-2 py-1.5 text-right align-top ${PRINT_TD}`}>
+                    <Form82RuleCellView cell={y.cell} />
+                  </td>
+                ))}
+                <td className={`border-l border-grey-200 px-2 py-1.5 text-right align-top tabular-nums text-grey-700 ${PRINT_TD}`}>
+                  {formatRate(line.totalActual)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[11px] text-grey-500 print:text-black">{rules.note}</p>
+    </section>
   );
 }
 
@@ -704,6 +801,11 @@ export default function Attachment4View({ projectId, view, currencyUnit, editabl
           {plan82.showOutsideRow && ` '${AGREEMENT_VIEW_TEXT.outsideCategoriesRow}' 행은 직접비 소계·총액에 들어가고 고칠 수 없습니다.`}
         </p>
       </section>
+
+      {/* 8-2 아래 RL-4·RL-3 판정 줄(AG-3, S-15). 연차가 없으면 판정할 열도 없다 — 8-2와 같은 안내로 충분하다 */}
+      {plan82.columns.length > 1 && (
+        <Form82RuleLines rules={view.form82Rules} yearColumns={plan82.columns.filter((c) => c.kind === 'year')} />
+      )}
 
       {/* 검토사항 */}
       {reviewNotes.length > 0 && (

@@ -929,9 +929,13 @@ export type RuleCode =
   // ── 인력 (§6.14.4) ──
   | 'min_participation'    // 참여연구자 참여율 ≥ value%
   // ── 건별 금액 알림 (§6.14.5) ──
-  | 'equipment_review_threshold'   // 장비 산출 행 금액 ≥ value원 → 전문기관 심의 대상
+  | 'equipment_review_threshold'   // 장비 건 금액(부가세 별도) × 1.1 ≥ value원(부가세 포함 기준) → 사전 승인 대상 (Phase 26 개정)
   | 'material_notice_threshold'    // 재료 산출 행 금액 ≥ value원 → 계획서에 필요성·수량 명시
-  | 'outsourcing_notice_threshold'; // 외주 산출 행 금액 ≥ value원 → 계획서에 내역·금액 명시
+  | 'outsourcing_notice_threshold' // 외주 산출 행 금액 ≥ value원 → 계획서에 내역·금액 명시
+  // ── v4.9 추가 (§6.14.8, Phase 26) — RL-20·RL-21은 결번(폐기) ──
+  | 'lab_safety_min'               // RL-22 연구실 안전관리비 ≥ (인건비 + 학생인건비) × value%  (세목이 있을 때만)
+  | 'lab_safety_max'               // RL-22 연구실 안전관리비 ≤ (인건비 + 학생인건비) × value%  (세목이 있을 때만)
+  | 'preserve_subcategory_totals'; // RL-23 세목 총액 보존 켜고 끄기. 값 없음. 수행 전용 — 판정은 lib/agreement/preservation.ts
 
 export type RuleSeverity = 'error' | 'warn' | 'info';
 // error — 고시가 "초과하여서는 아니 된다"고 한 것. 정산에서 불인정·회수 대상
@@ -1036,19 +1040,19 @@ export interface AgreementParticipant extends BaseEntity {
 export type AgreementItemKind = 'equipment' | 'material' | 'outsourcing';
 
 export interface AgreementEvidenceCheck {
-  label: string;                           // 견적서 · 비교견적서 · 과업지시서 · 계약서 …
+  label: string;                           // 견적서 · 비교견적서 · 과업지시서 · 계약서 … (1~100자, 한 항목 안 중복 금지)
   obtained: boolean;
-  memo: string;
+  memo: string;                            // 0~500자
 }
 
 export interface AgreementItem extends BaseEntity {
   versionId: string;
   yearId: string;
   kind: AgreementItemKind;
-  name: string;                            // 품명
-  amount: number;                          // 원 단위 정수. 장비는 부가세 포함(D-8, RL-17)
+  name: string;                            // 품명 1~200자
+  amount: number;                          // 원 단위 정수 ≥ 0. 부가세 별도 — 장비 기준 비교만 ×1.1(Phase 26, RL-17)
   quantity: number | null;
-  evidence: AgreementEvidenceCheck[];      // jsonb 배열(N-3) — 내부 키는 매퍼가 바꾸지 않는다
+  evidence: AgreementEvidenceCheck[];      // jsonb 배열(N-3, ≤ 30개) — 내부 키는 매퍼가 바꾸지 않는다
 }
 
 // ─── §5.25 AgreementGovSupport (연차별 정부지원 현금, Phase 25) ─
@@ -1068,9 +1072,11 @@ export type ParticipantAmountKind = 'auto' | 'manual' | 'salary_unknown';
 
 // ─── 부록 C.4 붙임4 양식 행 (Phase 25) ─────────────────────────
 // data = 금액 줄에서 오는 행(가져오기 대상) · aggregate = 집계(가져오기는 대조만) ·
-// ratio = 비율(가져오기는 인식만) · memo = 소스 없는 내역 행(값 ≠ 0이면 경고) · ignored = 인식만 하는 행
+// ratio = 비율(가져오기는 인식만) · memo = 소스 없는 내역 행(값 ≠ 0이면 경고) ·
+// breakdown = 상위 data 행 안의 내역 행(Phase 26 — 값은 보이지만 상위 합·분모에 다시 더하지 않는다) ·
+// ignored = 인식만 하는 행
 
-export type Attachment4RowKind = 'data' | 'aggregate' | 'ratio' | 'memo' | 'ignored';
+export type Attachment4RowKind = 'data' | 'aggregate' | 'ratio' | 'memo' | 'breakdown' | 'ignored';
 
 // 8-2 기관 블록 행 id. 순서는 ATTACHMENT4_FORM_ROWS(부록 C.4.1)가 정한다
 export type Attachment4RowId =

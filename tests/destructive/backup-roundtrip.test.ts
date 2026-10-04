@@ -83,6 +83,8 @@ const FIXTURE = {
   unassignedParticipantId: 'aaaa0000-0000-4000-8000-0000000000c7',
   itemId: 'aaaa0000-0000-4000-8000-0000000000c8',
   govSupportId: 'aaaa0000-0000-4000-8000-0000000000c9',
+  labSafetyRuleId: 'aaaa0000-0000-4000-8000-0000000000ca',
+  preservationRuleId: 'aaaa0000-0000-4000-8000-0000000000cb',
 } as const;
 const GOV_SUPPORT_CASH_Y1 = 35000000;
 const AGREEMENT_CHILD_TABLES = [
@@ -122,6 +124,15 @@ async function insertFixtures(u: TestUser): Promise<void> {
     values
       (${FIXTURE.ruleId}::uuid, ${SEED.projectId}::uuid, 'indirect_max', true, 17.5,
        'direct_cash_excl_intl', 'error', '왕복 테스트 출처', ${u.id}::uuid, ${u.id}::uuid)`;
+  // Phase 26 새 코드(§5.18) — 값 있는 비율 규칙과 값 없는 수행 전용 규칙(꺼짐)이 v7 왕복으로 돌아오는지 본다
+  await sql`
+    insert into public.budget_rules
+      (id, project_id, code, enabled, value, base, severity, source, created_by, updated_by)
+    values
+      (${FIXTURE.labSafetyRuleId}::uuid, ${SEED.projectId}::uuid, 'lab_safety_min', true, 1.5,
+       null, 'warn', '간사 지침 왕복 테스트', ${u.id}::uuid, ${u.id}::uuid),
+      (${FIXTURE.preservationRuleId}::uuid, ${SEED.projectId}::uuid, 'preserve_subcategory_totals', false, null,
+       null, 'warn', '간사 지침 왕복 테스트', ${u.id}::uuid, ${u.id}::uuid)`;
   await sql`
     insert into public.staff (id, name, email, position, created_by, updated_by)
     values (${FIXTURE.staffId}::uuid, '백업 테스트 조직원', ${STAFF_EMAIL}, '선임',
@@ -316,6 +327,8 @@ describe('K-7: v7 복원 왕복 — 전체 대체', () => {
     await sql`delete from public.budget_details where id = ${SEED_DETAIL_ID}::uuid`;
     // 삭제: 규칙·목표 4종·조직원(이력 cascade) — 복원이 되살리지 못하면 그 테이블이 목록에서 빠진 것이다
     await sql`delete from public.budget_rules where id = ${FIXTURE.ruleId}::uuid`;
+    await sql`delete from public.budget_rules where id = ${FIXTURE.labSafetyRuleId}::uuid`;
+    await sql`update public.budget_rules set enabled = true where id = ${FIXTURE.preservationRuleId}::uuid`;
     await sql`delete from public.deliverables where id = ${FIXTURE.deliverableId}::uuid`;
     await sql`delete from public.tech_targets where id = ${FIXTURE.techTargetId}::uuid`;
     await sql`delete from public.staff where id = ${FIXTURE.staffId}::uuid`;
@@ -412,6 +425,14 @@ describe('K-7: v7 복원 왕복 — 전체 대체', () => {
       select id, amount::text as amount, evidence from public.agreement_items
        where version_id = ${FIXTURE.confirmedVersionId}::uuid`;
     expect(items).toEqual([{ id: FIXTURE.itemId, amount: '33000000', evidence: EVIDENCE }]);
+    // Phase 26 새 코드 규칙 행 — 지운 행은 되살아나고 켠 행은 꺼짐(값 null)으로 돌아왔다
+    const newCodeRules = await sql<{ id: string; code: string; enabled: boolean; value: string | null }[]>`
+      select id, code, enabled, value::text as value from public.budget_rules
+       where id in ${sql([FIXTURE.labSafetyRuleId, FIXTURE.preservationRuleId])} order by code`;
+    expect(newCodeRules).toEqual([
+      { id: FIXTURE.labSafetyRuleId, code: 'lab_safety_min', enabled: true, value: '1.5' },
+      { id: FIXTURE.preservationRuleId, code: 'preserve_subcategory_totals', enabled: false, value: null },
+    ]);
     // 정부지원 현금(§5.25) — 확정 버전 아래 행이 가드에 막히지 않고 돌아왔다
     const govSupport = await sql<{ id: string; year_id: string; gov_cash: string }[]>`
       select id, year_id, gov_cash::text as gov_cash from public.agreement_gov_support

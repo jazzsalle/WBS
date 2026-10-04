@@ -469,9 +469,12 @@ describe('(e) RPC — create_agreement_version p_gov_cash·clone·security invok
       select pg_get_function_identity_arguments(p.oid) as args
         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
        where n.nspname = 'public' and p.proname = 'create_agreement_version'`;
+    // Phase 26(20261005000000)이 p_items를 더해 7인자가 됐다 — 오버로드가 하나뿐인 것은 그대로다
     expect(rows).toEqual([
       {
-        args: 'p_project_id uuid, p_kind text, p_name text, p_lines jsonb, p_participants jsonb, p_gov_cash jsonb',
+        args:
+          'p_project_id uuid, p_kind text, p_name text, p_lines jsonb, p_participants jsonb, ' +
+          'p_gov_cash jsonb, p_items jsonb',
       },
     ]);
   });

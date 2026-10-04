@@ -415,6 +415,9 @@ export const SUBCATEGORY_PRESETS: Record<BudgetCategory, SubcategoryDef[]> = {
     { code: 'indirect_hr', label: '가. 인력지원비', formula: 'quantity', defaultFactors: [] },
     { code: 'indirect_support', label: '나. 연구지원비', formula: 'quantity', defaultFactors: [] },
     { code: 'indirect_outcome', label: '다. 성과활용지원비', formula: 'quantity', defaultFactors: [] },
+    // Phase 26 — RL-22 분자·붙임4 내역 행 소스(A.5 주의 4). 서식의 가.~다. 체계 밖이라 번호가 없다.
+    // 끝에 붙여 기존 세목 순서를 그대로 둔다(입력 양식 행·저장된 코드)
+    { code: 'indirect_lab_safety', label: '연구실 안전관리비', formula: 'quantity', defaultFactors: [] },
   ],
   other: [
     { code: 'default', label: '기타', formula: 'quantity', defaultFactors: [] },
@@ -457,6 +460,38 @@ export const AGREEMENT_ITEM_KIND_LABELS: Record<AgreementItemKind, string> = {
   outsourcing: '외주용역',
 };
 
+/**
+ * 종류별 증빙 기본 목록(§5.24 표가 원본, U-1). 편성 항목을 추가할 때 이 목록을 **복사**해
+ * evidence를 채운다 — 상수가 바뀌어도 저장된 행은 그대로여야 하므로 참조를 넘기지 않는다.
+ * 3천만 원 이상 장비의 활용계획서·사전 승인은 RL-17 경고가 안내하므로 여기 없다
+ */
+export const AGREEMENT_EVIDENCE_DEFAULTS: Record<AgreementItemKind, readonly string[]> = {
+  equipment: ['견적서', '비교견적서', '구매요청서', '계약서', '거래명세서', '검수조서', '세금계산서', 'ZEUS 등록 확인'],
+  material: ['견적서', '비교견적서', '구매요청서', '거래명세서', '검수조서', '세금계산서'],
+  outsourcing: ['과업지시서', '견적서', '비교견적서', '계약서', '중간산출물', '최종 결과물', '검수조서', '세금계산서'],
+};
+
+/**
+ * 편성 항목 종류 ↔ 금액 줄 세목(§5.24 대조, §6.14.8 ④ 판정 행, AV-6 ③ 보내기).
+ * equipment는 구입만이라 facility_purchase 하나에 대응한다(임차·유지는 편성 항목이 아니다)
+ */
+export const AGREEMENT_ITEM_SUBCATEGORY: Record<
+  AgreementItemKind,
+  { category: BudgetCategory; subcategoryCode: string }
+> = {
+  equipment: { category: 'facility_equipment', subcategoryCode: 'facility_purchase' },
+  material: { category: 'material', subcategoryCode: 'material_purchase' },
+  outsourcing: { category: 'activity', subcategoryCode: 'activity_outsourcing' },
+};
+
+// 편성 항목 검증 상한(§5.24, S-12). evidence는 길이가 아니라 증빙 개수다
+export const AGREEMENT_ITEM_MAX_LENGTH = {
+  name: 200,
+  label: 100,
+  memo: 500,
+  evidence: 30,
+} as const;
+
 // 세목이 여럿인 비목의 default 줄 — 제안 모드의 산출근거 없는 셀·AG-2 셀 편집이 세목을 모른 채 넣은 금액이다
 export const AGREEMENT_DEFAULT_SUBCATEGORY_LABEL = '세목 미지정';
 
@@ -496,6 +531,10 @@ export const AGREEMENT_VIEW_TEXT = {
   formE1: '양식 E1(총 인건비)',
   formE2: '양식 E2(수정인건비)',
 } as const;
+
+// RL-23 규칙 행이 꺼졌을 때의 세 번째 상태(§6.14.8) — "기준 버전 없음"·경고 0건과 구별된다.
+// 부록 A.4 협약 보기 고정 문구 표 밖이라 AGREEMENT_VIEW_TEXT에 두지 않는다
+export const PRESERVATION_RULE_OFF_TEXT = '규칙이 꺼져 있어 판정하지 않음';
 
 // 조정회의형 변경후 머리 — 보고 있는 버전 이름을 끼운다(부록 A.4)
 export function adjustmentAfterLabel(versionName: string): string {
@@ -539,7 +578,7 @@ export interface Attachment4FormRowDef {
   // split = 현금/현물 두 줄(축 그대로) · combined = 한 줄(현금 + 현물 합, 가져오기는 현금) · 금액 행이 아니면 null
   axes: 'split' | 'combined' | null;
   match: readonly Attachment4MatchDef[];       // 양식에 없는 행(양식 밖 비목)은 빈 배열
-  sources: readonly Attachment4SourceDef[];    // data 행만. memo(연구실 안전관리비)는 소스 없음 — 보기 "—"
+  sources: readonly Attachment4SourceDef[];    // data·breakdown 행만. breakdown은 줄이 없으면 보기 "—"
   // 가져오기 대상 금액 줄. 축은 split이면 그 줄의 축, combined면 현금. null = 반영하지 않음
   importTarget: { category: BudgetCategory; subcategoryCode: string } | null;
 }
@@ -660,9 +699,13 @@ export const ATTACHMENT4_FORM_ROWS: readonly Attachment4FormRowDef[] = [
     importTarget: { category: 'indirect', subcategoryCode: DEFAULT_SUBCATEGORY_CODE },
   },
   {
-    // 소스 없음(U-3) — 보기 전 칸 "—". 세목 신설은 Phase 26(RL-22)과 함께
-    id: 'lab_safety', kind: 'memo', symbol: null, label: '(간접비 중 연구실 안전관리비)', subLabel: null, axes: null,
-    match: singleMatch('(간접비중연구실안전관리비)'), sources: [], importTarget: null,
+    // L 안의 내역 행(Phase 26, S-16) — 값은 보이지만 K·L·M·양식 분모에 다시 더하지 않는다.
+    // 가져오기는 이 값을 세목 줄로 만들고 그만큼 L의 default 줄을 줄인다(C.4.1 판정 세부 ②)
+    id: 'lab_safety', kind: 'breakdown', symbol: null, label: '(간접비 중 연구실 안전관리비)', subLabel: null,
+    axes: 'combined',
+    match: singleMatch('(간접비중연구실안전관리비)'),
+    sources: [{ category: 'indirect', subcategoryCodes: ['indirect_lab_safety'] }],
+    importTarget: { category: 'indirect', subcategoryCode: 'indirect_lab_safety' },
   },
   {
     id: 'indirect_ratio', kind: 'ratio', symbol: null, label: '간접비 비율(양식 분모)', subLabel: null, axes: null,
@@ -901,6 +944,7 @@ export const SKIP_ROW_PATTERNS = [
   '총인건비', '수정인건비', '연구개발비총액', '사업비합계', '전체예산',
   '연구수당비율', '간접비비율', '인건비비율',
   '통합관리비', '안전관리비', '보안수당',
+  '연구실안전관리비',   // Phase 26 — 괄호 없는 변형. 완전 일치라 '안전관리비'로는 걸리지 않는다(부록 C 주의 3)
   '정부출연금', '민간부담금', '기관부담금',
   '조정안', '부족분', '잔액',
   '비목', '세목', '구분',   // 헤더 행 자체가 데이터 범위에 섞여 들어온 경우

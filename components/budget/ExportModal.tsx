@@ -41,6 +41,7 @@ const NOTICE_KIND_LABELS: Record<ExportNotice['kind'], string> = {
   'missing-salary': '연봉 미입력',
   'rule-finding': '연구비 사용 규칙',
   'truncated-factor': '인자 잘림',
+  'relocated-row': '다른 표에 적음',
 };
 
 // RL-1: severity는 색만 정한다. 부록 E 시맨틱 — error red · warn orange(amber 톤) · info blue

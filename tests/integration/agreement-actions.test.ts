@@ -336,6 +336,10 @@ describe('협약 기준선으로 보내기 (AV-6, S-6·S-20)', () => {
     expect(created.order).toBe(1);
     expect(created.lineCount).toBe(6);
     expect(created.participantCount).toBe(2);
+    // 편성 항목(Phase 26 AV-6 ③)은 구입·외주 산출 행에서만 — 이 픽스처에는 없다. 미리보기 건수 = 만든 건수
+    expect(created.itemCount).toBe(0);
+    expect(created.itemSummary).toEqual({ count: 0, unnamedCount: 0 });
+    expect(created.itemSummary).toEqual(preview.itemSummary);
     expect(created.summary).toMatchObject({
       lineCount: 6,
       participantCount: 2,
@@ -529,7 +533,8 @@ describe('메타·확정 (AV-2, O-1)', () => {
   });
 
   it('확정: 낡은 버전은 STALE, 맞으면 확정(confirmedAt 기록), 다시 확정은 RULE', async () => {
-    // 복제가 편성 항목(증빙 포함)까지 복사하는지 보려고 확정 전에 1건 넣는다 — 편집 화면은 Phase 26
+    // 복제가 편성 항목(증빙 포함)까지 복사하는지 보려고 확정 전에 1건 넣는다 — 액션 경로(addAgreementItem)는
+    // agreement-rules-actions.test.ts가 본다. 여기는 복제 건수만 보므로 직결 SQL로 넣는다
     await sql`
       insert into public.agreement_items (version_id, year_id, kind, name, amount, quantity, evidence)
       values (${v1Id}::uuid, ${year1Id}::uuid, 'equipment', '분석 장비', 33000000, 1,

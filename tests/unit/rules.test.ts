@@ -420,7 +420,7 @@ describe('부록 B.9.3 — 건별 금액 알림', () => {
       actual: 35_000_000,
       limit: 30_000_000,
     });
-    expect(findings[0]!.message).toContain('심의');
+    expect(findings[0]!.message).toContain('사전 승인 대상');
   });
 
   it('RL-18: material_purchase 같은 품명 12,000,000 + 9,000,000 = 21,000,000 → warn 1건 (합산, 첫 행)', () => {
@@ -472,8 +472,9 @@ describe('부록 B.9.3 — 건별 금액 알림', () => {
   it('RL-17·RL-19도 정확히 경계값이면 대상이다', () => {
     const evaluation = run([quantityRow('facility_equipment', 'facility_purchase', '장비', 30_000_000)]);
     expect(findingsOf(evaluation, 'equipment_review_threshold')).toHaveLength(1);
+    // Phase 26 RL-17 개정(부록 B.9.6): 부가세 별도 금액 × 1.1 비교라 29,999,999도 대상이다
     const under = run([quantityRow('facility_equipment', 'facility_purchase', '장비', 29_999_999)]);
-    expect(findingsOf(under, 'equipment_review_threshold')).toEqual([]);
+    expect(findingsOf(under, 'equipment_review_threshold')).toHaveLength(1);
   });
 
   it('세목이 다르면 대상이 아니다 — 장비비 비목의 다른 세목 35,000,000은 RL-17 대상이 아니다', () => {
@@ -851,8 +852,8 @@ describe('findings 정렬 · 메시지', () => {
 // ─── 프리셋 ↔ RULE_SPECS 정합 ────────────────────────────────
 
 describe('RULE_SPECS ↔ RULE_PRESETS 정합 (RL-D2·RL-D3)', () => {
-  it('RULE_SPECS는 RuleCode 17종 전부를 갖는다', () => {
-    expect(Object.keys(RULE_SPECS)).toHaveLength(17);
+  it('RULE_SPECS는 RuleCode 20종 전부를 갖는다', () => {
+    expect(Object.keys(RULE_SPECS)).toHaveLength(20);
     expect(RATIO_CODES).toHaveLength(7);
     for (const code of RATIO_CODES) expect(['ratio_max', 'ratio_min']).toContain(RULE_SPECS[code].kind);
   });
@@ -883,7 +884,7 @@ describe('RULE_SPECS ↔ RULE_PRESETS 정합 (RL-D2·RL-D3)', () => {
   it('scope: 과제 단위는 gov_share_max·own_cash_min, 행 단위는 RL-14·16·17~19', () => {
     const byScope = (scope: 'project' | 'detail') =>
       (Object.keys(RULE_SPECS) as RuleCode[]).filter((c) => RULE_SPECS[c].scope === scope).sort();
-    expect(byScope('project')).toEqual(['gov_share_max', 'own_cash_min']);
+    expect(byScope('project')).toEqual(['gov_share_max', 'own_cash_min', 'preserve_subcategory_totals']);
     expect(byScope('detail')).toEqual([
       'equipment_review_threshold',
       'existing_personnel_cash',
@@ -896,7 +897,7 @@ describe('RULE_SPECS ↔ RULE_PRESETS 정합 (RL-D2·RL-D3)', () => {
   it('PresetRow는 그대로 evaluateRules의 규칙 입력이 된다 (타입 호환)', () => {
     const rows: RuleInput[] = presetToRows('msit_profit');
     const rowDetail: RuleDetailInput = detail({ category: 'activity' });
-    expect(rows).toHaveLength(10);
+    expect(rows).toHaveLength(13);
     expect(rowDetail.id).toBeTruthy();
   });
 });

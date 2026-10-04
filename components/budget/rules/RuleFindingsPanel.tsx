@@ -1,7 +1,10 @@
 'use client';
 
 // 규칙 검증 패널 (SOT §7.9 "규칙 검증 패널" 불릿, §6.14 RL-1·RL-2·6.14.6, PL-8, 부록 E)
-// Phase 9의 "지침 검증 줄"(한도 배지)을 대체한다. 제안 모드 하단에만 놓인다 — 배치는 BudgetScreen이 정한다.
+// Phase 9의 "지침 검증 줄"(한도 배지)을 대체한다. 제안 모드 하단과 수행 모드 보기 탭 아래(§7.9.8, Phase 26)에
+// 같은 컴포넌트로 놓인다 — 수행용 복제를 두지 않는다. 배치는 BudgetScreen·AgreementScreen이 정한다.
+// 수행 모드 전용 머리(판정 대상·안내·RL-23 상태)와 참여인원·편성 항목 이동은 선택 prop이고, 주지 않으면
+// 제안 모드 표시는 Phase 13 그대로다.
 //
 // **이 파일에는 나눗셈도 판정도 없다.** 비율(`ratios`)·위반(`findings`)·판정 못 함(`skipped`)은 전부
 // 서버가 lib/rules.ts로 계산해 내려준 값이고 여기서는 표시만 한다(O-4). 비율 셀의 색도 `findings`에 같은
@@ -14,6 +17,8 @@
 //  - ② findings: 서버가 이미 severity 순으로 정렬해 준다. 연차·행 항목은 클릭하면 부모가 그 열/셀로 옮긴다
 //  - ③ skipped: 접힌 목록. 조용히 빼지 않는다(절대 규칙 5)
 //  - ④ 규칙 행이 0건이면 안내 + [연구비 규칙] 자리. 버튼 연결(§7.9.5 모달)은 부모의 몫이다
+//  - ⑤ (수행 모드) RL-23 세목 총액 보존 상태. evaluateRules 결과가 아니므로(§6.14.8) findings에 섞지 않고
+//    부모가 lib/agreement/preservation.ts 결과를 요약해 넘긴 것을 머리에 따로 적는다
 //
 // 전부 경고다(RL-1). 이 패널은 저장·반영·내보내기를 막는 값을 만들지 않는다.
 //
@@ -21,7 +26,7 @@
 // 숫자와 '초과'·'근사' 글자는 남는다 — 색이 흑백에서 사라져도 글자로 읽힌다.
 
 import type { BudgetCategory, BudgetRule, RuleCode, RuleSeverity } from '@/types';
-import { INDIRECT_BASE_LABELS } from '@/lib/constants';
+import { INDIRECT_BASE_LABELS, PRESERVATION_RULE_OFF_TEXT } from '@/lib/constants';
 import {
   DEFAULT_INDIRECT_BASE,
   RATIO_CODES,
@@ -34,6 +39,16 @@ import {
 import Badge, { type BadgeTone } from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import { PRINT_TABLE, PRINT_TABLE_WRAP, PRINT_TD, PRINT_TH } from '@/components/print/tokens';
+
+/**
+ * RL-23 세목 총액 보존의 표시 상태(§6.14.8). 세 상태는 서로 다르다 — "꺼짐"·"기준 버전 없음"·"경고 0건"을
+ * 같은 모양으로 보이면 "문제 없음"과 "보지 않았음"이 섞인다(절대 규칙 5).
+ * 행이 없는 경우(켜진 것으로 판정)는 `rules`에서 패널이 알아낸다 — 부모는 판정 결과만 넘긴다.
+ */
+export type RulePreservationSummary =
+  | { kind: 'off' }
+  | { kind: 'no_base' }
+  | { kind: 'checked'; baseVersionName: string; warningCount: number };
 
 export interface RuleFindingsPanelProps {
   /** 매트릭스와 같은 열 순서 (matrix.columns) — 위아래 표의 연차가 어긋나면 읽을 수 없다 */
@@ -51,9 +66,19 @@ export interface RuleFindingsPanelProps {
    * 셀 좌표(연차·비목)는 판정기가 scope에 실어 준 것을 그대로 넘긴다(§6.14.6) — 화면이 코드에서 비목을
    * 추측하지 않는다
    */
-  onSelectDetail: (target: { code: RuleCode; yearId: string; detailId: string; category: BudgetCategory }) => void;
+  onSelectDetail?: (target: { code: RuleCode; yearId: string; detailId: string; category: BudgetCategory }) => void;
+  /** (수행 모드) scope `participant` 항목 클릭 → 부모가 [참여인원] 보기의 그 행으로 옮긴다. 없으면 클릭하지 않는다 */
+  onSelectParticipant?: (yearId: string, participantId: string) => void;
+  /** (수행 모드) scope `item` 항목 클릭 → 부모가 [편성 항목·증빙] 보기의 그 건으로 옮긴다. 없으면 클릭하지 않는다 */
+  onSelectItem?: (yearId: string, itemId: string) => void;
   /** §7.9.5 규칙 편집 패널 열기. 아직 연결되지 않았으면(undefined) 버튼을 비활성으로 둔다 — 자리는 남긴다 */
   onOpenRules?: () => void;
+  /** (수행 모드) 판정 대상 — 예: 버전 이름. 주면 머리에 "판정 대상 …"으로 적는다(§6.14.8) */
+  targetLabel?: string;
+  /** (수행 모드) 머리 안내 문장 — RL-8·RL-9 총액 출처, 세목 미지정 금액 메모 등. 문장 그대로 적는다 */
+  notices?: readonly string[];
+  /** (수행 모드) RL-23 상태. 주지 않으면(제안 모드) RL-23 줄을 그리지 않는다 — 제안 모드에는 없는 규칙이다 */
+  preservation?: RulePreservationSummary;
 }
 
 // ─── 표시 규약 ─────────────────────────────────────────────────
@@ -306,26 +331,91 @@ interface FindingItemProps {
   active: boolean;
   onSelectYear: RuleFindingsPanelProps['onSelectYear'];
   onSelectDetail: RuleFindingsPanelProps['onSelectDetail'];
+  onSelectParticipant: RuleFindingsPanelProps['onSelectParticipant'];
+  onSelectItem: RuleFindingsPanelProps['onSelectItem'];
 }
 
-function FindingItem({ finding, yearName, active, onSelectYear, onSelectDetail }: FindingItemProps) {
+type FindingHandlers = Pick<FindingItemProps, 'onSelectYear' | 'onSelectDetail' | 'onSelectParticipant' | 'onSelectItem'>;
+
+/** 클릭 동작과 안내. 받을 부모가 없는 종류는 옮겨 갈 자리가 없으므로 버튼으로 만들지 않는다 */
+function findingTarget(finding: RuleFinding, handlers: FindingHandlers): { onClick: () => void; hint: string } | null {
+  const { scope } = finding;
+  switch (scope.kind) {
+    case 'project':
+      return null;
+    case 'year':
+      return {
+        onClick: () => handlers.onSelectYear(scope.yearId),
+        hint: '클릭하면 매트릭스에서 이 연차 열을 강조합니다',
+      };
+    case 'detail': {
+      const { onSelectDetail } = handlers;
+      if (!onSelectDetail) return null;
+      return {
+        onClick: () =>
+          onSelectDetail({ code: finding.code, yearId: scope.yearId, detailId: scope.detailId, category: scope.category }),
+        hint: '클릭하면 해당 셀의 산출근거 패널을 열고 그 행을 강조합니다',
+      };
+    }
+    case 'participant': {
+      const { onSelectParticipant } = handlers;
+      if (!onSelectParticipant) return null;
+      return {
+        onClick: () => onSelectParticipant(scope.yearId, scope.participantId),
+        hint: '클릭하면 [참여인원] 보기에서 그 행으로 옮깁니다',
+      };
+    }
+    case 'item': {
+      const { onSelectItem } = handlers;
+      if (!onSelectItem) return null;
+      return {
+        onClick: () => onSelectItem(scope.yearId, scope.itemId),
+        hint: '클릭하면 [편성 항목·증빙] 보기에서 그 건으로 옮깁니다',
+      };
+    }
+  }
+}
+
+// Record라 scope 종류가 늘면 여기서 컴파일이 깨진다 — 목록에서 행 표시가 조용히 빠지지 않는다
+const SCOPE_ROW_LABEL: Record<RuleFinding['scope']['kind'], string> = {
+  project: '',
+  year: '',
+  detail: ' · 행',
+  participant: ' · 참여인원',
+  item: ' · 편성 항목',
+};
+
+/** 같은 (code, scope) finding이 여럿일 때(RL-17 장비 여러 건) 목록 key를 가르는 행 식별자 */
+function scopeRowId(finding: RuleFinding): string {
+  const { scope } = finding;
+  switch (scope.kind) {
+    case 'detail':
+      return scope.detailId;
+    case 'participant':
+      return scope.participantId;
+    case 'item':
+      return scope.itemId;
+    case 'project':
+    case 'year':
+      return '';
+  }
+}
+
+function FindingItem({
+  finding,
+  yearName,
+  active,
+  onSelectYear,
+  onSelectDetail,
+  onSelectParticipant,
+  onSelectItem,
+}: FindingItemProps) {
   const spec = RULE_SPECS[finding.code];
   const { body, source } = splitSource(finding.message);
   const { scope } = finding;
 
-  // 연차 단위는 열 강조, 행 단위는 셀 패널 + 행 강조. 과제 단위는 옮겨 갈 자리가 없다
-  const onClick =
-    scope.kind === 'year'
-      ? () => onSelectYear(scope.yearId)
-      : scope.kind === 'detail'
-        ? () => onSelectDetail({ code: finding.code, yearId: scope.yearId, detailId: scope.detailId, category: scope.category })
-        : null;
-  const clickHint =
-    scope.kind === 'year'
-      ? '클릭하면 매트릭스에서 이 연차 열을 강조합니다'
-      : scope.kind === 'detail'
-        ? '클릭하면 해당 셀의 산출근거 패널을 열고 그 행을 강조합니다'
-        : undefined;
+  // 연차 단위는 열 강조, 행 단위는 그 행으로. 과제 단위는 옮겨 갈 자리가 없다
+  const target = findingTarget(finding, { onSelectYear, onSelectDetail, onSelectParticipant, onSelectItem });
 
   const content = (
     <>
@@ -340,7 +430,7 @@ function FindingItem({ finding, yearName, active, onSelectYear, onSelectDetail }
         )}
         <span className="text-grey-500">
           {scope.kind === 'project' ? '과제 단위' : yearName ?? '(연차 없음)'}
-          {scope.kind === 'detail' && ' · 행'}
+          {SCOPE_ROW_LABEL[scope.kind]}
         </span>
       </span>
       <span className="mt-0.5 block text-grey-700">{body}</span>
@@ -349,19 +439,58 @@ function FindingItem({ finding, yearName, active, onSelectYear, onSelectDetail }
   );
 
   const shell = `block w-full rounded-lg px-3 py-2 text-left text-t7 ${active ? 'bg-blue-50' : ''}`;
-  if (onClick === null) return <li className={shell}>{content}</li>;
+  if (target === null) return <li className={shell}>{content}</li>;
   return (
     <li>
       <button
         type="button"
-        onClick={onClick}
-        title={clickHint}
+        onClick={target.onClick}
+        title={target.hint}
         aria-pressed={active}
         className={`${shell} transition hover:bg-grey-50 ${active ? 'hover:bg-blue-50' : ''}`}
       >
         {content}
       </button>
     </li>
+  );
+}
+
+// ─── ⑤ RL-23 상태 (수행 모드) ───────────────────────────────────
+
+function PreservationLine({ summary, rowMissing }: { summary: RulePreservationSummary; rowMissing: boolean }) {
+  const spec = RULE_SPECS.preserve_subcategory_totals;
+  let badge: { tone: BadgeTone; text: string };
+  let detail: string;
+  switch (summary.kind) {
+    case 'off':
+      badge = { tone: 'neutral', text: '꺼짐' };
+      detail = PRESERVATION_RULE_OFF_TEXT;
+      break;
+    case 'no_base':
+      badge = { tone: 'neutral', text: '켜짐' };
+      detail = '기준 버전 없음 — 비교할 확정 버전이 없어 판정하지 않았습니다';
+      break;
+    case 'checked':
+      badge =
+        summary.warningCount > 0
+          ? { tone: 'amber', text: `경고 ${summary.warningCount}건` }
+          : { tone: 'green', text: '보존됨' };
+      detail =
+        summary.warningCount > 0
+          ? `기준 버전 ${summary.baseVersionName}과 세목 총액이 다른 세목 ${summary.warningCount}건 — 변경 이력 보기에서 확인하세요`
+          : `기준 버전 ${summary.baseVersionName}과 세목 총액이 모두 같습니다`;
+      break;
+  }
+  return (
+    <p className="flex flex-wrap items-center gap-1.5 text-grey-700 print:text-black">
+      <span className="font-semibold text-grey-800 print:text-black">{spec.label}</span>
+      <span className="text-grey-500 print:text-black">{spec.ruleRef}</span>
+      <Badge tone={badge.tone}>{badge.text}</Badge>
+      <span>{detail}</span>
+      {rowMissing && summary.kind !== 'off' && (
+        <span className="text-grey-500 print:text-black">(규칙 행 없음 — 켜진 것으로 판정)</span>
+      )}
+    </p>
   );
 }
 
@@ -374,7 +503,12 @@ export default function RuleFindingsPanel({
   highlightedYearId,
   onSelectYear,
   onSelectDetail,
+  onSelectParticipant,
+  onSelectItem,
   onOpenRules,
+  targetLabel,
+  notices,
+  preservation,
 }: RuleFindingsPanelProps) {
   const yearNames = new Map(columns.map((column) => [column.yearId, column.name]));
   // RL-D1이 (project, code) 유일을 보장한다. 판정기(firstRuleByCode)와 같은 규칙으로 첫 행을 쓴다
@@ -388,6 +522,8 @@ export default function RuleFindingsPanel({
 
   const noRules = rules.length === 0;
   const { findings, skipped } = evaluation;
+  const noticeList = notices ?? [];
+  const hasHeader = targetLabel !== undefined || noticeList.length > 0 || preservation !== undefined;
 
   return (
     <section aria-label="규칙 검증" className="space-y-3">
@@ -397,6 +533,28 @@ export default function RuleFindingsPanel({
           소수 4자리로 적습니다.
         </p>
       </div>
+
+      {/* (수행 모드) 판정 대상·안내·RL-23 상태. 제안 모드는 이 prop들을 주지 않아 그려지지 않는다 */}
+      {hasHeader && (
+        <div className="space-y-1.5 rounded-xl border border-hairline bg-surface px-4 py-3 text-t7">
+          {targetLabel !== undefined && (
+            <p className="text-grey-800 print:text-black">
+              <span className="font-semibold">판정 대상</span>
+              <span className="ml-2">{targetLabel}</span>
+            </p>
+          )}
+          {noticeList.length > 0 && (
+            <ul className="space-y-0.5 text-grey-600 print:text-black">
+              {noticeList.map((notice, index) => (
+                <li key={`${index}|${notice}`}>· {notice}</li>
+              ))}
+            </ul>
+          )}
+          {preservation !== undefined && (
+            <PreservationLine summary={preservation} rowMissing={!rulesByCode.has('preserve_subcategory_totals')} />
+          )}
+        </div>
+      )}
 
       {/* ④ 규칙 행 0건. 비율 표는 그래도 아래에 나온다(규칙 없이도 값은 보여 준다) */}
       {noRules && (
@@ -453,12 +611,14 @@ export default function RuleFindingsPanel({
               return (
                 <FindingItem
                   // 같은 (code, scope) finding이 둘일 수 있다(RL-17 장비 행 여럿) — index로 구분한다
-                  key={`${findingKey(finding.code, yearId)}|${finding.scope.kind === 'detail' ? finding.scope.detailId : ''}|${index}`}
+                  key={`${findingKey(finding.code, yearId)}|${scopeRowId(finding)}|${index}`}
                   finding={finding}
                   yearName={yearId === null ? null : yearNames.get(yearId) ?? null}
                   active={yearId !== null && yearId === highlightedYearId && finding.scope.kind === 'year'}
                   onSelectYear={onSelectYear}
                   onSelectDetail={onSelectDetail}
+                  onSelectParticipant={onSelectParticipant}
+                  onSelectItem={onSelectItem}
                 />
               );
             })}

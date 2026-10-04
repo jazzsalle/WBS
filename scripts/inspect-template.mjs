@@ -760,8 +760,8 @@ const SUMMARY_ROWS = [
   { row: 26, category: null, subcategory: null, axis: null, kind: 'aggregate', aggregate: 'directTotal' },
   { row: 27, category: 'indirect', subcategory: null, axis: null, kind: 'amount' },
   { row: 28, category: null, subcategory: null, axis: null, kind: 'ratio', aggregate: 'indirectRate' },
-  // `(간접비 중 연구실 안전관리비)` — 부록 A.5의 세목이 아니다 (X-10d)
-  { row: 29, category: null, subcategory: null, axis: null, kind: 'aggregate', memo: 'not-a-subcategory' },
+  // `(간접비 중 연구실 안전관리비)` — Phase 26부터 세목 `indirect_lab_safety`의 소계다 (X-10d ①)
+  { row: 29, category: null, subcategory: null, axis: null, kind: 'aggregate', aggregate: 'labSafetyTotal' },
   { row: 30, category: null, subcategory: null, axis: null, kind: 'aggregate', aggregate: 'grandTotal' },
 ];
 

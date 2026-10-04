@@ -7,6 +7,8 @@
 
 import { z } from 'zod';
 
+import { AGREEMENT_ITEM_MAX_LENGTH } from '@/lib/constants';
+
 // date/timestamptz는 PostgREST가 문자열로 준다. 형식 검증까지는 하지 않는다 —
 // 이 스키마의 목적은 스키마 드리프트(컬럼 누락·타입 변경) 감지다.
 const isoTimestamp = z.string(); // timestamptz → ISO 8601
@@ -328,6 +330,7 @@ export const ruleCodeSchema = z.enum([
   'no_burden', 'existing_personnel_cash', 'existing_cash_le_new',
   'min_participation',
   'equipment_review_threshold', 'material_notice_threshold', 'outsourcing_notice_threshold',
+  'lab_safety_min', 'lab_safety_max', 'preserve_subcategory_totals',   // Phase 26 (RL-22·RL-23)
 ]);
 export const ruleSeveritySchema = z.enum(['error', 'warn', 'info']);
 export const indirectBaseSchema = z.enum(['direct_cash_excl_intl_consign_burden', 'direct_cash_excl_intl']);
@@ -436,6 +439,73 @@ export const agreementItemRowSchema = z.object({
   quantity: z.number().nullable(),  // numeric — 소수 허용
   evidence: z.array(agreementEvidenceCheckSchema),
 });
+
+// ─── §5.24 편성 항목 입력 (Phase 26, S-12) ──────────────────────
+// 위의 row 스키마는 드리프트 감지용이고, 이 셋은 액션이 사용자 입력을 거르는 앱 형태(camelCase)다.
+// DB check(agreement_evidence_is_valid)는 모양만 보므로 길이·중복은 여기가 먼저 막는다.
+// 전부 strict — 모르는 키를 잘라내면 evidence를 실은 수정 요청이 조용히 성공한 것처럼 보인다
+
+const itemMax = AGREEMENT_ITEM_MAX_LENGTH;
+
+export const agreementEvidenceInputSchema = z
+  .array(
+    z.strictObject({
+      label: z
+        .string('증빙 이름이 올바르지 않습니다.')
+        .trim()
+        .min(1, '증빙 이름을 입력하세요.')
+        .max(itemMax.label, `증빙 이름은 ${itemMax.label}자 이내여야 합니다.`),
+      obtained: z.boolean('받음 여부가 올바르지 않습니다.'),
+      memo: z
+        .string('증빙 메모가 올바르지 않습니다.')
+        .max(itemMax.memo, `증빙 메모는 ${itemMax.memo}자 이내여야 합니다.`),
+    }),
+    '증빙 목록이 올바르지 않습니다.',
+  )
+  .max(itemMax.evidence, `증빙은 ${itemMax.evidence}개 이하여야 합니다.`)
+  .superRefine((checks, ctx) => {
+    const seen = new Set<string>();
+    checks.forEach((check, index) => {
+      if (seen.has(check.label)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [index, 'label'],
+          message: `증빙 이름 "${check.label}"이(가) 중복됩니다.`,
+        });
+      }
+      seen.add(check.label);
+    });
+  });
+
+const itemFields = {
+  yearId: z.uuid('연차 ID 형식이 올바르지 않습니다.'),
+  kind: agreementItemKindSchema,
+  name: z
+    .string('품명이 올바르지 않습니다.')
+    .trim()
+    .min(1, '품명을 입력하세요.')
+    .max(itemMax.name, `품명은 ${itemMax.name}자 이내여야 합니다.`),
+  // 절대 규칙 4 — 원 단위 정수. 부가세 별도 금액이다(§5.24, RL-17은 판정할 때만 ×1.1)
+  amount: z
+    .int('금액은 원 단위 정수로 입력하세요.')
+    .min(0, '금액은 0 이상이어야 합니다.')
+    .max(Number.MAX_SAFE_INTEGER, '금액이 너무 큽니다.'),
+  // DB가 numeric이라 소수를 허용한다
+  quantity: z.number('수량을 숫자로 입력하세요.').min(0, '수량은 0 이상이어야 합니다.').nullable(),
+};
+
+// evidence 생략 = 그 종류의 기본 목록(AGREEMENT_EVIDENCE_DEFAULTS) 복사 — 채우는 것은 액션의 몫
+export const agreementItemAddInputSchema = z.strictObject({
+  ...itemFields,
+  evidence: agreementEvidenceInputSchema.optional(),
+});
+
+// 생략 = 바꾸지 않음. evidence 키는 거부한다 — 증빙은 확정 버전 예외(S-1)가 있어 전용 경로로만 바꾼다
+export const agreementItemPatchInputSchema = z.strictObject(itemFields).partial();
+
+export type AgreementEvidenceInput = z.infer<typeof agreementEvidenceInputSchema>;
+export type AgreementItemAddInput = z.infer<typeof agreementItemAddInputSchema>;
+export type AgreementItemPatchInput = z.infer<typeof agreementItemPatchInputSchema>;
 
 // §5.25 (Phase 25) — 버전·연차당 0~1행(unique)은 DB가 지킨다. 행 없음 = 미입력
 export const agreementGovSupportRowSchema = z.object({

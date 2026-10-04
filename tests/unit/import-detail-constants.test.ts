@@ -114,6 +114,7 @@ describe('subcategoryLookupTable', () => {
       '인력지원비': 'indirect_hr',
       '연구지원비': 'indirect_support',
       '성과활용지원비': 'indirect_outcome',
+      '연구실안전관리비': 'indirect_lab_safety', // Phase 26 — 부록 A.5 세목 신설
     });
   });
 

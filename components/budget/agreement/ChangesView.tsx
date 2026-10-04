@@ -8,6 +8,8 @@
 //  - 세목 총액 보존은 A가 아니라 **B 대 base(B)**다(S-12). 기준 버전이 없으면 "기준 버전 없음"이고,
 //    이는 경고 0건과 다른 사실이라 다르게 보인다(절대 규칙 5)
 //  - 증감 상태 4종(추가·삭제·변경·불변)은 라벨과 색 두 가지로 구별한다 — 색만으로 가르지 않는다
+//  - (Phase 26) 세목 총액 보존 표시는 `preservationStatus`를 따른다 — 규칙이 꺼져 있으면 숫자 대신
+//    "규칙이 꺼져 있어 판정하지 않음"(S-7). 장비 사전 승인(AG-7 ④, S-20)은 화면 목록만이고 엑셀에는 없다
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Settings, Year } from '@/types';
@@ -24,10 +26,12 @@ import {
   type AgreementChangesData,
   type AgreementVersionView,
 } from '@/actions/agreement';
+import type { EquipmentApprovalWarning } from '@/lib/agreement/equipment-approval';
 import {
   AGREEMENT_NOTICE_TYPE_LABELS,
   AGREEMENT_VERSION_KIND_LABELS,
   AGREEMENT_VERSION_STATUS_LABELS,
+  PRESERVATION_RULE_OFF_TEXT,
 } from '@/lib/constants';
 import { formatAmount } from '@/lib/currency';
 import Badge, { type BadgeTone } from '@/components/ui/Badge';
@@ -253,6 +257,17 @@ function PreservationSummary({
   data: AgreementChangesData;
   baseName: string | null;
 }) {
+  // 꺼짐이 먼저다 — 계산은 해 두지만(Phase 24 모양) 끈 규칙의 경고 수를 보이면 "판정했다"로 읽힌다
+  if (data.preservationStatus.kind === 'off') {
+    return (
+      <p
+        role="note"
+        className="rounded-xl border border-dashed border-grey-300 bg-grey-50 px-3 py-2 text-t7 text-grey-600 print:text-black"
+      >
+        {PRESERVATION_RULE_OFF_TEXT}
+      </p>
+    );
+  }
   const p = data.preservation;
   if (p.status === 'no-base') {
     return (
@@ -283,6 +298,57 @@ function PreservationSummary({
       <p className="mt-0.5 opacity-80">
         연차 간 이동은 괜찮지만 세목별 전 연차 합은 기준 버전과 같아야 합니다. 경고일 뿐 저장·확정은 막지 않습니다.
       </p>
+    </div>
+  );
+}
+
+const EQUIPMENT_REASON_LABELS: Record<EquipmentApprovalWarning['reason'], string> = {
+  new: '새 장비',
+  moved: '다른 종류에서 이관',
+  crossed: '기준 미만 → 이상',
+};
+
+/** AG-7 ④ 장비 사전 승인 — 판정함(0건 포함)과 판정하지 않음(사유)이 서로 다르게 보인다 */
+function EquipmentApprovalSummary({ data }: { data: AgreementChangesData }) {
+  const result = data.equipmentApproval;
+  if (result.status === 'not_judged') {
+    return (
+      <p
+        role="note"
+        className="rounded-xl border border-dashed border-grey-300 bg-grey-50 px-3 py-2 text-t7 text-grey-600 print:text-black"
+      >
+        판정하지 않음 — {result.reason}
+      </p>
+    );
+  }
+  if (result.warnings.length === 0) {
+    return (
+      <p className="rounded-xl border border-green-300 bg-green-50 px-3 py-2 text-t7 text-green-900 print:text-black">
+        없음 — A {data.from.name} → B {data.to.name}에서 새로 사전 승인 대상이 된 장비가 없습니다.
+      </p>
+    );
+  }
+  // 비교 결과와 같은 조회의 연차 — 화면 props의 연차보다 결과에 맞는다
+  const yearName = new Map(data.years.map((y) => [y.id, y.name]));
+  return (
+    <div
+      role="alert"
+      className="space-y-1.5 rounded-xl border border-orange-100 bg-orange-50 px-3 py-2 text-t7 text-orange-800 print:text-black"
+    >
+      <p className="font-semibold">사전 승인 대상 장비 {result.warnings.length}건</p>
+      <ul className="space-y-1">
+        {result.warnings.map((w) => (
+          <li key={w.itemId} className="flex flex-wrap items-start gap-2">
+            <span className="shrink-0 rounded bg-surface px-1 py-0.5 text-[10px] font-semibold print:bg-transparent">
+              {EQUIPMENT_REASON_LABELS[w.reason]}
+            </span>
+            <span>
+              {yearName.get(w.yearId) ?? '(연차 이름 없음)'} · {w.message}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="opacity-80">경고일 뿐 저장·확정은 막지 않습니다. 변경 이력 엑셀에는 들어가지 않습니다.</p>
     </div>
   );
 }
@@ -469,9 +535,15 @@ export default function ChangesView({
 
           <Section title={`세목 총액 보존 — B ${data.to.name} 대 기준 버전`}>
             <PreservationSummary data={data} baseName={baseName} />
-            {data.preservation.status === 'checked' && data.tables.preservation.rows.length > 0 && (
-              <ModelTable model={data.tables.preservation} currencyUnit={currencyUnit} />
-            )}
+            {data.preservationStatus.kind !== 'off' &&
+              data.preservation.status === 'checked' &&
+              data.tables.preservation.rows.length > 0 && (
+                <ModelTable model={data.tables.preservation} currencyUnit={currencyUnit} />
+              )}
+          </Section>
+
+          <Section title={`장비 사전 승인 — A ${data.from.name} → B ${data.to.name}`}>
+            <EquipmentApprovalSummary data={data} />
           </Section>
         </>
       )}

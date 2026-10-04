@@ -493,6 +493,16 @@ function lookupTableOf(category: BudgetCategory): Readonly<Record<string, string
 }
 
 /**
+ * D-5·D-23의 소계·합계 판정. **부록 A.5 간접비 세목 라벨과 같은 품명은 데이터다** (D-2a ②) —
+ * 스킵 패턴 `연구실안전관리비`(총괄표 이중 계상 방지, I-5)가 `나. 연구지원비` 표 안의 품명
+ * "연구실 안전관리비" 행(부록 B.7·B.8)을 소계로 삼키면 그 금액이 통째로 사라진다.
+ */
+function isTotalLabel(text: string, context: MatchContext | undefined): boolean {
+  if (lookupTableOf('indirect')[subcategoryLookupKey(text)] !== undefined) return false;
+  return classifyLabel(text, context).kind === 'skip';
+}
+
+/**
  * 번호 → 세목 코드. 부록 A.5 프리셋 라벨이 번호를 달고 있으므로 거기서 파생한다 —
  * 번호표를 따로 적으면 프리셋과 어긋난다. `⑤`는 국내·국외 **둘**을 가리킨다 (C.2 주의 2).
  */
@@ -690,6 +700,20 @@ function hasContent(
   return false;
 }
 
+/** from부터 첫 내용 있는 행이 컬럼 헤더인가 (D-2a). 빈 줄은 건너뛴다 */
+function opensTable(
+  cells: readonly (readonly RawCell[])[],
+  width: number,
+  from: number,
+  to: number
+): boolean {
+  for (let r = from; r <= to; r += 1) {
+    if (!hasContent(cells, width, r, r)) continue;
+    return isHeaderRow(cells, r, width);
+  }
+  return false;
+}
+
 /** 표의 첫 데이터 행 라벨 — C.2 주의 2의 국내/국외 판정 재료 */
 function firstDataLabel(
   cells: readonly (readonly RawCell[])[],
@@ -763,7 +787,7 @@ function findCategoryTotalRows(
     for (let c = labelColumn + 1; c < width; c += 1) {
       const text = cellText(cellAt(cells, r, c));
       if (text === '') continue;
-      if (classifyLabel(text, context).kind === 'skip') {
+      if (isTotalLabel(text, context)) {
         found.push(r);
         break;
       }
@@ -881,8 +905,11 @@ export function detectBlocks(
       section.kind === 'indirect'
         ? { category: 'indirect', label: section.label, row: section.headerRow }
         : null;
+    // D-2a: 마지막 구조 행 뒤로 컬럼 헤더를 지났는가 = 지금 표 본문 안에 있는가
+    let inTableBody = false;
 
     for (let r = section.startRow; r <= sectionEnd; r += 1) {
+      if (isHeaderRow(cells, r, width)) inTableBody = true;
       const numeric = hasNumericCell(cells, r, width);
       let label = '';
       for (let c = 0; c < width; c += 1) {
@@ -931,6 +958,18 @@ export function detectBlocks(
         section.kind === 'indirect'
       );
       if (header === null) continue;
+      // D-2a: 번호 없이 라벨로만 맞은 행이 표 본문 안에 있으면 품명일 수 있다 — 금액 칸이 빈
+      // "연구실 안전관리비" 행이 새 세목 헤더로 둔갑해 연구지원비 표가 쪼개진다. 바로 아래에 자기
+      // 컬럼 헤더를 거느릴 때만 세목 헤더로 인정한다
+      if (
+        section.kind === 'indirect' &&
+        header.numberToken === null &&
+        inTableBody &&
+        !opensTable(cells, width, r + 1, sectionEnd)
+      ) {
+        continue;
+      }
+      inTableBody = false;
       structural.push({
         row: r,
         category: openCategory.category,
@@ -1431,7 +1470,7 @@ function collectCategoryTotals(
     for (let c = 0; c < width; c += 1) {
       const text = cellText(cellAt(cells, row, c));
       if (text === '' || label !== '') continue;
-      if (classifyLabel(text).kind === 'skip') label = text;
+      if (isTotalLabel(text, undefined)) label = text;
     }
     for (let c = 0; c < width; c += 1) {
       const cell = cellAt(cells, row, c);
@@ -1523,7 +1562,7 @@ export function parseDetailRows(
     const { text: label, column: labelColumn } = rowLabelCell(cells, r, span);
 
     // D-5: 소계·합계는 데이터가 아니다. 값만 챙기고 **계속 읽는다**
-    if (label !== '' && classifyLabel(label, context).kind === 'skip') {
+    if (label !== '' && isTotalLabel(label, context)) {
       // D-23: 표의 라벨 자리를 비워 두고 **금액 열**에 `합계`를 적은 줄은 이 세목의 소계가 아니라
       // 비목 합계 줄이다 (실측 `K246="합계"` 바로 아래가 `C247="자. 연구수당"`). 여기서 담으면
       // 그 세목의 D-18 대조가 엉뚱한 값과 비교된다 — 담는 것은 그 비목의 첫 블록이다.

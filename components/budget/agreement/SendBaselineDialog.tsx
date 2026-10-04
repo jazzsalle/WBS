@@ -7,6 +7,7 @@
 // - 거부 사유(issues)가 있으면 위치 문장을 전부 보이고 비활성 — 금액을 잃는 기준선을 만들지 않는다
 // - 미분리 셀(현금·현물 둘 다 비어 있는 셀)은 계획액 전부를 현금으로 보낸다는 것을 건수·합계와 함께 미리 알린다(Q2)
 // - 버전이 이미 있으면 직전 버전을 복제하지 않는다는 것을 알린다(Q4)
+// - (Phase 26) 장비·재료·외주 산출 행으로 만드는 편성 항목 건수와, 품명이 비어 세목 라벨로 채운 건수를 함께 알린다(AV-6 ③)
 // 결과 문장은 부모가 토스트로 남긴다 — 대화가 닫혀도 사용자가 무엇이 만들어졌는지 볼 수 있어야 한다.
 
 import { useCallback, useEffect, useState } from 'react';
@@ -37,6 +38,13 @@ const INPUT_CLASS =
 const NOT_CLONED_NOTICE = '직전 버전을 복제하지 않고 제안 편성으로 새로 만듭니다';
 
 type Failure = { message: string; code?: ActionErrorCode };
+
+/** 결과 문장의 편성 항목 부분 — 품명 없는 건이 0이면 굳이 적지 않는다 */
+function itemsText(itemSummary: { count: number; unnamedCount: number }): string {
+  return itemSummary.unnamedCount > 0
+    ? `편성 항목 ${itemSummary.count}건(품명 없는 ${itemSummary.unnamedCount}건은 세목 이름으로 채움)`
+    : `편성 항목 ${itemSummary.count}건`;
+}
 
 export interface SendBaselineDialogProps {
   projectId: string;
@@ -124,13 +132,14 @@ export default function SendBaselineDialog({
         setFailure({ message: res.error, code: res.code });
         return;
       }
-      const { lineCount, participantCount, summary } = res.data;
+      // 건수는 RPC가 실제로 만든 수(itemCount) — 미리보기 계산과 다르면 만든 쪽이 사실이다
+      const { lineCount, participantCount, summary, itemSummary, itemCount } = res.data;
       const unsplit =
         summary.unsplit.count > 0
           ? `미분리 셀 ${summary.unsplit.count}건(합계 ${money(summary.unsplit.amount)})은 현금으로 보냈습니다`
           : '미분리 셀 0건';
       onSent(
-        `협약 기준선 '${trimmed}'(${AGREEMENT_VERSION_KIND_LABELS[kind]}, 작성 중)을 만들었습니다 — 금액 줄 ${lineCount}개 · 참여인원 ${participantCount}행 · ${unsplit}. 수행 모드에서 확인하세요.`
+        `협약 기준선 '${trimmed}'(${AGREEMENT_VERSION_KIND_LABELS[kind]}, 작성 중)을 만들었습니다 — 금액 줄 ${lineCount}개 · 참여인원 ${participantCount}행 · ${itemsText({ count: itemCount, unnamedCount: itemSummary.unnamedCount })} · ${unsplit}. 수행 모드에서 확인하세요.`
       );
     } finally {
       setSending(false);
@@ -192,6 +201,15 @@ export default function SendBaselineDialog({
                 <dd className="text-right font-semibold text-grey-900">{preview.summary.lineCount}개</dd>
                 <dt className="text-grey-500">참여인원</dt>
                 <dd className="text-right font-semibold text-grey-900">{preview.summary.participantCount}행</dd>
+                <dt className="text-grey-500">편성 항목</dt>
+                <dd className="text-right font-semibold text-grey-900">
+                  {preview.itemSummary.count}건
+                  {preview.itemSummary.unnamedCount > 0 && (
+                    <span className="block text-xs font-normal text-orange-800">
+                      품명 없는 {preview.itemSummary.unnamedCount}건은 세목 이름으로 채웁니다
+                    </span>
+                  )}
+                </dd>
                 <dt className="text-grey-500">현금 합계</dt>
                 <dd className="text-right font-semibold text-grey-900">{money(preview.summary.cashTotal)}</dd>
                 <dt className="text-grey-500">현물 합계</dt>

@@ -364,7 +364,7 @@ describe('createSampleProject — 기존 액션 경로로 예제 세트를 만�
     expect(details.find((d) => d.category === 'indirect')?.amount).toBe(2_000_000);
 
     const rules = await budgetRulesRepo.listByProject(user.client, sampleId);
-    expect(RULE_PRESETS.moe_energy_sme.rules).toHaveLength(17);
+    expect(RULE_PRESETS.moe_energy_sme.rules).toHaveLength(20);
     expect(rules).toHaveLength(RULE_PRESETS.moe_energy_sme.rules.length);
   });
 

@@ -9,7 +9,7 @@
 //  - 작성 중 버전만 추가·수정·삭제한다. 서버도 확정 버전 편집·삭제를 RULE로 거부한다
 // 인쇄 머리말·가로 방향은 셸(AgreementScreen)의 몫이다. 편집 컨트롤은 종이에 남기지 않는다(P-R4).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ParticipantAmountKind, Settings, Year } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import type { AgreementMemberOption, AgreementVersionView } from '@/actions/agreement';
@@ -69,6 +69,8 @@ export interface ParticipantsViewProps {
   currencyUnit: Settings['currencyUnit'];
   /** 작성 중 버전을 보고 있을 때만 true(AG-5·AV-2) */
   editable: boolean;
+  /** 규칙 패널에서 참여인원 finding(scope `participant`)을 눌렀을 때 그 행 — 스크롤하고 강조한다(§7.9.8). 없으면 null */
+  highlightParticipantId?: string | null;
   /** 저장·삭제 성공, 충돌 후 다시 불러오기 — 셸이 router.refresh 등으로 새 값을 받는다 */
   onChanged: () => void;
 }
@@ -80,6 +82,7 @@ export default function ParticipantsView({
   years,
   currencyUnit,
   editable,
+  highlightParticipantId = null,
   onChanged,
 }: ParticipantsViewProps) {
   const [dialog, setDialog] = useState<DialogState | null>(null);
@@ -87,6 +90,12 @@ export default function ParticipantsView({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
+
+  useEffect(() => {
+    if (highlightParticipantId === null) return;
+    rowRefs.current.get(highlightParticipantId)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [highlightParticipantId]);
 
   useEffect(() => {
     if (notice === null) return;
@@ -181,6 +190,12 @@ export default function ParticipantsView({
           {notice}
         </p>
       )}
+      {/* 판정 뒤 그 행이 지워졌으면(남의 삭제 등) 강조가 아무 데도 안 걸린 채 "이동했다"로 보이지 않게 알린다 */}
+      {highlightParticipantId !== null && !model.rows.some((r) => r.id === highlightParticipantId) && (
+        <p role="status" className="rounded-lg bg-orange-50 px-3 py-2 text-t7 text-orange-800 print:hidden">
+          규칙 검증에서 고른 참여인원 행을 이 목록에서 찾지 못했습니다. 그 사이 삭제되었을 수 있습니다.
+        </p>
+      )}
 
       {model.rows.length === 0 ? (
         <p className="rounded-xl border border-dashed border-grey-300 bg-surface p-6 text-center text-t7 text-grey-500">
@@ -224,7 +239,19 @@ export default function ParticipantsView({
 
             <tbody className="divide-y divide-grey-100">
               {model.rows.map((row) => (
-                <tr key={row.id} data-kind={row.kind}>
+                <tr
+                  key={row.id}
+                  data-kind={row.kind}
+                  ref={(el) => {
+                    if (el) rowRefs.current.set(row.id, el);
+                    else rowRefs.current.delete(row.id);
+                  }}
+                  className={
+                    row.id === highlightParticipantId
+                      ? 'bg-blue-50 ring-2 ring-inset ring-blue-300 print:bg-transparent print:ring-0'
+                      : ''
+                  }
+                >
                   <th
                     scope="row"
                     className={`px-3 py-1.5 text-left font-medium ${

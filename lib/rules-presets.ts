@@ -20,8 +20,9 @@ export type PresetId = 'msit_profit' | 'moe_energy_sme';
  * RL-D5: 출처는 고시명 접두 + 공백 + 조문. 접두가 없는 문자열은 타입 오류다.
  * ㉠ 과학기술정보통신부고시 제2026-38호 「국가연구개발사업 연구개발비 사용 기준」
  * ㉡ 기후에너지환경부고시 제2026-29호 「에너지기술개발사업 공통 운영요령」
+ * 간사 지침 = 전담기관 간사 지침(Phase 26, RL-22·RL-23). 고시 조문이 아니므로 고시명으로 꾸미지 않는다
  */
-export type RuleSource = `과기부고시 ${string}` | `기후부고시 ${string}`;
+export type RuleSource = `과기부고시 ${string}` | `기후부고시 ${string}` | `간사 지침 ${string}`;
 
 export interface PresetRule {
   code: RuleCode;
@@ -59,6 +60,20 @@ export interface PresetRow {
 
 const MSIT = '과기부고시 제2026-38호' as const;
 const MOE = '기후부고시 제2026-29호' as const;
+
+// 간사 지침 행(부록 D.1·D.2 마지막 3행). 두 프리셋이 같은 행을 갖는다 — 부처 고시가 아니라 전담기관 지침이다
+const LAB_SAFETY_AND_PRESERVATION: readonly PresetRule[] = [
+  { code: 'lab_safety_min', enabled: true, value: 1, base: null, severity: 'warn', source: '간사 지침 연구실 안전관리비 (인건비 + 학생인건비의 1% 이상)' },
+  { code: 'lab_safety_max', enabled: true, value: 2, base: null, severity: 'warn', source: '간사 지침 연구실 안전관리비 (인건비 + 학생인건비의 2% 이하)' },
+  {
+    code: 'preserve_subcategory_totals',
+    enabled: true,
+    value: null,
+    base: null,
+    severity: 'warn',
+    source: '간사 지침 세목 총액 보존 (연차 간 이동 시 세목별 총액 유지)',
+  },
+];
 
 // ─── 부록 D.3 안내 목록 ───────────────────────────────────────────────────────
 
@@ -133,6 +148,7 @@ export const RULE_PRESETS: Record<PresetId, RulePreset> = {
         severity: 'warn',
         source: `${MSIT} 제23조④ (ZEUS 공동활용 확인)`,
       },
+      ...LAB_SAFETY_AND_PRESERVATION.map((rule) => ({ ...rule })),
     ],
     advisories: [...ADVISORIES_MSIT],
   },
@@ -204,6 +220,7 @@ export const RULE_PRESETS: Record<PresetId, RulePreset> = {
         source: `${MOE} 제25조②18 · 제29조의2`,
       },
       { code: 'outsourcing_notice_threshold', enabled: true, value: 30_000_000, base: null, severity: 'warn', source: `${MOE} 제28조⑦` },
+      ...LAB_SAFETY_AND_PRESERVATION.map((rule) => ({ ...rule })),
     ],
     advisories: [...ADVISORIES_MSIT, ...ADVISORIES_MOE_EXTRA],
   },

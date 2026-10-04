@@ -14,7 +14,7 @@ import {
 
 type ExpectedRow = [RuleCode, boolean, number | null, IndirectBase | null, RuleSeverity];
 
-/** 부록 D.1 `msit_profit` — 10행 */
+/** 부록 D.1 `msit_profit` — 13행 (마지막 3행은 간사 지침, Phase 26) */
 const D1_MSIT_PROFIT: ExpectedRow[] = [
   ['allowance_max', true, 20, null, 'error'],
   ['indirect_max', true, 10, 'direct_cash_excl_intl_consign_burden', 'error'],
@@ -26,9 +26,12 @@ const D1_MSIT_PROFIT: ExpectedRow[] = [
   ['no_burden', true, null, null, 'warn'],
   ['existing_personnel_cash', true, null, null, 'warn'],
   ['equipment_review_threshold', true, 30_000_000, null, 'warn'],
+  ['lab_safety_min', true, 1, null, 'warn'],
+  ['lab_safety_max', true, 2, null, 'warn'],
+  ['preserve_subcategory_totals', true, null, null, 'warn'],
 ];
 
-/** 부록 D.2 `moe_energy_sme` — 17행 (gov_share_max는 기본 원천기술형 75) */
+/** 부록 D.2 `moe_energy_sme` — 20행 (gov_share_max는 기본 원천기술형 75, 마지막 3행은 간사 지침) */
 const D2_MOE_ENERGY_SME: ExpectedRow[] = [
   ['allowance_max', true, 20, null, 'error'],
   ['allowance_min', true, 10, null, 'info'],
@@ -47,6 +50,9 @@ const D2_MOE_ENERGY_SME: ExpectedRow[] = [
   ['equipment_review_threshold', true, 30_000_000, null, 'warn'],
   ['material_notice_threshold', true, 20_000_000, null, 'warn'],
   ['outsourcing_notice_threshold', true, 30_000_000, null, 'warn'],
+  ['lab_safety_min', true, 1, null, 'warn'],
+  ['lab_safety_max', true, 2, null, 'warn'],
+  ['preserve_subcategory_totals', true, null, null, 'warn'],
 ];
 
 /** RL-D2: 값을 쓰지 않는 코드 */
@@ -57,6 +63,7 @@ const NO_VALUE_CODES: RuleCode[] = [
   'no_burden',
   'existing_personnel_cash',
   'existing_cash_le_new',
+  'preserve_subcategory_totals',
 ];
 
 function toTable(presetId: PresetId): ExpectedRow[] {
@@ -66,14 +73,14 @@ function toTable(presetId: PresetId): ExpectedRow[] {
 // ─── D.1 · D.2 표 1:1 대조 ────────────────────────────────────────────────────
 
 describe('RULE_PRESETS — 부록 D 표와 1:1', () => {
-  it('msit_profit은 D.1 10행과 code·enabled·value·base·severity가 순서까지 같다', () => {
+  it('msit_profit은 D.1 13행과 code·enabled·value·base·severity가 순서까지 같다', () => {
     expect(toTable('msit_profit')).toEqual(D1_MSIT_PROFIT);
-    expect(RULE_PRESETS.msit_profit.rules).toHaveLength(10);
+    expect(RULE_PRESETS.msit_profit.rules).toHaveLength(13);
   });
 
-  it('moe_energy_sme는 D.2 17행과 code·enabled·value·base·severity가 순서까지 같다', () => {
+  it('moe_energy_sme는 D.2 20행과 code·enabled·value·base·severity가 순서까지 같다', () => {
     expect(toTable('moe_energy_sme')).toEqual(D2_MOE_ENERGY_SME);
-    expect(RULE_PRESETS.moe_energy_sme.rules).toHaveLength(17);
+    expect(RULE_PRESETS.moe_energy_sme.rules).toHaveLength(20);
   });
 
   it('msit_profit에는 ㉡ 고유 코드가 없다 (D.1 표 그대로)', () => {
@@ -111,21 +118,21 @@ describe('RULE_PRESETS — 부록 D 표와 1:1', () => {
 // ─── source (RL-D5) ───────────────────────────────────────────────────────────
 
 describe('source — RL-D5 출처 강제', () => {
-  it('모든 행의 source가 비어 있지 않고 과기부고시/기후부고시 접두를 갖는다', () => {
+  it('모든 행의 source가 비어 있지 않고 과기부고시/기후부고시/간사 지침 접두를 갖는다', () => {
     for (const id of PRESET_IDS) {
       for (const rule of RULE_PRESETS[id].rules) {
         expect(rule.source.trim().length, `${id}/${rule.code}`).toBeGreaterThan(0);
-        expect(rule.source, `${id}/${rule.code}`).toMatch(/^(과기부고시|기후부고시) \S/);
+        expect(rule.source, `${id}/${rule.code}`).toMatch(/^(과기부고시|기후부고시|간사 지침) \S/);
       }
     }
   });
 
   it('접두 뒤에 고시 번호와 조문이 붙는다 (제2026-38호 / 제2026-29호)', () => {
     for (const rule of RULE_PRESETS.msit_profit.rules) {
-      expect(rule.source).toMatch(/^과기부고시 제2026-38호 /);
+      expect(rule.source).toMatch(/^(과기부고시 제2026-38호|간사 지침) /);
     }
     for (const rule of RULE_PRESETS.moe_energy_sme.rules) {
-      expect(rule.source).toMatch(/^(과기부고시 제2026-38호|기후부고시 제2026-29호) /);
+      expect(rule.source).toMatch(/^(과기부고시 제2026-38호|기후부고시 제2026-29호|간사 지침) /);
     }
   });
 

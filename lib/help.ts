@@ -88,7 +88,7 @@ export const HELP_RELATED: Partial<Record<HelpSlug, HelpSlug[]>> = {
   milestones: ['calculations'],
   budget: ['agreement', 'budget-rules', 'calculations'],
   agreement: ['budget', 'budget-rules', 'calculations'],
-  'budget-rules': ['budget', 'calculations'],
+  'budget-rules': ['budget', 'agreement', 'calculations'],
   team: ['budget'],
   settings: ['faq'],
 };

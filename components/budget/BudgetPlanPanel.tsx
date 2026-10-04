@@ -475,6 +475,12 @@ export default function BudgetPlanPanel({
 
 // ─── 세목 섹션 (부록 A.5 프리셋 순서로 나열된다) ──────────────────────────────
 
+// 세목 섹션 머리 안내(§7.9.2 Phase 26). 장비 기준(RL-17)은 부가세 포함인데 금액은 부가세 별도로 받는다 —
+// 입력하는 사람이 부가세를 넣어 적으면 판정이 10% 어긋나므로 입력 자리에서 말한다
+const SECTION_NOTICES: Partial<Record<string, string>> = {
+  facility_purchase: '금액은 부가세 별도로 입력합니다 — 장비 기준(부가세 포함 3천만 원, RL-17)은 ×1.1로 비교합니다',
+};
+
 interface SubcategorySectionProps {
   def: SubcategoryDef;
   rows: BudgetDetailRowView[];
@@ -544,6 +550,11 @@ function SubcategorySection({
               ({DETAIL_AXIS_LABELS.cash} {formatAmount(subtotal.cashAmount, currencyUnit)} ·{' '}
               {DETAIL_AXIS_LABELS.in_kind} {formatAmount(subtotal.inKindAmount, currencyUnit)})
             </span>
+          </p>
+        )}
+        {SECTION_NOTICES[def.code] !== undefined && (
+          <p role="note" className="w-full text-xs text-grey-500">
+            {SECTION_NOTICES[def.code]}
           </p>
         )}
       </header>

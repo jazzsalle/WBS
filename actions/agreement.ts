@@ -2,7 +2,7 @@
 
 // 협약 예산(수행 모드) 서버 액션 + 조회 (SOT §5.21~§5.25 AV-1~AV-8, §6.19 AG-1~AG-5·AG-7, §9 Agreement Budget
 // SA-1~SA-4, §8.4 O-1·O-2, 계획서 docs/plans/phase-24-plan.md S-2·S-4·S-5·S-6·S-10·S-12·S-15·S-16,
-// docs/plans/phase-25-plan.md S-4·S-6~S-8·S-12).
+// docs/plans/phase-25-plan.md S-4·S-6~S-8·S-12, docs/plans/phase-26-plan.md S-7~S-9·S-12·S-14·S-15·S-20).
 // 반환은 ActionResult<T> — 예외를 그대로 던지지 않는다. supabase 직접 호출 금지, lib/db/ 리포지토리만 쓴다 (§8.6).
 //
 // 규칙 위반(작성 중 1개·확정 잠금·확정 취소 조건·과제 경계)은 **여기서 먼저** 사람이 읽을 문장으로 거부한다.
@@ -10,7 +10,7 @@
 // 트리거 문구를 보게 두지 않는다.
 //
 // 판정·합계·증감은 전부 lib/agreement/ 순수 함수가 한다. 여기는 읽어서 넘기고, 결과를 실어 보낼 뿐이다 —
-// 파생 값(현재·기준 버전, 합계, RL-23)은 저장하지 않는다(AG-1).
+// 파생 값(현재·기준 버전, 합계, RL-23, 규칙 판정)은 저장하지 않는다(AG-1).
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
@@ -18,10 +18,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   ActionResult,
   AgreementGovSupport,
+  AgreementItem,
   AgreementLine,
   AgreementParticipant,
   AgreementVersion,
   BudgetCategory,
+  BudgetRule,
   DetailAxis,
   Member,
   Settings,
@@ -52,8 +54,17 @@ import {
   budgetCategorySchema,
   detailAxisSchema,
 } from '@/lib/db/schema';
-import { ATTACHMENT4_FORM_ROWS, agreementSubcategoryLabel } from '@/lib/constants';
-import type { RuleInput } from '@/lib/rules';
+import {
+  AGREEMENT_ITEM_KIND_LABELS,
+  AGREEMENT_ITEM_MAX_LENGTH,
+  AGREEMENT_ITEM_SUBCATEGORY,
+  AGREEMENT_VERSION_STATUS_LABELS,
+  PRESERVATION_RULE_OFF_TEXT,
+  ATTACHMENT4_FORM_ROWS,
+  BUDGET_CATEGORY_LABELS,
+  agreementSubcategoryLabel,
+} from '@/lib/constants';
+import type { RuleEvaluation, RuleInput } from '@/lib/rules';
 import { todayISO } from '@/lib/dates';
 import {
   baseVersionIds,
@@ -73,6 +84,7 @@ import {
   buildBaselineFromPlan,
   type BaselineFromPlanResult,
   type BaselineIssue,
+  type BaselineItem,
   type BaselineSummary,
 } from '@/lib/agreement/from-plan';
 import {
@@ -106,9 +118,43 @@ import {
   type ParticipantsViewModel,
 } from '@/lib/agreement/participants';
 import { resolveFormCellEdit } from '@/lib/agreement/form-edit';
+import {
+  evaluateAgreementRules,
+  ruleTargetVersionId,
+  type AgreementRuleNote,
+  type AgreementRuleTotalsSource,
+} from '@/lib/agreement/rule-input';
+import { buildForm82RuleView, type Form82RuleView } from '@/lib/agreement/rule-view';
+import { diffEquipmentApproval, type EquipmentApprovalResult } from '@/lib/agreement/equipment-approval';
+import { buildItemsView, itemsTable, type ItemsViewModel } from '@/lib/agreement/items-view';
 import type { TableModel } from '@/lib/agreement/table';
 
 // ─── 조회 모델 (S-2, §10) ──────────────────────────────────────────────────────
+
+/**
+ * RL-23 세목 총액 보존의 표시 상태(§6.14.8, Phase 26 S-7). 세 상태는 서로 다르다 — 규칙 꺼짐·기준 버전 없음·
+ * 경고 0건(`checked` + 0)을 같은 모양으로 보이면 "보지 않았음"이 "문제 없음"으로 읽힌다(절대 규칙 5).
+ * RuleFindingsPanel의 `RulePreservationSummary`와 같은 모양이다 — 액션이 컴포넌트를 import하지 않으려고 따로 둔다.
+ */
+export type AgreementPreservationStatus =
+  | { kind: 'off' }
+  | { kind: 'no_base' }
+  | { kind: 'checked'; baseVersionName: string; warningCount: number };
+
+/**
+ * §6.14.8 수행 모드 규칙 판정 — 이 버전을 판정 대상으로 낸 결과. 화면은 보고 있는 버전의 것을 고른다
+ * (`ruleTargetVersionId`). 버전이 0개면 고를 결과가 없다 — "판정할 버전 없음"이지 위반 0건이 아니다.
+ */
+export interface AgreementRuleResult {
+  /** 패널 머리 "판정 대상 …" — 버전 이름 · 상태 */
+  targetLabel: string;
+  /** `evaluateRules` 결과 + 어댑터 skipped(뒤에 붙음) */
+  evaluation: RuleEvaluation;
+  /** 세목 미지정 금액·참여인원 학생 구분 없음 메모(S-9 머리 안내) */
+  notes: AgreementRuleNote[];
+  /** RL-8·RL-9 총액 출처 — 표시 문구는 `AGREEMENT_RULE_TOTALS_SOURCE_LABEL` */
+  totalsSource: AgreementRuleTotalsSource;
+}
 
 /** 버전 하나와 그 버전의 파생 값. 화면은 표시만 한다 */
 export interface AgreementVersionView {
@@ -119,8 +165,13 @@ export interface AgreementVersionView {
   categoryTable: TableModel;
   /** AV-5 기준 버전. null = 기준 버전 없음 */
   baseVersionId: string | null;
-  /** RL-23 — 이 버전 대 base(이 버전). `no-base`는 경고 0건과 다른 값이다 */
+  /**
+   * RL-23 — 이 버전 대 base(이 버전). `no-base`는 경고 0건과 다른 값이다. 규칙이 꺼져 있어도 Phase 24 모양을
+   * 지키려고 계산은 해 둔다 — **표시는 `preservationStatus`를 따른다**(꺼짐이면 이 값을 보이지 않는다)
+   */
   preservation: PreservationResult;
+  /** RL-23 표시 상태 — 규칙 행이 있고 꺼짐이면 'off', 아니면 위 `preservation`의 요약(S-7) */
+  preservationStatus: AgreementPreservationStatus;
   /** AV-8 [확정 취소] 가능 여부 */
   canUnconfirm: boolean;
   lineCount: number;
@@ -138,6 +189,15 @@ export interface AgreementVersionView {
   participants: { view: ParticipantsViewModel; table: TableModel; rows: AgreementParticipant[] };
   /** §5.25 연차별 정부지원 현금 원본 행(연차 order 무관 — 리포지토리 정렬). 행 없음 = 미입력 */
   govSupport: AgreementGovSupport[];
+  /** §6.14.8 이 버전을 판정 대상으로 한 규칙 판정 */
+  ruleResult: AgreementRuleResult;
+  /**
+   * AG-6 편성 항목·증빙 보기 모델(경고 배지 = 위 `ruleResult`의 scope `item` finding)·표 모델과 원본 행.
+   * 원본 행은 수정·증빙 편집(O-1 expectedVersion = 행의 `version`)용이다
+   */
+  items: { view: ItemsViewModel; table: TableModel; rows: AgreementItem[] };
+  /** AG-3 8-2 아래 RL-4·RL-3 판정 줄 — 위 `ruleResult.evaluation`에서 옮긴 것(S-15) */
+  form82Rules: Form82RuleView;
 }
 
 /** 참여인원 편집 폼이 고를 인력과 자동 계산(연봉 스냅샷)에 쓰는 값 */
@@ -164,8 +224,13 @@ export interface AgreementData {
   stages: Stage[];
   /** 과제 인력 order 순 */
   members: AgreementMemberOption[];
-  /** 과제 규칙 행(§6.14). 붙임4형 8-1이 RL-8 `gov_share_max`·RL-9 `own_cash_min`만 판정에 쓴다(G-1) */
-  rules: RuleInput[];
+  /**
+   * 과제 규칙 행(§6.14) 원본 — 제안 모드(`getBudgetPlanData`)와 같은 행이다. 규칙 패널·[연구비 규칙] 편집 모달이
+   * 그대로 받는다. 붙임4형 8-1은 RL-8 `gov_share_max`·RL-9 `own_cash_min`만 판정에 쓴다(G-1)
+   */
+  rules: BudgetRule[];
+  /** §6.14.8 고른 버전이 없을 때의 판정 대상(= 현재 버전, AV-3). 버전 0개면 null — "판정할 버전 없음" */
+  ruleTargetVersionId: string | null;
 }
 
 /** 생성 3경로 공통 결과 — 새 버전은 항상 작성 중이다(AV-1) */
@@ -186,10 +251,26 @@ export interface AgreementBaselineGovCash {
   amount: number | null;
 }
 
+/** 보내기 편성 항목 건수(AV-6 ③). `unnamedCount` = 품명이 비어 세목 라벨로 채운 건수 */
+export interface AgreementBaselineItemSummary {
+  count: number;
+  unnamedCount: number;
+}
+
 /** 보내기 결과 — 미분리 셀(현금으로 보낸 계획액) 건수·합계를 결과에 명시한다(Q2) */
 export interface AgreementBaselineCreated extends AgreementVersionCreated {
   summary: BaselineSummary;
+  /** 미리보기와 같은 계산 — 만든 건수는 `itemCount`(RPC 결과) */
+  itemSummary: AgreementBaselineItemSummary;
 }
+
+/**
+ * 보내기 거부 사유. 순수 함수(`buildBaselineFromPlan`)의 사유에 액션 검사 하나를 더한다:
+ * 편성 항목 품명이 200자(§5.24)를 넘는 산출 행 — 조용히 잘라 보내지 않고 위치를 적어 거부한다.
+ */
+export type AgreementBaselineIssue =
+  | BaselineIssue
+  | { code: 'item_name_too_long'; yearId: string; category: BudgetCategory; message: string };
 
 /**
  * [협약 기준선으로 보내기] 확인 대화용 미리보기(S-17) — 실제 보내기와 같은 조회·계산 경로다.
@@ -197,8 +278,8 @@ export interface AgreementBaselineCreated extends AgreementVersionCreated {
  * `hasVersions`면 "직전 버전을 복제하지 않고 제안 편성으로 새로 만듭니다"(Q4)를 함께 적는다.
  */
 export type AgreementBaselinePreview = { draftVersionName: string | null; hasVersions: boolean } & (
-  | { ok: true; summary: BaselineSummary; govCash: AgreementBaselineGovCash[] }
-  | { ok: false; issues: BaselineIssue[] }
+  | { ok: true; summary: BaselineSummary; govCash: AgreementBaselineGovCash[]; itemSummary: AgreementBaselineItemSummary }
+  | { ok: false; issues: AgreementBaselineIssue[] }
 );
 
 export interface AgreementClonedVersion extends AgreementVersionCreated {
@@ -235,8 +316,14 @@ export interface AgreementChangesData {
   participantDiff: ParticipantDiff;
   /** base(B) — 비교 기준 A와 별개(S-12). null = 기준 버전 없음 */
   baseVersionId: string | null;
-  /** RL-23: B 대 base(B) */
+  /**
+   * RL-23: B 대 base(B). 규칙이 꺼져 있어도 계산은 해 둔다(Phase 24 모양) — **표시는 `preservationStatus`를 따른다**
+   */
   preservation: PreservationResult;
+  /** RL-23 표시 상태(S-7). 'off'면 `tables.preservation`도 숫자 없는 "꺼짐" 한 행이다(엑셀과 같은 모양) */
+  preservationStatus: AgreementPreservationStatus;
+  /** AG-7 ④ A → B 장비 사전 승인(S-20). RL-17 행이 없거나 꺼져 있으면 `not_judged` + 사유. 화면 목록만 */
+  equipmentApproval: EquipmentApprovalResult;
   tables: { lines: TableModel; participants: TableModel; preservation: TableModel };
 }
 
@@ -398,11 +485,90 @@ function categoryTableTitle(version: AgreementVersion): string {
   return `${version.name} — 비목별`;
 }
 
+function toRuleInputs(rules: readonly BudgetRule[]): RuleInput[] {
+  return rules.map((r) => ({
+    code: r.code,
+    enabled: r.enabled,
+    value: r.value,
+    base: r.base,
+    severity: r.severity,
+    source: r.source,
+  }));
+}
+
+/** RL-23은 규칙 행이 있고 꺼져 있을 때만 꺼짐이다 — 행이 없으면 켜진 것으로 본다(S-7, Phase 24 동작 유지) */
+function isPreservationOff(rules: readonly RuleInput[]): boolean {
+  // RL-D1이 (project, code) 유일을 보장한다. 혹시 둘이면 판정기처럼 첫 행
+  const rule = rules.find((r) => r.code === 'preserve_subcategory_totals');
+  return rule !== undefined && !rule.enabled;
+}
+
+function summarizePreservation(
+  result: PreservationResult,
+  off: boolean,
+  versions: readonly AgreementVersion[]
+): AgreementPreservationStatus {
+  if (off) return { kind: 'off' };
+  if (result.status === 'no-base') return { kind: 'no_base' };
+  const base = versions.find((v) => v.id === result.baseVersionId);
+  if (!base) throw new Error(`기준 버전(${result.baseVersionId})이 버전 목록에 없습니다.`);
+  return { kind: 'checked', baseVersionName: base.name, warningCount: result.warnings.length };
+}
+
+/**
+ * RL-23이 꺼졌을 때 변경 이력의 세목 총액 보존 표 — 엑셀(actions/agreement-export.ts)과 같은 모양이다:
+ * 열은 판정한 표와 같고(기준 버전 이름 없이) 칸에는 숫자 없이 상태 문구 한 행. 판정하지 않았으니 숫자를 싣지 않는다
+ */
+function preservationOffTable(to: AgreementVersion): TableModel {
+  const shape = buildPreservationTable({ status: 'no-base' }, { target: to, base: null });
+  const text = PRESERVATION_RULE_OFF_TEXT;
+  return {
+    ...shape,
+    title: `세목 총액 보존 — ${to.name} (${text})`,
+    rows: [
+      {
+        kind: 'data',
+        cells: shape.columns.map((column, c) =>
+          c === 0
+            ? { kind: 'text', text }
+            : column.type === 'amount'
+              ? { kind: 'empty' }
+              : { kind: 'text', text: '' }
+        ),
+      },
+    ],
+  };
+}
+
+/**
+ * 편성 항목 품명 길이(§5.24 1~200자). 산출근거 품명에는 길이 제한이 없어 보내기에서 처음 걸린다 —
+ * 잘라 보내면 사용자가 모르는 품명이 생기므로(절대 규칙 5) 위치를 적어 거부한다. 미리보기·보내기 공용
+ */
+function itemNameIssues(items: readonly BaselineItem[], years: readonly Year[]): AgreementBaselineIssue[] {
+  const max = AGREEMENT_ITEM_MAX_LENGTH.name;
+  const yearName = new Map(years.map((y) => [y.id, y.name]));
+  return items
+    .filter((item) => item.name.length > max)
+    .map((item) => {
+      const category = AGREEMENT_ITEM_SUBCATEGORY[item.kind].category;
+      return {
+        code: 'item_name_too_long' as const,
+        yearId: item.yearId,
+        category,
+        message:
+          `${yearName.get(item.yearId) ?? '알 수 없는 연차'} ${BUDGET_CATEGORY_LABELS[category]}: ` +
+          `${AGREEMENT_ITEM_KIND_LABELS[item.kind]} 품명 "${item.name.slice(0, 20)}…"이 ${item.name.length}자입니다 — ` +
+          `편성 항목 품명은 ${max}자 이내여야 합니다. 제안 모드 산출근거에서 품명을 줄인 뒤 보내세요.`,
+      };
+    });
+}
+
 // ─── 조회 ─────────────────────────────────────────────────────────────────────
 
 /**
  * 수행 모드 한 벌(S-2). 버전마다 비목별 매트릭스·표 모델·기준 버전·RL-23과 Phase 25 보기 3종(붙임4형·조정회의형·
- * 참여인원)을 계산해 내린다. 하위 행은 버전 id 묶음으로 한 번씩만 읽는다(버전 수만큼 왕복하지 않는다 — §12).
+ * 참여인원), Phase 26 규칙 판정(§6.14.8 — 각 버전을 판정 대상으로)·편성 항목 보기·8-2 판정 줄을 계산해 내린다.
+ * 판정은 버전마다 미리 해 둔다 — 보고 있는 버전이 바뀔 때마다 서버를 다시 부르지 않게. 하위 행은 버전 id 묶음으로 한 번씩만 읽는다(버전 수만큼 왕복하지 않는다 — §12).
  * 조정회의형 변경전은 제안 데이터를 보내기와 같은 변환(`buildBaselineFromPlan`)으로 한 번만 바꿔 모든 버전이 쓴다.
  * 하나라도 실패하면 실패를 그대로 올린다 — 버전·줄을 빈 배열로 눙치면 "버전 없음" 안내나 0 매트릭스가
  * 사실처럼 보인다(절대 규칙 5).
@@ -424,29 +590,26 @@ export async function getAgreementData(projectId: string): Promise<ActionResult<
       budgetRulesRepo.listByProject(client, pid),
     ]);
     const versionIds = versions.map((v) => v.id);
-    const [lines, participants, govSupport] = await Promise.all([
+    const [lines, participants, govSupport, agreementItems] = await Promise.all([
       agreementsRepo.listLinesByVersionIds(client, versionIds),
       agreementsRepo.listParticipantsByVersionIds(client, versionIds),
       agreementsRepo.listGovSupportByVersionIds(client, versionIds),
+      agreementsRepo.listItemsByVersionIds(client, versionIds),
     ]);
 
     const data = computeOrCorrupt((): AgreementData => {
       const linesByVersion = groupByVersion(versions, lines);
       const participantsByVersion = groupByVersion(versions, participants);
       const govByVersion = groupByVersion(versions, govSupport);
+      const itemsByVersion = groupByVersion(versions, agreementItems);
       const bases = baseVersionIds(versions);
       const current = currentVersionId(versions);
       const sortedYears = sortYears(years);
       const sortedStages = [...stages].sort((a, b) => a.order - b.order);
       const sortedMembers = [...members].sort((a, b) => a.order - b.order);
-      const ruleInputs: RuleInput[] = rules.map((r) => ({
-        code: r.code,
-        enabled: r.enabled,
-        value: r.value,
-        base: r.base,
-        severity: r.severity,
-        source: r.source,
-      }));
+      const ruleInputs = toRuleInputs(rules);
+      const preservationOff = isPreservationOff(ruleInputs);
+      const yearIds = sortedYears.map((y) => y.id);
       // AG-4 변경전 — 버전과 무관하다. 변환 실패(issues)는 보기의 사유로 실린다(0으로 채우지 않는다)
       const planBaseline = buildBaselineFromPlan({ items, details, members, years });
 
@@ -454,8 +617,26 @@ export async function getAgreementData(projectId: string): Promise<ActionResult<
         const own = linesByVersion.get(version.id)!;
         const ownParticipants = participantsByVersion.get(version.id)!;
         const ownGov = govByVersion.get(version.id)!;
+        const ownItems = itemsByVersion.get(version.id)!;
         const categoryView = buildCategoryView(own, years);
         const baseId = bases[version.id] ?? null;
+        const preservation = checkSubcategoryPreservation(
+          own,
+          baseId === null ? null : { versionId: baseId, lines: linesByVersion.get(baseId)! }
+        );
+
+        // §6.14.8 판정 대상 = 이 버전. 판정기는 evaluateRules 하나(D-10) — 어댑터가 입력만 바꾼다.
+        // RL-14·RL-15의 hireType은 과제 인력 원본(Member)에서 읽는다 — 화면용 `members`(AgreementMemberOption)가 아니다
+        const judged = evaluateAgreementRules({
+          lines: own,
+          participants: ownParticipants,
+          items: ownItems,
+          govSupport: ownGov,
+          members,
+          years,
+          rules: ruleInputs,
+        });
+        const itemsView = buildItemsView({ items: ownItems, lines: own, years, findings: judged.evaluation.findings });
 
         const attachment4 = buildAttachment4View({
           lines: own,
@@ -482,10 +663,8 @@ export async function getAgreementData(projectId: string): Promise<ActionResult<
           categoryView,
           categoryTable: categoryViewTable(categoryView, categoryTableTitle(version)),
           baseVersionId: baseId,
-          preservation: checkSubcategoryPreservation(
-            own,
-            baseId === null ? null : { versionId: baseId, lines: linesByVersion.get(baseId)! }
-          ),
+          preservation,
+          preservationStatus: summarizePreservation(preservation, preservationOff, versions),
           canUnconfirm: canUnconfirm(versions, version.id),
           lineCount: own.length,
           attachment4: {
@@ -502,6 +681,18 @@ export async function getAgreementData(projectId: string): Promise<ActionResult<
             rows: ownParticipants,
           },
           govSupport: ownGov,
+          ruleResult: {
+            targetLabel: `${version.name} · ${AGREEMENT_VERSION_STATUS_LABELS[version.status]}`,
+            evaluation: judged.evaluation,
+            notes: judged.notes,
+            totalsSource: judged.totalsSource,
+          },
+          items: {
+            view: itemsView,
+            table: itemsTable(itemsView, `${version.name} 편성 항목`),
+            rows: ownItems,
+          },
+          form82Rules: buildForm82RuleView(judged.evaluation, ruleInputs, yearIds),
         };
       });
 
@@ -516,8 +707,14 @@ export async function getAgreementData(projectId: string): Promise<ActionResult<
         nextVersionMeta: suggestNextVersionMeta(versions),
         currencyUnit: settings.currencyUnit,
         stages: sortedStages,
-        members: sortedMembers.map((m) => ({ id: m.id, name: m.name, order: m.order, annualSalary: m.annualSalary })),
-        rules: ruleInputs,
+        members: sortedMembers.map((m) => ({
+          id: m.id,
+          name: m.name,
+          order: m.order,
+          annualSalary: m.annualSalary,
+        })),
+        rules,
+        ruleTargetVersionId: ruleTargetVersionId(versions, null),
       };
     });
 
@@ -528,8 +725,8 @@ export async function getAgreementData(projectId: string): Promise<ActionResult<
 }
 
 /**
- * AG-7 두 버전 증감 + B의 RL-23(S-12). A·B는 둘 다 이 과제의 버전이어야 한다. 같은 버전끼리면 전부 불변.
- * 세목 총액 보존은 A가 아니라 base(B)와 비교한다.
+ * AG-7 두 버전 증감 + B의 RL-23(S-12) + 장비 사전 승인(AG-7 ④, Phase 26 S-20). A·B는 둘 다 이 과제의 버전이어야
+ * 한다. 같은 버전끼리면 전부 불변. 세목 총액 보존은 A가 아니라 base(B)와 비교한다.
  */
 export async function getAgreementChanges(
   projectId: string,
@@ -542,10 +739,11 @@ export async function getAgreementChanges(
     const toId = parseOrThrow(uuidSchema, toVersionId, '버전 ID 형식이 올바르지 않습니다.');
     const { client } = await requireApprovedUser();
 
-    const [years, versions, members] = await Promise.all([
+    const [years, versions, members, rules] = await Promise.all([
       yearsRepo.listYears(client, pid),
       agreementsRepo.listVersionsByProject(client, pid),
       membersRepo.listMembers(client, pid),
+      budgetRulesRepo.listByProject(client, pid),
     ]);
     const from = versions.find((v) => v.id === fromId);
     const to = versions.find((v) => v.id === toId);
@@ -555,15 +753,19 @@ export async function getAgreementChanges(
 
     const baseId = computeOrCorrupt(() => baseVersionIds(versions)[toId] ?? null);
     const ids = [...new Set([fromId, toId, ...(baseId === null ? [] : [baseId])])];
-    const [lines, participants] = await Promise.all([
+    const [lines, participants, agreementItems] = await Promise.all([
       agreementsRepo.listLinesByVersionIds(client, ids),
       agreementsRepo.listParticipantsByVersionIds(client, [...new Set([fromId, toId])]),
+      agreementsRepo.listItemsByVersionIds(client, [...new Set([fromId, toId])]),
     ]);
 
     const data = computeOrCorrupt((): AgreementChangesData => {
       const linesOf = (id: string) => lines.filter((l) => l.versionId === id);
       const participantsOf = (id: string) => participants.filter((p) => p.versionId === id);
+      const itemsOf = (id: string) => agreementItems.filter((i) => i.versionId === id);
       const base = baseId === null ? null : versions.find((v) => v.id === baseId)!;
+      const ruleInputs = toRuleInputs(rules);
+      const preservationOff = isPreservationOff(ruleInputs);
 
       const lineDiff = diffAgreementLines(linesOf(fromId), linesOf(toId), years);
       const participantDiff = diffAgreementParticipants(participantsOf(fromId), participantsOf(toId), years);
@@ -572,6 +774,11 @@ export async function getAgreementChanges(
         base === null ? null : { versionId: base.id, lines: linesOf(base.id) }
       );
       const memberNames = members.map((m) => ({ id: m.id, name: m.name }));
+      const equipmentApproval = diffEquipmentApproval(
+        itemsOf(fromId),
+        itemsOf(toId),
+        ruleInputs.find((r) => r.code === 'equipment_review_threshold')
+      );
 
       return {
         projectId: pid,
@@ -583,10 +790,14 @@ export async function getAgreementChanges(
         participantDiff,
         baseVersionId: baseId,
         preservation,
+        preservationStatus: summarizePreservation(preservation, preservationOff, versions),
+        equipmentApproval,
         tables: {
           lines: buildLineChangesTable(lineDiff, { years, from, to }),
           participants: buildParticipantChangesTable(participantDiff, { years, members: memberNames, from, to }),
-          preservation: buildPreservationTable(preservation, { target: to, base }),
+          preservation: preservationOff
+            ? preservationOffTable(to)
+            : buildPreservationTable(preservation, { target: to, base }),
         },
       };
     });
@@ -606,7 +817,13 @@ export async function getAgreementChanges(
 async function loadBaseline(
   client: SupabaseClient,
   projectId: string
-): Promise<{ versions: AgreementVersion[]; years: Year[]; baseline: BaselineFromPlanResult }> {
+): Promise<{
+  versions: AgreementVersion[];
+  years: Year[];
+  baseline: BaselineFromPlanResult;
+  /** 순수 함수가 통과시킨 뒤 액션이 더 거부하는 사유(품명 길이). baseline이 ok가 아니면 빈 배열 */
+  extraIssues: AgreementBaselineIssue[];
+}> {
   const [versions, years, items, details, members] = await Promise.all([
     agreementsRepo.listVersionsByProject(client, projectId),
     yearsRepo.listYears(client, projectId),
@@ -615,7 +832,8 @@ async function loadBaseline(
     membersRepo.listMembers(client, projectId),
   ]);
   const baseline = computeOrCorrupt(() => buildBaselineFromPlan({ items, details, members, years }));
-  return { versions, years, baseline };
+  const extraIssues = baseline.ok ? itemNameIssues(baseline.items, years) : [];
+  return { versions, years, baseline, extraIssues };
 }
 
 /** 보내기 확인 대화의 미리보기 — 쓰기 없음. 거부 사유(issues)도 실패가 아니라 값으로 돌려준다 */
@@ -626,23 +844,26 @@ export async function previewAgreementBaseline(
     const pid = parseOrThrow(uuidSchema, projectId, '과제 ID 형식이 올바르지 않습니다.');
     const { client } = await requireApprovedUser();
 
-    const { versions, years, baseline } = await loadBaseline(client, pid);
+    const { versions, years, baseline, extraIssues } = await loadBaseline(client, pid);
     const meta = {
       draftVersionName: versions.find((v) => v.status === 'draft')?.name ?? null,
       hasVersions: versions.length > 0,
     };
-    const data: AgreementBaselinePreview = baseline.ok
-      ? {
-          ...meta,
-          ok: true,
-          summary: baseline.summary,
-          govCash: sortYears(years).map((y) => ({
-            yearId: y.id,
-            yearName: y.name,
-            amount: baseline.govCash[y.id] ?? null,
-          })),
-        }
-      : { ...meta, ok: false, issues: baseline.issues };
+    const data: AgreementBaselinePreview = !baseline.ok
+      ? { ...meta, ok: false, issues: baseline.issues }
+      : extraIssues.length > 0
+        ? { ...meta, ok: false, issues: extraIssues }
+        : {
+            ...meta,
+            ok: true,
+            summary: baseline.summary,
+            govCash: sortYears(years).map((y) => ({
+              yearId: y.id,
+              yearName: y.name,
+              amount: baseline.govCash[y.id] ?? null,
+            })),
+            itemSummary: baseline.itemSummary,
+          };
     return { ok: true, data };
   } catch (e) {
     return toFailure(e);
@@ -653,6 +874,7 @@ export async function previewAgreementBaseline(
  * [협약 기준선으로 보내기](AV-6). 제안 편성(budget_items·budget_details·인력 연봉)을 지금 읽어 기준선을 만들고
  * 단일 트랜잭션 RPC로 작성 중 버전을 만든다. 버전이 이미 있어도 작성 중 버전이 없으면 허용한다(Q4).
  * 금액을 잃을 셀(축 반쪽 불일치·음수 그룹)이 하나라도 있으면 위치를 모두 적어 RULE — 버전을 반쯤 만들지 않는다.
+ * 편성 항목(AV-6 ③)도 같은 트랜잭션에서 만든다 — 음수 산출 행·200자 넘는 품명도 같은 방식으로 RULE.
  */
 export async function createAgreementVersionFromPlan(
   projectId: string,
@@ -663,13 +885,14 @@ export async function createAgreementVersionFromPlan(
     const { kind, name } = parseOrThrow(versionCreateSchema, input, '버전 종류·이름이 올바르지 않습니다.');
     const { client } = await requireApprovedUser();
 
-    const { versions, baseline } = await loadBaseline(client, pid);
+    const { versions, baseline, extraIssues } = await loadBaseline(client, pid);
     assertNoDraft(versions);
-    if (!baseline.ok) {
+    if (!baseline.ok || extraIssues.length > 0) {
+      const issues: AgreementBaselineIssue[] = baseline.ok ? extraIssues : baseline.issues;
       throw new RuleViolationError(
         [
           '협약 기준선으로 보낼 수 없습니다 — 제안 모드에서 아래를 고친 뒤 다시 보내세요.',
-          ...baseline.issues.map((i) => `· ${i.message}`),
+          ...issues.map((i) => `· ${i.message}`),
         ].join('\n')
       );
     }
@@ -683,6 +906,7 @@ export async function createAgreementVersionFromPlan(
       lines,
       participants: baseline.participants,
       govCash,
+      items: baseline.items,
     });
     revalidateAgreement(pid);
     return {
@@ -692,9 +916,10 @@ export async function createAgreementVersionFromPlan(
         order: created.order,
         lineCount: created.lines,
         participantCount: created.participants,
-        itemCount: 0,
+        itemCount: created.items,
         govSupportCount: created.govSupport,
         summary: baseline.summary,
+        itemSummary: baseline.itemSummary,
       },
     };
   } catch (e) {
@@ -722,7 +947,7 @@ export async function createEmptyAgreementVersion(
         order: created.order,
         lineCount: created.lines,
         participantCount: created.participants,
-        itemCount: 0,
+        itemCount: created.items,
         govSupportCount: created.govSupport,
       },
     };

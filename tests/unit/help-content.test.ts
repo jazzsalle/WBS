@@ -228,12 +228,14 @@ describe('협약 예산 도움말 (§7.9.8)', () => {
     expect(calculations).toContain('기준 버전 없음');
   });
 
-  it('Phase 26 기능·폐기된 과제 유형을 있는 것처럼 쓰지 않는다', () => {
+  it('폐기된 규칙(RL-20·RL-21)·과제 유형을 있는 것처럼 쓰지 않는다', () => {
     const agreement = readIfExists(path.join(HELP_DIR, 'agreement.md')) ?? '';
-    for (const word of ['편성 항목', '증빙', 'RL-20', 'RL-21', 'RL-22', '과제 유형']) {
+    const budgetRules = readIfExists(path.join(HELP_DIR, 'budget-rules.md')) ?? '';
+    for (const word of ['RL-20', 'RL-21', '과제 유형']) {
       expect(budget, word).not.toContain(word);
       expect(calculations, word).not.toContain(word);
       expect(agreement, word).not.toContain(word);
+      expect(budgetRules, word).not.toContain(word);
     }
   });
 });
@@ -281,7 +283,35 @@ describe('협약 예산 양식 도움말 (Phase 25)', () => {
   });
 });
 
-// ─── 배포·렌더 경계 (HP-1·HP-2) ─────────────────────────────────────────────
+// ─── 수행 모드 규칙 검증·편성 항목 도움말 (Phase 26, S-10) ───────────────────
+
+describe('수행 모드 규칙 검증·편성 항목 도움말 (Phase 26)', () => {
+  const agreement = readIfExists(path.join(HELP_DIR, 'agreement.md')) ?? '';
+  const budget = readIfExists(path.join(HELP_DIR, 'budget.md')) ?? '';
+  const budgetRules = readIfExists(path.join(HELP_DIR, 'budget-rules.md')) ?? '';
+
+  it('agreement.md에 두 절이 있다 — 화면 HelpLink anchor가 가리킬 제목', () => {
+    const headings = headingTexts(agreement);
+    expect(headings).toContain('수행 모드 규칙 검증');
+    expect(headings).toContain('편성 항목·증빙');
+  });
+
+  it('판정 대상 버전·버전 정부지원 현금·세목 미지정·증빙 잠금 예외를 설명한다', () => {
+    for (const phrase of ['보고 있는 버전', '연차별 정부지원 현금', '세목 미지정', '부가세 별도', '파일 첨부', '체크·메모만']) {
+      expect(agreement, phrase).toContain(phrase);
+    }
+    expect(budget).toContain('편성 항목·증빙');
+  });
+
+  it('budget-rules.md가 연구실 안전관리비 1~2%·장비 ×1.1·세목 총액 보존 꺼짐을 설명한다', () => {
+    for (const phrase of ['연구실 안전관리비', '1% 미만이거나 2% 초과', '× 1.1', 'IRIS/ZEUS', '사전 승인 대상', '규칙이 꺼져 있어 판정하지 않음']) {
+      expect(budgetRules, phrase).toContain(phrase);
+    }
+    expect(budgetRules, '폐기된 "심의" 문구').not.toContain('심의');
+  });
+});
+
+// ─── 배포·렌더 경계 (HP-1·HP-2)─────────────────────────────────────────────
 
 describe('배포·렌더 경계', () => {
   it('next.config.ts outputFileTracingIncludes에 ./content/**가 있다 (HP-1)', () => {

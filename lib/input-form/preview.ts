@@ -17,6 +17,7 @@ import type { BudgetDetailInput, CellTotal, PlanAmounts } from '@/lib/budget-pla
 import { BUDGET_CATEGORY_LABELS, BUDGET_CATEGORY_ORDER, SUBCATEGORY_PRESETS } from '@/lib/constants';
 import type { DetailImportRow } from '@/lib/db/import-snapshots';
 import type { BudgetCategory, BudgetDetail, DetailAxis, DetailFactor, DetailFormula, Member } from '@/types';
+import { subcategoryKeyOf } from './parse';
 import type { ParseIssue, ParsedInputForm, ParsedPersonnelRow, ParsedQuantityRow } from './types';
 
 // ─── 출력 타입 ───────────────────────────────────────────────
@@ -136,6 +137,19 @@ export const PARTICIPATION_LABEL = '참여율(%)';
 export const MONTHS_LABEL = '참여기간(월)';
 
 const UNKNOWN_ISSUE_KINDS: ReadonlySet<string> = new Set(['unknown-member', 'unknown-subcategory']);
+
+/**
+ * IN-4a: Phase 26에 생긴 세목. `INPUT_FORM_VERSION`을 올리지 않았으므로 그 전에 내려받은 양식도 올라온다 —
+ * `_meta.subcategoryCodes`에 이 키가 없으면 옛 양식이고, 그 세목 행이 0행으로 읽힌다.
+ */
+const LAB_SAFETY_CATEGORY: BudgetCategory = 'indirect';
+const LAB_SAFETY_SUBCATEGORY = 'indirect_lab_safety';
+export const LAB_SAFETY_META_KEY = subcategoryKeyOf(LAB_SAFETY_CATEGORY, LAB_SAFETY_SUBCATEGORY);
+
+/** IN-4a 경고 문구. 막지 않는다 — 교체는 IN-5 그대로이고 스냅샷이 남는다 */
+export function labSafetyMissingMessage(rowCount: number): string {
+  return `이 양식에는 연구실 안전관리비 행이 없습니다 — 간접비가 교체 대상이면 기존 ${rowCount}행이 지워집니다`;
+}
 
 // 파서(parse.ts DECIMAL_SCALE)가 소수 인자를 소수 6자리 정수 산술로 읽으므로 되돌릴 때도 같은 자리에서 자른다 —
 // `0.28 * 100`은 부동소수점에서 28.000000000000004라 그대로 저장하면 unchanged 판정과 표시가 어긋난다
@@ -518,6 +532,14 @@ export function buildInputFormPreview(input: InputFormPreviewInput): InputFormPr
   const negatives = count('negative-amount');
   if (negatives > 0) {
     warnings.push({ kind: 'negative-amount', message: `금액이 음수인 행 ${negatives}건 — 저장은 되지만 조정액을 확인하세요` });
+  }
+  if (!parsed.meta.subcategoryCodes.includes(LAB_SAFETY_META_KEY)) {
+    const labSafetyRows = existingDetails.filter(
+      (d) => d.category === LAB_SAFETY_CATEGORY && d.subcategory === LAB_SAFETY_SUBCATEGORY
+    ).length;
+    if (labSafetyRows > 0) {
+      warnings.push({ kind: 'lab-safety-missing', message: labSafetyMissingMessage(labSafetyRows) });
+    }
   }
   const labelReset = count('factor-label-reset');
   if (labelReset > 0) {

@@ -8,6 +8,8 @@ import {
   displayDraftValue,
   formatRuleValue,
   govShareOptions,
+  isAgreementOnlyRule,
+  isGuidelineSource,
   missingRuleCodes,
   parseValueText,
   sortRulesByCode,
@@ -129,5 +131,26 @@ describe('목록 보조', () => {
       { value: 75, label: '원천기술형' },
       { value: 67, label: '혁신제품형' },
     ]);
+  });
+});
+
+describe('Phase 26 새 코드 표시 (§7.9.5, §6.14.8)', () => {
+  it('수행 전용은 preserve_subcategory_totals 하나 — RL-22 두 코드는 두 모드', () => {
+    expect(RULE_CODE_ORDER.filter(isAgreementOnlyRule)).toEqual(['preserve_subcategory_totals']);
+    expect(isAgreementOnlyRule('lab_safety_min')).toBe(false);
+    expect(isAgreementOnlyRule('lab_safety_max')).toBe(false);
+  });
+
+  it('간사 지침 출처를 고시 출처와 구별한다', () => {
+    expect(isGuidelineSource('간사 지침 연구실 안전관리비 (인건비 + 학생인건비의 1% 이상)')).toBe(true);
+    expect(isGuidelineSource('  간사 지침 세목 총액 보존')).toBe(true);
+    expect(isGuidelineSource('과기부고시 제2026-38호 제12조')).toBe(false);
+    expect(isGuidelineSource('공고 2026-XX (간사 지침 참고)')).toBe(false);
+  });
+
+  it('RL-22 값은 %, RL-23은 값을 받지 않는다', () => {
+    expect(parseValueText('1.5', 'percent')).toEqual({ ok: true, value: 1.5 });
+    expect(parseValueText('1', null).ok).toBe(false);
+    expect(parseValueText('', null)).toEqual({ ok: true, value: null });
   });
 });

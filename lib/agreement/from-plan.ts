@@ -8,6 +8,8 @@
 // 그룹은 위치를 적어 거부한다. 현금·현물을 모르는 셀(둘 다 null)만 현금으로 보내고 그 건수를 알린다(Q2).
 
 import {
+  AGREEMENT_EVIDENCE_DEFAULTS,
+  AGREEMENT_ITEM_SUBCATEGORY,
   agreementSubcategoryLabel,
   BUDGET_CATEGORY_LABELS,
   BUDGET_CATEGORY_ORDER,
@@ -16,15 +18,26 @@ import {
 } from '@/lib/constants';
 import { personnelParticipation } from '@/lib/budget-plan';
 import { personnelMonths } from '@/lib/participation';
-import type { BudgetCategory, BudgetDetail, BudgetItem, DetailAxis, Member, Year } from '@/types';
+import type {
+  AgreementEvidenceCheck,
+  AgreementItemKind,
+  BudgetCategory,
+  BudgetDetail,
+  BudgetItem,
+  DetailAxis,
+  Member,
+  Year,
+} from '@/types';
 
 // ─── 입력 ─────────────────────────────────────────────────────────────────────
 
 export type PlanItemInput = Pick<BudgetItem, 'yearId' | 'category' | 'plannedAmount' | 'cashAmount' | 'inKindAmount'>;
+// name(품명)은 Phase 26 편성 항목(AV-6 ③)에만 쓴다. 생략 = 빈 품명과 같다 — 리포지토리가 주는 BudgetDetail에는 항상 있다
 export type PlanDetailInput = Pick<
   BudgetDetail,
   'yearId' | 'category' | 'subcategory' | 'axis' | 'formula' | 'memberId' | 'factors' | 'amount'
->;
+> &
+  Partial<Pick<BudgetDetail, 'name'>>;
 export type PlanMemberInput = Pick<Member, 'id' | 'annualSalary'>;
 // govSupportCash는 Phase 25에 생겼다(§5.5). 생략 = null(미입력)과 같다 — 리포지토리가 주는 Year에는 항상 있다
 export type PlanYearInput = Pick<Year, 'id' | 'name' | 'order'> & Partial<Pick<Year, 'govSupportCash'>>;
@@ -59,6 +72,16 @@ export interface BaselineParticipant {
   role: string;
 }
 
+/** 편성 항목 1건(AV-6 ③, §5.24) — RPC `p_items` 원소. 산출 행 1개 = 1건 */
+export interface BaselineItem {
+  yearId: string;
+  kind: AgreementItemKind;
+  name: string;
+  amount: number;
+  quantity: number | null;
+  evidence: AgreementEvidenceCheck[];
+}
+
 /** 현금·현물을 모른 채 계획액만 있던 셀 — 현금으로 보냈다(Q2) */
 export interface UnsplitCell {
   yearId: string;
@@ -71,6 +94,8 @@ export type BaselineIssueCode =
   | 'split_mismatch'
   /** (연차, 비목, 세목, 축) 합이 음수다 — 0 이상만 줄이 된다 */
   | 'negative_group'
+  /** 편성 항목이 될 산출 행(장비·재료 구입, 외주)의 금액이 음수다(AV-6 ③) */
+  | 'negative_item'
   /** 인건비 산출 행의 금액이 음수다(PL-5) */
   | 'negative_participant'
   /** 인건비 산출 행의 참여율·개월이 협약 참여인원 범위(0~100 / 0~12) 밖이다 */
@@ -105,8 +130,13 @@ export type BaselineFromPlanResult =
       ok: true;
       lines: BaselineLine[];
       participants: BaselineParticipant[];
-      /** 편성 항목은 Phase 26까지 0건이다(AV-6 ③) — 빈 배열이 "만들 것 없음"이라는 값이다 */
-      items: [];
+      /** 편성 항목(AV-6 ③) — 연차 order → 장비·재료·외주 → 입력 순. RPC `p_items`에 그대로 넘긴다 */
+      items: BaselineItem[];
+      /**
+       * 보내기 확인 대화·결과에 적을 편성 항목 건수. 품명이 비어 세목 라벨로 채운 건수를 따로 센다 —
+       * 지어낸 품명이 있다는 것을 사용자가 알아야 한다. `summary`와 나눈 것은 Phase 25 summary 모양을 바꾸지 않기 위해서다
+       */
+      itemSummary: { count: number; unnamedCount: number };
       /**
        * 정부지원 현금 {연차 id: 원}(AV-6 ④, §5.25). 제안 연차 `govSupportCash`가 null인 연차는 키가 없다 —
        * 미입력은 행 없음이고 0은 입력값이다. RPC `p_gov_cash`에 그대로 넘긴다
@@ -119,6 +149,24 @@ export type BaselineFromPlanResult =
 // ─── 계산 ─────────────────────────────────────────────────────────────────────
 
 const AXES: readonly DetailAxis[] = ['cash', 'in_kind'];
+const ITEM_KINDS = Object.keys(AGREEMENT_ITEM_SUBCATEGORY) as AgreementItemKind[];
+
+/** 산출 행 → 편성 항목 종류. 대응 세목(구입·외주)이 아니면 null — 임차·관리비 등은 건이 아니다 */
+function itemKindOf(category: BudgetCategory, subcategory: string): AgreementItemKind | null {
+  return (
+    ITEM_KINDS.find((k) => {
+      const target = AGREEMENT_ITEM_SUBCATEGORY[k];
+      return target.category === category && target.subcategoryCode === subcategory;
+    }) ?? null
+  );
+}
+
+/** 첫 '수량' 인자(비백분율). 없거나 음수·비유한이면 null — 수량을 지어내지 않는다 */
+function itemQuantity(factors: PlanDetailInput['factors']): number | null {
+  const f = factors.find((x) => !x.isPercent && x.label.trim() === '수량');
+  if (f === undefined || !Number.isFinite(f.value) || f.value < 0) return null;
+  return f.value;
+}
 
 function subcategoryRank(category: BudgetCategory, code: string): number {
   const index = SUBCATEGORY_PRESETS[category].findIndex((d) => d.code === code);
@@ -161,6 +209,8 @@ export function buildBaselineFromPlan(input: BaselineFromPlanInput): BaselineFro
   // ① 산출근거가 있는 셀 — 산출 행 amount를 세목·축별로 합산
   const detailCells = new Set<string>();
   const participants: BaselineParticipant[] = [];
+  const items: BaselineItem[] = [];
+  let unnamedItemCount = 0;
   for (const d of input.details) {
     if (!knownYear(d.yearId, d.category)) continue;
     if (!isAmount(d.amount)) {
@@ -173,6 +223,30 @@ export function buildBaselineFromPlan(input: BaselineFromPlanInput): BaselineFro
       continue;
     }
     addToGroup(d.yearId, d.category, d.subcategory, d.axis, d.amount);
+
+    // ③ 편성 항목 — 구입·외주 산출 행 1개 = 1건. 금액은 저장된 산출 행 amount 그대로(PL-D7)
+    const kind = itemKindOf(d.category, d.subcategory);
+    if (kind !== null) {
+      if (d.amount < 0) {
+        const sub = agreementSubcategoryLabel(d.category, d.subcategory) ?? d.subcategory;
+        issue('negative_item', d.yearId, d.category, `${sub} 산출 행 금액이 음수입니다 (${d.amount.toLocaleString('ko-KR')}원).`);
+      } else {
+        let name = (d.name ?? '').trim();
+        if (name === '') {
+          name = agreementSubcategoryLabel(d.category, d.subcategory) ?? d.subcategory;
+          unnamedItemCount += 1;
+        }
+        items.push({
+          yearId: d.yearId,
+          kind,
+          name,
+          amount: d.amount,
+          quantity: itemQuantity(d.factors),
+          // 복사 — 상수가 바뀌어도 저장된 행은 그대로여야 한다(§5.24)
+          evidence: AGREEMENT_EVIDENCE_DEFAULTS[kind].map((label) => ({ label, obtained: false, memo: '' })),
+        });
+      }
+    }
 
     // ② 참여인원 — 인건비 산출 행 1개 = 1행. 금액은 산출 행 금액 그대로(재계산하면 제안 화면과 1원이라도 어긋날 수 있다)
     if (d.formula !== 'personnel') continue;
@@ -212,7 +286,7 @@ export function buildBaselineFromPlan(input: BaselineFromPlanInput): BaselineFro
     });
   }
 
-  // ③ 산출근거가 없는 셀 — 현금·현물 칸을 default 세목으로
+  // ① 계속 — 산출근거가 없는 셀은 현금·현물 칸을 default 세목으로
   const unsplitCells: UnsplitCell[] = [];
   for (const item of input.items) {
     if (detailCells.has(`${item.yearId}|${item.category}`)) continue;
@@ -266,6 +340,10 @@ export function buildBaselineFromPlan(input: BaselineFromPlanInput): BaselineFro
       AXES.indexOf(a.axis) - AXES.indexOf(b.axis)
   );
 
+  items.sort(
+    (a, b) => yearRank.get(a.yearId)! - yearRank.get(b.yearId)! || ITEM_KINDS.indexOf(a.kind) - ITEM_KINDS.indexOf(b.kind)
+  );
+
   let cashTotal = 0;
   let inKindTotal = 0;
   for (const l of lines) {
@@ -287,7 +365,8 @@ export function buildBaselineFromPlan(input: BaselineFromPlanInput): BaselineFro
     ok: true,
     lines,
     participants,
-    items: [],
+    items,
+    itemSummary: { count: items.length, unnamedCount: unnamedItemCount },
     govCash,
     summary: {
       lineCount: lines.length,

@@ -11,6 +11,7 @@
 
 import { aggregateDetails, buildYearTotals, evaluateBudgetRules } from '@/lib/budget-plan';
 import type { BudgetRuleEvaluation, CellTotal } from '@/lib/budget-plan';
+import type { BudgetCategory } from '@/types';
 import { encodeAddr, isSummaryDataTarget } from './layouts';
 import type {
   CellWrite,
@@ -33,6 +34,11 @@ export interface SummarySkip {
   message: string;
   /** 맵이 담고 있는 서식 모순의 이름 (`label-formula-mismatch`) */
   conflict?: string;
+  /**
+   * 내역 행(X-10d ①)에서 비운 연차 이름. 이 행은 값이 있는 연차도 있어 행 전체가 빈 것이 아니다 —
+   * 어느 칸이 비었는지 말하지 않으면 사용자는 값이 찍힌 칸까지 의심한다
+   */
+  years?: string[];
 }
 
 export type SummarySkipReason =
@@ -47,9 +53,9 @@ export type SummarySkipReason =
    */
   | 'ambiguous'
   /**
-   * X-10d: 앱에 대응 데이터가 **없는** 괄호 메모 행. 통합관리비(현금)·연구실 안전관리비는
-   * 부록 A.5의 세목이 아니고 §6.11 I-5·S-10이 임포트에서 이미 건너뛴다 — 임포트가 읽지 않는
-   * 것을 내보내기가 지어낼 수는 없다.
+   * X-10d: 앱에 대응 데이터가 **없는** 괄호 메모 행. 통합관리비(현금)는 부록 A.5의 세목이 아니고
+   * §6.11 I-5·S-10이 임포트에서 이미 건너뛴다 — 임포트가 읽지 않는 것을 내보내기가 지어낼 수는 없다.
+   * 연구실 안전관리비(내역 행, X-10d ①)는 그 세목 산출 행이 없는 연차만 이 이유로 비운다.
    */
   | 'memo';
 
@@ -103,7 +109,24 @@ function aggregateValue(kind: SummaryAggregateKind, rules: BudgetRuleEvaluation)
       return rules.directTotal;
     case 'grandTotal':
       return rules.grandTotal;
+    case 'labSafetyTotal':
+      // 세목 소계는 판정 결과가 아니라 셀에서 온다 — buildSummaryWrites가 BREAKDOWN_SOURCES로 먼저 가른다
+      throw new Error(`'${kind}'는 내역 행이라 판정 결과에서 낼 수 없다 (X-10d ①)`);
   }
+}
+
+/**
+ * X-10d ①: 세목 소계를 그대로 옮기는 내역 행. 상위 비목 줄 안의 금액이라 다른 줄에 다시 더하지 않고,
+ * 그 세목의 산출 행이 **없는** 연차는 0이 아니라 빈 칸이다 — 0은 "편성하지 않았다"는 주장이 된다
+ */
+const BREAKDOWN_SOURCES: Partial<
+  Record<SummaryAggregateKind, { category: BudgetCategory; subcategory: string }>
+> = {
+  labSafetyTotal: { category: 'indirect', subcategory: 'indirect_lab_safety' },
+};
+
+function breakdownValue(cell: CellTotal | undefined, subcategory: string): number {
+  return cell?.subcategories.find((subtotal) => subtotal.subcategory === subcategory)?.plannedAmount ?? 0;
 }
 
 /**
@@ -142,7 +165,7 @@ function skipReasonOf(row: TemplateSummaryRow, duplicates: ReadonlySet<string>):
  * 국제공동연구개발비(24·25행)가 바로 그 자리다 — 서식 모순(X-10b)이 풀릴 때까지 줄은 비지만
  * 금액은 총액에 잡힌다. "빠졌다"는 오해가 곧 잘못된 재작성으로 이어진다.
  */
-function skipMessageOf(row: TemplateSummaryRow, reason: SummarySkipReason): string {
+function skipMessageOf(row: TemplateSummaryRow, reason: SummarySkipReason, years?: readonly string[]): string {
   const where = `총괄표 ${row.row}행('${row.label}')`;
   const countedIn = '앱에 이 비목 금액이 있다면 직접비 계·연구개발비 총액에는 이미 들어 있습니다';
   switch (reason) {
@@ -159,6 +182,13 @@ function skipMessageOf(row: TemplateSummaryRow, reason: SummarySkipReason): stri
         `것이므로, 제출 전에 두 칸을 손으로 나눠 적으십시오.`
       );
     case 'memo':
+      if (years !== undefined) {
+        return (
+          `${where}의 ${years.join('·')} 칸을 비운 채 내보냅니다 — 그 연차에 연구실 안전관리비 세목 ` +
+          `산출 행이 없습니다. 괄호 줄은 간접비 금액의 내역이라 합계는 맞으니 이 칸만 필요하면 손으로 ` +
+          `채우십시오.`
+        );
+      }
       return (
         `${where}을 비운 채 내보냅니다 — 괄호 줄은 상위 비목 금액의 내역이라 그 금액은 위 비목 줄과 ` +
         `총액에 이미 들어 있고, 앱은 그 내역을 따로 갖고 있지 않습니다. 합계는 맞으니 이 칸만 ` +
@@ -215,6 +245,11 @@ export function buildSummaryWrites(plan: ExportPlanData, layout: TemplateLayout)
   const skipped: SummarySkip[] = [];
 
   for (const row of layout.summary.rows) {
+    const breakdown = row.aggregate === undefined ? undefined : BREAKDOWN_SOURCES[row.aggregate];
+    if (breakdown !== undefined && row.memo === undefined && row.conflict === undefined) {
+      writeBreakdownRow(row, breakdown, plan, layout, cells, yearIdByIndex, writes, skipped);
+      continue;
+    }
     const skip = skipReasonOf(row, duplicates);
     if (skip !== null) {
       skipped.push({
@@ -263,6 +298,52 @@ export function buildSummaryWrites(plan: ExportPlanData, layout: TemplateLayout)
   }
 
   return { writes, skipped };
+}
+
+/**
+ * X-10d ①: 내역 행의 연차 칸. 세목 산출 행이 있는 연차는 그 소계를 값으로, 없는 연차는 비우고
+ * 그 연차들을 한 번에 알린다. 다른 행과 같이 연차 칸은 전부 수식을 지운다 (X-10a)
+ */
+function writeBreakdownRow(
+  row: TemplateSummaryRow,
+  breakdown: { category: BudgetCategory; subcategory: string },
+  plan: ExportPlanData,
+  layout: TemplateLayout,
+  cells: ReadonlyMap<string, CellTotal>,
+  yearIdByIndex: ReadonlyMap<number, string>,
+  writes: CellWrite[],
+  skipped: SummarySkip[]
+): void {
+  const blankYears: string[] = [];
+  for (const year of layout.summary.yearColumns) {
+    const yearId = yearIdByIndex.get(year.yearIndex);
+    let raw: number | null = null;
+    if (yearId !== undefined) {
+      const hasRows = plan.details.some(
+        (detail) =>
+          detail.yearId === yearId &&
+          detail.category === breakdown.category &&
+          detail.subcategory === breakdown.subcategory
+      );
+      if (hasRows) raw = breakdownValue(cells.get(`${yearId}|${breakdown.category}`), breakdown.subcategory);
+      else blankYears.push(plan.years.find((candidate) => candidate.id === yearId)?.name ?? `${year.yearIndex}차년도`);
+    }
+    writes.push({
+      sheet: layout.summary.sheet,
+      addr: encodeAddr(year.column, row.row),
+      value: scaleForFormat(raw, row),
+      clearFormula: true,
+    });
+  }
+  if (blankYears.length > 0) {
+    skipped.push({
+      row: row.row,
+      label: row.label,
+      reason: 'memo',
+      message: skipMessageOf(row, 'memo', blankYears),
+      years: blankYears,
+    });
+  }
 }
 
 /** X-7: 백분율 서식 행에는 100으로 나눠 쓴다. 비율 행이 그 자리다 (금액 행에는 해당이 없다) */

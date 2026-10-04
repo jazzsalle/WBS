@@ -15,7 +15,7 @@ import type { BudgetCategory, DetailAxis, DetailFormula, HireType } from '@/type
 const PERSONNEL_CATEGORIES: BudgetCategory[] = ['personnel', 'student_personnel'];
 
 // 부록 A.5 표의 행 수. 표를 늘리면 이 숫자도 함께 고친다
-const PRESET_ROW_COUNT = 33;
+const PRESET_ROW_COUNT = 34;
 
 describe('SUBCATEGORY_PRESETS', () => {
   it('비목 12종을 빠짐없이 덮는다', () => {
@@ -48,7 +48,7 @@ describe('SUBCATEGORY_PRESETS', () => {
       activity: 12,
       promotion: 1,
       allowance: 1,
-      indirect: 3,
+      indirect: 4,
       other: 1,
     };
     for (const category of BUDGET_CATEGORY_ORDER) {

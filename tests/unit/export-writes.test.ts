@@ -765,8 +765,9 @@ describe('X-10d 메모 행 — 앱에 없는 데이터를 지어내지 않는다
   const result = buildSummaryWrites(plan, layout);
   const memoRows = layout.summary.rows.filter((row) => row.memo !== undefined);
 
-  it('통합관리비(16행)·연구실 안전관리비(29행)가 메모 행으로 표시돼 있다', () => {
-    expect(memoRows.map((row) => row.row)).toEqual([16, 29]);
+  it('통합관리비(16행)가 메모 행으로 표시돼 있다 — 연구실 안전관리비(29행)는 세목 소계 집계다 (Phase 26)', () => {
+    expect(memoRows.map((row) => row.row)).toEqual([16]);
+    expect(layout.summary.rows.find((row) => row.row === 29)?.aggregate).toBe('labSafetyTotal');
   });
 
   it('값 쓰기가 없고 clearFormula로 셀을 비운다 — 수식을 두면 다른 연차 값이 찍힌다', () => {

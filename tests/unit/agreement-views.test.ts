@@ -175,11 +175,11 @@ describe('8-2 버전 A (픽스처)', () => {
     expect(cell82(v, 'personnel_internal:in_kind', 'Y1')).toEqual({ kind: 'amount', value: 10_000_000 });
   });
 
-  it('연구실 안전관리비 행은 전 칸 "—"(소스 없음, 0 아님) + 검토사항', () => {
+  it('연구실 안전관리비 행은 내역 행 — 세목 줄이 없으면 전 칸 "—"(empty, 0 아님), 검토사항 없음(Phase 26)', () => {
     const row = v.plan82.rows.find((r) => r.key === 'lab_safety')!;
-    expect(row.kind).toBe('memo');
-    for (const c of row.cells) expect(c.kind).toBe('none');
-    expect(v.reviewNotes.some((n) => n.code === 'lab_safety_no_source')).toBe(true);
+    expect(row.kind).toBe('breakdown');
+    for (const c of row.cells) expect(c).toEqual({ kind: 'empty' });
+    expect(v.reviewNotes.map((n) => n.code as string)).not.toContain('lab_safety_no_source');
   });
 
   it('편집 가능 칸 = 데이터 행만(집계·비율·내역 불가)', () => {

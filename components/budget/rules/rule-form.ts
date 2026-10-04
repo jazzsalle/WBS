@@ -206,6 +206,19 @@ export function sortRulesByCode<T extends { code: RuleCode }>(rules: readonly T[
   return [...rules].sort((a, b) => (index.get(a.code) ?? 0) - (index.get(b.code) ?? 0));
 }
 
+/**
+ * 제안 모드에서 판정하지 않는 코드(RL-23 — 버전이 있어야 판정할 수 있다, §6.14.8).
+ * 규칙 행은 두 모드가 공유하므로 편집기에는 나오되 "수행 전용"으로 표시한다(§7.9.5)
+ */
+export function isAgreementOnlyRule(code: RuleCode): boolean {
+  return !RULE_SPECS[code].modes.includes('plan');
+}
+
+/** 출처가 전담기관 간사 지침인가(§5.18 RuleSource, 부록 D). 고시 조문이 아니라는 것을 배지로 구별한다 */
+export function isGuidelineSource(source: string): boolean {
+  return source.trim().startsWith('간사 지침');
+}
+
 /** 과제에 아직 없는 코드 — [규칙 추가] 셀렉트의 후보. 비면 셀렉트를 비활성한다 */
 export function missingRuleCodes(rules: readonly { code: RuleCode }[]): RuleCode[] {
   const present = new Set(rules.map((r) => r.code));

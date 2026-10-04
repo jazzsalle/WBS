@@ -80,11 +80,11 @@ async function confirm(versionId: string) {
   return agreements.confirmVersion(user.client, versionId, v.version, user.id);
 }
 
-// 편성 항목 쓰기는 Phase 26 몫이라 리포지토리에 없다 — 복제 검증용 행만 세션 클라이언트로 넣는다(RLS 경로)
+// 복제 검증용 편성 항목 — Phase 26부터 리포지토리 경유(§8.6). 쓰기 자체의 검증은 repos-agreement-items.test.ts
 async function insertItem(versionId: string, yearId: string) {
-  const { error } = await user.client.from('agreement_items').insert({
-    version_id: versionId,
-    year_id: yearId,
+  await agreements.insertItem(user.client, {
+    versionId,
+    yearId,
     kind: 'equipment',
     name: '분석 장비',
     amount: 33_000_000,
@@ -94,7 +94,6 @@ async function insertItem(versionId: string, yearId: string) {
       { label: '비교견적서', obtained: false, memo: '' },
     ],
   });
-  if (error) throw new Error(error.message);
 }
 
 async function snapshot(versionId: string) {

@@ -12,7 +12,7 @@
 // 세목 총액 보존(RL-23)은 §7.9.8대로 변경 이력 보기에만 둔다 — 여기서 같은 경고를 또 띄우지 않는다.
 // 인쇄 머리말·가로 방향은 셸(AgreementScreen)의 몫이다. 편집 컨트롤은 종이에 남기지 않고 값만 남긴다(P-R4).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { BudgetCategory, DetailAxis, Settings, Year } from '@/types';
 import type { ActionErrorCode } from '@/lib/db/errors';
 import type { AxisAmounts } from '@/lib/agreement/category-view';
@@ -215,17 +215,37 @@ export interface CategoryViewProps {
   currencyUnit: Settings['currencyUnit'];
   /** 작성 중 버전을 보고 있을 때만 true(AG-2·AV-2). 서버도 확정 버전 편집을 RULE로 거부한다 */
   editable: boolean;
+  /** 규칙 패널에서 연차 finding을 눌렀을 때 그 연차 — 열을 강조하고 그 열로 스크롤한다(§7.9.8). 없으면 null */
+  highlightYearId?: string | null;
   /** 저장 성공·충돌 후 다시 불러오기 — 셸이 router.refresh 등으로 새 값을 받는다 */
   onChanged: () => void;
 }
 
-export default function CategoryView({ projectId, view, currencyUnit, editable, onChanged }: CategoryViewProps) {
+export default function CategoryView({
+  projectId,
+  view,
+  currencyUnit,
+  editable,
+  highlightYearId = null,
+  onChanged,
+}: CategoryViewProps) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
+  const yearHeaderRefs = useRef(new Map<string, HTMLTableCellElement>());
 
   const model = view.categoryView;
   const version = view.version;
+
+  // 연차가 많으면 표가 가로로 넘친다 — 강조한 열이 화면 밖이면 "눌러도 아무 일 없음"으로 보인다
+  useEffect(() => {
+    if (highlightYearId === null) return;
+    yearHeaderRefs.current
+      .get(highlightYearId)
+      ?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  }, [highlightYearId]);
+  const yearTint = (yearId: string): string =>
+    yearId === highlightYearId ? 'bg-blue-50 print:bg-transparent' : '';
 
   async function saveCell(target: CellTarget, amount: number): Promise<boolean> {
     setBusy(true);
@@ -304,7 +324,11 @@ export default function CategoryView({ projectId, view, currencyUnit, editable, 
                     key={y.id}
                     scope="colgroup"
                     colSpan={3}
-                    className={`border-l border-grey-100 px-3 py-2 text-center font-medium text-grey-700 ${PRINT_TH}`}
+                    ref={(el) => {
+                      if (el) yearHeaderRefs.current.set(y.id, el);
+                      else yearHeaderRefs.current.delete(y.id);
+                    }}
+                    className={`border-l border-grey-100 px-3 py-2 text-center font-medium text-grey-700 ${yearTint(y.id)} ${PRINT_TH}`}
                   >
                     {y.name}
                   </th>
@@ -323,7 +347,7 @@ export default function CategoryView({ projectId, view, currencyUnit, editable, 
                     <th
                       key={`${slot}-${axisLabel}`}
                       scope="col"
-                      className={`px-3 py-1.5 text-right font-medium ${i === 0 ? 'border-l border-grey-100' : ''} ${PRINT_TH}`}
+                      className={`px-3 py-1.5 text-right font-medium ${i === 0 ? 'border-l border-grey-100' : ''} ${yearTint(slot)} ${PRINT_TH}`}
                     >
                       {axisLabel}
                     </th>
@@ -353,7 +377,7 @@ export default function CategoryView({ projectId, view, currencyUnit, editable, 
                       const axisCell = (axis: DetailAxis, value: number | null, first: boolean) => (
                         <td
                           key={axis}
-                          className={`px-1.5 py-1 text-right ${first ? 'border-l border-grey-100' : ''} ${PRINT_TD}`}
+                          className={`px-1.5 py-1 text-right ${first ? 'border-l border-grey-100' : ''} ${yearTint(year.id)} ${PRINT_TD}`}
                         >
                           {editable ? (
                             <AmountCell
@@ -371,7 +395,12 @@ export default function CategoryView({ projectId, view, currencyUnit, editable, 
                       return [
                         axisCell('cash', cell.cash, true),
                         axisCell('in_kind', cell.inKind, false),
-                        <td key="total" className={`bg-grey-50 px-1.5 py-1 text-right print:bg-transparent ${PRINT_TD}`}>
+                        <td
+                          key="total"
+                          className={`px-1.5 py-1 text-right print:bg-transparent ${
+                            year.id === highlightYearId ? 'bg-blue-50' : 'bg-grey-50'
+                          } ${PRINT_TD}`}
+                        >
                           <StaticAmount value={cell.total} currencyUnit={currencyUnit} strong />
                         </td>,
                       ];

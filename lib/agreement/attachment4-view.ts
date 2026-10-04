@@ -5,8 +5,9 @@
 // 8-1만 RL-8 `gov_share_max`·RL-9 `own_cash_min` 규칙 행이 켜져 있고 값이 있을 때 판정한다(G-1).
 // 판정 경계는 `lib/rules.ts`와 같다 — `RULE_SPECS`의 종류(ratio_max는 초과, ratio_min은 미만이 위반)를 그대로 쓴다.
 //
-// "—"는 이유가 있다: 줄 없음 · 분모 0 · 정부지원 현금 미입력·초과 · 소스 없음(연구실 안전관리비). 이유는 검토사항에
-// 문장으로 남긴다 — 조용히 0이나 빈칸으로 보이지 않게(절대 규칙 5).
+// "—"는 이유가 있다: 줄 없음 · 분모 0 · 정부지원 현금 미입력·초과. 이유는 검토사항에 문장으로 남긴다 — 조용히
+// 0이나 빈칸으로 보이지 않게(절대 규칙 5). 연구실 안전관리비는 L 안의 내역 행이라(Phase 26) 값을 보이기만 하고
+// K·L·M·양식 분모에는 다시 더하지 않는다.
 
 import {
   AGREEMENT_VIEW_TEXT,
@@ -22,6 +23,7 @@ import {
   buildStageColumns,
   formColumnMetrics,
   type FormColumn,
+  type FormBreakdownRowId,
   type FormColumnMetrics,
   type FormDataRowId,
   type FormRowLine,
@@ -59,7 +61,6 @@ export function formatWon(value: number): string {
 }
 
 const NO_LINES_REASON = '금액 줄 없음';
-const LAB_SAFETY_REASON = '금액 줄에 대응하는 세목이 없습니다(소스 없음)';
 
 // ─── 검토사항 ─────────────────────────────────────────────────────────────────
 
@@ -70,8 +71,6 @@ export type ReviewNoteCode =
   | 'unassigned_student'
   /** 양식에 없는 비목이 0이 아니다(U-2) */
   | 'outside_categories'
-  /** 연구실 안전관리비 행은 소스가 없다(U-3) */
-  | 'lab_safety_no_source'
   /** 8-1 정부지원 현금 미입력 연차 */
   | 'gov_cash_missing'
   /** 8-1 정부지원 현금 > 그 연차 현금 합 */
@@ -93,7 +92,7 @@ export interface Form82Row {
   /** 화면 key. split 행은 `{rowId}:{axis}` */
   key: string;
   rowId: Attachment4RowId;
-  kind: 'data' | 'aggregate' | 'ratio' | 'memo';
+  kind: 'data' | 'aggregate' | 'ratio' | 'breakdown';
   symbol: string | null;
   label: string;
   /** `현금`·`현물`(split 행) 또는 `일반`·`통합관리`(학생 인건비) */
@@ -215,11 +214,16 @@ function buildForm82(formRows: FormRowsResult, columns: FormColumn[]): Form82Mod
       });
       continue;
     }
-    // memo — 연구실 안전관리비. 소스가 없어 0이 아니라 "—"다(U-3)
-    rows.push({
-      ...base, key: def.id, kind: 'memo', subLabel: def.subLabel, axis: null, editable: false,
-      cells: metrics.map(() => ({ kind: 'none', reason: LAB_SAFETY_REASON })),
-    });
+    if (def.kind === 'breakdown') {
+      // 내역 칸은 상위 행(L)을 고쳐 바꾼다 — 따로 고치면 L 합이 어긋난다(AG-3 편집 대상 아님)
+      const id = def.id as FormBreakdownRowId;
+      rows.push({
+        ...base, key: def.id, kind: 'breakdown', subLabel: def.subLabel, axis: null, editable: false,
+        cells: metrics.map((m) => amountOrEmpty(m.breakdowns[id].total)),
+      });
+      continue;
+    }
+    throw new Error(`부록 C.4 8-2 행 '${def.id}'(${def.kind})의 보기 규칙이 없습니다.`);
   }
   return { columns, metrics, rows, showOutsideRow };
 }
@@ -442,11 +446,6 @@ function buildReviewNotes(formRows: FormRowsResult, plan82: Form82Model, plan81:
     }
   }
 
-  notes.push({
-    code: 'lab_safety_no_source', severity: 'info', yearId: null,
-    message: `(간접비 중 연구실 안전관리비) 행은 대응하는 세목이 없어(소스 없음) 전 칸 "${RATE_NONE_TEXT}"로 보입니다 — 0원이라는 뜻이 아닙니다`,
-  });
-
   for (const r of plan81.rows) {
     if (r.kind !== 'year') continue;
     if (r.govCashStatus === 'missing') {
@@ -542,7 +541,7 @@ const AGGREGATE_TERMS: Partial<Record<Attachment4RowId, readonly string[]>> = {
 
 const FORM82_LEAD_COLUMNS = 2;
 
-/** 8-2 → 표 모델. 데이터 칸의 단계·합계 열과 집계 행은 `sum` 칸, 비율·연구실 안전관리비는 글자 칸 */
+/** 8-2 → 표 모델. 데이터·내역 칸의 단계·합계 열과 집계 행은 `sum` 칸, 비율은 글자 칸 */
 export function form82Table(model: Form82Model, title: string): TableModel {
   const columns: TableColumn[] = [
     { label: '항목', type: 'text', key: true, width: 24 },
@@ -566,7 +565,7 @@ export function form82Table(model: Form82Model, title: string): TableModel {
           .filter((key) => rowIndex.has(key))
           .map((key) => ({ row: rowIndex.get(key)!, col: c }));
         cells.push(sumOrAmount(value, terms));
-      } else if (row.kind === 'data' && col.kind !== 'year') {
+      } else if ((row.kind === 'data' || row.kind === 'breakdown') && col.kind !== 'year') {
         const terms = col.yearIds.map((id) => ({ row: rowIndex.get(row.key)!, col: colOfYear.get(id)! }));
         cells.push(sumOrAmount(value, terms));
       } else {

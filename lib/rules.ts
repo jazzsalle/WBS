@@ -1,4 +1,4 @@
-// 연구비 사용 규칙 판정기 (SOT §6.14 RL-1~RL-19, §6.14.6, §6.14.7, 부록 B.9).
+// 연구비 사용 규칙 판정기 (SOT §6.14 RL-1~RL-19·RL-22, §6.14.6~§6.14.8, 부록 B.9).
 // 부수효과 없는 순수 함수다 — DB·네트워크·현재 시각을 쓰지 않는다.
 //
 // **전부 경고다**(RL-1). 이 파일은 저장·반영·내보내기를 막는 값을 만들지 않는다. severity는 색과
@@ -13,13 +13,18 @@
 //
 // 비율은 중간 반올림 없이 원값으로 비교한다(부록 B.9.1 주석 — 69.2308을 69.23으로 자른 뒤 비교하면
 // 경계에서 판정이 뒤집힌다). 표시 반올림은 화면의 몫이다.
-// 단위 테스트: tests/unit/rules.test.ts · 경계: tests/unit/rules-boundary.test.ts
+//
+// 판정기는 제안·수행 공통 하나다(§6.14.8). 수행 모드 입력 어댑터가 붙이는 선택 필드(`subcategoryTotals`·
+// `origin`·`unavailableReason`)가 없으면 Phase 25와 같은 결과를 낸다 — 선택 필드는 분자 출처·scope 종류·
+// skipped 사유만 바꾸고 판정식은 바꾸지 않는다.
+// 단위 테스트: tests/unit/rules.test.ts · tests/unit/rules-common.test.ts · 경계: tests/unit/rules-boundary.test.ts
 
 import {
   DIRECT_CATEGORIES,
   modifiedDirectCost,
   modifiedPersonnel,
   personnelParticipation,
+  totalPersonnelCost,
   type YearCategoryTotals,
 } from './budget-plan';
 import type {
@@ -45,6 +50,8 @@ export const DEFAULT_INDIRECT_BASE: IndirectBase = 'direct_cash_excl_intl_consig
 
 export type RuleKind = 'ratio_max' | 'ratio_min' | 'flag' | 'threshold' | 'personnel';
 export type RuleScopeKind = 'year' | 'project' | 'detail';
+/** 규칙이 적용되는 모드(§5.18). 규칙 행은 제안·수행이 공유하고, 코드마다 어느 모드에서 판정하는지만 다르다 */
+export type RuleMode = 'plan' | 'agreement';
 
 export interface RuleSpec {
   kind: RuleKind;
@@ -58,27 +65,37 @@ export interface RuleSpec {
   approximate: boolean;
   /** §6.14의 규칙 번호 */
   ruleRef: string;
+  /** 적용 모드. preserve_subcategory_totals만 수행 전용이다(RL-23 — 버전이 있어야 판정할 수 있다) */
+  modes: readonly RuleMode[];
 }
+
+const BOTH_MODES: readonly RuleMode[] = ['plan', 'agreement'];
+const AGREEMENT_ONLY: readonly RuleMode[] = ['agreement'];
 
 /** 코드의 의미. 부록 D 프리셋과 화면이 참조한다 */
 export const RULE_SPECS: Record<RuleCode, RuleSpec> = {
-  allowance_max: { kind: 'ratio_max', needsValue: true, valueUnit: 'percent', scope: 'year', label: '연구수당 상한 (÷ 수정인건비)', approximate: false, ruleRef: 'RL-4' },
-  allowance_min: { kind: 'ratio_min', needsValue: true, valueUnit: 'percent', scope: 'year', label: '연구수당 권고 하한 (÷ 수정인건비)', approximate: false, ruleRef: 'RL-5' },
-  indirect_max: { kind: 'ratio_max', needsValue: true, valueUnit: 'percent', scope: 'year', label: '간접비 상한 (÷ 수정직접비)', approximate: false, ruleRef: 'RL-3' },
-  consignment_max: { kind: 'ratio_max', needsValue: true, valueUnit: 'percent', scope: 'year', label: '위탁연구개발비 상한 (÷ 직접비 − 위탁·국제공동·부담비)', approximate: false, ruleRef: 'RL-6' },
-  external_tech_max: { kind: 'ratio_max', needsValue: true, valueUnit: 'percent', scope: 'year', label: '외부 전문기술 활용비 상한 (÷ 직접비)', approximate: true, ruleRef: 'RL-7' },
-  gov_share_max: { kind: 'ratio_max', needsValue: true, valueUnit: 'percent', scope: 'project', label: '정부지원 비율 상한 (÷ 총액 − 국제공동)', approximate: false, ruleRef: 'RL-8' },
-  own_cash_min: { kind: 'ratio_min', needsValue: true, valueUnit: 'percent', scope: 'project', label: '기관부담 현금 비율 하한 (÷ 기관부담연구개발비)', approximate: true, ruleRef: 'RL-9' },
-  indirect_cash_only: { kind: 'flag', needsValue: false, valueUnit: null, scope: 'year', label: '간접비 현물 계상 금지', approximate: false, ruleRef: 'RL-10' },
-  no_personnel_support: { kind: 'flag', needsValue: false, valueUnit: null, scope: 'year', label: '연구지원인력인건비(직접비) 계상 금지', approximate: false, ruleRef: 'RL-11' },
-  no_student_personnel: { kind: 'flag', needsValue: false, valueUnit: null, scope: 'year', label: '학생인건비 계상 금지', approximate: false, ruleRef: 'RL-12' },
-  no_burden: { kind: 'flag', needsValue: false, valueUnit: null, scope: 'year', label: '연구개발부담비 계상 금지', approximate: false, ruleRef: 'RL-13' },
-  existing_personnel_cash: { kind: 'personnel', needsValue: false, valueUnit: null, scope: 'detail', label: '기존인력 인건비 현금 계상', approximate: false, ruleRef: 'RL-14' },
-  existing_cash_le_new: { kind: 'personnel', needsValue: false, valueUnit: null, scope: 'year', label: '기존인력 현금 인건비 ≤ 신규채용 인건비', approximate: false, ruleRef: 'RL-15' },
-  min_participation: { kind: 'personnel', needsValue: true, valueUnit: 'percent', scope: 'detail', label: '참여연구자 최소 참여율', approximate: false, ruleRef: 'RL-16' },
-  equipment_review_threshold: { kind: 'threshold', needsValue: true, valueUnit: 'won', scope: 'detail', label: '장비 도입 심의 대상 금액', approximate: false, ruleRef: 'RL-17' },
-  material_notice_threshold: { kind: 'threshold', needsValue: true, valueUnit: 'won', scope: 'detail', label: '재료 구입 필요성·수량 명시 금액', approximate: false, ruleRef: 'RL-18' },
-  outsourcing_notice_threshold: { kind: 'threshold', needsValue: true, valueUnit: 'won', scope: 'detail', label: '외주 용역 내역·금액 명시 금액', approximate: false, ruleRef: 'RL-19' },
+  allowance_max: { kind: 'ratio_max', needsValue: true, valueUnit: 'percent', scope: 'year', label: '연구수당 상한 (÷ 수정인건비)', approximate: false, ruleRef: 'RL-4', modes: BOTH_MODES },
+  allowance_min: { kind: 'ratio_min', needsValue: true, valueUnit: 'percent', scope: 'year', label: '연구수당 권고 하한 (÷ 수정인건비)', approximate: false, ruleRef: 'RL-5', modes: BOTH_MODES },
+  indirect_max: { kind: 'ratio_max', needsValue: true, valueUnit: 'percent', scope: 'year', label: '간접비 상한 (÷ 수정직접비)', approximate: false, ruleRef: 'RL-3', modes: BOTH_MODES },
+  consignment_max: { kind: 'ratio_max', needsValue: true, valueUnit: 'percent', scope: 'year', label: '위탁연구개발비 상한 (÷ 직접비 − 위탁·국제공동·부담비)', approximate: false, ruleRef: 'RL-6', modes: BOTH_MODES },
+  external_tech_max: { kind: 'ratio_max', needsValue: true, valueUnit: 'percent', scope: 'year', label: '외부 전문기술 활용비 상한 (÷ 직접비)', approximate: true, ruleRef: 'RL-7', modes: BOTH_MODES },
+  gov_share_max: { kind: 'ratio_max', needsValue: true, valueUnit: 'percent', scope: 'project', label: '정부지원 비율 상한 (÷ 총액 − 국제공동)', approximate: false, ruleRef: 'RL-8', modes: BOTH_MODES },
+  own_cash_min: { kind: 'ratio_min', needsValue: true, valueUnit: 'percent', scope: 'project', label: '기관부담 현금 비율 하한 (÷ 기관부담연구개발비)', approximate: true, ruleRef: 'RL-9', modes: BOTH_MODES },
+  indirect_cash_only: { kind: 'flag', needsValue: false, valueUnit: null, scope: 'year', label: '간접비 현물 계상 금지', approximate: false, ruleRef: 'RL-10', modes: BOTH_MODES },
+  no_personnel_support: { kind: 'flag', needsValue: false, valueUnit: null, scope: 'year', label: '연구지원인력인건비(직접비) 계상 금지', approximate: false, ruleRef: 'RL-11', modes: BOTH_MODES },
+  no_student_personnel: { kind: 'flag', needsValue: false, valueUnit: null, scope: 'year', label: '학생인건비 계상 금지', approximate: false, ruleRef: 'RL-12', modes: BOTH_MODES },
+  no_burden: { kind: 'flag', needsValue: false, valueUnit: null, scope: 'year', label: '연구개발부담비 계상 금지', approximate: false, ruleRef: 'RL-13', modes: BOTH_MODES },
+  existing_personnel_cash: { kind: 'personnel', needsValue: false, valueUnit: null, scope: 'detail', label: '기존인력 인건비 현금 계상', approximate: false, ruleRef: 'RL-14', modes: BOTH_MODES },
+  existing_cash_le_new: { kind: 'personnel', needsValue: false, valueUnit: null, scope: 'year', label: '기존인력 현금 인건비 ≤ 신규채용 인건비', approximate: false, ruleRef: 'RL-15', modes: BOTH_MODES },
+  min_participation: { kind: 'personnel', needsValue: true, valueUnit: 'percent', scope: 'detail', label: '참여연구자 최소 참여율', approximate: false, ruleRef: 'RL-16', modes: BOTH_MODES },
+  equipment_review_threshold: { kind: 'threshold', needsValue: true, valueUnit: 'won', scope: 'detail', label: '장비 사전 승인 대상 금액 (부가세 포함 기준)', approximate: false, ruleRef: 'RL-17', modes: BOTH_MODES },
+  material_notice_threshold: { kind: 'threshold', needsValue: true, valueUnit: 'won', scope: 'detail', label: '재료 구입 필요성·수량 명시 금액', approximate: false, ruleRef: 'RL-18', modes: BOTH_MODES },
+  outsourcing_notice_threshold: { kind: 'threshold', needsValue: true, valueUnit: 'won', scope: 'detail', label: '외주 용역 내역·금액 명시 금액', approximate: false, ruleRef: 'RL-19', modes: BOTH_MODES },
+  // Phase 26 (§6.14.8). RL-22는 ratios에 싣지 않는다(RATIO_CODES 7종 유지)
+  lab_safety_min: { kind: 'ratio_min', needsValue: true, valueUnit: 'percent', scope: 'year', label: '연구실 안전관리비 하한 (÷ 인건비 + 학생인건비)', approximate: false, ruleRef: 'RL-22', modes: BOTH_MODES },
+  lab_safety_max: { kind: 'ratio_max', needsValue: true, valueUnit: 'percent', scope: 'year', label: '연구실 안전관리비 상한 (÷ 인건비 + 학생인건비)', approximate: false, ruleRef: 'RL-22', modes: BOTH_MODES },
+  // 값 없는 켜고 끄기 행. evaluateRules는 판정하지 않는다 — lib/agreement/preservation.ts가 판정한다
+  preserve_subcategory_totals: { kind: 'flag', needsValue: false, valueUnit: null, scope: 'project', label: '세목 총액 보존 (연차 간 이동)', approximate: false, ruleRef: 'RL-23', modes: AGREEMENT_ONLY },
 };
 
 /** 비율 규칙 7종 (RL-3~RL-9). 규칙이 없거나 꺼져 있어도 `ratios`에 실린다 */
@@ -101,6 +118,10 @@ const EQUIPMENT_SUBCATEGORY = 'facility_purchase';
 const MATERIAL_SUBCATEGORY = 'material_purchase';
 const OUTSOURCING_SUBCATEGORY = 'activity_outsourcing';
 
+// RL-22 분자 세목(부록 A.5). 다른 간접비 세목에 품명 "연구실 안전관리비"로 적은 금액은 대상이 아니다(자동 이관 없음)
+const LAB_SAFETY_CATEGORY: BudgetCategory = 'indirect';
+const LAB_SAFETY_SUBCATEGORY = 'indirect_lab_safety';
+
 // RL-6 분모 = 직접비 합계(현금+현물) − 이 세 비목
 const CONSIGNMENT_DENOMINATOR_EXCLUDED: readonly BudgetCategory[] = ['consignment', 'international', 'burden'];
 
@@ -122,6 +143,24 @@ export interface RuleRowInput {
   amount: number;
   /** 인건비 행의 인력. hireType이 RL-14·RL-15의 판정 재료다. 없으면 인력 판정은 건너뛰고 skipped에 남긴다 */
   member?: Pick<Member, 'id' | 'hireType'> | null;
+  /**
+   * 수행 모드(§6.14.8 ③④) — 이 행이 어디서 왔는가. 있으면 finding scope가 'participant'·'item'이 된다.
+   * 없으면 산출 행(제안)이고 scope는 'detail'이다
+   */
+  origin?: RuleRowOrigin;
+}
+
+export interface RuleRowOrigin {
+  kind: 'participant' | 'item';
+  /** 참여인원 행 id(§5.23) 또는 편성 항목 id(§5.24) */
+  id: string;
+}
+
+/** 연차 하나의 (비목, 세목) 소계. 현금 + 현물 */
+export interface RuleSubcategoryTotal {
+  category: BudgetCategory;
+  subcategory: string;
+  amount: number;
 }
 
 export interface RuleYearInput {
@@ -129,12 +168,22 @@ export interface RuleYearInput {
   /** lib/budget-plan.ts buildYearTotals() 결과 (비목 합계 + personnelSupportTotal) */
   totals: YearCategoryTotals;
   rows: readonly RuleRowInput[];
+  /**
+   * 수행 모드(§6.14.7) — 금액 줄의 세목 소계. 있으면 RL-7·RL-22 분자를 여기서 읽는다(산출 행이 없다).
+   * 없으면 산출 행에서 더한다(제안). 같은 (비목, 세목)이 여러 번 오면 더한다
+   */
+  subcategoryTotals?: readonly RuleSubcategoryTotal[];
 }
 
 export interface RuleProjectInput {
   govBudget: number | null;
   ownBudget: number | null;
   totalBudget: number | null;
+  /**
+   * 수행 모드(§6.14.8 ⑤) — 총액 3종을 정할 수 없는 사유(정부지원 현금 미입력·초과 연차). 있으면
+   * RL-8·RL-9를 판정하지 않고 이 사유로 skipped에 남긴다 — 0으로 대체하지 않는다
+   */
+  unavailableReason?: string;
 }
 
 export interface RuleEvaluationInput {
@@ -148,7 +197,10 @@ export type RuleFindingScope =
   | { kind: 'project' }
   | { kind: 'year'; yearId: string }
   // category = 그 행의 비목. 화면이 코드에서 비목을 추측하지 않도록 판정기가 싣는다 (§6.14.6)
-  | { kind: 'detail'; yearId: string; detailId: string; category: BudgetCategory };
+  | { kind: 'detail'; yearId: string; detailId: string; category: BudgetCategory }
+  // 수행 모드(Phase 26) — 어댑터가 행에 origin을 붙이면 그 종류로 싣는다. 제안 경로는 'detail' 그대로
+  | { kind: 'participant'; yearId: string; participantId: string; category: BudgetCategory } // 참여인원 행(§5.23) — RL-14·RL-16
+  | { kind: 'item'; yearId: string; itemId: string; category: BudgetCategory };              // 편성 항목 건(§5.24) — RL-17~RL-19
 
 export interface RuleFinding {
   code: RuleCode;
@@ -242,6 +294,40 @@ function isActive(rule: RuleInput | undefined): rule is RuleInput {
   return !RULE_SPECS[rule.code].needsValue || rule.value !== null;
 }
 
+/** 행 단위 finding의 scope. origin이 없으면 산출 행(제안) — Phase 25와 같은 'detail' */
+function rowScope(yearId: string, row: RuleRowInput): RuleFindingScope {
+  const { category } = row.detail;
+  if (row.origin?.kind === 'participant') return { kind: 'participant', yearId, participantId: row.origin.id, category };
+  if (row.origin?.kind === 'item') return { kind: 'item', yearId, itemId: row.origin.id, category };
+  return { kind: 'detail', yearId, detailId: row.detail.id, category };
+}
+
+/**
+ * 연차의 세목 소계(현금+현물). 수행 모드는 어댑터가 넘긴 `subcategoryTotals`에서, 제안은 산출 행에서 더한다.
+ * 두 출처를 섞지 않는다 — 소계가 있으면 행은 건(편성 항목)이라 세목 합계가 아니다(§6.14.5)
+ */
+function subcategorySum(year: RuleYearInput, category: BudgetCategory, subcategories: readonly string[]): number {
+  let sum = 0;
+  if (year.subcategoryTotals) {
+    for (const entry of year.subcategoryTotals) {
+      if (entry.category === category && subcategories.includes(entry.subcategory)) sum += entry.amount;
+    }
+    return sum;
+  }
+  for (const row of year.rows) {
+    if (row.detail.category === category && subcategories.includes(row.detail.subcategory)) sum += row.amount;
+  }
+  return sum;
+}
+
+/**
+ * RL-17·AG-7 공용 (§6.14.5). 기준 `value`는 부가세 포함, `amount`는 부가세 별도 금액이다.
+ * amount × 1.1 ≥ value를 정수로 비교한다 — 부동소수점 곱은 경계(27,272,728)에서 판정이 흔들린다
+ */
+export function meetsEquipmentThreshold(amount: number, value: number): boolean {
+  return amount * 11 >= value * 10;
+}
+
 // ─── 비율 (RL-3~RL-9) ────────────────────────────────────────
 
 interface YearRatioParts {
@@ -270,13 +356,8 @@ function yearRatioParts(code: Exclude<RatioCode, 'gov_share_max' | 'own_cash_min
         zeroReason: '직접비(위탁·국제공동·부담비 제외)가 0',
       };
     case 'external_tech_max': {
-      // RL-7 근사: 세목 소계는 YearCategoryTotals에 없어 산출 행에서 더한다. 행이 없는 연차는 0이다
-      let numerator = 0;
-      for (const row of year.rows) {
-        if (row.detail.category === 'activity' && EXTERNAL_TECH_SUBCATEGORIES.includes(row.detail.subcategory)) {
-          numerator += row.amount;
-        }
-      }
+      // RL-7 근사: 세목 소계는 YearCategoryTotals에 없어 따로 더한다. 행·소계가 없는 연차는 0이다
+      const numerator = subcategorySum(year, 'activity', EXTERNAL_TECH_SUBCATEGORIES);
       return { numerator, denominator: sumPlanned(totals, DIRECT_CATEGORIES), zeroReason: '직접비 합계가 0' };
     }
   }
@@ -376,17 +457,20 @@ export function evaluateRules(rules: readonly RuleInput[], input: RuleEvaluation
     for (const amounts of Object.values(year.totals.byCategory)) inKindAll += amounts.inKindAmount;
   }
   const { govBudget, ownBudget, totalBudget } = input.project;
+  // 수행 모드: 총액을 정할 수 없으면 값이 있어도 판정하지 않는다 — 사유가 null 분기보다 앞선다
+  const unavailableReason = input.project.unavailableReason ?? null;
 
   {
     const code = 'gov_share_max';
     const rule = byCode.get(code);
     const numerator = govBudget ?? 0;
     const denominator = (totalBudget ?? 0) - internationalAll;
-    const actual = govBudget === null || totalBudget === null ? null : ratio(numerator, denominator);
+    const actual = unavailableReason !== null || govBudget === null || totalBudget === null ? null : ratio(numerator, denominator);
     ratios[code] = [{ yearId: null, actual, limit: rule?.value ?? null, enabled: rule?.enabled ?? false, numerator, denominator }];
 
     if (isActive(rule)) {
-      if (govBudget === null) skipped.push({ code, reason: '정부지원연구개발비 미입력', yearId: null });
+      if (unavailableReason !== null) skipped.push({ code, reason: unavailableReason, yearId: null });
+      else if (govBudget === null) skipped.push({ code, reason: '정부지원연구개발비 미입력', yearId: null });
       else if (totalBudget === null) skipped.push({ code, reason: '총 연구개발비 미입력', yearId: null });
       else if (actual === null) skipped.push({ code, reason: '총 연구개발비(국제공동 제외)가 0', yearId: null });
       else if (violates('ratio_max', actual, rule.value!)) {
@@ -404,11 +488,12 @@ export function evaluateRules(rules: readonly RuleInput[], input: RuleEvaluation
     // RL-9 가정: 현물은 전액 기관부담이다 — 기관부담 현금 = ownBudget − 전 연차 현물 합
     const numerator = (ownBudget ?? 0) - inKindAll;
     const denominator = ownBudget ?? 0;
-    const actual = ownBudget === null ? null : ratio(numerator, denominator);
+    const actual = unavailableReason !== null || ownBudget === null ? null : ratio(numerator, denominator);
     ratios[code] = [{ yearId: null, actual, limit: rule?.value ?? null, enabled: rule?.enabled ?? false, numerator, denominator }];
 
     if (isActive(rule)) {
-      if (ownBudget === null) skipped.push({ code, reason: '기관부담연구개발비 미입력', yearId: null });
+      if (unavailableReason !== null) skipped.push({ code, reason: unavailableReason, yearId: null });
+      else if (ownBudget === null) skipped.push({ code, reason: '기관부담연구개발비 미입력', yearId: null });
       else if (ownBudget === 0) skipped.push({ code, reason: '기관부담연구개발비가 0', yearId: null });
       else {
         if (inKindAll > ownBudget) {
@@ -426,6 +511,34 @@ export function evaluateRules(rules: readonly RuleInput[], input: RuleEvaluation
           });
         }
       }
+    }
+  }
+
+  // ── 연구실 안전관리비 (RL-22, §6.14.8) — ratios에는 싣지 않는다(RatioCode 7종 유지) ──
+  for (const year of input.years) {
+    const { yearId } = year;
+    const numerator = subcategorySum(year, LAB_SAFETY_CATEGORY, [LAB_SAFETY_SUBCATEGORY]);
+    // "해당 세목이 있을 때만" — 세목이 없는 과제마다 하한 경고·skipped가 뜨면 소음이다
+    if (numerator <= 0) continue;
+    const denominator = totalPersonnelCost(year.totals);
+    const actual = ratio(numerator, denominator);
+
+    for (const code of ['lab_safety_min', 'lab_safety_max'] as const) {
+      const rule = byCode.get(code);
+      if (!isActive(rule)) continue;
+      if (actual === null) {
+        skipped.push({ code, reason: '인건비 + 학생인건비가 0', yearId });
+        continue;
+      }
+      if (!violates(RULE_SPECS[code].kind, actual, rule.value!)) continue;
+      const shown = fmtPercent(actual);
+      const sentence = code === 'lab_safety_min'
+        ? `연구실 안전관리비가 인건비 + 학생인건비의 ${shown}로 하한 ${rule.value}% 미만입니다`
+        : `연구실 안전관리비가 인건비 + 학생인건비의 ${shown}로 상한 ${rule.value}%를 넘습니다`;
+      findings.push({
+        code, severity: rule.severity, scope: { kind: 'year', yearId }, actual, limit: rule.value,
+        message: withSource(sentence, rule), approximate: RULE_SPECS[code].approximate,
+      });
     }
   }
 
@@ -480,7 +593,7 @@ export function evaluateRules(rules: readonly RuleInput[], input: RuleEvaluation
       if (isExistingCash && isActive(cashRule)) {
         findings.push({
           code: 'existing_personnel_cash', severity: cashRule.severity,
-          scope: { kind: 'detail', yearId, detailId: row.detail.id, category: row.detail.category }, actual: row.amount, limit: null,
+          scope: rowScope(yearId, row), actual: row.amount, limit: null,
           message: withSource(`기존인력 인건비 ${fmtWon(row.amount)}이 현금으로 계상되어 있습니다 — 영리기관 기존인력은 현물이 원칙입니다`, cashRule),
           approximate: false,
         });
@@ -499,19 +612,25 @@ export function evaluateRules(rules: readonly RuleInput[], input: RuleEvaluation
 
     // RL-16: 같은 Member의 행을 합산. 학생인건비 제외
     if (isActive(participationRule)) {
-      const byMember = new Map<string, { firstDetailId: string; firstCategory: BudgetCategory; participation: number }>();
+      const byMember = new Map<string, { firstRow: RuleRowInput; participation: number }>();
+      // 수행 모드: 참여인원 1행이 현금·현물 두 행으로 나뉘어 와도 참여율은 한 번만 센다(§6.14.8 ③)
+      const countedParticipants = new Set<string>();
       for (const row of personnelRows) {
         if (row.member == null || row.detail.category === 'student_personnel') continue;
+        let participation = personnelParticipation(row.detail);
+        if (row.origin?.kind === 'participant') {
+          if (countedParticipants.has(row.origin.id)) participation = 0;
+          else countedParticipants.add(row.origin.id);
+        }
         const entry = byMember.get(row.member.id);
-        const participation = personnelParticipation(row.detail);
         if (entry) entry.participation += participation;
-        else byMember.set(row.member.id, { firstDetailId: row.detail.id, firstCategory: row.detail.category, participation });
+        else byMember.set(row.member.id, { firstRow: row, participation });
       }
       for (const entry of byMember.values()) {
         if (entry.participation >= participationRule.value!) continue;
         findings.push({
           code: 'min_participation', severity: participationRule.severity,
-          scope: { kind: 'detail', yearId, detailId: entry.firstDetailId, category: entry.firstCategory },
+          scope: rowScope(yearId, entry.firstRow),
           actual: entry.participation, limit: participationRule.value,
           message: withSource(`참여율 ${fmtPercent(entry.participation)}가 최소 ${participationRule.value}% 미만입니다`, participationRule),
           approximate: false,
@@ -527,11 +646,16 @@ export function evaluateRules(rules: readonly RuleInput[], input: RuleEvaluation
     const equipmentRule = byCode.get('equipment_review_threshold');
     if (isActive(equipmentRule)) {
       for (const row of year.rows) {
-        if (row.detail.subcategory !== EQUIPMENT_SUBCATEGORY || row.amount < equipmentRule.value!) continue;
+        if (row.detail.subcategory !== EQUIPMENT_SUBCATEGORY || !meetsEquipmentThreshold(row.amount, equipmentRule.value!)) continue;
+        // 부가세 포함 금액은 표시용 — 원 미만 버림. 판정은 위의 정수 비교가 이미 끝냈다
+        const withVat = Math.floor((row.amount * 11) / 10);
         findings.push({
           code: 'equipment_review_threshold', severity: equipmentRule.severity,
-          scope: { kind: 'detail', yearId, detailId: row.detail.id, category: row.detail.category }, actual: row.amount, limit: equipmentRule.value,
-          message: withSource(`장비 ${fmtWon(row.amount)}은 전문기관 도입 심의 대상입니다 (${fmtWon(equipmentRule.value!)} 이상)`, equipmentRule),
+          scope: rowScope(yearId, row), actual: row.amount, limit: equipmentRule.value,
+          message: withSource(
+            `장비 ${fmtWon(row.amount)}(부가세 별도, 부가세 포함 ${fmtWon(withVat)}) — 부가세 포함 ${fmtWon(equipmentRule.value!)} 이상 연구시설·장비: 「연구시설·장비 구입 및 활용계획서」 작성 및 전담기관 사전 승인 대상, IRIS/ZEUS 등록`,
+            equipmentRule,
+          ),
           approximate: false,
         });
       }
@@ -540,19 +664,19 @@ export function evaluateRules(rules: readonly RuleInput[], input: RuleEvaluation
     // RL-18: 고시가 "단일 물품의 연도 합계"라 같은 품명을 연차 안에서 합친다
     const materialRule = byCode.get('material_notice_threshold');
     if (isActive(materialRule)) {
-      const byName = new Map<string, { firstDetailId: string; firstCategory: BudgetCategory; amount: number }>();
+      const byName = new Map<string, { firstRow: RuleRowInput; amount: number }>();
       for (const row of year.rows) {
         if (row.detail.subcategory !== MATERIAL_SUBCATEGORY) continue;
         const name = row.detail.name.trim();
         const entry = byName.get(name);
         if (entry) entry.amount += row.amount;
-        else byName.set(name, { firstDetailId: row.detail.id, firstCategory: row.detail.category, amount: row.amount });
+        else byName.set(name, { firstRow: row, amount: row.amount });
       }
       for (const [name, entry] of byName) {
         if (entry.amount < materialRule.value!) continue;
         findings.push({
           code: 'material_notice_threshold', severity: materialRule.severity,
-          scope: { kind: 'detail', yearId, detailId: entry.firstDetailId, category: entry.firstCategory }, actual: entry.amount, limit: materialRule.value,
+          scope: rowScope(yearId, entry.firstRow), actual: entry.amount, limit: materialRule.value,
           message: withSource(`재료 '${name}' 연도 합계 ${fmtWon(entry.amount)}은 계획서에 구입 필요성·수량을 명시해야 합니다 (${fmtWon(materialRule.value!)} 이상)`, materialRule),
           approximate: false,
         });
@@ -565,7 +689,7 @@ export function evaluateRules(rules: readonly RuleInput[], input: RuleEvaluation
         if (row.detail.subcategory !== OUTSOURCING_SUBCATEGORY || row.amount < outsourcingRule.value!) continue;
         findings.push({
           code: 'outsourcing_notice_threshold', severity: outsourcingRule.severity,
-          scope: { kind: 'detail', yearId, detailId: row.detail.id, category: row.detail.category }, actual: row.amount, limit: outsourcingRule.value,
+          scope: rowScope(yearId, row), actual: row.amount, limit: outsourcingRule.value,
           message: withSource(`외주 용역 ${fmtWon(row.amount)}은 계획서에 용역 내역·금액을 명시해야 합니다 (${fmtWon(outsourcingRule.value!)} 이상)`, outsourcingRule),
           approximate: false,
         });

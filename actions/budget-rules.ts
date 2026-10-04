@@ -122,7 +122,8 @@ async function toFailure(e: unknown, client?: SupabaseClient): Promise<ActionRes
   return toActionFailure(e);
 }
 
-// 규칙은 제안 모드 화면(§7.9 규칙 검증 패널·§7.9.5)에만 나온다 — actions/team.ts의 revalidateBudget와 같은 대상
+// 규칙 행은 제안·수행 두 모드가 공유한다(§7.9.5, Phase 26). 수행 모드는 같은 /budget 페이지의 토글이라
+// 이 경로 하나로 두 모드의 규칙 패널이 함께 다시 읽힌다 — actions/team.ts의 revalidateBudget와 같은 대상
 function revalidateBudget(projectId: string): void {
   revalidatePath(`/projects/${projectId}/budget`);
 }

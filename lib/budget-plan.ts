@@ -371,6 +371,16 @@ export function modifiedPersonnel(yearTotals: YearCategoryTotals): number {
 }
 
 /**
+ * RL-22 분모 = 인건비 + 학생인건비, 현금 + 현물 (§6.14.8). 붙임4 양식 E1과 같은 수다.
+ *
+ * ⚠ PL-11 E1(`modifiedPersonnel`)과 달리 연구지원인력인건비(`personnel_support`)를 **빼지 않는다** —
+ * 간사 지침의 "인건비 + 학생인건비"는 세목을 가리지 않는다(Phase 26 U-2). 둘을 하나로 합치지 마라.
+ */
+export function totalPersonnelCost(yearTotals: YearCategoryTotals): number {
+  return sumPlanned(yearTotals, MODIFIED_PERSONNEL_CATEGORIES);
+}
+
+/**
  * PL-13·RL-3 수정직접비 = 직접비 11비목의 **현금** 합 − base별 제외 비목의 현금.
  * 정의는 여기 한 곳뿐이다 — lib/rules.ts는 이 함수를 그대로 가져다 쓴다.
  *

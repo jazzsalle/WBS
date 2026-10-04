@@ -2284,7 +2284,7 @@
         "axis": null,
         "kind": "aggregate",
         "percentFormat": false,
-        "memo": "not-a-subcategory"
+        "aggregate": "labSafetyTotal"
       },
       {
         "row": 30,

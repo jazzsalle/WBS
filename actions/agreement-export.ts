@@ -1,12 +1,12 @@
 "use server";
 
 // 협약 예산 보기 엑셀 내려받기 (SOT §9 Agreement Budget, §6.19 AG-8, 부록 F, Phase 24 계획서 S-11·S-15,
-// Phase 25 계획서 S-19 — 붙임4형·조정회의형·참여인원)
+// Phase 25 계획서 S-19 — 붙임4형·조정회의형·참여인원, Phase 26 계획서 S-7·S-10 — 편성 항목·증빙, RL-23 꺼짐)
 //
-// 화면의 보기(비목별·붙임4형·조정회의형·참여인원·변경 이력)가 쓰는 것과 **같은 순수 함수**로 표 모델을 만들고, 그 모델을 그대로 시트로 옮긴다
+// 화면의 보기(비목별·붙임4형·조정회의형·참여인원·편성 항목·증빙·변경 이력)가 쓰는 것과 **같은 순수 함수**로 표 모델을 만들고, 그 모델을 그대로 시트로 옮긴다
 // — [복사](TSV)와 엑셀이 같은 모델에서 나와야 "받은 표"와 "붙여 넣은 표"가 칸마다 같다(AG-8).
-//   · 표 계산은 lib/agreement/ (category-view·attachment4-view·adjustment-view·participants·from-plan·diff·
-//     preservation·changes-table·table)
+//   · 표 계산은 lib/agreement/ (category-view·attachment4-view·adjustment-view·participants·items-view·from-plan·
+//     diff·preservation·changes-table·table)
 //   · 워크북 쓰기는 lib/input-form-adapter.ts(server-only) — exceljs를 import하는 파일을 늘리지 않는다(IN-8)
 //   · 여기서는 인증(SA-1)·입력 검증·과제 경계·리포지토리 조회만 한다. **읽기 전용** — 앱 데이터를 바꾸지 않는다
 //
@@ -36,6 +36,7 @@ import {
   AGREEMENT_VERSION_STATUS_LABELS,
   AGREEMENT_VIEW_TEXT,
   BUDGET_CATEGORY_LABELS,
+  PRESERVATION_RULE_OFF_TEXT,
 } from "@/lib/constants";
 import { todayISO } from "@/lib/dates";
 import {
@@ -65,6 +66,11 @@ import {
   buildParticipantsView,
   participantsTable,
 } from "@/lib/agreement/participants";
+import {
+  ITEMS_SHEET_NAME,
+  buildItemsView,
+  itemsTable,
+} from "@/lib/agreement/items-view";
 import { buildBaselineFromPlan } from "@/lib/agreement/from-plan";
 import { RATE_NONE_TEXT } from "@/lib/agreement/rates";
 import { baseVersionId, currentVersionId } from "@/lib/agreement/versions";
@@ -72,6 +78,7 @@ import {
   agreementWorkbookFileName,
   toFormWorkbook,
   type TableGuide,
+  type TableModel,
 } from "@/lib/agreement/table";
 import type { InputFormWorkbook } from "@/lib/input-form/types";
 import { writeInputFormWorkbook } from "@/lib/input-form-adapter";
@@ -96,6 +103,11 @@ const workbookRequestSchema = z.discriminatedUnion("view", [
   }),
   z.strictObject({
     view: z.literal("participants"),
+    versionId: z.uuid("버전 ID 형식이 올바르지 않습니다."),
+  }),
+  // Phase 26 편성 항목·증빙(S-10) — 버전 하나를 본다
+  z.strictObject({
+    view: z.literal("items"),
     versionId: z.uuid("버전 ID 형식이 올바르지 않습니다."),
   }),
   z.strictObject({
@@ -130,6 +142,7 @@ const SHEET_NAMES = {
   plan82: "8-2 사용계획",
   adjustment: "조정회의형",
   participants: "참여인원",
+  items: ITEMS_SHEET_NAME,
 } as const;
 
 /** 파일명 라벨(S-19) — `{버전 이름} 붙임4형` 등. 같은 버전의 보기끼리 파일이 덮이지 않게 */
@@ -137,6 +150,7 @@ const VIEW_FILE_LABELS = {
   attachment4: "붙임4형",
   adjustment: "조정회의형",
   participants: "참여인원",
+  items: "편성 항목",
 } as const;
 
 const MODE_LABEL = "수행 모드(협약 예산)";
@@ -472,6 +486,66 @@ async function participantsWorkbook(
   });
 }
 
+/**
+ * 편성 항목·증빙: 작성안내 + 한 시트(AG-6·§7.9.8). 경고 열은 없다 — 규칙 판정 결과는 화면 규칙 패널의 몫이고
+ * 시트 열은 SOT 그대로다. 그래서 finding은 넘기지 않는다(빈 배열 = 배지 없음, 판정 결과 "0건"이라는 뜻이 아니다)
+ */
+async function itemsWorkbook(ctx: ViewContext): Promise<InputFormWorkbook> {
+  const { client, project, years, version, today } = ctx;
+  const [items, lines] = await Promise.all([
+    agreementsRepo.listItemsByVersionIds(client, [version.id]),
+    agreementsRepo.listLinesByVersionIds(client, [version.id]),
+  ]);
+  return computeOrCorrupt(() => {
+    const view = buildItemsView({ items, lines, years, findings: [] });
+    const model = itemsTable(view, `편성 항목·증빙 — ${version.name}`);
+    const guide: TableGuide = {
+      title: `${project.name} — 협약 예산 편성 항목·증빙`,
+      subtitle: `생성 ${today} · ${version.name} · ${MODE_LABEL}`,
+      entries: [
+        {
+          label: "목적",
+          body:
+            "협약 예산 버전 하나의 편성 항목(장비·재료·외주 건별)과 증빙 확보 여부입니다(편성 항목·증빙 보기와 같은 표). 연차 → 종류 → 품명 순이고, 연차 소계와 합계가 이어집니다." +
+            (view.grandTotal.itemCount === 0
+              ? " 이 버전에는 편성 항목이 없습니다 — 합계 행만 있습니다."
+              : ""),
+        },
+        { label: "데이터 출처", body: describeVersion(version) },
+        {
+          label: "금액",
+          body: "금액은 부가세 별도 금액입니다(장비 사전 승인 기준은 ×1.1로 비교합니다). 편성 항목 금액은 비목별·붙임4형·조정회의형 합계에 더하지 않습니다 — 예산 금액은 협약 금액 줄이 기준입니다.",
+        },
+        {
+          label: "증빙",
+          body: "증빙은 서류를 받았는지 체크하는 점검표입니다 — 파일은 첨부하지 않습니다. '증빙 받음 n/m'은 받은 항목 수/전체 항목 수이고, '증빙 내역'은 항목마다 '라벨: 받음/안 받음 · 메모'를 '; '로 이은 글자입니다.",
+        },
+        {
+          label: "금액 줄 대조",
+          body: "연차·종류별 편성 항목 합과 대응 세목 금액 줄(장비 ↔ 연구시설·장비 구입·설치비, 재료 ↔ 연구재료 구입비, 외주 ↔ 외주용역비)의 대조와 규칙 경고는 이 파일에 넣지 않습니다 — 연구비 화면 수행 모드에서만 보입니다.",
+        },
+        {
+          label: "원칙",
+          body: `금액은 모두 원 단위 정수입니다(설정의 표시 단위와 관계없이 환산하지 않습니다). ${FORMULA_PRINCIPLE} 수량은 글자 칸이고, 빈 칸은 수량을 적지 않았다는 뜻입니다(0과 다릅니다).`,
+        },
+        {
+          label: "주의",
+          body: [...draftCaution([version]), READ_ONLY_CAUTION].join(" "),
+        },
+      ],
+    };
+    return toFormWorkbook({
+      guide,
+      tables: [{ sheetName: SHEET_NAMES.items, model }],
+      fileName: agreementWorkbookFileName(
+        project.name,
+        `${version.name} ${VIEW_FILE_LABELS.items}`,
+        today,
+      ),
+    });
+  });
+}
+
 // ─── §9 buildAgreementWorkbook ────────────────────────────────────────────────
 
 /**
@@ -479,8 +553,9 @@ async function participantsWorkbook(
  * - 비목별: `비목별` 시트(AG-2 매트릭스)
  * - 붙임4형: `8-1 지원·부담계획`·`8-2 사용계획` 시트(AG-3) · 조정회의형: `조정회의형` 시트(AG-4 — 변경전 = 제안)
  *   · 참여인원: `참여인원` 시트(AG-5). 파일명 라벨 `{버전 이름} 붙임4형` 등(S-19)
+ * - 편성 항목·증빙: `편성 항목·증빙` 시트(AG-6, Phase 26 S-10). 파일명 라벨 `{버전 이름} 편성 항목`
  * - 변경 이력: `금액 증감`·`참여인원 증감`·`세목 총액 보존` 시트(AG-7). 세목 총액 보존은 이후 버전 B와
- *   base(B)의 비교다 — 비교 기준 A와 별개(S-12)
+ *   base(B)의 비교다 — 비교 기준 A와 별개(S-12). RL-23 규칙 행이 꺼져 있으면 판정하지 않고 그 사실만 적는다(S-7)
  * 파일 저장은 호출자(셸)의 몫이라 base64로 돌려준다.
  */
 export async function buildAgreementWorkbook(
@@ -549,7 +624,8 @@ export async function buildAgreementWorkbook(
     if (
       req.view === "attachment4" ||
       req.view === "adjustment" ||
-      req.view === "participants"
+      req.view === "participants" ||
+      req.view === "items"
     ) {
       const version = requireVersionOfProject(versions, req.versionId);
       const ctx: ViewContext = { client, project, years, versions, version, today };
@@ -558,7 +634,9 @@ export async function buildAgreementWorkbook(
           ? await attachment4Workbook(ctx)
           : req.view === "adjustment"
             ? await adjustmentWorkbook(ctx)
-            : await participantsWorkbook(ctx);
+            : req.view === "participants"
+              ? await participantsWorkbook(ctx)
+              : await itemsWorkbook(ctx);
       return { ok: true, data: await encode(workbook) };
     }
 
@@ -571,13 +649,17 @@ export async function buildAgreementWorkbook(
       ...new Set([from.id, to.id, ...(base === null ? [] : [base.id])]),
     ];
 
-    const [lines, participants, members] = await Promise.all([
+    const [lines, participants, members, preservationRule] = await Promise.all([
       agreementsRepo.listLinesByVersionIds(client, versionIds),
       agreementsRepo.listParticipantsByVersionIds(client, [
         ...new Set([from.id, to.id]),
       ]),
       membersRepo.listMembers(client, pid),
+      budgetRulesRepo.getByCode(client, pid, "preserve_subcategory_totals"),
     ]);
+    // 행이 없으면 켜진 것으로 본다(S-7 — Phase 24 동작 유지). 꺼짐은 행이 있고 enabled=false일 때만
+    const preservationOff =
+      preservationRule !== null && !preservationRule.enabled;
     const workbook = computeOrCorrupt(() => {
       const linesOf = (versionId: string) =>
         lines.filter((line) => line.versionId === versionId);
@@ -600,17 +682,45 @@ export async function buildAgreementWorkbook(
         ),
         { years, members, from, to },
       );
-      const preservation = checkSubcategoryPreservation(
-        linesOf(to.id),
-        base === null ? null : { versionId: base.id, lines: linesOf(base.id) },
-      );
-      const preservationTable = buildPreservationTable(preservation, {
-        target: to,
-        base,
-      });
+      let preservationTable: TableModel;
+      if (preservationOff) {
+        // 열은 판정한 표와 같게 둔다(기준 버전 이름 없이) — 칸에는 숫자 없이 상태 문구 한 행
+        const shape = buildPreservationTable(
+          { status: "no-base" },
+          { target: to, base: null },
+        );
+        preservationTable = {
+          ...shape,
+          title: `세목 총액 보존 — ${to.name} (${PRESERVATION_RULE_OFF_TEXT})`,
+          rows: [
+            {
+              kind: "data",
+              cells: shape.columns.map((column, c) =>
+                c === 0
+                  ? { kind: "text", text: PRESERVATION_RULE_OFF_TEXT }
+                  : column.type === "amount"
+                    ? { kind: "empty" }
+                    : { kind: "text", text: "" },
+              ),
+            },
+          ],
+        };
+      } else {
+        const preservation = checkSubcategoryPreservation(
+          linesOf(to.id),
+          base === null
+            ? null
+            : { versionId: base.id, lines: linesOf(base.id) },
+        );
+        preservationTable = buildPreservationTable(preservation, {
+          target: to,
+          base,
+        });
+      }
 
-      const preservationBody =
-        base === null
+      const preservationBody = preservationOff
+        ? `${PRESERVATION_RULE_OFF_TEXT} — 연구비 사용 규칙에서 세목 총액 보존(RL-23)이 꺼져 있어 이후 버전 '${to.name}'의 세목 총액을 기준 버전과 비교하지 않았습니다("기준 버전 없음"·경고 0건과 다릅니다). 규칙을 켜면 다시 판정합니다.`
+        : base === null
           ? `이후 버전 '${to.name}'보다 앞선 확정 버전이 없어 기준 버전이 없습니다 — 세목 총액을 비교하지 않았습니다(경고 0건과 다릅니다).`
           : `이후 버전 '${to.name}'을 기준 버전 '${base.name}'(${describeVersion(base)})과 (비목, 세목, 구분)별 전 연차 합으로 비교했습니다. ` +
             "기준 버전은 앞선 확정 최종협약본 중 가장 최근, 없으면 직전 확정 버전입니다 — 위 비교 기준 버전과 별개입니다. " +

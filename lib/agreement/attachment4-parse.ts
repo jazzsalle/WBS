@@ -62,6 +62,7 @@ export type Attachment4IssueCode =
   | 'invalid_amount'           // 문자·수식 에러·비정수
   | 'negative_amount'
   | 'no_amounts'               // 고른 블록에서 만들 금액 줄이 0개 — 0원 버전을 만들지 않는다
+  | 'lab_safety_exceeds_indirect' // 내역 행(연구실 안전관리비) 값 > 상위 행(간접비 L) 값 — L default 줄이 음수가 된다
   | 'plan81_row_out_of_range'  // plan81Row가 후보 밖
   | 'plan81_invalid_amount';   // 고른 8-1 행의 정부지원 현금(A)이 0 이상 정수가 아니다
 
@@ -79,7 +80,7 @@ export type Attachment4WarningCode =
   | 'year_count_mismatch'       // N차년도 열 수 ≠ 과제 연차 수
   | 'aggregate_mismatch'        // 집계 행(인건비 소계·E1·E2·K·M) ≠ 가져온 데이터 합
   | 'aggregate_unreadable'      // 집계 칸을 숫자로 못 읽어 대조하지 못했다
-  | 'memo_nonzero'              // (간접비 중 연구실 안전관리비) 값 ≠ 0 — 반영하지 않는다(U-3)
+  | 'memo_nonzero'              // memo 행 값 ≠ 0 — 반영하지 않는다(C.4.1 ②, Phase 26부터 memo 행 없음)
   | 'duplicate_key'             // 같은 (연차, 비목, 세목, 축)이 두 행에서 왔다 — 합산
   | 'extra_column_unreadable'   // 남는 연차 열의 칸을 못 읽었다(반영 대상 아님)
   | 'plan81_unavailable'        // 8-1 시트·머리를 못 찾았다 — 정부지원 현금 없음
@@ -302,6 +303,21 @@ interface BlockParse {
   axisTotals: { cash: number; inKind: number }[];
 }
 
+/**
+ * 내역 행의 상위 data 행 = 같은 비목 전체를 받는 data 행(C.4.1 — lab_safety → 간접비 L). 대응표가 바뀌어
+ * 상위 행이 없거나 둘이면 상수가 틀린 것이라 던진다
+ */
+function breakdownParent(def: Attachment4FormRowDef): Attachment4FormRowDef {
+  const category = def.importTarget!.category;
+  const parents = ATTACHMENT4_FORM_ROWS.filter(
+    (r) => r.kind === 'data' && r.importTarget?.category === category && r.sources.some((s) => s.category === category && s.subcategoryCodes === 'all')
+  );
+  if (parents.length !== 1 || parents[0]!.axes !== 'combined') {
+    throw new Error(`부록 C.4 대응표: 내역 행 '${def.id}'의 상위 data 행을 하나로 정할 수 없습니다.`);
+  }
+  return parents[0]!;
+}
+
 // 양식 집계 행의 식(실측 수식과 같다 — 통합관리비(현금) 행은 K에 들어가지 않는다)
 const AGGREGATE_PARTS: Partial<Record<Attachment4RowId, readonly Attachment4RowId[]>> = {
   personnel_subtotal: ['personnel_internal', 'personnel_external', 'personnel_support'],
@@ -333,6 +349,11 @@ function parseBlock(
   const rowTotals = Array.from({ length: mapped }, () => new Map<Attachment4RowId, number>());
   const axisTotals = Array.from({ length: mapped }, () => ({ cash: 0, inKind: 0 }));
   const aggregateCells: { def: Attachment4FormRowDef; row: number }[] = [];
+  // 내역 행 값(연차별) — 블록을 다 읽은 뒤 상위 행 default 줄에서 뺀다(행 순서와 무관하게)
+  const breakdownCells = new Map<string, { def: Attachment4FormRowDef; yearIndex: number; amount: number; where: { row: number; col: number } }>();
+  // data 행의 첫 칸 위치(문구용)·못 읽은 칸 — 상위 칸을 못 읽었으면 그 이슈가 이미 막으므로 초과 판정을 겹쳐 내지 않는다
+  const parentCells = new Map<string, { row: number; col: number }>();
+  const unreadable = new Set<string>();
   let extraSum = 0;
   const where = (row: number, col: number) => `'${sheet.name}' ${block.label} 블록 ${a1(row, col)}`;
 
@@ -396,8 +417,9 @@ function parseBlock(
       continue;
     }
 
-    // data — 가져오기 대상이 없는 data 행(양식 밖 비목)은 양식에 라벨이 없어 여기 오지 않는다
+    // data·breakdown — 가져오기 대상이 없는 data 행(양식 밖 비목)은 양식에 라벨이 없어 여기 오지 않는다
     const target = def.importTarget!;
+    const isBreakdown = def.kind === 'breakdown';
     const axis: DetailAxis = def.axes === 'split' ? (matchAxis ?? 'cash') : 'cash';
     yearCols.forEach((c, i) => {
       const cell = row[c];
@@ -405,7 +427,8 @@ function parseBlock(
       const parsed = parseAmountCell(cell, unit);
       const label = `${def.label}${def.subLabel ? ` ${def.subLabel}` : ''}${def.axes === 'split' ? ` ${axis === 'cash' ? '현금' : '현물'}` : ''}`;
       if (i >= mapped) {
-        if (parsed.ok) extraSum += parsed.amount!;
+        // 내역 금액은 상위 행 합에 이미 들어 있다 — 남는 열 합계에 다시 더하지 않는다
+        if (parsed.ok) extraSum += isBreakdown ? 0 : parsed.amount!;
         else {
           warnings.push({
             code: 'extra_column_unreadable',
@@ -418,6 +441,7 @@ function parseBlock(
         return;
       }
       if (!parsed.ok || parsed.rounded) {
+        unreadable.add(`${def.id}|${i}`);
         issues.push({
           code: 'invalid_amount',
           message: parsed.ok
@@ -439,9 +463,27 @@ function parseBlock(
         return;
       }
       if (amount === 0) return;
-      rowTotals[i]!.set(def.id, (rowTotals[i]!.get(def.id) ?? 0) + amount);
-      if (axis === 'cash') axisTotals[i]!.cash += amount;
-      else axisTotals[i]!.inKind += amount;
+      if (isBreakdown) {
+        const prev = breakdownCells.get(`${def.id}|${i}`);
+        if (prev !== undefined && prev.amount > 0 && !duplicateWarned.has(`${def.id}|${i}`)) {
+          duplicateWarned.add(`${def.id}|${i}`);
+          warnings.push({
+            code: 'duplicate_key',
+            message: `${where(r, c)}: '${label}' ${years[i]!.name}이 블록 안에 두 번 있어 금액을 합칩니다.`,
+            sheet: sheet.name,
+            cell: a1(r, c),
+            difference: null,
+          });
+        }
+        breakdownCells.set(`${def.id}|${i}`, { def, yearIndex: i, amount: (prev?.amount ?? 0) + amount, where: prev?.where ?? { row: r, col: c } });
+        return;
+      } else {
+        rowTotals[i]!.set(def.id, (rowTotals[i]!.get(def.id) ?? 0) + amount);
+        if (axis === 'cash') axisTotals[i]!.cash += amount;
+        else axisTotals[i]!.inKind += amount;
+        const prev = parentCells.get(`${def.id}|${i}`);
+        if (prev === undefined) parentCells.set(`${def.id}|${i}`, { row: r, col: c });
+      }
 
       const yearId = years[i]!.id;
       const key = `${yearId}|${target.category}|${target.subcategoryCode}|${axis}`;
@@ -461,6 +503,34 @@ function parseBlock(
       } else {
         lines.set(key, { yearId, category: target.category, subcategoryCode: target.subcategoryCode, axis, amount });
       }
+    });
+  }
+
+  // C.4.1 ② breakdown: 내역 값은 자기 세목 현금 줄이 되고 상위 data 행의 default 현금 줄을 그만큼 줄인다 —
+  // 상위 행 합 = 파일 값(이중 계산 0). rowTotals·axisTotals는 파일 L 그대로라 집계·8-1 대조가 바뀌지 않는다
+  for (const { def, yearIndex: i, amount, where: at } of breakdownCells.values()) {
+    if (unreadable.has(`${def.id}|${i}`)) continue;
+    const target = def.importTarget!;
+    const parent = breakdownParent(def);
+    if (unreadable.has(`${parent.id}|${i}`)) continue;
+    const yearId = years[i]!.id;
+    const parentKey = `${yearId}|${parent.importTarget!.category}|${parent.importTarget!.subcategoryCode}|cash`;
+    const parentAmount = lines.get(parentKey)?.amount ?? 0;
+    const rest = parentAmount - amount;
+    if (rest < 0) {
+      const parentAt = parentCells.get(`${parent.id}|${i}`);
+      issues.push({
+        code: 'lab_safety_exceeds_indirect',
+        message: `${where(at.row, at.col)}: '${def.label}' ${years[i]!.name} ${won(amount)}이 '${parent.label}'${parentAt ? `(${a1(parentAt.row, parentAt.col)})` : ''} ${won(parentAmount)}보다 큽니다 — 내역은 ${parent.label} 안의 금액이라 더 클 수 없습니다. 파일을 고친 뒤 다시 올리세요.`,
+        sheet: sheet.name,
+        cell: a1(at.row, at.col),
+      });
+      continue;
+    }
+    if (rest === 0) lines.delete(parentKey);
+    else lines.get(parentKey)!.amount = rest;
+    lines.set(`${yearId}|${target.category}|${target.subcategoryCode}|cash`, {
+      yearId, category: target.category, subcategoryCode: target.subcategoryCode, axis: 'cash', amount,
     });
   }
 

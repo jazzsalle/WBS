@@ -367,14 +367,17 @@ describe('행 종류·금액 (S-13 ⑥~⑧)', () => {
     expect(result.lines).toEqual(VERSION_A_LINES);
   });
 
-  it('연구실 안전관리비 행 값 ≠ 0 → 경고, 줄 0 (U-3 memo)', () => {
+  it('연구실 안전관리비 행 값 ≠ 0 → 내역 행: indirect_lab_safety 현금 줄 + L default 차감, 경고 0 (Phase 26 breakdown)', () => {
     const sheets = load('synthetic.json');
     set(sheets, S82, 'D40', '(간접비 중 연구실 안전관리비)');
     set(sheets, S82, 'H40', 300);
     const result = ok(parseAttachment4({ sheets, years: YEARS2, blockIndex: 0 }));
-    expect(result.warnings.map((w) => [w.code, w.cell])).toEqual([['memo_nonzero', 'H40']]);
-    expect(result.warnings[0]!.message).toContain('300,000원');
-    expect(result.lines).toEqual(VERSION_A_LINES);
+    expect(result.warnings).toEqual([]);
+    expect(result.lines.filter((l) => l.yearId === 'Y1' && l.category === 'indirect')).toEqual([
+      { yearId: 'Y1', category: 'indirect', subcategoryCode: 'default', axis: 'cash', amount: 2_200_000 },
+      { yearId: 'Y1', category: 'indirect', subcategoryCode: 'indirect_lab_safety', axis: 'cash', amount: 300_000 },
+    ]);
+    expect(total(result.lines)).toBe(105_200_000);
   });
 
   it('괄호 내역 행의 가운뎃점 변형(`·`)도 같은 행으로 본다', () => {

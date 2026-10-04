@@ -319,7 +319,7 @@ function ruleFindingNotice(
     where = '과제 전체';
   } else if (finding.scope.kind === 'year') {
     where = yearLabelOf(years, finding.scope.yearId);
-  } else {
+  } else if (finding.scope.kind === 'detail') {
     const detailId = finding.scope.detailId;
     // 양식 행은 미리보기 키(새 행) 또는 detailId(기존 행), 유지 비목 행은 저장된 id로 찾는다
     const formRow = preview.rows.find((row) => (row.detailId ?? row.key) === detailId);
@@ -327,6 +327,9 @@ function ruleFindingNotice(
     const target = formRow ?? stored;
     const rowName = target ? rowLabel(target, members) : '(알 수 없는 행)';
     where = `${yearLabelOf(years, finding.scope.yearId)} · ${rowName}`;
+  } else {
+    // 제안 경로 입력에는 행 origin이 없어 참여인원·편성 항목 scope가 나오지 않는다 — 나오면 행을 모른다고 적는다
+    where = `${yearLabelOf(years, finding.scope.yearId)} · (알 수 없는 행)`;
   }
   return {
     code: finding.code,
